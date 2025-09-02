@@ -1,0 +1,69 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -92.767,
+          42.361
+        ]
+      },
+      "properties": {
+        "Name": "Helena Agronomy Center",
+        "Category": "Agronomy Center",
+        "Retailer": "Helena",
+        "MotherShip": "Helena HQ"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -92.342,
+          42.492
+        ]
+      },
+      "properties": {
+        "Name": "CHS Office \u2014 Waterloo",
+        "Category": "Office",
+        "Retailer": "CHS",
+        "MotherShip": "CHS HQ"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -92.445,
+          42.527
+        ]
+      },
+      "properties": {
+        "Name": "WinField Partner \u2014 Cedar Falls",
+        "Category": "Agronomy Center",
+        "Retailer": "WinField",
+        "MotherShip": "WinField"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -93.619,
+          42.034
+        ]
+      },
+      "properties": {
+        "Name": "Growmark Kingpin",
+        "Category": "Kingpin",
+        "Retailer": "Growmark FS",
+        "MotherShip": "Growmark"
+      }
+    }
+  ]
+}
