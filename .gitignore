@@ -1,0 +1,3 @@
+﻿# Ignore large/installer archives
+*.7z.exe
+PortableGit*.7z.exe
