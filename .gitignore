@@ -1,3 +1,7 @@
-﻿# Ignore large/installer archives
+﻿node_modules/
+.next/
+out/
+.env*
+data/geocode-cache.json
 *.7z.exe
 PortableGit*.7z.exe
