@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "certis_agroute_app",
   "private": true,
   "version": "0.1.0",
@@ -21,3 +21,4 @@
     "typescript": "^5.5.0"
   }
 }
+
