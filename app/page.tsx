@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 const Map = dynamic(() => import('../components/Map'), { ssr: false })
@@ -109,8 +109,8 @@ export default function Page() {
 
   return (
     <main style={{padding:24}}>
-      <h1 style={{fontSize:24, fontWeight:700, marginBottom:8}}>certis_agroute_app — Mapbox (GitHub Pages)</h1>
-      <p style={{opacity:.75, marginBottom:16}}>Filter by State, Retailer, Category → Build optimized legs (≤12 each).</p>
+      <h1 style={{fontSize:24, fontWeight:700, marginBottom:8}}>certis_agroute_app â€” Mapbox (GitHub Pages)</h1>
+      <p style={{opacity:.75, marginBottom:16}}>Filter by State, Retailer, Category â†’ Build optimized legs (â‰¤12 each).</p>
 
       <div style={{display:'flex', gap:12, flexWrap:'wrap', alignItems:'center', marginBottom:12}}>
         <button onClick={loadGeoJSON}>Reload data</button>
@@ -151,3 +151,4 @@ export default function Page() {
     </main>
   )
 }
+
