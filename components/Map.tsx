@@ -3,17 +3,21 @@ import mapboxgl from 'mapbox-gl'
 import { useEffect, useRef } from 'react'
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string
 
-export default function Map({ geojson, filters }: { geojson: any, filters?: {category?: string, retailer?: string} }) {
+export default function Map({ geojson }: { geojson: any }) {
   const ref = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<mapboxgl.Map | null>(null)
+
+  // Create the map once
   useEffect(() => {
-    if (!ref.current) return
+    if (!ref.current || mapRef.current) return
     const map = new mapboxgl.Map({
       container: ref.current,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
+      style: 'mapbox://styles/mapbox/satellite-streets-v12', // or streets-v12
       center: [-93.5, 41.7],
       zoom: 4.2,
       cooperativeGestures: true
     })
+    mapRef.current = map
 
     map.on('load', () => {
       map.addSource('partners', { type:'geojson', data: geojson, cluster:true, clusterRadius:40 })
@@ -56,12 +60,12 @@ export default function Map({ geojson, filters }: { geojson: any, filters?: {cat
         }
       })
 
-      // Fit to data
+      // Fit to current data
       const b = new mapboxgl.LngLatBounds()
       geojson.features.forEach((f:any)=> b.extend(f.geometry.coordinates))
       if (!b.isEmpty()) map.fitBounds(b, { padding: 40, duration: 800 })
 
-      // Cluster zoom on click
+      // Click interactions
       map.on('click', 'clusters', (e:any) => {
         const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] })
         const clusterId = features[0].properties!.cluster_id
@@ -70,8 +74,6 @@ export default function Map({ geojson, filters }: { geojson: any, filters?: {cat
           map.easeTo({ center: (features[0].geometry as any).coordinates, zoom })
         })
       })
-
-      // Popup for points
       map.on('click', 'unclustered', (e:any) => {
         const f = e.features[0]
         const p = f.properties as any
@@ -92,19 +94,21 @@ export default function Map({ geojson, filters }: { geojson: any, filters?: {cat
       map.on('mouseleave','unclustered',()=> map.getCanvas().style.cursor='')
     })
 
-    return () => map.remove()
-  }, [geojson])
+    return () => { map.remove(); mapRef.current = null }
+  }, [])
 
-  // Apply filters when they change
+  // ✅ When the filtered geojson changes, update the source + refit
   useEffect(() => {
-    const m = (ref.current as any)?._map as mapboxgl.Map | undefined
-    if (!m || !m.getLayer('unclustered')) return
-    const cat = filters?.category && filters.category !== 'All'
-      ? ['==',['get','Category'], filters!.category] : true
-    const ret = filters?.retailer && filters.retailer !== 'All'
-      ? ['==',['get','Retailer'], filters!.retailer] : true
-    m.setFilter('unclustered', ['all', ['!', ['has','point_count']], cat, ret])
-  }, [filters])
+    const map = mapRef.current
+    if (!map) return
+    const src = map.getSource('partners') as mapboxgl.GeoJSONSource
+    if (!src) return
+    src.setData(geojson)
+
+    const b = new mapboxgl.LngLatBounds()
+    geojson.features.forEach((f:any)=> b.extend(f.geometry.coordinates))
+    if (!b.isEmpty()) map.fitBounds(b, { padding: 40, duration: 400 })
+  }, [geojson])
 
   return <div ref={ref} style={{height:'100%', width:'100%'}} />
 }
