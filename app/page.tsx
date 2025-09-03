@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 const Map = dynamic(() => import('../components/Map'), { ssr: false })
@@ -67,7 +67,7 @@ export default function Page() {
     if (!data || data.features.length < 2) return alert('Select at least two points.')
 
     // group by state, then chunk into legs <= 12
-    const byState = new Map<string, any[]>()
+    const byState = new globalThis.Map<string, any[]>()
     for (const f of data.features) {
       const st = f.properties?.State || 'UNK'
       if (!byState.has(st)) byState.set(st, [])
