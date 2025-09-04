@@ -2,8 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
-import type { MapMouseEvent } from "mapbox-gl";
+import mapboxgl, { Map as MapboxMap, MapMouseEvent } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Feature, FeatureCollection, Point } from "geojson";
 import { colorForRetailer, iconUrlCandidates } from "@/utils/retailerStyles";
@@ -14,7 +13,7 @@ type ProjectionMode = "mercator" | "globe";
 
 export interface MapProps {
   data?: FeatureCollection<Point, RetailerProps>;
-  dataUrl?: string;
+  dataUrl?: string; // optional: load by URL if not passing data directly
   mapboxToken?: string;
   mapStyle?: string;
   markerStyle?: MarkerStyle;
@@ -26,6 +25,8 @@ export interface MapProps {
   initialCenter?: [number, number];
   initialZoom?: number;
   onReady?: () => void;
+
+  // Home / pick-home
   home?: { lng: number; lat: number; label?: string } | null;
   enableHomePick?: boolean;
   onPickHome?: (lng: number, lat: number) => void;
@@ -57,7 +58,8 @@ export default function AgMap({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
-  // Use globalThis.Map so built-in Map is never shadowed
+
+  // Use globalThis.Map so the built-in Map is never shadowed by component names/imports
   const markerPoolRef = useRef<globalThis.Map<string, mapboxgl.Marker>>(
     new globalThis.Map<string, mapboxgl.Marker>()
   );
@@ -68,7 +70,7 @@ export default function AgMap({
     data || null
   );
 
-  // Load external data if dataUrl provided
+  // Load external data if a URL is provided and no data prop
   useEffect(() => {
     let cancelled = false;
     if (!geojson && dataUrl) {
@@ -90,7 +92,7 @@ export default function AgMap({
     };
   }, [dataUrl, geojson]);
 
-  // If parent passes data directly
+  // If the parent passes data directly, keep it in sync
   useEffect(() => {
     if (data) setGeojson(data);
   }, [data]);
@@ -132,11 +134,13 @@ export default function AgMap({
 
     map.on("load", onInitialLoad);
     map.on("style.load", () => {
+      // When style changes (e.g., basemap switch), re-add sources/layers and re-apply options
       applyProjectionAndRotation(map, projection, allowRotate);
       ensureSourcesAndLayers(map, showLabels, labelColor);
       if (rasterSharpen) tweakSatellitePaint(map);
     });
 
+    // Pick Home (Mapbox GL JS v3 typings: use MapMouseEvent)
     const clickHandler = (e: MapMouseEvent) => {
       if (!enableHomePick || !onPickHome) return;
       const { lng, lat } = e.lngLat;
@@ -146,6 +150,7 @@ export default function AgMap({
 
     mapRef.current = map;
     return () => {
+      // cleanup markers and map
       markerPoolRef.current.forEach((m) => m.remove());
       markerPoolRef.current.clear();
       if (homeMarkerRef.current) {
@@ -159,17 +164,19 @@ export default function AgMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Style / projection / rotation toggles
+  // Basemap/style changes
   useEffect(() => {
     const m = mapRef.current;
     if (m) m.setStyle(mapStyle);
   }, [mapStyle]);
 
+  // Projection / rotation toggles
   useEffect(() => {
     const m = mapRef.current;
     if (m) applyProjectionAndRotation(m, projection, allowRotate);
   }, [projection, allowRotate]);
 
+  // Raster sharpening toggle (satellite only)
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
@@ -181,11 +188,13 @@ export default function AgMap({
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
 
+    // Update source data
     if (geojson) {
       const src = m.getSource("retailers") as mapboxgl.GeoJSONSource | undefined;
       if (src) src.setData(geojson);
     }
 
+    // Render cycle: keep DOM markers in sync with visible features
     const handleRender = () => updateVisibleMarkers(m, markerStyle);
     m.on("render", handleRender);
     return () => {
@@ -195,10 +204,11 @@ export default function AgMap({
     };
   }, [geojson, markerStyle]);
 
-  // Home marker (FIX: no setElement; update DOM title and position instead)
+  // Home marker
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
+
     if (!home) {
       if (homeMarkerRef.current) {
         homeMarkerRef.current.remove();
@@ -206,22 +216,22 @@ export default function AgMap({
       }
       return;
     }
-    const el = createHomeMarkerEl(home.label);
+
     if (homeMarkerRef.current) {
-      // Move existing marker and update its DOM element title
+      // Move existing marker and update tooltip
       homeMarkerRef.current.setLngLat([home.lng, home.lat]);
       try {
-        const existing = homeMarkerRef.current.getElement();
-        existing.title = home.label || "Home";
+        homeMarkerRef.current.getElement().title = home.label || "Home";
       } catch {}
     } else {
+      const el = createHomeMarkerEl(home.label);
       homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([home.lng, home.lat])
         .addTo(m);
     }
   }, [home]);
 
-  // UI overlays
+  // Small UI overlays
   const loader = useMemo(() => {
     if (!geojson && !fetchError) {
       return (
@@ -248,7 +258,7 @@ export default function AgMap({
   }, [geojson, fetchError, enableHomePick]);
 
   return (
-    <div className="relative h-[calc(100vh-8rem)] w-full rounded-2xl overflow-hidden border border-gray-200">
+    <div className="relative h-[calc(100vh-8rem)] w-full overflow-hidden rounded-2xl border border-gray-200">
       {loader}
       <div ref={containerRef} className="h-full w-full" />
       <div
@@ -260,8 +270,10 @@ export default function AgMap({
     </div>
   );
 
-  // ---------- internals ----------
+  // ────────────────────────── internals ──────────────────────────
+
   function ensureSourcesAndLayers(map: MapboxMap, showLbls: boolean, lblColor: string) {
+    // Source
     if (!map.getSource("retailers")) {
       map.addSource("retailers", {
         type: "geojson",
@@ -271,6 +283,8 @@ export default function AgMap({
         clusterRadius: 48,
       });
     }
+
+    // Cluster circles
     if (!map.getLayer("clusters")) {
       map.addLayer({
         id: "clusters",
@@ -285,6 +299,8 @@ export default function AgMap({
         },
       });
     }
+
+    // Cluster counts
     if (!map.getLayer("cluster-count")) {
       map.addLayer({
         id: "cluster-count",
@@ -299,6 +315,8 @@ export default function AgMap({
         paint: { "text-color": "#ffffff" },
       });
     }
+
+    // Tiny hit circle for unclustered points (we render DOM markers; this stays invisible)
     if (!map.getLayer("unclustered-point")) {
       map.addLayer({
         id: "unclustered-point",
@@ -308,6 +326,8 @@ export default function AgMap({
         paint: { "circle-radius": 0.1, "circle-color": "#000", "circle-opacity": 0.01 },
       });
     }
+
+    // Optional labels
     if (showLbls && !map.getLayer("retailer-labels")) {
       map.addLayer({
         id: "retailer-labels",
@@ -331,6 +351,7 @@ export default function AgMap({
       });
     }
 
+    // Cluster interactions
     map.on("click", "clusters", (e) => {
       const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
       const clusterId = (features?.[0]?.properties as any)?.cluster_id;
@@ -356,15 +377,18 @@ export default function AgMap({
 
   function updateVisibleMarkers(map: MapboxMap, style: MarkerStyle) {
     if (!map.getLayer("unclustered-point")) return;
+
     const features = map.queryRenderedFeatures({
       layers: ["unclustered-point"],
     }) as unknown as Feature<Point, RetailerProps>[];
+
     const nextKeys = new Set<string>();
 
     for (const f of features) {
       if (!f?.geometry?.coordinates) continue;
       const key = makeKey(f);
       nextKeys.add(key);
+
       if (markerPoolRef.current.has(key)) continue;
 
       const p = f.properties || {};
@@ -399,6 +423,8 @@ export default function AgMap({
 
       markerPoolRef.current.set(key, marker);
     }
+
+    // Remove markers that are no longer visible
     for (const [key, m] of markerPoolRef.current.entries()) {
       if (!nextKeys.has(key)) {
         m.remove();
@@ -495,17 +521,29 @@ export default function AgMap({
   }
 }
 
+// ───────── helpers ─────────
 function pick(obj: any, keys: string[]) {
-  for (const k of keys) if (obj && typeof obj[k] === "string" && obj[k].trim()) return String(obj[k]).trim();
+  for (const k of keys) {
+    if (obj && typeof obj[k] === "string" && obj[k].trim()) return String(obj[k]).trim();
+  }
   return "";
 }
+
 function escapeHtml(s: string) {
-  return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!));
+  return String(s).replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[m]!));
 }
+
 function makeKey(f: Feature<Point, Record<string, any>>) {
   const p = f.properties || {};
-  the retailer = (p.retailer || p.Retailer || "").trim();
+  const retailer = (p.retailer || p.Retailer || "").trim();
   const name = (p.name || p.Name || "").trim();
-  const [lng, lat] = (f.geometry?.coordinates as [number, number]) || [0, 0];
+  const coords = f.geometry?.coordinates as [number, number] | undefined;
+  const [lng, lat] = coords ?? [0, 0];
   return `${retailer}|${name}|${lng.toFixed(5)},${lat.toFixed(5)}`;
 }
