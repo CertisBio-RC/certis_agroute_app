@@ -1,4 +1,4 @@
-// /components/Map.tsx
+// components/Map.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -25,14 +25,12 @@ export interface MapProps {
   initialCenter?: [number, number];
   initialZoom?: number;
   onReady?: () => void;
-
-  /** Home support */
   home?: { lng: number; lat: number; label?: string } | null;
   enableHomePick?: boolean;
   onPickHome?: (lng: number, lat: number) => void;
 }
 
-export default function Map({
+export default function AgMap({
   data,
   dataUrl,
   mapboxToken,
@@ -46,7 +44,6 @@ export default function Map({
   initialCenter = [-94.0, 41.9],
   initialZoom = 6,
   onReady,
-
   home = null,
   enableHomePick = false,
   onPickHome,
@@ -59,13 +56,13 @@ export default function Map({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
-  const markerPoolRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  // Use globalThis.Map so the built-in Map is never shadowed
+  const markerPoolRef = useRef<globalThis.Map<string, mapboxgl.Marker>>(new globalThis.Map<string, mapboxgl.Marker>());
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [geojson, setGeojson] = useState<FeatureCollection<Point, RetailerProps> | null>(data || null);
 
-  // Data fetch (optional)
   useEffect(() => {
     let cancelled = false;
     if (!geojson && dataUrl) {
@@ -85,10 +82,8 @@ export default function Map({
     return () => { cancelled = true; };
   }, [dataUrl, geojson]);
 
-  // Sync with parent
   useEffect(() => { if (data) setGeojson(data); }, [data]);
 
-  // Map init
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     if (!resolvedToken) console.error("Mapbox token missing.");
@@ -125,7 +120,6 @@ export default function Map({
       if (rasterSharpen) tweakSatellitePaint(map);
     });
 
-    // Pick Home by clicking the map when enabled
     const clickHandler = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
       if (!enableHomePick || !onPickHome) return;
       const { lng, lat } = e.lngLat;
@@ -145,26 +139,23 @@ export default function Map({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Basemap changes
   useEffect(() => { const m = mapRef.current; if (m) m.setStyle(mapStyle); }, [mapStyle]);
-
-  // Projection / rotation
   useEffect(() => { const m = mapRef.current; if (m) applyProjectionAndRotation(m, projection, allowRotate); }, [projection, allowRotate]);
 
-  // Sharpen imagery
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
     if (rasterSharpen) tweakSatellitePaint(m);
   }, [rasterSharpen]);
 
-  // Push data + markers
   useEffect(() => {
     const m = mapRef.current;
-    if (!m || !m.isStyleLoaded() || !geojson) return;
+    if (!m || !m.isStyleLoaded()) return;
 
-    const src = m.getSource("retailers") as mapboxgl.GeoJSONSource | undefined;
-    if (src) src.setData(geojson);
+    if (geojson) {
+      const src = m.getSource("retailers") as mapboxgl.GeoJSONSource | undefined;
+      if (src) src.setData(geojson);
+    }
 
     const handleRender = () => updateVisibleMarkers(m, markerStyle);
     m.on("render", handleRender);
@@ -175,7 +166,6 @@ export default function Map({
     };
   }, [geojson, markerStyle]);
 
-  // Home marker update
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
@@ -351,9 +341,7 @@ export default function Map({
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.style.width = "30px"; svg.style.height = "30px";
-    svg.innerHTML = `
-      <path d="M12 2l9 8h-3v10h-5V14H11v6H6V10H3l9-8z" fill="#10b981" stroke="#fff" stroke-width="1.5" />
-    `;
+    svg.innerHTML = `<path d="M12 2l9 8h-3v10h-5V14H11v6H6V10H3l9-8z" fill="#10b981" stroke="#fff" stroke-width="1.5" />`;
     wrap.appendChild(svg);
     return wrap;
   }
@@ -378,7 +366,6 @@ export default function Map({
   }
 }
 
-// helpers
 function pick(obj: any, keys: string[]) { for (const k of keys) if (obj && typeof obj[k] === "string" && obj[k].trim()) return String(obj[k]).trim(); return ""; }
 function escapeHtml(s: string) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!)); }
 function makeKey(f: Feature<Point, Record<string, any>>) {
