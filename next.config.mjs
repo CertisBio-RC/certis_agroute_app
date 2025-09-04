@@ -5,13 +5,16 @@ const nextConfig = {
   // Static export for GitHub Pages
   output: 'export',
 
-  // Ensure all routes and assets work under /certis_agroute_app/
+  // Serve the app under /certis_agroute_app on GitHub Pages
   basePath: `/${repo}`,
   assetPrefix: `/${repo}/`,
 
-  // Optional: if you use images with next/image, this avoids broken loaders on GH Pages
-  images: {
-    unoptimized: true,
+  // Next/Image has no optimizer on GH Pages
+  images: { unoptimized: true },
+
+  // Helpful in case something still references process.env on client
+  experimental: {
+    typedRoutes: false,
   },
 };
 
