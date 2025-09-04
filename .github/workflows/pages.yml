@@ -1,4 +1,5 @@
 ﻿name: Deploy Next.js to GitHub Pages
+
 on:
   push:
     branches: [ main ]
@@ -18,16 +19,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
-      - run: npm ci
-      - name: Build (static export)
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build (Next 15 static export)
         env:
           NEXT_PUBLIC_REPO_NAME: certis_agroute_app
+          NEXT_PUBLIC_MAPBOX_TOKEN: pk.eyJ1IjoiZG9jamJhaWxleTE5NzEiLCJhIjoiY21ld3lzZTNqMGQwdzJxb2lwNHpjcjNveiJ9.T2O5szdwL-O5nDF9BJmFnw
         run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
 
