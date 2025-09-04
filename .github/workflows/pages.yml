@@ -26,13 +26,13 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install
+      - name: Install dependencies
         run: npm install
 
-      - name: Build (static export)
+      - name: Build Next.js static export
         env:
-          NEXT_PUBLIC_REPO_NAME: certis_agroute_app
-          NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPBOX_TOKEN }}
+          NEXT_PUBLIC_REPO_NAME: ${{ secrets.REPO_NAME }}
+          NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
         run: npm run build
 
       - name: Upload artifact
