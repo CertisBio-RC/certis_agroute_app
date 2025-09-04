@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { BUILD_STAMP } from './build'   // ⬅️ add this line
 const Map = dynamic(() => import('../components/Map'), { ssr: false })
 
 type FC = { type: 'FeatureCollection', features: any[] }
@@ -109,8 +110,11 @@ export default function Page() {
 
   return (
     <main style={{padding:24}}>
-      <h1 style={{fontSize:24, fontWeight:700, marginBottom:8}}>certis_agroute_app â€” Mapbox (GitHub Pages)</h1>
-      <p style={{opacity:.75, marginBottom:16}}>Filter by State, Retailer, Category â†’ Build optimized legs (â‰¤12 each).</p>
+      <h1 style={{fontSize:24, fontWeight:700, marginBottom:8}}>certis_agroute_app — Mapbox (GitHub Pages)</h1>
+      {/* ⬇️ Build stamp under title */}
+      <p style={{opacity:.6, marginTop:0, marginBottom:12}}>{BUILD_STAMP}</p>
+
+      <p style={{opacity:.75, marginBottom:16}}>Filter by State, Retailer, Category → Build optimized legs (≤12 each).</p>
 
       <div style={{display:'flex', gap:12, flexWrap:'wrap', alignItems:'center', marginBottom:12}}>
         <button onClick={loadGeoJSON}>Reload data</button>
@@ -151,4 +155,3 @@ export default function Page() {
     </main>
   )
 }
-

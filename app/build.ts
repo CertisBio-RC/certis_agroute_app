@@ -1,1 +1,4 @@
-﻿export const BUILD_STAMP = "build: 2025-09-03T12:00Z"; // update automatically in CI later
+﻿// app/build.ts
+// Export a timestamp string whenever the project is built.
+// GitHub Actions will regenerate this each deploy.
+export const BUILD_STAMP: string = "build: " + new Date().toISOString();
