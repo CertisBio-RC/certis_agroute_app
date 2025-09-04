@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
+import type { MapMouseEvent } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Feature, FeatureCollection, Point } from "geojson";
 import { colorForRetailer, iconUrlCandidates } from "@/utils/retailerStyles";
@@ -56,13 +57,18 @@ export default function AgMap({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
-  // Use globalThis.Map so the built-in Map is never shadowed
-  const markerPoolRef = useRef<globalThis.Map<string, mapboxgl.Marker>>(new globalThis.Map<string, mapboxgl.Marker>());
+  // Use globalThis.Map so built-in Map is never shadowed
+  const markerPoolRef = useRef<globalThis.Map<string, mapboxgl.Marker>>(
+    new globalThis.Map<string, mapboxgl.Marker>()
+  );
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [geojson, setGeojson] = useState<FeatureCollection<Point, RetailerProps> | null>(data || null);
+  const [geojson, setGeojson] = useState<FeatureCollection<Point, RetailerProps> | null>(
+    data || null
+  );
 
+  // Load external data if dataUrl provided
   useEffect(() => {
     let cancelled = false;
     if (!geojson && dataUrl) {
@@ -79,11 +85,17 @@ export default function AgMap({
         }
       })();
     }
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [dataUrl, geojson]);
 
-  useEffect(() => { if (data) setGeojson(data); }, [data]);
+  // If parent passes data directly
+  useEffect(() => {
+    if (data) setGeojson(data);
+  }, [data]);
 
+  // Create map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     if (!resolvedToken) console.error("Mapbox token missing.");
@@ -104,7 +116,12 @@ export default function AgMap({
       showZoom: true,
     });
     map.addControl(nav, "top-right");
-    map.addControl(new mapboxgl.AttributionControl({ compact: true, customAttribution: "© Certis AgRoute" }));
+    map.addControl(
+      new mapboxgl.AttributionControl({
+        compact: true,
+        customAttribution: "© Certis AgRoute",
+      })
+    );
 
     const onInitialLoad = () => {
       applyProjectionAndRotation(map, projection, allowRotate);
@@ -120,7 +137,8 @@ export default function AgMap({
       if (rasterSharpen) tweakSatellitePaint(map);
     });
 
-    const clickHandler = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+    // FIX: Mapbox GL v3 – use MapMouseEvent only
+    const clickHandler = (e: MapMouseEvent) => {
       if (!enableHomePick || !onPickHome) return;
       const { lng, lat } = e.lngLat;
       onPickHome(lng, lat);
@@ -131,7 +149,10 @@ export default function AgMap({
     return () => {
       markerPoolRef.current.forEach((m) => m.remove());
       markerPoolRef.current.clear();
-      if (homeMarkerRef.current) { homeMarkerRef.current.remove(); homeMarkerRef.current = null; }
+      if (homeMarkerRef.current) {
+        homeMarkerRef.current.remove();
+        homeMarkerRef.current = null;
+      }
       map.off("click", clickHandler);
       map.remove();
       mapRef.current = null;
@@ -139,8 +160,16 @@ export default function AgMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { const m = mapRef.current; if (m) m.setStyle(mapStyle); }, [mapStyle]);
-  useEffect(() => { const m = mapRef.current; if (m) applyProjectionAndRotation(m, projection, allowRotate); }, [projection, allowRotate]);
+  // Style / projection / rotation toggles
+  useEffect(() => {
+    const m = mapRef.current;
+    if (m) m.setStyle(mapStyle);
+  }, [mapStyle]);
+
+  useEffect(() => {
+    const m = mapRef.current;
+    if (m) applyProjectionAndRotation(m, projection, allowRotate);
+  }, [projection, allowRotate]);
 
   useEffect(() => {
     const m = mapRef.current;
@@ -148,6 +177,7 @@ export default function AgMap({
     if (rasterSharpen) tweakSatellitePaint(m);
   }, [rasterSharpen]);
 
+  // Data and markers
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
@@ -166,21 +196,35 @@ export default function AgMap({
     };
   }, [geojson, markerStyle]);
 
+  // Home marker
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
     if (!home) {
-      if (homeMarkerRef.current) { homeMarkerRef.current.remove(); homeMarkerRef.current = null; }
+      if (homeMarkerRef.current) {
+        homeMarkerRef.current.remove();
+        homeMarkerRef.current = null;
+      }
       return;
     }
     const el = createHomeMarkerEl(home.label);
-    if (homeMarkerRef.current) { homeMarkerRef.current.setLngLat([home.lng, home.lat]).setElement(el); }
-    else { homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" }).setLngLat([home.lng, home.lat]).addTo(m); }
+    if (homeMarkerRef.current) {
+      homeMarkerRef.current.setLngLat([home.lng, home.lat]).setElement(el);
+    } else {
+      homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([home.lng, home.lat])
+        .addTo(m);
+    }
   }, [home]);
 
+  // UI overlays
   const loader = useMemo(() => {
     if (!geojson && !fetchError) {
-      return <div className="absolute left-3 top-3 z-10 rounded-xl bg-white/90 px-3 py-2 text-sm shadow">Loading data…</div>;
+      return (
+        <div className="absolute left-3 top-3 z-10 rounded-xl bg-white/90 px-3 py-2 text-sm shadow">
+          Loading data…
+        </div>
+      );
     }
     if (fetchError) {
       return (
@@ -203,7 +247,10 @@ export default function AgMap({
     <div className="relative h-[calc(100vh-8rem)] w-full rounded-2xl overflow-hidden border border-gray-200">
       {loader}
       <div ref={containerRef} className="h-full w-full" />
-      <div className="pointer-events-none absolute bottom-3 left-3 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-700 shadow" aria-hidden>
+      <div
+        className="pointer-events-none absolute bottom-3 left-3 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-700 shadow"
+        aria-hidden
+      >
         Markers: <b>{markerStyle === "logo" ? "Retailer logos" : "Retailer colors"}</b>
       </div>
     </div>
@@ -215,59 +262,99 @@ export default function AgMap({
       map.addSource("retailers", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
-        cluster: true, clusterMaxZoom: 14, clusterRadius: 48,
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 48,
       });
     }
     if (!map.getLayer("clusters")) {
       map.addLayer({
-        id: "clusters", type: "circle", source: "retailers", filter: ["has", "point_count"],
+        id: "clusters",
+        type: "circle",
+        source: "retailers",
+        filter: ["has", "point_count"],
         paint: {
           "circle-color": ["step", ["get", "point_count"], "#93c5fd", 10, "#60a5fa", 30, "#3b82f6", 60, "#1d4ed8"],
           "circle-radius": ["step", ["get", "point_count"], 16, 10, 20, 30, 24, 60, 28],
-          "circle-stroke-color": "#ffffff", "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2,
         },
       });
     }
     if (!map.getLayer("cluster-count")) {
       map.addLayer({
-        id: "cluster-count", type: "symbol", source: "retailers", filter: ["has", "point_count"],
-        layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"], "text-size": 12 },
+        id: "cluster-count",
+        type: "symbol",
+        source: "retailers",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+          "text-size": 12,
+        },
         paint: { "text-color": "#ffffff" },
       });
     }
     if (!map.getLayer("unclustered-point")) {
       map.addLayer({
-        id: "unclustered-point", type: "circle", source: "retailers", filter: ["!", ["has", "point_count"]],
+        id: "unclustered-point",
+        type: "circle",
+        source: "retailers",
+        filter: ["!", ["has", "point_count"]],
         paint: { "circle-radius": 0.1, "circle-color": "#000", "circle-opacity": 0.01 },
       });
     }
     if (showLbls && !map.getLayer("retailer-labels")) {
       map.addLayer({
-        id: "retailer-labels", type: "symbol", source: "retailers", filter: ["!", ["has", "point_count"]],
+        id: "retailer-labels",
+        type: "symbol",
+        source: "retailers",
+        filter: ["!", ["has", "point_count"]],
         layout: {
           "text-field": ["coalesce", ["get", "Name"], ["get", "name"], ["get", "Retailer"], ["get", "retailer"], ""],
-          "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"], "text-size": 12,
-          "text-offset": [0, 1.4], "text-anchor": "top", "text-allow-overlap": true
+          "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+          "text-size": 12,
+          "text-offset": [0, 1.4],
+          "text-anchor": "top",
+          "text-allow-overlap": true,
         },
-        paint: { "text-color": lblColor, "text-halo-color": "#000", "text-halo-width": 1.25, "text-halo-blur": 0.2 }
+        paint: {
+          "text-color": lblColor,
+          "text-halo-color": "#000",
+          "text-halo-width": 1.25,
+          "text-halo-blur": 0.2,
+        },
       });
     }
+
     map.on("click", "clusters", (e) => {
       const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
-      const clusterId = features?.[0]?.properties?.cluster_id;
+      const clusterId = (features?.[0]?.properties as any)?.cluster_id;
       if (clusterId == null) return;
-      (map.getSource("retailers") as mapboxgl.GeoJSONSource).getClusterExpansionZoom(clusterId, (err, zoom) => {
-        if (err) return;
-        map.easeTo({ center: (features[0].geometry as Point).coordinates as [number, number], zoom });
-      });
+      (map.getSource("retailers") as mapboxgl.GeoJSONSource).getClusterExpansionZoom(
+        clusterId,
+        (err, zoom) => {
+          if (err) return;
+          map.easeTo({
+            center: (features[0].geometry as any).coordinates as [number, number],
+            zoom,
+          });
+        }
+      );
     });
-    map.on("mouseenter", "clusters", () => { map.getCanvas().style.cursor = "pointer"; });
-    map.on("mouseleave", "clusters", () => { map.getCanvas().style.cursor = ""; });
+    map.on("mouseenter", "clusters", () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", "clusters", () => {
+      map.getCanvas().style.cursor = "";
+    });
   }
 
   function updateVisibleMarkers(map: MapboxMap, style: MarkerStyle) {
     if (!map.getLayer("unclustered-point")) return;
-    const features = map.queryRenderedFeatures({ layers: ["unclustered-point"] }) as unknown as Feature<Point, RetailerProps>[];
+    const features = map.queryRenderedFeatures({
+      layers: ["unclustered-point"],
+    }) as unknown as Feature<Point, RetailerProps>[];
     const nextKeys = new Set<string>();
 
     for (const f of features) {
@@ -277,18 +364,21 @@ export default function AgMap({
       if (markerPoolRef.current.has(key)) continue;
 
       const p = f.properties || {};
-      const retailer = pick(p, ["retailer","Retailer"]);
-      const name = pick(p, ["name","Name"]);
-      const city = pick(p, ["city","City"]);
-      const state = pick(p, ["state","State"]);
-      const category = pick(p, ["category","Category"]);
+      const retailer = pick(p, ["retailer", "Retailer"]);
+      const name = pick(p, ["name", "Name"]);
+      const city = pick(p, ["city", "City"]);
+      const state = pick(p, ["state", "State"]);
+      const category = pick(p, ["category", "Category"]);
       const color = colorForRetailer(retailer);
 
       const el = createMarkerEl(retailer, name, city, color, style);
-      el.title = [name || retailer || "Location", city && state ? `${city}, ${state}` : city || state, category].filter(Boolean).join(" • ");
+      el.title = [name || retailer || "Location", city && state ? `${city}, ${state}` : city || state, category]
+        .filter(Boolean)
+        .join(" • ");
 
       const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-        .setLngLat(f.geometry.coordinates as [number, number]).addTo(map);
+        .setLngLat(f.geometry.coordinates as [number, number])
+        .addTo(map);
 
       const popupHtml = `
         <div style="font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;min-width:180px;line-height:1.25">
@@ -297,22 +387,35 @@ export default function AgMap({
           <div style="font-size:12px;opacity:.85">${escapeHtml(city || "")}${city && state ? ", " : ""}${escapeHtml(state || "")}</div>
         </div>`;
       marker.getElement().addEventListener("click", () => {
-        new mapboxgl.Popup({ offset: 16 }).setLngLat(f.geometry.coordinates as [number, number]).setHTML(popupHtml).addTo(map);
+        new mapboxgl.Popup({ offset: 16 })
+          .setLngLat(f.geometry.coordinates as [number, number])
+          .setHTML(popupHtml)
+          .addTo(map);
       });
 
       markerPoolRef.current.set(key, marker);
     }
     for (const [key, m] of markerPoolRef.current.entries()) {
-      if (!nextKeys.has(key)) { m.remove(); markerPoolRef.current.delete(key); }
+      if (!nextKeys.has(key)) {
+        m.remove();
+        markerPoolRef.current.delete(key);
+      }
     }
   }
 
-  function createMarkerEl(retailer?: string, name?: string, city?: string, fallbackColor?: string, style?: MarkerStyle) {
+  function createMarkerEl(
+    retailer?: string,
+    name?: string,
+    city?: string,
+    fallbackColor?: string,
+    style?: MarkerStyle
+  ) {
     const el = document.createElement("div");
     el.style.position = "relative";
     el.style.display = "grid";
     el.style.placeItems = "center";
-    el.style.width = "34px"; el.style.height = "34px";
+    el.style.width = "34px";
+    el.style.height = "34px";
     el.style.borderRadius = "9999px";
     el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.25)";
     el.style.border = "2px solid #ffffff";
@@ -323,10 +426,20 @@ export default function AgMap({
       if (candidates.length) {
         const img = document.createElement("img");
         img.alt = retailer || name || "Retailer";
-        img.style.width = "100%"; img.style.height = "100%";
-        img.style.objectFit = "contain"; img.style.borderRadius = "9999px";
-        let i = 0; const tryNext = () => { if (i >= candidates.length) { img.remove(); return; } img.src = candidates[i++]; };
-        img.addEventListener("error", () => tryNext(), { passive: true }); tryNext();
+        img.style.width = "100%";
+        img.style.height = "100%";
+        img.style.objectFit = "contain";
+        img.style.borderRadius = "9999px";
+        let i = 0;
+        const tryNext = () => {
+          if (i >= candidates.length) {
+            img.remove();
+            return;
+          }
+          img.src = candidates[i++];
+        };
+        img.addEventListener("error", () => tryNext(), { passive: true } as any);
+        tryNext();
         el.appendChild(img);
       }
     }
@@ -340,20 +453,32 @@ export default function AgMap({
 
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
-    svg.style.width = "30px"; svg.style.height = "30px";
-    svg.innerHTML = `<path d="M12 2l9 8h-3v10h-5V14H11v6H6V10H3l9-8z" fill="#10b981" stroke="#fff" stroke-width="1.5" />`;
+    svg.style.width = "30px";
+    svg.style.height = "30px";
+    svg.innerHTML =
+      '<path d="M12 2l9 8h-3v10h-5V14H11v6H6V10H3l9-8z" fill="#10b981" stroke="#fff" stroke-width="1.5" />';
     wrap.appendChild(svg);
     return wrap;
   }
 
   function applyProjectionAndRotation(map: MapboxMap, proj: ProjectionMode, canRotate: boolean) {
-    try { map.setProjection(proj as any); } catch {}
-    if (canRotate) { map.dragRotate.enable(); map.touchZoomRotate.enableRotation(); }
-    else { map.dragRotate.disable(); map.touchZoomRotate.disableRotation(); if (map.getPitch()) map.setPitch(0); if (map.getBearing()) map.setBearing(0); }
+    try {
+      map.setProjection(proj as any);
+    } catch {}
+    if (canRotate) {
+      map.dragRotate.enable();
+      map.touchZoomRotate.enableRotation();
+    } else {
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+      if (map.getPitch()) map.setPitch(0);
+      if (map.getBearing()) map.setBearing(0);
+    }
   }
 
   function tweakSatellitePaint(map: MapboxMap) {
-    const style = map.getStyle(); if (!style?.layers) return;
+    const style = map.getStyle();
+    if (!style?.layers) return;
     for (const layer of style.layers) {
       if (layer.type === "raster" && layer.id) {
         try {
@@ -366,9 +491,17 @@ export default function AgMap({
   }
 }
 
-function pick(obj: any, keys: string[]) { for (const k of keys) if (obj && typeof obj[k] === "string" && obj[k].trim()) return String(obj[k]).trim(); return ""; }
-function escapeHtml(s: string) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!)); }
+function pick(obj: any, keys: string[]) {
+  for (const k of keys) if (obj && typeof obj[k] === "string" && obj[k].trim()) return String(obj[k]).trim();
+  return "";
+}
+function escapeHtml(s: string) {
+  return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!));
+}
 function makeKey(f: Feature<Point, Record<string, any>>) {
-  const p = f.properties || {}; const retailer = (p.retailer || p.Retailer || "").trim(); const name = (p.name || p.Name || "").trim();
-  const [lng, lat] = (f.geometry?.coordinates as [number, number]) || [0, 0]; return `${retailer}|${name}|${lng.toFixed(5)},${lat.toFixed(5)}`;
+  const p = f.properties || {};
+  const retailer = (p.retailer || p.Retailer || "").trim();
+  const name = (p.name || p.Name || "").trim();
+  const [lng, lat] = (f.geometry?.coordinates as [number, number]) || [0, 0];
+  return `${retailer}|${name}|${lng.toFixed(5)},${lat.toFixed(5)}`;
 }
