@@ -1,77 +1,97 @@
 'use client'
-
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
-
-// optional – if you created app/build.ts
-let BUILD_STAMP: string | null = null
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  BUILD_STAMP = require('./build')?.BUILD_STAMP ?? null
-} catch { /* ok if file doesn't exist */ }
-
 const Map = dynamic(() => import('../components/Map'), { ssr: false })
 
 type FC = { type: 'FeatureCollection', features: any[] }
 type TripLeg = { index: number, geojson: any, stops: any[] }
 
+function computeBasePath(): string {
+  // Prefer the repo env (baked at build)
+  const repo = process.env.NEXT_PUBLIC_REPO_NAME || 'certis_agroute_app'
+
+  // On GH Pages, Next sets <base href="/certis_agroute_app/"> via basePath + assetPrefix.
+  // We’ll try to read that, but also fall back to /{repo}.
+  if (typeof document !== 'undefined') {
+    try {
+      const baseTag = document.querySelector('base') as HTMLBaseElement | null
+      if (baseTag?.href) {
+        const p = new URL(baseTag.href).pathname.replace(/\/$/, '')
+        if (p) return p
+      }
+    } catch {}
+  }
+  return `/${repo}`
+}
+
 export default function Page() {
   const [raw, setRaw] = useState<FC | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
 
   const [category, setCategory] = useState('All')
   const [retailer, setRetailer] = useState('All')
   const [statesSel, setStatesSel] = useState<string[]>([])
   const [legs, setLegs] = useState<TripLeg[]>([])
 
-  // These are inlined at build time. On GH Pages they come from the workflow env.
-  const BASE_PATH =
-    (process.env.NEXT_PUBLIC_REPO_NAME && `/${process.env.NEXT_PUBLIC_REPO_NAME}`) || ''
+  const base = computeBasePath()
 
-  const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
+  async function tryFetch(url: string) {
+    const r = await fetch(url, { cache: 'no-store' })
+    if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`)
+    return r.json()
+  }
 
   async function loadGeoJSON() {
     setLoading(true)
-    setError(null)
-    try {
-      // Always request from public/ with the right basePath
-      const url = `${BASE_PATH}/data/retailers.geojson?ts=${Date.now()}`
-      const r = await fetch(url, { cache: 'no-store' })
-      if (!r.ok) throw new Error(`Failed to load GeoJSON (${r.status}) from ${url}`)
-      const json = (await r.json()) as FC
-      if (!json?.features) throw new Error('GeoJSON missing features[]')
-      setRaw(json)
-    } catch (e: any) {
-      console.error('loadGeoJSON error:', e)
-      setError(e?.message || 'Failed to load data.')
-      setRaw(null)
-    } finally {
-      setLoading(false)
+    setErr(null)
+    setRaw(null)
+
+    // 1) Preferred path: /{repo}/data/retailers.geojson
+    // 2) Fallback:       /data/retailers.geojson (works if assetPrefix/basePath are already applied)
+    const candidates = [
+      `${base}/data/retailers.geojson?ts=${Date.now()}`,
+      `/data/retailers.geojson?ts=${Date.now()}`
+    ]
+
+    for (const url of candidates) {
+      try {
+        console.log('[GeoJSON] fetching', url)
+        const data = await tryFetch(url)
+        setRaw(data)
+        setLoading(false)
+        return
+      } catch (e:any) {
+        console.warn('[GeoJSON] failed', url, e?.message || e)
+      }
     }
+    setErr('Could not load retailers.geojson (tried multiple paths). Check that the file exists in /public/data and was deployed.')
+    setLoading(false)
   }
 
-  useEffect(() => { loadGeoJSON() }, []) // on mount
+  useEffect(() => { void loadGeoJSON() }, []) // load once
 
   const categories = useMemo(() => {
     if (!raw) return ['All']
-    const s = new Set<string>(); raw.features.forEach((f:any)=> s.add(f.properties?.Category||''))
+    const s = new Set<string>()
+    raw.features.forEach((f:any)=> s.add(f.properties?.Category || ''))
     return ['All', ...[...s].filter(Boolean).sort()]
   }, [raw])
 
   const retailers = useMemo(() => {
     if (!raw) return ['All']
-    const s = new Set<string>(); raw.features.forEach((f:any)=> s.add(f.properties?.Retailer||''))
+    const s = new Set<string>()
+    raw.features.forEach((f:any)=> s.add(f.properties?.Retailer || ''))
     return ['All', ...[...s].filter(Boolean).sort()]
   }, [raw])
 
   const states = useMemo(() => {
     if (!raw) return []
-    const s = new Set<string>(); raw.features.forEach((f:any)=> s.add(f.properties?.State||''))
+    const s = new Set<string>()
+    raw.features.forEach((f:any)=> s.add(f.properties?.State || ''))
     return [...[...s].filter(Boolean).sort()]
   }, [raw])
 
-  // Apply filters before sending to map
   const filtered: FC | null = useMemo(() => {
     if (!raw) return null
     const feats = raw.features.filter((f:any) => {
@@ -89,67 +109,55 @@ export default function Page() {
   }
 
   async function buildTrip() {
-    setError(null)
-    try {
-      const data = filtered
-      if (!data || data.features.length < 2) {
-        alert('Select at least two points.')
-        return
-      }
-      if (!MAPBOX_TOKEN) {
-        throw new Error('Missing NEXT_PUBLIC_MAPBOX_TOKEN at build time (workflow env).')
-      }
+    const data = filtered
+    if (!data || data.features.length < 2) {
+      alert('Select at least two points.')
+      return
+    }
 
-      // group by state, then chunk into legs <= 12
-      const byState = new globalThis.Map<string, any[]>()
-      for (const f of data.features) {
-        const st = f.properties?.State || 'UNK'
-        if (!byState.has(st)) byState.set(st, [])
-        byState.get(st)!.push(f)
-      }
+    const byState = new globalThis.Map<string, any[]>()
+    for (const f of data.features) {
+      const st = f.properties?.State || 'UNK'
+      if (!byState.has(st)) byState.set(st, [])
+      byState.get(st)!.push(f)
+    }
 
-      const legsOut: TripLeg[] = []
-      const maxPerLeg = 12
-      let idx = 1
+    const legsOut: TripLeg[] = []
+    const maxPerLeg = 12
+    let idx = 1
 
-      for (const [, arr] of byState) {
-        for (let i = 0; i < arr.length; i += maxPerLeg) {
-          const chunk = arr.slice(i, i + maxPerLeg)
-          if (chunk.length < 2) continue
+    for (const [, arr] of byState) {
+      for (let i = 0; i < arr.length; i += maxPerLeg) {
+        const chunk = arr.slice(i, i + maxPerLeg)
+        if (chunk.length < 2) continue
 
-          const coords = chunk.map((f:any)=> f.geometry.coordinates.join(',')).join(';')
-          const url = new URL(`https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coords}`)
-          url.searchParams.set('access_token', MAPBOX_TOKEN)
-          url.searchParams.set('roundtrip','true')
-          url.searchParams.set('source','first')
-          url.searchParams.set('destination','last')
-          url.searchParams.set('overview','full')
-          url.searchParams.set('geometries','geojson')
+        const coords = chunk.map((f:any)=> f.geometry.coordinates.join(',')).join(';')
+        const url = new URL(`https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coords}`)
+        url.searchParams.set('access_token', process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '')
+        url.searchParams.set('roundtrip','true')
+        url.searchParams.set('source','first')
+        url.searchParams.set('destination','last')
+        url.searchParams.set('overview','full')
+        url.searchParams.set('geometries','geojson')
 
+        try {
           const res = await fetch(url.toString())
           const out = await res.json()
           if (out?.code !== 'Ok' || !out?.trips?.length) {
             console.warn('Optimize failed:', out)
             continue
           }
-
           const line = out.trips[0].geometry
           const order: number[] = out.waypoints.map((w:any)=> w.waypoint_index)
           const stops = order.map(i => chunk[i])
-
           legsOut.push({ index: idx++, geojson: line, stops })
+        } catch (e) {
+          console.warn('Optimize request error', e)
         }
       }
-
-      if (legsOut.length === 0) {
-        alert('No legs were created.')
-        return
-      }
-      setLegs(legsOut)
-    } catch (e: any) {
-      console.error('buildTrip error:', e)
-      setError(e?.message || 'Failed to build trip.')
     }
+    if (legsOut.length === 0) { alert('No legs were created.'); return }
+    setLegs(legsOut)
   }
 
   return (
@@ -157,34 +165,18 @@ export default function Page() {
       <h1 style={{fontSize:24, fontWeight:700, marginBottom:4}}>
         certis_agroute_app — Mapbox (GitHub Pages)
       </h1>
-      {BUILD_STAMP && (
-        <p style={{ opacity:.6, marginTop:0, marginBottom:12 }}>{BUILD_STAMP}</p>
-      )}
-      <p style={{opacity:.75, marginBottom:16}}>
+      <p style={{opacity:.7, marginBottom:12}}>
         Filter by State, Retailer, Category → Build optimized legs (≤12 each).
       </p>
 
-      {error && (
-        <div style={{
-          background:'#2a1b1b', color:'#ffb4b4', padding:'10px 12px',
-          border:'1px solid #703', borderRadius:8, marginBottom:12
-        }}>
-          <strong>Problem:</strong> {error}
-        </div>
-      )}
-
       <div style={{display:'flex', gap:12, flexWrap:'wrap', alignItems:'center', marginBottom:12}}>
-        <button onClick={loadGeoJSON} disabled={loading}>
-          {loading ? 'Loading…' : 'Reload data'}
-        </button>
-        <button onClick={buildTrip}>Build Trip</button>
-
+        <button onClick={loadGeoJSON} disabled={loading}>Reload data</button>
+        <button onClick={buildTrip} disabled={!filtered || filtered.features.length < 2}>Build Trip</button>
         <label>Category:&nbsp;
           <select value={category} onChange={e=>setCategory(e.target.value)}>
             {categories.map(c=> <option key={c} value={c}>{c}</option>)}
           </select>
         </label>
-
         <label>Retailer:&nbsp;
           <select value={retailer} onChange={e=>setRetailer(e.target.value)}>
             {retailers.map(r=> <option key={r} value={r}>{r}</option>)}
@@ -203,8 +195,15 @@ export default function Page() {
         ))}
       </div>
 
+      {err && (
+        <div style={{marginBottom:12, padding:8, border:'1px solid #d33', background:'#2a0000', color:'#ffdddd', borderRadius:8}}>
+          <strong>Failed to load data:</strong> {err}
+        </div>
+      )}
+
       <div style={{height:'68vh', border:'1px solid #eee', borderRadius:16, overflow:'hidden'}}>
-        {filtered && <Map geojson={filtered} legs={legs} />}
+        {filtered && !err && <Map geojson={filtered} legs={legs} />}
+        {loading && <div style={{padding:12}}>Loading points…</div>}
       </div>
 
       {legs.length > 0 && (
