@@ -1,21 +1,17 @@
+// next.config.mjs
+const repo = process.env.NEXT_PUBLIC_REPO_NAME || "certis_agroute_app";
+
 /** @type {import('next').NextConfig} */
-const repo = 'certis_agroute_app';
-
 const nextConfig = {
-  // Static export for GitHub Pages
-  output: 'export',
+  // GitHub Pages needs a static export
+  output: "export",
 
-  // Serve the app under /certis_agroute_app on GitHub Pages
+  // Make sure all paths are under /certis_agroute_app
   basePath: `/${repo}`,
   assetPrefix: `/${repo}/`,
 
-  // Next/Image has no optimizer on GH Pages
+  // Disable Next image optimization (GitHub Pages doesn’t support it)
   images: { unoptimized: true },
-
-  // Helpful in case something still references process.env on client
-  experimental: {
-    typedRoutes: false,
-  },
 };
 
 export default nextConfig;
