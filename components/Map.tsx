@@ -1,53 +1,166 @@
 'use client'
-import mapboxgl from 'mapbox-gl'
+
 import { useEffect, useRef } from 'react'
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string
+import mapboxgl from 'mapbox-gl'
 
-export default function Map({ geojson, legs = [] }: { geojson:any, legs?: { index:number, geojson:any }[] }) {
-  const ref = useRef<HTMLDivElement>(null)
+type Props = {
+  geojson: { type: 'FeatureCollection'; features: any[] }
+  legs?: { index: number; geojson: any; stops: any[] }[]
+}
+
+function clean(fc: Props['geojson']) {
+  const feats = (fc.features || []).filter((f: any) => {
+    const g = f?.geometry
+    if (!g || g.type !== 'Point') return false
+    const c = g.coordinates
+    return Array.isArray(c) && c.length === 2 && Number.isFinite(c[0]) && Number.isFinite(c[1])
+  })
+  return { type: 'FeatureCollection', features: feats } as const
+}
+
+export default function MapComponent({ geojson, legs = [] }: Props) {
+  const mountRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
+  const errRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!ref.current || mapRef.current) return
-    const map = new mapboxgl.Map({
-      container: ref.current,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
-      center: [-93.5, 41.7],
-      zoom: 4.2,
-      cooperativeGestures: true
-    })
-    mapRef.current = map
-    map.on('load', () => {
-      map.addSource('partners', { type:'geojson', data: geojson, cluster:true, clusterRadius:40 })
-      // your existing cluster / symbol layers here…
-    })
-    return () => { map.remove(); mapRef.current = null }
-  }, [])
+    try {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+      if (!token) {
+        errRef.current = 'Mapbox token missing'
+        return
+      }
+      mapboxgl.accessToken = token
 
-  // update points
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    const src = map.getSource('partners') as mapboxgl.GeoJSONSource
-    if (src) src.setData(geojson)
-  }, [geojson])
+      const el = mountRef.current
+      if (!el) return
 
-  // draw legs as lines
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    // remove previous
-    map.getStyle().layers?.forEach(l => { if (l.id.startsWith('leg-line-')) map.removeLayer(l.id) })
-    Object.keys(map.getStyle().sources||{}).forEach(id => { if (id.startsWith('leg-src-')) map.removeSource(id) })
+      const map = new mapboxgl.Map({
+        container: el,
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        center: [-93.0, 41.5],
+        zoom: 4,
+        attributionControl: true,
+      })
+      mapRef.current = map
 
-    const palette = ['#ff6b6b','#4dabf7','#51cf66','#f59f00','#845ef7','#e64980','#00d1b2','#ff922b']
-    legs.forEach((leg:any, i:number) => {
-      const srcId = `leg-src-${leg.index}`
-      const lyrId = `leg-line-${leg.index}`
-      map.addSource(srcId, { type:'geojson', data: { type:'Feature', geometry: leg.geojson, properties:{} } })
-      map.addLayer({ id: lyrId, type:'line', source: srcId, paint: { 'line-width': 4, 'line-color': palette[i % palette.length] } })
-    })
-  }, [legs])
+      map.on('load', () => {
+        try {
+          const safe = clean(geojson)
 
-  return <div ref={ref} style={{height:'100%', width:'100%'}} />
+          if (!map.getSource('retailers')) {
+            map.addSource('retailers', {
+              type: 'geojson',
+              data: safe as any,
+              cluster: true,
+              clusterMaxZoom: 10,
+              clusterRadius: 40,
+            })
+          } else {
+            const src = map.getSource('retailers') as mapboxgl.GeoJSONSource
+            src.setData(safe as any)
+          }
+
+          if (!map.getLayer('clusters')) {
+            map.addLayer({
+              id: 'clusters',
+              type: 'circle',
+              source: 'retailers',
+              filter: ['has', 'point_count'],
+              paint: {
+                'circle-color': '#34d399',
+                'circle-radius': ['step', ['get', 'point_count'], 16, 50, 22, 200, 30],
+                'circle-opacity': 0.85,
+              },
+            })
+          }
+          if (!map.getLayer('cluster-count')) {
+            map.addLayer({
+              id: 'cluster-count',
+              type: 'symbol',
+              source: 'retailers',
+              filter: ['has', 'point_count'],
+              layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12 },
+              paint: { 'text-color': '#053B2B' },
+            })
+          }
+          if (!map.getLayer('unclustered')) {
+            map.addLayer({
+              id: 'unclustered',
+              type: 'circle',
+              source: 'retailers',
+              filter: ['!', ['has', 'point_count']],
+              paint: {
+                'circle-color': '#10b981',
+                'circle-radius': 6,
+                'circle-stroke-color': '#052e2b',
+                'circle-stroke-width': 1,
+              },
+            })
+          }
+
+          // legs
+          if (Array.isArray(legs) && legs.length) {
+            legs.forEach((leg) => {
+              const srcId = `leg-src-${leg.index}`
+              const layerId = `leg-layer-${leg.index}`
+              if (!map.getSource(srcId)) {
+                map.addSource(srcId, {
+                  type: 'geojson',
+                  data: { type: 'Feature', geometry: leg.geojson } as any,
+                })
+              }
+              if (!map.getLayer(layerId)) {
+                map.addLayer({
+                  id: layerId,
+                  type: 'line',
+                  source: srcId,
+                  paint: { 'line-color': '#60a5fa', 'line-width': 4 },
+                })
+              }
+            })
+          }
+
+          // fit bounds safely
+          try {
+            const pts = (safe.features || []).map((f: any) => f.geometry.coordinates)
+            if (pts.length > 0) {
+              const b = pts.slice(1).reduce(
+                (acc: mapboxgl.LngLatBounds, c: [number, number]) => acc.extend(c),
+                new mapboxgl.LngLatBounds(pts[0], pts[0])
+              )
+              map.fitBounds(b, { padding: 60, duration: 600 })
+            }
+          } catch (e) {
+            console.warn('fitBounds skipped:', e)
+          }
+        } catch (e: any) {
+          console.error('Mapbox layer/source error:', e)
+          errRef.current = e?.message || String(e)
+        }
+      })
+    } catch (e: any) {
+      console.error('Map init failed:', e)
+      errRef.current = e?.message || String(e)
+    }
+
+    return () => {
+      try {
+        mapRef.current?.remove()
+      } catch {
+        // ignore
+      }
+      mapRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(geojson?.features), JSON.stringify(legs)])
+
+  if (errRef.current) {
+    return (
+      <div style={{ padding: 16, color: '#721c24', background: '#f8d7da', height: '100%' }}>
+        Map error: {errRef.current}
+      </div>
+    )
+  }
+  return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 }
