@@ -137,7 +137,6 @@ export default function AgMap({
       if (rasterSharpen) tweakSatellitePaint(map);
     });
 
-    // FIX: Mapbox GL v3 – use MapMouseEvent only
     const clickHandler = (e: MapMouseEvent) => {
       if (!enableHomePick || !onPickHome) return;
       const { lng, lat } = e.lngLat;
@@ -196,7 +195,7 @@ export default function AgMap({
     };
   }, [geojson, markerStyle]);
 
-  // Home marker
+  // Home marker (FIX: no setElement; update DOM title and position instead)
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
@@ -209,7 +208,12 @@ export default function AgMap({
     }
     const el = createHomeMarkerEl(home.label);
     if (homeMarkerRef.current) {
-      homeMarkerRef.current.setLngLat([home.lng, home.lat]).setElement(el);
+      // Move existing marker and update its DOM element title
+      homeMarkerRef.current.setLngLat([home.lng, home.lat]);
+      try {
+        const existing = homeMarkerRef.current.getElement();
+        existing.title = home.label || "Home";
+      } catch {}
     } else {
       homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([home.lng, home.lat])
@@ -500,7 +504,7 @@ function escapeHtml(s: string) {
 }
 function makeKey(f: Feature<Point, Record<string, any>>) {
   const p = f.properties || {};
-  const retailer = (p.retailer || p.Retailer || "").trim();
+  the retailer = (p.retailer || p.Retailer || "").trim();
   const name = (p.name || p.Name || "").trim();
   const [lng, lat] = (f.geometry?.coordinates as [number, number]) || [0, 0];
   return `${retailer}|${name}|${lng.toFixed(5)},${lat.toFixed(5)}`;
