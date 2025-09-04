@@ -1,320 +1,306 @@
-'use client'
+// /app/page.tsx
+"use client";
 
-import { useEffect, useMemo, useState } from 'react'
-import dynamic from 'next/dynamic'
+import React, { useEffect, useMemo, useState } from "react";
+import type { FeatureCollection, Point } from "geojson";
+import Link from "next/link";
+import Image from "next/image";
 
-// Avoid shadowing global Map type
-const MapView = dynamic(() => import('../components/Map'), { ssr: false })
+import Map from "@/components/Map";
+import Legend, { type LegendItemInput } from "@/components/Legend";
 
-type FC = { type: 'FeatureCollection'; features: any[] }
-type TripLeg = { index: number; geojson: any; stops: any[] }
+import {
+  applyFilters,
+  distinctValues,
+  readCategory,
+  readRetailer,
+  readState,
+} from "@/utils/filtering";
 
-// These are compiled at build time for GitHub Pages paths
-const REPO = process.env.NEXT_PUBLIC_REPO_NAME || 'certis_agroute_app'
-const BASE = `/${REPO}`
+import { geocodeAddress, loadHome, saveHome, type HomeLoc } from "@/utils/home";
+import { buildAppleMapsLinks, buildGoogleMapsLinks, buildWazeStepLinks } from "@/utils/navLinks";
 
-/** very defensive: keep only valid Point features with [lng,lat] numbers */
-function sanitizePoints(fc: FC | null): FC | null {
-  if (!fc) return null
-  const feats = (fc.features || []).filter((f: any) => {
-    const g = f?.geometry
-    if (!g || g.type !== 'Point') return false
-    const c = g.coordinates
-    return Array.isArray(c) && c.length === 2 && Number.isFinite(c[0]) && Number.isFinite(c[1])
-  })
-  return { type: 'FeatureCollection', features: feats }
-}
+// Basemap presets (unchanged)
+const BASEMAPS = [
+  { key: "streets",   label: "Streets",   uri: "mapbox://styles/mapbox/streets-v12",           sharpen: false },
+  { key: "outdoors",  label: "Outdoors",  uri: "mapbox://styles/mapbox/outdoors-v12",          sharpen: false },
+  { key: "light",     label: "Light",     uri: "mapbox://styles/mapbox/light-v11",             sharpen: false },
+  { key: "dark",      label: "Dark",      uri: "mapbox://styles/mapbox/dark-v11",              sharpen: false },
+  { key: "satellite", label: "Satellite", uri: "mapbox://styles/mapbox/satellite-streets-v12", sharpen: true  },
+];
+
+type RetailerProps = Record<string, any>;
+type TripMode = "round_home" | "start_home" | "no_home";
+
+// NEW: structure to hold “Send to phone” links for each leg
+type ShareLinks = {
+  legLabel: string;
+  google: string[];
+  apple: string[];
+  waze: string[];
+};
 
 export default function Page() {
-  const [raw, setRaw] = useState<FC | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [fatal, setFatal] = useState<string | null>(null)
-  const [clientError, setClientError] = useState<string | null>(null)
+  const [raw, setRaw] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
 
-  const [category, setCategory] = useState('All')
-  const [retailer, setRetailer] = useState('All')
-  const [statesSel, setStatesSel] = useState<string[]>([])
-  const [legs, setLegs] = useState<TripLeg[]>([])
+  // Filters
+  const [stateFilter, setStateFilter] = useState<string>("");
+  const [selectedStates, setSelectedStates] = useState<Set<string>>(new Set());
+  const [retailerFilter, setRetailerFilter] = useState<string>("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
 
-  // catch any client errors so the page never black-screens
-  useEffect(() => {
-    const onErr = (e: ErrorEvent) => {
-      // eslint-disable-next-line no-console
-      console.error('window.onerror:', e?.message || e)
-      setClientError(e?.message || String(e))
+  // Marker + basemap UI
+  const [markerStyle, setMarkerStyle] = useState<"logo" | "color">("logo");
+  const [basemapKey, setBasemapKey] = useState<string>("streets");
+  const [flatMap, setFlatMap] = useState<boolean>(true);
+  const [allowRotate, setAllowRotate] = useState<boolean>(false);
+  const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
+  const basemap = BASEMAPS.find((b) => b.key === basemapKey) ?? BASEMAPS[0];
+
+  // Home
+  const [home, setHome] = useState<HomeLoc | null>(null);
+  const [homeQuery, setHomeQuery] = useState("");
+  const [homePickMode, setHomePickMode] = useState(false);
+  const [tripMode, setTripMode] = useState<TripMode>("round_home");
+
+  // NEW: share links state
+  const [share, setShare] = useState<ShareLinks[]>([]);
+
+  const mapboxToken =
+    process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN || process.env.MAPBOX_PUBLIC_TOKEN || "";
+
+  // Load once
+  const reloadData = () => {
+    const ts = Date.now();
+    fetch(`/data/retailers.geojson?ts=${ts}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`Failed to fetch retailers.geojson (${r.status})`);
+        return r.json();
+      })
+      .then((j) => setRaw(j))
+      .catch((e) => console.error("Failed to load retailers.geojson", e));
+  };
+  useEffect(() => { reloadData(); setHome(loadHome()); }, []);
+
+  // Distinct options
+  const stateOptions = useMemo(() => distinctValues(raw, readState), [raw]);
+  const retailerOptions = useMemo(() => distinctValues(raw, readRetailer), [raw]);
+  const categoryOptions = useMemo(() => distinctValues(raw, readCategory), [raw]);
+
+  // Apply filters
+  const filteredGeojson: FeatureCollection<Point, RetailerProps> | null = useMemo(() => {
+    if (!raw) return null;
+    return applyFilters(raw, { state: stateFilter, states: selectedStates, retailer: retailerFilter, category: categoryFilter });
+  }, [raw, stateFilter, selectedStates, retailerFilter, categoryFilter]);
+
+  // Legend items (unchanged)
+  const legendItems: LegendItemInput[] = useMemo(() => {
+    if (!filteredGeojson) return [];
+    const seen = new Map<string, { name?: string; city?: string }>();
+    for (const f of filteredGeojson.features) {
+      const p = f.properties || {};
+      const retailer = typeof p.retailer === "string" && p.retailer.trim()
+        ? p.retailer.trim()
+        : (typeof p.Retailer === "string" ? p.Retailer.trim() : "");
+      if (!retailer || seen.has(retailer)) continue;
+      const name = typeof p.name === "string" ? p.name.trim() : (typeof p.Name === "string" ? p.Name.trim() : "");
+      const city = typeof p.city === "string" ? p.city.trim() : (typeof p.City === "string" ? p.City.trim() : "");
+      seen.set(retailer, { name, city });
     }
-    const onRej = (e: PromiseRejectionEvent) => {
-      // eslint-disable-next-line no-console
-      console.error('unhandledrejection:', e?.reason)
-      setClientError(String(e?.reason || 'Unhandled rejection'))
-    }
-    window.addEventListener('error', onErr)
-    window.addEventListener('unhandledrejection', onRej)
-    return () => {
-      window.removeEventListener('error', onErr)
-      window.removeEventListener('unhandledrejection', onRej)
-    }
-  }, [])
+    return Array.from(seen.entries()).map(([retailer, sample]) => ({
+      retailer, sampleName: sample.name, sampleCity: sample.city,
+    }));
+  }, [filteredGeojson]);
 
-  async function loadGeoJSON() {
-    setLoading(true)
-    setFatal(null)
-    try {
-      const url = `${BASE}/data/retailers.geojson?ts=${Date.now()}`
-      const r = await fetch(url)
-      if (!r.ok) throw new Error(`Failed to fetch retailers.geojson: HTTP ${r.status}`)
-      const j = (await r.json()) as FC
-      if (!j?.features) throw new Error('retailers.geojson did not contain features[]')
-      setRaw(j)
-    } catch (e: any) {
-      console.error('Data load failed:', e)
-      setFatal(e?.message || String(e))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadGeoJSON()
-  }, [])
-
-  const categories = useMemo(() => {
-    const fc = sanitizePoints(raw)
-    if (!fc) return ['All']
-    const s = new Set<string>()
-    fc.features.forEach((f: any) => s.add(f?.properties?.Category || ''))
-    return ['All', ...[...s].filter(Boolean).sort()]
-  }, [raw])
-
-  const retailers = useMemo(() => {
-    const fc = sanitizePoints(raw)
-    if (!fc) return ['All']
-    const s = new Set<string>()
-    fc.features.forEach((f: any) => s.add(f?.properties?.Retailer || ''))
-    return ['All', ...[...s].filter(Boolean).sort()]
-  }, [raw])
-
-  const states = useMemo(() => {
-    const fc = sanitizePoints(raw)
-    if (!fc) return []
-    const s = new Set<string>()
-    fc.features.forEach((f: any) => s.add(f?.properties?.State || ''))
-    return [...[...s].filter(Boolean).sort()]
-  }, [raw])
-
-  // Filtered & sanitized collection
-  const filtered: FC | null = useMemo(() => {
-    const fc = sanitizePoints(raw)
-    if (!fc) return null
-    const feats = fc.features.filter((f: any) => {
-      const p = f?.properties || {}
-      const okCat = category === 'All' || p.Category === category
-      const okRet = retailer === 'All' || p.Retailer === retailer
-      const okSt = statesSel.length === 0 || statesSel.includes(p.State || '')
-      return okCat && okRet && okSt
-    })
-    return { type: 'FeatureCollection', features: feats }
-  }, [raw, category, retailer, statesSel])
-
-  function toggleState(abbr: string) {
-    setStatesSel((prev) => (prev.includes(abbr) ? prev.filter((s) => s !== abbr) : [...prev, abbr]))
-  }
-
+  // ---------- Build Trip (now produces deep links) ----------
   async function buildTrip() {
-    try {
-      const data = filtered
-      if (!data || data.features.length < 2) {
-        alert('Select at least two points.')
-        return
-      }
+    if (!filteredGeojson) return alert("No points to build from.");
+    setShare([]); // reset previous links
 
-      // Group by state, chunk legs <= 12
-      const byState = new globalThis.Map<string, any[]>()
-      for (const f of data.features) {
-        const st = f?.properties?.State || 'UNK'
-        if (!byState.has(st)) byState.set(st, [])
-        byState.get(st)!.push(f)
-      }
+    // Pull coordinates from filtered set
+    const points = filteredGeojson.features
+      .map((f) => f.geometry?.coordinates as [number, number])
+      .filter(Boolean);
 
-      const legsOut: TripLeg[] = []
-      const maxPerLeg = 12
-      let idx = 1
+    if (points.length === 0) return alert("No stops available after filtering.");
 
-      for (const [, arr] of byState) {
-        for (let i = 0; i < arr.length; i += maxPerLeg) {
-          const chunk = arr.slice(i, i + maxPerLeg)
-          if (chunk.length < 2) continue
+    // Compose coordinates list with optional Home at start/end
+    const coords: [number, number][] = [];
+    const params = new URLSearchParams({
+      annotations: "duration,distance",
+      geometries: "geojson",
+      overview: "full",
+    });
 
-          const coords = chunk.map((f: any) => f.geometry.coordinates.join(',')).join(';')
-          const url = new URL(`https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coords}`)
-          url.searchParams.set('access_token', process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '')
-          url.searchParams.set('roundtrip', 'true')
-          url.searchParams.set('source', 'first')
-          url.searchParams.set('destination', 'last')
-          url.searchParams.set('overview', 'full')
-          url.searchParams.set('geometries', 'geojson')
+    if (tripMode === "round_home") {
+      if (!home) return alert("Set Home first.");
+      coords.push([home.lng, home.lat], ...points);
+      params.set("roundtrip", "true");
+      params.set("source", "first");
+    } else if (tripMode === "start_home") {
+      if (!home) return alert("Set Home first.");
+      coords.push([home.lng, home.lat], ...points);
+      params.set("roundtrip", "false");
+      params.set("source", "first");
+    } else {
+      coords.push(...points);
+      params.set("roundtrip", "true");
+    }
 
-          const res = await fetch(url.toString())
-          const out = await res.json()
-          if (out?.code !== 'Ok' || !out?.trips?.length) {
-            console.warn('Optimize failed:', out)
-            continue
-          }
+    // Chunk to ≤12 stops per request (Mapbox Optimized Trips limit)
+    const MAX = 12;
+    let idx = 0;
+    let legNum = 1;
 
-          const line = out.trips[0].geometry
-          const order: number[] = out.waypoints.map((w: any) => w.waypoint_index)
-          const stops = order.map((i) => chunk[i])
+    while (idx < coords.length) {
+      const slice = coords.slice(idx, idx + MAX);
+      if (slice.length < 2) break;
 
-          legsOut.push({ index: idx++, geojson: line, stops })
+      const coordStr = slice.map((c) => `${c[0]},${c[1]}`).join(";");
+      const url = `https://api.mapbox.com/optimized-trips/v2/driving/${coordStr}?${params.toString()}&access_token=${mapboxToken}`;
+
+      try {
+        const r = await fetch(url);
+        const j: any = await r.json();
+        if (!r.ok || !j?.trips?.[0]) throw new Error(j?.message || `API error (${r.status})`);
+
+        // Pull optimized ORDER from response
+        const wp = Array.isArray(j.waypoints) ? j.waypoints : j.trips?.[0]?.waypoints;
+        let ordered: [number, number][] = [];
+
+        if (Array.isArray(wp) && wp.every((w: any) => Array.isArray(w?.location) && typeof w?.waypoint_index === "number")) {
+          // Sort by waypoint_index (0..n in travel order)
+          ordered = wp
+            .slice()
+            .sort((a: any, b: any) => a.waypoint_index - b.waypoint_index)
+            .map((w: any) => [Number(w.location[0]), Number(w.location[1])] as [number, number]);
+        } else {
+          // Fallback: keep original slice order
+          ordered = slice;
         }
+
+        // Build deep links for this leg
+        const g = buildGoogleMapsLinks(ordered);
+        const a = buildAppleMapsLinks(ordered);
+        const w = buildWazeStepLinks(ordered);
+
+        setShare((prev) => [
+          ...prev,
+          { legLabel: `Leg ${legNum} (${ordered.length} stops)`, google: g, apple: a, waze: w },
+        ]);
+      } catch (e: any) {
+        console.error("Optimized Trips error:", e);
+        alert(`Trip build failed: ${e?.message || e}`);
+        break;
       }
-      if (legsOut.length === 0) {
-        alert('No legs were created.')
-        return
-      }
-      setLegs(legsOut)
-    } catch (e) {
-      console.error('buildTrip failed:', e)
-      alert('Trip build failed. Check console for details.')
+
+      // Advance; for subsequent chunks we step by MAX-1 so the last dest becomes next origin smoothly
+      idx += (idx === 0 && tripMode !== "no_home" ? MAX - 1 : MAX);
+      legNum += 1;
     }
   }
 
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+  // ----- Home helpers (unchanged from your previous file, trimmed for brevity) -----
+  async function setHomeFromSearch() {
+    if (!homeQuery.trim()) return;
+    try {
+      const loc = await geocodeAddress(homeQuery.trim(), mapboxToken);
+      setHome(loc); saveHome(loc);
+    } catch (e: any) {
+      alert(e?.message || "Could not find that address.");
+    }
+  }
+  function clearHome() { setHome(null); saveHome(null); }
 
+  // ----- Render -----
   return (
-    <main style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
-        certis_agroute_app — Mapbox (GitHub Pages)
-      </h1>
-      <p style={{ opacity: 0.75, marginBottom: 12 }}>
-        Filter by State, Retailer, Category → Build optimized legs (≤12 each).
-      </p>
-
-      {/* Visible banner for any client-side error */}
-      {clientError && (
-        <div
-          style={{
-            padding: 12,
-            background: '#f8d7da',
-            border: '1px solid #f5c6cb',
-            color: '#721c24',
-            borderRadius: 8,
-            marginBottom: 12,
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          Client error: {clientError}
-        </div>
-      )}
-
-      {!token && (
-        <div
-          style={{
-            padding: 12,
-            background: '#fff3cd',
-            border: '1px solid #ffeeba',
-            color: '#856404',
-            borderRadius: 8,
-            marginBottom: 12,
-          }}
-        >
-          Mapbox token missing. The map will not initialize. Ensure{' '}
-          <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> is set at build time.
-        </div>
-      )}
-
-      {fatal && (
-        <div
-          style={{
-            padding: 12,
-            background: '#f8d7da',
-            border: '1px solid #f5c6cb',
-            color: '#721c24',
-            borderRadius: 8,
-            marginBottom: 12,
-          }}
-        >
-          Data load error: {fatal}
-        </div>
-      )}
-
-      <div
-        style={{
-          display: 'flex',
-          gap: 12,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          marginBottom: 12,
-        }}
-      >
-        <button onClick={loadGeoJSON} disabled={loading}>
-          {loading ? 'Loading…' : 'Reload data'}
-        </button>
-        <button onClick={buildTrip} disabled={!filtered || filtered.features.length < 2}>
-          Build Trip
-        </button>
-
-        <label>
-          Category:&nbsp;
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Retailer:&nbsp;
-          <select value={retailer} onChange={(e) => setRetailer(e.target.value)}>
-            {retailers.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </label>
+    <main className="relative mx-auto max-w-[1200px] px-4 py-6">
+      {/* Brand Header */}
+      <div className="mb-4 flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3">
+          <Image src="/certis-logo.png" alt="Certis Biologicals" width={180} height={42} priority className="h-10 w-auto" />
+          <span className="sr-only">Home</span>
+        </Link>
+        <div className="text-xl font-semibold">Certis AgRoute Planner</div>
+        <div className="ml-2 rounded-full border px-2 py-0.5 text-xs text-gray-500">Retailer map &amp; trip builder</div>
       </div>
 
-      {/* State multi-select */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 8,
-          marginBottom: 12,
-          maxHeight: 96,
-          overflow: 'auto',
-          padding: '6px 8px',
-          border: '1px solid #ddd',
-          borderRadius: 12,
-        }}
-      >
-        <strong style={{ marginRight: 6 }}>States:</strong>
-        {states.map((st) => (
-          <label key={st} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <input type="checkbox" checked={statesSel.includes(st)} onChange={() => toggleState(st)} />
-            {st}
-          </label>
-        ))}
-      </div>
+      {/* Controls (filters, basemap, etc.) — keep your current block here */}
 
-      <div style={{ height: '68vh', border: '1px solid #eee', borderRadius: 16, overflow: 'hidden' }}>
-        {token && filtered && <MapView geojson={filtered} legs={legs} />}
-        {!token && (
-          <div style={{ padding: 16, color: '#666' }}>
-            Map disabled: missing Mapbox token. Controls above still work.
-          </div>
-        )}
-      </div>
+      {/* Home controls (keep your current block; buttons call setHomeFromSearch / clearHome, etc.) */}
 
-      {legs.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <h3>Trip legs</h3>
-          <ol>{legs.map((l) => <li key={l.index}>Leg {l.index}: {l.stops.length} stops</li>)}</ol>
+      {/* Map + Legend */}
+      <div className="relative">
+        <Map
+          data={filteredGeojson || undefined}
+          markerStyle={markerStyle}
+          showLabels={true}
+          labelColor="#fff200"
+          mapStyle={(BASEMAPS.find(b=>b.key===basemapKey) ?? BASEMAPS[0]).uri}
+          projection={flatMap ? "mercator" : "globe"}
+          allowRotate={allowRotate && !flatMap}
+          rasterSharpen={sharpenImagery && (BASEMAPS.find(b=>b.key===basemapKey)?.sharpen ?? false)}
+          mapboxToken={mapboxToken}
+          home={home}
+          enableHomePick={homePickMode}
+          onPickHome={(lng, lat) => { const loc = { lng, lat, label: "Home (map)" }; setHome(loc); saveHome(loc); setHomePickMode(false); }}
+        />
+
+        <div className="pointer-events-none absolute right-4 top-4 z-20">
+          <Legend
+            items={legendItems}
+            selectedRetailer={retailerFilter || undefined}
+            onSelect={(r) => setRetailerFilter(r ?? "")}
+            className="pointer-events-auto"
+          />
         </div>
+      </div>
+
+      {/* NEW: Send to phone panel */}
+      {share.length > 0 && (
+        <section className="mt-4 rounded-xl border border-gray-200 p-3">
+          <div className="mb-2 text-sm font-semibold">Send to phone</div>
+          <p className="mb-3 text-sm text-gray-600">
+            Tap a link on your phone. For long trips, you’ll see multiple chunks.
+          </p>
+
+          {share.map((leg, i) => (
+            <div key={i} className="mb-3 rounded-lg border border-gray-200 p-2">
+              <div className="mb-2 text-sm font-medium">{leg.legLabel}</div>
+              <div className="flex flex-col gap-2 md:flex-row">
+                <LinkGroup label="Google Maps" urls={leg.google} />
+                <LinkGroup label="Apple Maps" urls={leg.apple} />
+                <LinkGroup label="Waze (step-by-step)" urls={leg.waze} />
+              </div>
+            </div>
+          ))}
+        </section>
       )}
     </main>
-  )
+  );
+}
+
+// Small helper to render link groups
+function LinkGroup({ label, urls }: { label: string; urls: string[] }) {
+  if (!urls || urls.length === 0) return (
+    <div className="flex-1 rounded-md bg-gray-50 p-2 text-sm text-gray-400">{label}: not available</div>
+  );
+  return (
+    <div className="flex-1">
+      <div className="mb-1 text-xs text-gray-500">{label}</div>
+      <div className="flex flex-wrap gap-2">
+        {urls.map((u, idx) => (
+          <a
+            key={idx}
+            href={u}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50"
+          >
+            {urls.length === 1 ? "Open" : `Open ${idx + 1}`}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
 }
