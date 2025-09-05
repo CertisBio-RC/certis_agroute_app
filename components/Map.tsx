@@ -525,3 +525,5 @@ function makeKey(f: Feature<Point, Record<string, any>>) {
   const [lng, lat] = coords ?? [0, 0];
   return `${retailer}|${name}|${lng.toFixed(5)},${lat.toFixed(5)}`;
 }
+
+// redeploy 2025-09-04T20:47:03
