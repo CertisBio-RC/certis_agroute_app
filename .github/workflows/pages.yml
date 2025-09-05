@@ -1,8 +1,8 @@
-name: Deploy Next.js to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 permissions:
@@ -18,22 +18,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: "20"
+          cache: "npm"
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install
+        run: npm ci
 
-      - name: Build Next.js static export
+      - name: Build (Next.js static export)
         env:
+          # Expose to the browser bundle at build time
+          NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
           NEXT_PUBLIC_REPO_NAME: ${{ secrets.REPO_NAME }}
-          NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
-        run: npm run build
+          # Optional server-side fallbacks (harmless for static export)
+          MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
+          REPO_NAME: ${{ secrets.REPO_NAME }}
+        run: |
+          npm run build
+          # If your next.config.mjs has output:"export", Next.js puts files in out/
+          # Otherwise uncomment the next line:
+          # npx next export
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -47,5 +56,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - id: deployment
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
