@@ -25,32 +25,31 @@ export interface MapProps {
   initialCenter?: [number, number];
   initialZoom?: number;
   onReady?: () => void;
+
   home?: { lng: number; lat: number; label?: string } | null;
   enableHomePick?: boolean;
   onPickHome?: (lng: number, lat: number) => void;
 }
 
-export default function AgMap(props: MapProps) {
-  const {
-    data,
-    dataUrl,
-    mapboxToken,
-    mapStyle = "mapbox://styles/mapbox/streets-v12",
-    markerStyle = "logo",
-    showLabels = true,
-    labelColor = "#fff200",
-    projection = "mercator",
-    allowRotate = false,
-    rasterSharpen = false,
-    initialCenter = [-94.0, 41.9],
-    initialZoom = 6,
-    onReady,
-    home = null,
-    enableHomePick = false,
-    onPickHome,
-  } = props;
-
-  // --- Token resolution with runtime override via ?mb=pk....
+export default function AgMap({
+  data,
+  dataUrl,
+  mapboxToken,
+  mapStyle = "mapbox://styles/mapbox/streets-v12",
+  markerStyle = "logo",
+  showLabels = true,
+  labelColor = "#fff200",
+  projection = "mercator",
+  allowRotate = false,
+  rasterSharpen = false,
+  initialCenter = [-94.0, 41.9],
+  initialZoom = 6,
+  onReady,
+  home = null,
+  enableHomePick = false,
+  onPickHome,
+}: MapProps) {
+  // --- Token resolution with runtime override via ?mb=pk...
   const qsToken =
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("mb") || ""
@@ -63,6 +62,8 @@ export default function AgMap(props: MapProps) {
     "";
 
   const hasValidToken = typeof resolvedToken === "string" && /^pk\./.test(resolvedToken);
+  // Debug in browser (prints a number only)
+  // eslint-disable-next-line no-console
   console.debug("Mapbox token length (client):", String(resolvedToken).length);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -77,7 +78,7 @@ export default function AgMap(props: MapProps) {
     data || null
   );
 
-  // Load external data if url provided
+  // Load external data if URL provided
   useEffect(() => {
     let cancelled = false;
     if (!geojson && dataUrl) {
@@ -225,36 +226,45 @@ export default function AgMap(props: MapProps) {
     }
   }, [home]);
 
-  // Overlays
+  // Overlays (simple inline styles; no Tailwind)
   const overlay = useMemo(() => {
+    const base: React.CSSProperties = {
+      position: "absolute",
+      left: 12,
+      top: 12,
+      zIndex: 10,
+      background: "#fff",
+      padding: "8px 10px",
+      borderRadius: 10,
+      fontSize: 13,
+      boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+      maxWidth: 420,
+    };
+
     if (!hasValidToken) {
       return (
-        <div className="absolute left-3 top-3 z-10 max-w-[420px] rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 shadow">
-          <div className="font-semibold mb-1">Mapbox token not found</div>
-          <div className="opacity-90">
+        <div style={{ ...base, background: "#fdecec", color: "#a11" }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Mapbox token not found</div>
+          <div>
             Build must inject <code>NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code>.<br />
-            For a quick test, append <code>?mb=&lt;pk.your_token&gt;</code> to the URL and reload.
+            For a quick test, use <code>?mb=&lt;pk.your_token&gt;</code> in the URL and reload.
           </div>
         </div>
       );
     }
     if (!geojson && !fetchError) {
-      return (
-        <div className="absolute left-3 top-3 z-10 rounded-xl bg-white/90 px-3 py-2 text-sm shadow">
-          Loading data…
-        </div>
-      );
+      return <div style={base}>Loading data…</div>;
     }
     if (fetchError) {
       return (
-        <div className="absolute left-3 top-3 z-10 max-w-[360px] rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 shadow">
+        <div style={{ ...base, background: "#fdecec", color: "#a11" }}>
           Error loading data: {fetchError}
         </div>
       );
     }
     if (enableHomePick) {
       return (
-        <div className="absolute left-3 top-3 z-10 rounded-xl bg-yellow-50 px-3 py-2 text-sm text-yellow-900 shadow">
+        <div style={{ ...base, background: "#fff8e5", color: "#5a4300" }}>
           Click on the map to set <b>Home</b>.
         </div>
       );
@@ -262,13 +272,35 @@ export default function AgMap(props: MapProps) {
     return null;
   }, [hasValidToken, geojson, fetchError, enableHomePick]);
 
+  // Outer shell uses explicit inline height so the map is visible without Tailwind
   return (
-    <div className="relative h-[calc(100vh-8rem)] w-full overflow-hidden rounded-2xl border border-gray-200">
+    <div
+      style={{
+        position: "relative",
+        height: "calc(100vh - 120px)", // ~8rem
+        width: "100%",
+        overflow: "hidden",
+        border: "1px solid #333",
+        borderRadius: 12,
+        background: "#101014",
+      }}
+    >
       {overlay}
-      <div ref={containerRef} className="h-full w-full" />
+      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
       {hasValidToken && (
         <div
-          className="pointer-events-none absolute bottom-3 left-3 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-700 shadow"
+          style={{
+            pointerEvents: "none",
+            position: "absolute",
+            left: 12,
+            bottom: 12,
+            background: "rgba(255,255,255,0.92)",
+            color: "#333",
+            borderRadius: 10,
+            padding: "6px 10px",
+            fontSize: 12,
+            boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+          }}
           aria-hidden
         >
           Markers: <b>{markerStyle === "logo" ? "Retailer logos" : "Retailer colors"}</b>
@@ -525,5 +557,3 @@ function makeKey(f: Feature<Point, Record<string, any>>) {
   const [lng, lat] = coords ?? [0, 0];
   return `${retailer}|${name}|${lng.toFixed(5)},${lat.toFixed(5)}`;
 }
-
-// redeploy 2025-09-04T20:47:03
