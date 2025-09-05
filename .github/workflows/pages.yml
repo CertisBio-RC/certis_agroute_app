@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+﻿name: Deploy to GitHub Pages
 
 on:
   push:
@@ -28,16 +28,13 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      # Lockfile may be out of sync; fall back to install.
       - name: Install deps
         run: |
           npm ci || npm install --no-audit --no-fund
 
-      # Add script deps without changing your repo
       - name: Install converter deps (xlsx)
         run: npm install --no-save xlsx
 
-      # Convert Excel -> GeoJSON before building the site
       - name: Generate retailers.geojson from data/partners.xlsx
         env:
           MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
@@ -56,7 +53,6 @@ jobs:
           REPO_NAME: ${{ secrets.REPO_NAME }}
         run: |
           npm run build
-          # fallback export if Next didn't output ./out (shouldn't be needed)
           if [ ! -d "./out" ]; then
             npx --yes next export
           fi
