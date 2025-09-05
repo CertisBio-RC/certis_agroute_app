@@ -17,6 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,10 +40,18 @@ jobs:
           MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
           REPO_NAME: ${{ secrets.REPO_NAME }}
         run: |
+          # Safe debug: print token length only (not the secret)
+          node -e "console.log('Token length:', (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN||'').length)"
+          if [ -z "${NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN}" ]; then
+            echo "::warning::NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN is empty. The map may fail to load in the browser."
+          fi
+
           npm run build
-          # If your next.config.mjs has output:"export", Next.js puts files in out/
-          # Otherwise uncomment the next line:
-          # npx next export
+
+          # If Next didn’t create ./out for any reason, fall back to export
+          if [ ! -d "./out" ]; then
+            npx --yes next export
+          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -55,6 +64,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
