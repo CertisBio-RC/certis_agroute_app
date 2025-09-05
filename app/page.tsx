@@ -6,8 +6,8 @@ import type { FeatureCollection, Point } from "geojson";
 import Link from "next/link";
 import Image from "next/image";
 
-// IMPORTANT: rename the imported Map component so it does not shadow the global Map constructor
-import MapView from "@/components/Map";
+// IMPORTANT: import with a non-conflicting name
+import AgMap from "@/components/Map";
 import Legend, { type LegendItemInput } from "@/components/Legend";
 
 import {
@@ -56,7 +56,7 @@ export default function Page() {
   const [allowRotate, setAllowRotate] = useState<boolean>(false);
   const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
 
-  // derive the chosen basemap object safely
+  // derive basemap object
   const basemap = useMemo(
     () => BASEMAPS.find((b) => b.key === basemapKey) ?? BASEMAPS[0],
     [basemapKey]
@@ -120,7 +120,7 @@ export default function Page() {
     });
   }, [raw, stateFilter, selectedStates, retailerFilter, categoryFilter]);
 
-  // Legend items — use globalThis.Map to avoid any shadowing by imports named Map
+  // Legend items — use globalThis.Map so nothing shadows it
   const legendItems: LegendItemInput[] = useMemo(() => {
     if (!filteredGeojson) return [];
     const seen = new globalThis.Map<string, { name?: string; city?: string }>();
@@ -392,7 +392,7 @@ export default function Page() {
 
       {/* Map + Legend */}
       <div className="map-wrap">
-        <MapView
+        <AgMap
           data={filteredGeojson || undefined}
           markerStyle={markerStyle}
           showLabels={true}
