@@ -6,7 +6,8 @@ import type { FeatureCollection, Point } from "geojson";
 import Link from "next/link";
 import Image from "next/image";
 
-import Map from "@/components/Map";
+// IMPORTANT: rename the imported Map component so it does not shadow the global Map constructor
+import MapView from "@/components/Map";
 import Legend, { type LegendItemInput } from "@/components/Legend";
 
 import {
@@ -32,7 +33,6 @@ const BASEMAPS = [
 type RetailerProps = Record<string, any>;
 type TripMode = "round_home" | "start_home" | "no_home";
 
-// Deep-link structures
 type ShareLinks = {
   legLabel: string;
   google: string[];
@@ -51,7 +51,7 @@ export default function Page() {
 
   // Marker + basemap UI
   const [markerStyle, setMarkerStyle] = useState<"logo" | "color">("logo");
-  const [basemapKey, setBasemapKey] = useState<string>("satellite"); // default to Satellite
+  const [basemapKey, setBasemapKey] = useState<string>("satellite"); // default Satellite
   const [flatMap, setFlatMap] = useState<boolean>(true);
   const [allowRotate, setAllowRotate] = useState<boolean>(false);
   const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
@@ -77,7 +77,6 @@ export default function Page() {
   // --------- Load data + home once ----------
   const reloadData = () => {
     const ts = Date.now();
-    // using root-relative path works with GitHub Pages when basePath/assetPrefix are set
     fetch(`/data/retailers.geojson?ts=${ts}`)
       .then((r) => {
         if (!r.ok) throw new Error(`Failed to fetch retailers.geojson (${r.status})`);
@@ -121,10 +120,10 @@ export default function Page() {
     });
   }, [raw, stateFilter, selectedStates, retailerFilter, categoryFilter]);
 
-  // Legend items
+  // Legend items — use globalThis.Map to avoid any shadowing by imports named Map
   const legendItems: LegendItemInput[] = useMemo(() => {
     if (!filteredGeojson) return [];
-    const seen = new Map<string, { name?: string; city?: string }>();
+    const seen = new globalThis.Map<string, { name?: string; city?: string }>();
     for (const f of filteredGeojson.features) {
       const p = f.properties || {};
       const retailer =
@@ -348,7 +347,7 @@ export default function Page() {
         </div>
       </header>
 
-      {/* Home controls (minimal) */}
+      {/* Home controls */}
       <section className="controls">
         <div className="group">
           <label>Home:</label>
@@ -393,7 +392,7 @@ export default function Page() {
 
       {/* Map + Legend */}
       <div className="map-wrap">
-        <Map
+        <MapView
           data={filteredGeojson || undefined}
           markerStyle={markerStyle}
           showLabels={true}
@@ -435,7 +434,7 @@ export default function Page() {
           {share.map((leg, i) => (
             <div key={i} className="mb-3 rounded-lg border border-gray-200 p-2" style={{ borderColor: "#2a2f39" }}>
               <div className="mb-2 text-sm font-medium">{leg.legLabel}</div>
-              <div className="flex flex-col gap-2 md:flex-row">
+              <div className="flex flex-wrap gap-2">
                 <LinkGroup label="Google Maps" urls={leg.google} />
                 <LinkGroup label="Apple Maps" urls={leg.apple} />
                 <LinkGroup label="Waze (step-by-step)" urls={leg.waze} />
