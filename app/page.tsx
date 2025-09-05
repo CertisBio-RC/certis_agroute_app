@@ -6,7 +6,7 @@ import type { FeatureCollection, Point } from "geojson";
 import Link from "next/link";
 import Image from "next/image";
 
-// IMPORTANT: import with a non-conflicting name
+// Import the map component with a non-conflicting name
 import AgMap from "@/components/Map";
 import Legend, { type LegendItemInput } from "@/components/Legend";
 
@@ -20,6 +20,14 @@ import {
 
 import { geocodeAddress, loadHome, saveHome, type HomeLoc } from "@/utils/home";
 import { buildAppleMapsLinks, buildGoogleMapsLinks, buildWazeStepLinks } from "@/utils/navLinks";
+
+// ---------------- Helpers ----------------
+function withBasePath(p: string) {
+  const repo = (process.env.NEXT_PUBLIC_REPO_NAME || process.env.REPO_NAME || "").trim();
+  const base = repo ? `/${repo}` : "";
+  const path = p.startsWith("/") ? p : `/${p}`;
+  return `${base}${path}`;
+}
 
 // ---------- Basemap presets ----------
 const BASEMAPS = [
@@ -42,6 +50,8 @@ type ShareLinks = {
 
 export default function Page() {
   const [raw, setRaw] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Filters
   const [stateFilter, setStateFilter] = useState<string>("");
@@ -56,7 +66,6 @@ export default function Page() {
   const [allowRotate, setAllowRotate] = useState<boolean>(false);
   const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
 
-  // derive basemap object
   const basemap = useMemo(
     () => BASEMAPS.find((b) => b.key === basemapKey) ?? BASEMAPS[0],
     [basemapKey]
@@ -76,14 +85,24 @@ export default function Page() {
 
   // --------- Load data + home once ----------
   const reloadData = () => {
+    setLoading(true);
+    setLoadError(null);
     const ts = Date.now();
-    fetch(`/data/retailers.geojson?ts=${ts}`)
+    const url = withBasePath(`/data/retailers.geojson`) + `?ts=${ts}`;
+    fetch(url)
       .then((r) => {
-        if (!r.ok) throw new Error(`Failed to fetch retailers.geojson (${r.status})`);
+        if (!r.ok) throw new Error(`Failed to fetch ${url} (${r.status})`);
         return r.json();
       })
-      .then((j) => setRaw(j))
-      .catch((e) => console.error("Failed to load retailers.geojson", e));
+      .then((j) => {
+        setRaw(j);
+        setLoading(false);
+      })
+      .catch((e) => {
+        console.error("Failed to load retailers.geojson", e);
+        setLoadError(e?.message || "Failed to load data");
+        setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -91,7 +110,7 @@ export default function Page() {
     setHome(loadHome());
   }, []);
 
-  // (optional) persist basemap selection
+  // Persist basemap
   useEffect(() => {
     try {
       const saved = localStorage.getItem("basemapKey");
@@ -255,17 +274,17 @@ export default function Page() {
 
   // ---------- Render ----------
   return (
-    <main className="relative mx-auto max-w-[1200px] px-4 py-6">
+    <main className="wrap">
       {/* Header */}
-      <div className="mb-3 flex items-center gap-3 header">
-        <Link href="/" className="flex items-center gap-3">
+      <div className="header-row">
+        <Link href="/" className="brand">
           <Image
             src="/certis-logo.png"
             alt="Certis Biologicals"
-            width={180}
-            height={42}
+            width={176}
+            height={40}
             priority
-            className="h-8 w-auto"
+            className="brand-logo"
           />
           <span className="sr-only">Home</span>
         </Link>
@@ -273,15 +292,15 @@ export default function Page() {
         <div className="subtitle">Retailer map &amp; trip builder</div>
       </div>
 
-      {/* Controls */}
-      <header className="controls">
+      {/* Top controls */}
+      <div className="controls">
         <div className="group">
           <button className="btn" onClick={reloadData}>Reload data</button>
           <button className="btn primary" onClick={buildTrip}>Build Trip</button>
         </div>
 
         <div className="group">
-          <label>Category:</label>
+          <label>Category</label>
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
             <option value="">All</option>
             {categoryOptions.map((c) => (
@@ -291,7 +310,7 @@ export default function Page() {
         </div>
 
         <div className="group">
-          <label>Retailer:</label>
+          <label>Retailer</label>
           <select value={retailerFilter} onChange={(e) => setRetailerFilter(e.target.value)}>
             <option value="">All</option>
             {retailerOptions.map((r) => (
@@ -301,7 +320,7 @@ export default function Page() {
         </div>
 
         <div className="group">
-          <label>Markers:</label>
+          <label>Markers</label>
           <select
             value={markerStyle}
             onChange={(e) => setMarkerStyle(e.target.value as "logo" | "color")}
@@ -312,21 +331,17 @@ export default function Page() {
         </div>
 
         <div className="group">
-          <label>Basemap:</label>
+          <label>Basemap</label>
           <select value={basemapKey} onChange={(e) => setBasemapKey(e.target.value)}>
             {BASEMAPS.map((b) => (
               <option key={b.key} value={b.key}>{b.label}</option>
             ))}
           </select>
-          <label className="flex items-center gap-1 text-sm">
-            <input
-              type="checkbox"
-              checked={flatMap}
-              onChange={(e) => setFlatMap(e.target.checked)}
-            />
+          <label className="inline">
+            <input type="checkbox" checked={flatMap} onChange={(e) => setFlatMap(e.target.checked)} />
             Flat map
           </label>
-          <label className="flex items-center gap-1 text-sm">
+          <label className="inline">
             <input
               type="checkbox"
               checked={allowRotate}
@@ -335,7 +350,7 @@ export default function Page() {
             />
             Allow rotate
           </label>
-          <label className="flex items-center gap-1 text-sm" title="Boost contrast on satellite imagery">
+          <label className="inline" title="Boost contrast on satellite imagery">
             <input
               type="checkbox"
               checked={sharpenImagery}
@@ -345,15 +360,16 @@ export default function Page() {
             Sharpen imagery
           </label>
         </div>
-      </header>
+      </div>
 
       {/* Home controls */}
-      <section className="controls">
+      <div className="controls">
         <div className="group">
-          <label>Home:</label>
+          <label>Home</label>
           <input
+            className="text"
             type="text"
-            placeholder="Enter address (city, ZIP, or full)"
+            placeholder="Enter address (city, ZIP, or full address)"
             value={homeQuery}
             onChange={(e) => setHomeQuery(e.target.value)}
           />
@@ -362,8 +378,8 @@ export default function Page() {
           <button className="btn" onClick={clearHome}>Clear</button>
         </div>
 
-        <div className="group">
-          <label className="flex items-center gap-2 text-sm">
+        <div className="group radios">
+          <label className="inline">
             <input
               type="radio"
               checked={tripMode === "round_home"}
@@ -371,7 +387,7 @@ export default function Page() {
             />
             Round trip from Home
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="inline">
             <input
               type="radio"
               checked={tripMode === "start_home"}
@@ -379,7 +395,7 @@ export default function Page() {
             />
             Start at Home, end elsewhere
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="inline">
             <input
               type="radio"
               checked={tripMode === "no_home"}
@@ -387,8 +403,58 @@ export default function Page() {
             />
             No Home constraints
           </label>
+          {home?.label && (
+            <div className="current-home">
+              <strong>Current:</strong>&nbsp;{home.label}
+            </div>
+          )}
         </div>
-      </section>
+      </div>
+
+      {/* States */}
+      <div className="controls">
+        <div className="group">
+          <label>States</label>
+          <select
+            value={stateFilter}
+            onChange={(e) => {
+              setStateFilter(e.target.value);
+              setSelectedStates(new Set());
+            }}
+          >
+            <option value="">All</option>
+            {stateOptions.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+
+          <span className="hint">Tip: use chip buttons below for multi-state.</span>
+
+          <div className="chips">
+            {stateOptions.map((s) => {
+              const active = selectedStates.has(s);
+              return (
+                <button
+                  key={s}
+                  className={`chip ${active ? "active" : ""}`}
+                  onClick={() => {
+                    const next = new Set(selectedStates);
+                    if (active) next.delete(s);
+                    else next.add(s);
+                    setSelectedStates(next);
+                    setStateFilter(""); // chip mode → clear single-select
+                  }}
+                >
+                  {s}
+                </button>
+              );
+            })}
+            {selectedStates.size > 0 && (
+              <button className="btn" onClick={() => setSelectedStates(new Set())}>Clear</button>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Map + Legend */}
       <div className="map-wrap">
@@ -413,28 +479,32 @@ export default function Page() {
         />
 
         <div className="legend-fab">
-          <div className="card">
-            <Legend
-              items={legendItems}
-              selectedRetailer={retailerFilter || undefined}
-              onSelect={(r) => setRetailerFilter(r ?? "")}
-            />
-          </div>
+          <Legend
+            items={legendItems}
+            selectedRetailer={retailerFilter || undefined}
+            onSelect={(r) => setRetailerFilter(r ?? "")}
+          />
         </div>
+
+        {loading && <div className="loading">Loading data…</div>}
+        {!loading && loadError && (
+          <div className="error">
+            <div>Data failed to load.</div>
+            <code>{loadError}</code>
+          </div>
+        )}
       </div>
 
       {/* Send-to-phone panel */}
       {share.length > 0 && (
-        <section className="mt-4 rounded-xl border border-gray-200 p-3 card" style={{ marginTop: 16, padding: 12 }}>
-          <div className="mb-2 text-sm font-semibold">Send to phone</div>
-          <p className="mb-3 text-sm" style={{ color: "#aab3bf" }}>
-            Tap a link on your phone. For long trips, you’ll see multiple chunks.
-          </p>
+        <section className="share">
+          <div className="share-title">Send to phone</div>
+          <p className="share-hint">Tap a link on your phone. Long trips are split into multiple chunks.</p>
 
           {share.map((leg, i) => (
-            <div key={i} className="mb-3 rounded-lg border border-gray-200 p-2" style={{ borderColor: "#2a2f39" }}>
-              <div className="mb-2 text-sm font-medium">{leg.legLabel}</div>
-              <div className="flex flex-wrap gap-2">
+            <div key={i} className="share-leg">
+              <div className="share-leg-title">{leg.legLabel}</div>
+              <div className="share-groups">
                 <LinkGroup label="Google Maps" urls={leg.google} />
                 <LinkGroup label="Apple Maps" urls={leg.apple} />
                 <LinkGroup label="Waze (step-by-step)" urls={leg.waze} />
@@ -450,20 +520,13 @@ export default function Page() {
 // Helper to render link groups
 function LinkGroup({ label, urls }: { label: string; urls: string[] }) {
   if (!urls || urls.length === 0)
-    return <div className="flex-1 rounded-md p-2 text-sm" style={{ background: "#1e2128", color: "#8892a1" }}>{label}: not available</div>;
+    return <div className="share-empty">{label}: not available</div>;
   return (
-    <div className="flex-1">
-      <div className="mb-1 text-xs" style={{ color: "#aab3bf" }}>{label}</div>
-      <div className="flex flex-wrap gap-2">
+    <div className="share-col">
+      <div className="share-col-title">{label}</div>
+      <div className="share-links">
         {urls.map((u, idx) => (
-          <a
-            key={idx}
-            href={u}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md px-2 py-1 text-sm"
-            style={{ border: "1px solid #2a2f39", background: "#17191e" }}
-          >
+          <a key={idx} href={u} target="_blank" rel="noopener noreferrer" className="share-link">
             {urls.length === 1 ? "Open" : `Open ${idx + 1}`}
           </a>
         ))}
