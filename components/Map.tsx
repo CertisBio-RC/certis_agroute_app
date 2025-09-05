@@ -13,7 +13,7 @@ type ProjectionMode = "mercator" | "globe";
 
 export interface MapProps {
   data?: FeatureCollection<Point, RetailerProps>;
-  dataUrl?: string; // optional: load by URL if not passing data directly
+  dataUrl?: string;
   mapboxToken?: string;
   mapStyle?: string;
   markerStyle?: MarkerStyle;
@@ -25,41 +25,48 @@ export interface MapProps {
   initialCenter?: [number, number];
   initialZoom?: number;
   onReady?: () => void;
-
-  // Home / pick-home
   home?: { lng: number; lat: number; label?: string } | null;
   enableHomePick?: boolean;
   onPickHome?: (lng: number, lat: number) => void;
 }
 
-export default function AgMap({
-  data,
-  dataUrl,
-  mapboxToken,
-  mapStyle = "mapbox://styles/mapbox/streets-v12",
-  markerStyle = "logo",
-  showLabels = true,
-  labelColor = "#fff200",
-  projection = "mercator",
-  allowRotate = false,
-  rasterSharpen = false,
-  initialCenter = [-94.0, 41.9],
-  initialZoom = 6,
-  onReady,
-  home = null,
-  enableHomePick = false,
-  onPickHome,
-}: MapProps) {
+export default function AgMap(props: MapProps) {
+  const {
+    data,
+    dataUrl,
+    mapboxToken,
+    mapStyle = "mapbox://styles/mapbox/streets-v12",
+    markerStyle = "logo",
+    showLabels = true,
+    labelColor = "#fff200",
+    projection = "mercator",
+    allowRotate = false,
+    rasterSharpen = false,
+    initialCenter = [-94.0, 41.9],
+    initialZoom = 6,
+    onReady,
+    home = null,
+    enableHomePick = false,
+    onPickHome,
+  } = props;
+
+  // --- Token resolution with runtime override via ?mb=pk....
+  const qsToken =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("mb") || ""
+      : "";
   const resolvedToken =
     mapboxToken ||
+    qsToken ||
     process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
     process.env.MAPBOX_PUBLIC_TOKEN ||
     "";
 
+  const hasValidToken = typeof resolvedToken === "string" && /^pk\./.test(resolvedToken);
+  console.debug("Mapbox token length (client):", String(resolvedToken).length);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
-
-  // Use globalThis.Map so the built-in Map is never shadowed by component names/imports
   const markerPoolRef = useRef<globalThis.Map<string, mapboxgl.Marker>>(
     new globalThis.Map<string, mapboxgl.Marker>()
   );
@@ -70,7 +77,7 @@ export default function AgMap({
     data || null
   );
 
-  // Load external data if a URL is provided and no data prop
+  // Load external data if url provided
   useEffect(() => {
     let cancelled = false;
     if (!geojson && dataUrl) {
@@ -92,15 +99,14 @@ export default function AgMap({
     };
   }, [dataUrl, geojson]);
 
-  // If the parent passes data directly, keep it in sync
+  // Keep in sync when parent passes data
   useEffect(() => {
     if (data) setGeojson(data);
   }, [data]);
 
-  // Create map once
+  // Create map (only with a valid pk. token)
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    if (!resolvedToken) console.error("Mapbox token missing.");
+    if (!containerRef.current || mapRef.current || !hasValidToken) return;
 
     mapboxgl.accessToken = resolvedToken;
     const map = new mapboxgl.Map({
@@ -119,10 +125,7 @@ export default function AgMap({
     });
     map.addControl(nav, "top-right");
     map.addControl(
-      new mapboxgl.AttributionControl({
-        compact: true,
-        customAttribution: "© Certis AgRoute",
-      })
+      new mapboxgl.AttributionControl({ compact: true, customAttribution: "© Certis AgRoute" })
     );
 
     const onInitialLoad = () => {
@@ -134,13 +137,11 @@ export default function AgMap({
 
     map.on("load", onInitialLoad);
     map.on("style.load", () => {
-      // When style changes (e.g., basemap switch), re-add sources/layers and re-apply options
       applyProjectionAndRotation(map, projection, allowRotate);
       ensureSourcesAndLayers(map, showLabels, labelColor);
       if (rasterSharpen) tweakSatellitePaint(map);
     });
 
-    // Pick Home (Mapbox GL JS v3 typings: use MapMouseEvent)
     const clickHandler = (e: MapMouseEvent) => {
       if (!enableHomePick || !onPickHome) return;
       const { lng, lat } = e.lngLat;
@@ -150,7 +151,6 @@ export default function AgMap({
 
     mapRef.current = map;
     return () => {
-      // cleanup markers and map
       markerPoolRef.current.forEach((m) => m.remove());
       markerPoolRef.current.clear();
       if (homeMarkerRef.current) {
@@ -162,39 +162,35 @@ export default function AgMap({
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resolvedToken, hasValidToken]);
 
-  // Basemap/style changes
+  // Style/projection toggles
   useEffect(() => {
     const m = mapRef.current;
     if (m) m.setStyle(mapStyle);
   }, [mapStyle]);
 
-  // Projection / rotation toggles
   useEffect(() => {
     const m = mapRef.current;
     if (m) applyProjectionAndRotation(m, projection, allowRotate);
   }, [projection, allowRotate]);
 
-  // Raster sharpening toggle (satellite only)
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
     if (rasterSharpen) tweakSatellitePaint(m);
   }, [rasterSharpen]);
 
-  // Data and markers
+  // Data & markers
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
 
-    // Update source data
     if (geojson) {
       const src = m.getSource("retailers") as mapboxgl.GeoJSONSource | undefined;
       if (src) src.setData(geojson);
     }
 
-    // Render cycle: keep DOM markers in sync with visible features
     const handleRender = () => updateVisibleMarkers(m, markerStyle);
     m.on("render", handleRender);
     return () => {
@@ -216,9 +212,7 @@ export default function AgMap({
       }
       return;
     }
-
     if (homeMarkerRef.current) {
-      // Move existing marker and update tooltip
       homeMarkerRef.current.setLngLat([home.lng, home.lat]);
       try {
         homeMarkerRef.current.getElement().title = home.label || "Home";
@@ -231,8 +225,19 @@ export default function AgMap({
     }
   }, [home]);
 
-  // Small UI overlays
-  const loader = useMemo(() => {
+  // Overlays
+  const overlay = useMemo(() => {
+    if (!hasValidToken) {
+      return (
+        <div className="absolute left-3 top-3 z-10 max-w-[420px] rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 shadow">
+          <div className="font-semibold mb-1">Mapbox token not found</div>
+          <div className="opacity-90">
+            Build must inject <code>NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code>.<br />
+            For a quick test, append <code>?mb=&lt;pk.your_token&gt;</code> to the URL and reload.
+          </div>
+        </div>
+      );
+    }
     if (!geojson && !fetchError) {
       return (
         <div className="absolute left-3 top-3 z-10 rounded-xl bg-white/90 px-3 py-2 text-sm shadow">
@@ -255,25 +260,25 @@ export default function AgMap({
       );
     }
     return null;
-  }, [geojson, fetchError, enableHomePick]);
+  }, [hasValidToken, geojson, fetchError, enableHomePick]);
 
   return (
     <div className="relative h-[calc(100vh-8rem)] w-full overflow-hidden rounded-2xl border border-gray-200">
-      {loader}
+      {overlay}
       <div ref={containerRef} className="h-full w-full" />
-      <div
-        className="pointer-events-none absolute bottom-3 left-3 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-700 shadow"
-        aria-hidden
-      >
-        Markers: <b>{markerStyle === "logo" ? "Retailer logos" : "Retailer colors"}</b>
-      </div>
+      {hasValidToken && (
+        <div
+          className="pointer-events-none absolute bottom-3 left-3 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-700 shadow"
+          aria-hidden
+        >
+          Markers: <b>{markerStyle === "logo" ? "Retailer logos" : "Retailer colors"}</b>
+        </div>
+      )}
     </div>
   );
 
-  // ────────────────────────── internals ──────────────────────────
-
+  // ───────── internals ─────────
   function ensureSourcesAndLayers(map: MapboxMap, showLbls: boolean, lblColor: string) {
-    // Source
     if (!map.getSource("retailers")) {
       map.addSource("retailers", {
         type: "geojson",
@@ -283,8 +288,6 @@ export default function AgMap({
         clusterRadius: 48,
       });
     }
-
-    // Cluster circles
     if (!map.getLayer("clusters")) {
       map.addLayer({
         id: "clusters",
@@ -299,8 +302,6 @@ export default function AgMap({
         },
       });
     }
-
-    // Cluster counts
     if (!map.getLayer("cluster-count")) {
       map.addLayer({
         id: "cluster-count",
@@ -315,8 +316,6 @@ export default function AgMap({
         paint: { "text-color": "#ffffff" },
       });
     }
-
-    // Tiny hit circle for unclustered points (we render DOM markers; this stays invisible)
     if (!map.getLayer("unclustered-point")) {
       map.addLayer({
         id: "unclustered-point",
@@ -326,8 +325,6 @@ export default function AgMap({
         paint: { "circle-radius": 0.1, "circle-color": "#000", "circle-opacity": 0.01 },
       });
     }
-
-    // Optional labels
     if (showLbls && !map.getLayer("retailer-labels")) {
       map.addLayer({
         id: "retailer-labels",
@@ -351,7 +348,6 @@ export default function AgMap({
       });
     }
 
-    // Cluster interactions
     map.on("click", "clusters", (e) => {
       const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
       const clusterId = (features?.[0]?.properties as any)?.cluster_id;
@@ -367,28 +363,21 @@ export default function AgMap({
         }
       );
     });
-    map.on("mouseenter", "clusters", () => {
-      map.getCanvas().style.cursor = "pointer";
-    });
-    map.on("mouseleave", "clusters", () => {
-      map.getCanvas().style.cursor = "";
-    });
+    map.on("mouseenter", "clusters", () => (map.getCanvas().style.cursor = "pointer"));
+    map.on("mouseleave", "clusters", () => (map.getCanvas().style.cursor = ""));
   }
 
   function updateVisibleMarkers(map: MapboxMap, style: MarkerStyle) {
     if (!map.getLayer("unclustered-point")) return;
-
     const features = map.queryRenderedFeatures({
       layers: ["unclustered-point"],
     }) as unknown as Feature<Point, RetailerProps>[];
 
     const nextKeys = new Set<string>();
-
     for (const f of features) {
       if (!f?.geometry?.coordinates) continue;
       const key = makeKey(f);
       nextKeys.add(key);
-
       if (markerPoolRef.current.has(key)) continue;
 
       const p = f.properties || {};
@@ -424,7 +413,6 @@ export default function AgMap({
       markerPoolRef.current.set(key, marker);
     }
 
-    // Remove markers that are no longer visible
     for (const [key, m] of markerPoolRef.current.entries()) {
       if (!nextKeys.has(key)) {
         m.remove();
@@ -521,24 +509,14 @@ export default function AgMap({
   }
 }
 
-// ───────── helpers ─────────
+// helpers
 function pick(obj: any, keys: string[]) {
-  for (const k of keys) {
-    if (obj && typeof obj[k] === "string" && obj[k].trim()) return String(obj[k]).trim();
-  }
+  for (const k of keys) if (obj && typeof obj[k] === "string" && obj[k].trim()) return String(obj[k]).trim();
   return "";
 }
-
 function escapeHtml(s: string) {
-  return String(s).replace(/[&<>"']/g, (m) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  }[m]!));
+  return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!));
 }
-
 function makeKey(f: Feature<Point, Record<string, any>>) {
   const p = f.properties || {};
   const retailer = (p.retailer || p.Retailer || "").trim();
