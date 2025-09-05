@@ -50,12 +50,12 @@ export default function Page() {
   const [categoryFilter, setCategoryFilter] = useState<string>("");
 
   // Marker + basemap UI
-  const [markerStyle, setMarkerStyle] = useState<"logo" | "color">("logo");
-  const [basemapKey, setBasemapKey] = useState<string>("streets");
-  const [flatMap, setFlatMap] = useState<boolean>(true);
-  const [allowRotate, setAllowRotate] = useState<boolean>(false);
-  const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
-  const basemap = BASEMAPS.find((b) => b.key === basemapKey) ?? BASEMAPS[0];
+const [markerStyle, setMarkerStyle] = useState<"logo" | "color">("logo");
+// was: const [basemapKey, setBasemapKey] = useState<string>("streets");
+const [basemapKey, setBasemapKey] = useState<string>("satellite");
+const [flatMap, setFlatMap] = useState<boolean>(true);
+const [allowRotate, setAllowRotate] = useState<boolean>(false);
+const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
 
   // Home
   const [home, setHome] = useState<HomeLoc | null>(null);
