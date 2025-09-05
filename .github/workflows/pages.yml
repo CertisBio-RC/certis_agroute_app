@@ -28,34 +28,38 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      # Lockfile is out of sync in your repo; fall back to npm install if npm ci fails.
-      - name: Install deps (handle out-of-sync lockfile)
+      # Lockfile may be out of sync; fall back to install.
+      - name: Install deps
         run: |
           npm ci || npm install --no-audit --no-fund
 
+      # Add script deps without changing your repo
+      - name: Install converter deps (xlsx)
+        run: npm install --no-save xlsx
+
+      # Convert Excel -> GeoJSON before building the site
+      - name: Generate retailers.geojson from data/partners.xlsx
+        env:
+          MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
+          NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
+        run: |
+          node -e "console.log('Token length:', (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN||'').length)"
+          node scripts/partners-to-geojson.mjs
+          ls -la public/data || true
+          test -f public/data/retailers.geojson || (echo 'Missing retailers.geojson' && exit 1)
+
       - name: Build (Next.js static export)
         env:
-          # Expose to the browser bundle at build time
           NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
           NEXT_PUBLIC_REPO_NAME: ${{ secrets.REPO_NAME }}
-          # Optional server-side fallbacks (harmless with static export)
           MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
           REPO_NAME: ${{ secrets.REPO_NAME }}
         run: |
-          # Safe debug: print token length only (not the secret)
-          node -e "console.log('Token length:', (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN||'').length)"
-          if [ -z "${NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN}" ]; then
-            echo "::warning::NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN is empty. The map will fail to load in the browser."
-          fi
-
           npm run build
-
-          # If Next didn't create ./out for any reason, export as a fallback
+          # fallback export if Next didn't output ./out (shouldn't be needed)
           if [ ! -d "./out" ]; then
             npx --yes next export
           fi
-
-          # Show what's going to be deployed
           echo "--- out/ contents ---"
           ls -la out || true
 
