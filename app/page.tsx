@@ -6,7 +6,7 @@ import type { FeatureCollection, Point } from "geojson";
 import Link from "next/link";
 import Image from "next/image";
 
-import MapView from "@/components/Map";
+import MapView from "@/components/Map"; // our map component
 import Legend, { type LegendItemInput } from "@/components/Legend";
 
 import {
@@ -30,7 +30,7 @@ import {
   buildWazeStepLinks,
 } from "@/utils/navLinks";
 
-// ---------- Types ----------
+// ---------------- Types ----------------
 type RetailerProps = Record<string, any>;
 type TripMode = "round_home" | "start_home" | "no_home";
 
@@ -41,7 +41,7 @@ type ShareLinks = {
   waze: string[];
 };
 
-// ---------- Basemaps ----------
+// ---------------- Basemaps ----------------
 const BASEMAPS = [
   {
     key: "satellite",
@@ -61,65 +61,76 @@ const BASEMAPS = [
     uri: "mapbox://styles/mapbox/outdoors-v12",
     sharpen: false,
   },
-  { key: "light", label: "Light", uri: "mapbox://styles/mapbox/light-v11", sharpen: false },
-  { key: "dark", label: "Dark", uri: "mapbox://styles/mapbox/dark-v11", sharpen: false },
+  {
+    key: "light",
+    label: "Light",
+    uri: "mapbox://styles/mapbox/light-v11",
+    sharpen: false,
+  },
+  {
+    key: "dark",
+    label: "Dark",
+    uri: "mapbox://styles/mapbox/dark-v11",
+    sharpen: false,
+  },
 ];
 
-// Small helper: convert possibly-string coords to safe [lng,lat]
-function toLngLat(v: unknown): [number, number] | null {
-  if (!Array.isArray(v) || v.length < 2) return null;
-  const lng = Number(v[0]);
-  const lat = Number(v[1]);
-  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
-  if (Math.abs(lng) > 180 || Math.abs(lat) > 90) return null;
-  return [lng, lat];
-}
-
 export default function Page() {
-  // ---------- Data ----------
-  const [raw, setRaw] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
+  // ---------------- Data ----------------
+  const [raw, setRaw] =
+    useState<FeatureCollection<Point, RetailerProps> | null>(null);
 
-  // ---------- Filters ----------
+  // Filters
   const [stateFilter, setStateFilter] = useState<string>("");
-  const [selectedStates] = useState<Set<string>>(new Set()); // multi-state chips (kept for future use)
+  const [selectedStates] = useState<Set<string>>(new Set());
   const [retailerFilter, setRetailerFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
 
-  // ---------- Map/visual ----------
+  // Marker + basemap UI
   const [markerStyle, setMarkerStyle] = useState<"logo" | "color">("logo");
-  const [basemapKey, setBasemapKey] = useState<string>("satellite");
+  const [basemapKey, setBasemapKey] = useState<string>("satellite"); // default Satellite
   const [flatMap, setFlatMap] = useState<boolean>(true);
   const [allowRotate, setAllowRotate] = useState<boolean>(false);
   const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
-  const basemap = BASEMAPS.find((b) => b.key === basemapKey) ?? BASEMAPS[0];
+  const basemap =
+    BASEMAPS.find((b) => b.key === basemapKey) ?? BASEMAPS[0];
 
-  // ---------- Home ----------
+  // Home
   const [home, setHome] = useState<HomeLoc | null>(null);
   const [homeQuery, setHomeQuery] = useState("");
   const [homePickMode, setHomePickMode] = useState(false);
   const [tripMode, setTripMode] = useState<TripMode>("round_home");
 
-  // ---------- Share ----------
+  // Share links + diagnostics
   const [share, setShare] = useState<ShareLinks[]>([]);
-
-  // Diagnostics if trip building fails
   const [lastTripsUrl, setLastTripsUrl] = useState<string | null>(null);
   const [lastTripsError, setLastTripsError] = useState<string | null>(null);
 
-  // Mapbox token
   const mapboxToken =
-    process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN || process.env.MAPBOX_PUBLIC_TOKEN || "";
+    process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
+    process.env.MAPBOX_PUBLIC_TOKEN ||
+    "";
 
-  // ---------- Load data ----------
+  // ---------------- Load data (fixed for GitHub Pages subpath) ----------------
   const reloadData = () => {
-    const ts = Date.now();
-    fetch(`/data/retailers.geojson?ts=${ts}`, { cache: "no-store" })
+    // Build a URL RELATIVE to the current page so it works at /certis_agroute_app/
+    const base =
+      typeof window !== "undefined"
+        ? new URL("data/retailers.geojson", window.location.href).toString()
+        : "data/retailers.geojson";
+    const url = `${base}${base.includes("?") ? "&" : "?"}v=${Date.now()}`;
+
+    fetch(url, { cache: "no-store" })
       .then((r) => {
-        if (!r.ok) throw new Error(`retailers.geojson ${r.status}`);
+        if (!r.ok)
+          throw new Error(`retailers.geojson ${r.status} ${r.statusText}`);
         return r.json();
       })
       .then((j) => setRaw(j))
-      .catch((e) => console.error("Failed to load retailers.geojson:", e));
+      .catch((e) => {
+        console.error("Failed to load retailers.geojson:", url, e);
+        setRaw(null);
+      });
   };
 
   useEffect(() => {
@@ -127,29 +138,39 @@ export default function Page() {
     setHome(loadHome());
   }, []);
 
-  // ---------- Options ----------
-  const stateOptions = useMemo(() => distinctValues(raw, readState), [raw]);
-  const retailerOptions = useMemo(() => distinctValues(raw, readRetailer), [raw]);
-  const categoryOptions = useMemo(() => distinctValues(raw, readCategory), [raw]);
+  // Distinct options
+  const stateOptions = useMemo(
+    () => distinctValues(raw, readState),
+    [raw]
+  );
+  const retailerOptions = useMemo(
+    () => distinctValues(raw, readRetailer),
+    [raw]
+  );
+  const categoryOptions = useMemo(
+    () => distinctValues(raw, readCategory),
+    [raw]
+  );
 
-  // ---------- Filtered data ----------
-  const filteredGeojson: FeatureCollection<Point, RetailerProps> | null = useMemo(() => {
-    if (!raw) return null;
-    return applyFilters(raw, {
-      state: stateFilter,
-      states: selectedStates,
-      retailer: retailerFilter,
-      category: categoryFilter,
-    });
-  }, [raw, stateFilter, selectedStates, retailerFilter, categoryFilter]);
+  // Apply filters
+  const filteredGeojson: FeatureCollection<Point, RetailerProps> | null =
+    useMemo(() => {
+      if (!raw) return null;
+      return applyFilters(raw, {
+        state: stateFilter,
+        states: selectedStates,
+        retailer: retailerFilter,
+        category: categoryFilter,
+      });
+    }, [raw, stateFilter, selectedStates, retailerFilter, categoryFilter]);
 
-  // ---------- Legend ----------
+  // Legend items
   const legendItems: LegendItemInput[] = useMemo(() => {
     if (!filteredGeojson) return [];
-    const seen = (new (globalThis as any).Map() as Map<string, { name?: string; city?: string }>);
+    const seen: Map<string, { name?: string; city?: string }> = new Map();
     for (const f of filteredGeojson.features) {
       const p = f.properties || {};
-      const retailer: string =
+      const retailer =
         typeof p.retailer === "string" && p.retailer.trim()
           ? p.retailer.trim()
           : typeof p.Retailer === "string"
@@ -177,32 +198,39 @@ export default function Page() {
     }));
   }, [filteredGeojson]);
 
-  // ---------- Trip build (with graceful fallback) ----------
+  // ---------------- Trip builder ----------------
   async function buildTrip() {
     setShare([]);
     setLastTripsUrl(null);
     setLastTripsError(null);
 
+    if (!mapboxToken || !mapboxToken.startsWith("pk.")) {
+      alert("Mapbox public token is missing or invalid.");
+      return;
+    }
     if (!filteredGeojson) {
       alert("No points to build from.");
       return;
     }
-    if (!mapboxToken || !mapboxToken.startsWith("pk.")) {
-      alert("Mapbox public token missing. Check repository Secrets.");
-      return;
-    }
 
-    // Pull & validate coords
-    const points = filteredGeojson.features
-      .map((f) => toLngLat(f?.geometry?.coordinates))
-      .filter((v): v is [number, number] => !!v);
+    // Gather coordinates
+    const pts = filteredGeojson.features
+      .map((f) => f?.geometry?.coordinates as [number, number] | undefined)
+      .filter(
+        (c): c is [number, number] =>
+          Array.isArray(c) &&
+          Number.isFinite(c[0]) &&
+          Number.isFinite(c[1]) &&
+          Math.abs(c[0]) <= 180 &&
+          Math.abs(c[1]) <= 90
+      );
 
-    if (points.length < 1) {
+    if (pts.length < 1) {
       alert("No stops available after filtering.");
       return;
     }
 
-    // Compose coords list based on trip mode
+    // Build coordinate list & params
     const coords: [number, number][] = [];
     const params = new URLSearchParams({
       annotations: "duration,distance",
@@ -212,24 +240,23 @@ export default function Page() {
 
     if (tripMode === "round_home") {
       if (!home) return alert("Set Home first.");
-      coords.push([home.lng, home.lat], ...points);
+      coords.push([home.lng, home.lat], ...pts);
       params.set("roundtrip", "true");
       params.set("source", "first");
     } else if (tripMode === "start_home") {
       if (!home) return alert("Set Home first.");
-      coords.push([home.lng, home.lat], ...points);
+      coords.push([home.lng, home.lat], ...pts);
       params.set("roundtrip", "false");
       params.set("source", "first");
     } else {
-      coords.push(...points);
+      coords.push(...pts);
       params.set("roundtrip", "true");
     }
 
-    // Optimized Trips (limit 12 per request) — stride 11 to carry the last dest
+    // Mapbox limit: 12 per optimized leg
     const MAX = 12;
     let idx = 0;
     let legNum = 1;
-    let usedFallback = false;
 
     while (idx < coords.length) {
       const slice = coords.slice(idx, idx + MAX);
@@ -244,66 +271,54 @@ export default function Page() {
         setLastTripsUrl(url);
         const r = await fetch(url, { cache: "no-store" });
 
-        // 401/403 → probably no Optimization entitlement; fall back
         if (!r.ok) {
-          const body = await r.text().catch(() => "");
-          const errText = `HTTP ${r.status} ${r.statusText}\n${body}`;
-          setLastTripsError(errText);
-          usedFallback = true;
-        } else {
-          const j: any = await r.json();
-
-          // optimization sometimes returns 200 + error message in body
-          if (!j?.trips?.[0] || typeof j?.message === "string") {
-            const msg = j?.message || "Optimization returned no trips.";
-            setLastTripsError(msg);
-            usedFallback = true;
-          } else {
-            // success: sort waypoints by waypoint_index to get travel order
-            const wp = Array.isArray(j.waypoints) ? j.waypoints : j.trips?.[0]?.waypoints;
-            let ordered: [number, number][] = [];
-            if (
-              Array.isArray(wp) &&
-              wp.every(
-                (w: any) => Array.isArray(w?.location) && typeof w?.waypoint_index === "number"
-              )
-            ) {
-              ordered = wp
-                .slice()
-                .sort((a: any, b: any) => a.waypoint_index - b.waypoint_index)
-                .map((w: any) => [Number(w.location[0]), Number(w.location[1])] as [number, number]);
-            } else {
-              ordered = slice;
-            }
-
-            const g = buildGoogleMapsLinks(ordered);
-            const a = buildAppleMapsLinks(ordered);
-            const w = buildWazeStepLinks(ordered);
-
-            setShare((prev) => [
-              ...prev,
-              {
-                legLabel: `Leg ${legNum} (${ordered.length} stops)`,
-                google: g,
-                apple: a,
-                waze: w,
-              },
-            ]);
-
-            // advance with overlap only on first chunk for round/start modes
-            idx += idx === 0 && tripMode !== "no_home" ? MAX - 1 : MAX;
-            legNum += 1;
-            continue; // go process next chunk
-          }
+          const txt = await r.text().catch(() => "");
+          setLastTripsError(`HTTP ${r.status} ${r.statusText}\n${txt}`);
+          alert(`Trip API error:\nHTTP ${r.status} ${r.statusText}\n${txt}`);
+          break;
         }
-      } catch (e: any) {
-        setLastTripsError(`Network error: ${e?.message || String(e)}`);
-        usedFallback = true;
-      }
 
-      // ---------- Fallback: no optimization; just use the slice order ----------
-      {
-        const ordered = slice;
+        const j: any = await r.json();
+
+        if (!j?.trips?.[0]) {
+          const msg =
+            typeof j?.message === "string"
+              ? j.message
+              : "No trips in response.";
+          setLastTripsError(msg);
+          alert(`Trip build failed: ${msg}`);
+          break;
+        }
+
+        const wp = Array.isArray(j.waypoints)
+          ? j.waypoints
+          : j.trips?.[0]?.waypoints;
+
+        let ordered: [number, number][] = [];
+        if (
+          Array.isArray(wp) &&
+          wp.every(
+            (w: any) =>
+              Array.isArray(w?.location) &&
+              typeof w?.waypoint_index === "number"
+          )
+        ) {
+          ordered = wp
+            .slice()
+            .sort(
+              (a: any, b: any) => a.waypoint_index - b.waypoint_index
+            )
+            .map(
+              (w: any) =>
+                [Number(w.location[0]), Number(w.location[1])] as [
+                  number,
+                  number
+                ]
+            );
+        } else {
+          ordered = slice;
+        }
+
         const g = buildGoogleMapsLinks(ordered);
         const a = buildAppleMapsLinks(ordered);
         const w = buildWazeStepLinks(ordered);
@@ -311,26 +326,26 @@ export default function Page() {
         setShare((prev) => [
           ...prev,
           {
-            legLabel: `Leg ${legNum} (fallback, ${ordered.length} stops)`,
+            legLabel: `Leg ${legNum} (${ordered.length} stops)`,
             google: g,
             apple: a,
             waze: w,
           },
         ]);
-
-        idx += idx === 0 && tripMode !== "no_home" ? MAX - 1 : MAX;
-        legNum += 1;
+      } catch (e: any) {
+        const msg = e?.message || String(e);
+        setLastTripsError(`Network error: ${msg}`);
+        alert(`Trip build failed: ${msg}`);
+        break;
       }
-    }
 
-    if (usedFallback) {
-      alert(
-        "Optimization API unavailable for your token (or network error). Built non-optimized legs instead."
-      );
+      // Carry forward last dest as next origin if we had home at the start
+      idx += idx === 0 && tripMode !== "no_home" ? MAX - 1 : MAX;
+      legNum += 1;
     }
   }
 
-  // ---------- Home helpers ----------
+  // ---------------- Home helpers ----------------
   async function setHomeFromSearch() {
     if (!homeQuery.trim()) return;
     try {
@@ -346,7 +361,7 @@ export default function Page() {
     saveHome(null);
   }
 
-  // ---------- UI ----------
+  // ---------------- Render ----------------
   return (
     <main className="mx-auto max-w-[1200px] px-4 py-6">
       {/* Header */}
@@ -372,10 +387,16 @@ export default function Page() {
       <section className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-gray-800/40 bg-neutral-900/40 p-3 md:grid-cols-2">
         {/* Basemap / markers */}
         <div className="flex flex-wrap items-center gap-2">
-          <button className="rounded-md border px-3 py-1" onClick={reloadData}>
+          <button
+            className="rounded-md border px-3 py-1"
+            onClick={reloadData}
+          >
             Reload data
           </button>
-          <button className="rounded-md border px-3 py-1" onClick={buildTrip}>
+          <button
+            className="rounded-md border px-3 py-1"
+            onClick={buildTrip}
+          >
             Build Trip
           </button>
 
@@ -409,7 +430,10 @@ export default function Page() {
             />
             Allow rotate
           </label>
-          <label className="flex items-center gap-1 text-sm" title="Boost contrast on satellite imagery">
+          <label
+            className="flex items-center gap-1 text-sm"
+            title="Boost contrast on satellite imagery"
+          >
             <input
               type="checkbox"
               checked={sharpenImagery}
@@ -454,7 +478,9 @@ export default function Page() {
           <select
             className="rounded-md border bg-black/40 px-2 py-1"
             value={markerStyle}
-            onChange={(e) => setMarkerStyle(e.target.value as any)}
+            onChange={(e) =>
+              setMarkerStyle(e.target.value as "logo" | "color")
+            }
           >
             <option value="logo">Logos</option>
             <option value="color">Colored dots</option>
@@ -470,7 +496,10 @@ export default function Page() {
             value={homeQuery}
             onChange={(e) => setHomeQuery(e.target.value)}
           />
-          <button className="rounded-md border px-3 py-1" onClick={setHomeFromSearch}>
+          <button
+            className="rounded-md border px-3 py-1"
+            onClick={setHomeFromSearch}
+          >
             Set from address
           </button>
           <button
@@ -481,7 +510,10 @@ export default function Page() {
           >
             Pick on map
           </button>
-          <button className="rounded-md border px-3 py-1" onClick={clearHome}>
+          <button
+            className="rounded-md border px-3 py-1"
+            onClick={clearHome}
+          >
             Clear
           </button>
 
@@ -539,7 +571,7 @@ export default function Page() {
 
       {/* Map + Legend */}
       <section className="grid grid-cols-[1fr_280px] gap-4">
-        <div className="rounded-xl border border-gray-800/40 overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-gray-800/40">
           <MapView
             data={filteredGeojson || undefined}
             markerStyle={markerStyle}
@@ -570,7 +602,9 @@ export default function Page() {
 
           {(lastTripsUrl || lastTripsError) && (
             <div className="mt-3 rounded-md border border-gray-700/60 bg-black/30 p-2 text-xs">
-              <div className="mb-1 font-semibold text-gray-300">Trips API diagnostics</div>
+              <div className="mb-1 font-semibold text-gray-300">
+                Trips API diagnostics
+              </div>
               {lastTripsUrl && (
                 <div className="mb-1 break-all">
                   <div className="text-gray-400">URL</div>
@@ -580,7 +614,9 @@ export default function Page() {
               {lastTripsError && (
                 <div className="break-all">
                   <div className="text-gray-400">Error</div>
-                  <div className="whitespace-pre-wrap">{lastTripsError}</div>
+                  <div className="whitespace-pre-wrap">
+                    {lastTripsError}
+                  </div>
                 </div>
               )}
             </div>
@@ -593,16 +629,25 @@ export default function Page() {
         <section className="mt-4 rounded-xl border border-gray-800/40 bg-neutral-900/40 p-3">
           <div className="mb-2 text-sm font-semibold">Send to phone</div>
           <p className="mb-3 text-sm text-gray-400">
-            Tap a link on your phone. Long trips may be split into multiple legs.
+            Tap a link on your phone. Long trips may be split into multiple
+            legs.
           </p>
 
           {share.map((leg, i) => (
-            <div key={i} className="mb-3 rounded-lg border border-gray-800/60 p-2">
-              <div className="mb-2 text-sm font-medium">{leg.legLabel}</div>
+            <div
+              key={i}
+              className="mb-3 rounded-lg border border-gray-800/60 p-2"
+            >
+              <div className="mb-2 text-sm font-medium">
+                {leg.legLabel}
+              </div>
               <div className="flex flex-col gap-2 md:flex-row">
                 <LinkGroup label="Google Maps" urls={leg.google} />
                 <LinkGroup label="Apple Maps" urls={leg.apple} />
-                <LinkGroup label="Waze (step-by-step)" urls={leg.waze} />
+                <LinkGroup
+                  label="Waze (step-by-step)"
+                  urls={leg.waze}
+                />
               </div>
             </div>
           ))}
@@ -612,7 +657,7 @@ export default function Page() {
   );
 }
 
-// Render a group of deep links
+// ---------------- Helpers ----------------
 function LinkGroup({ label, urls }: { label: string; urls: string[] }) {
   if (!urls || urls.length === 0) {
     return (
