@@ -11,12 +11,12 @@ export type HomeLoc = { lng: number; lat: number; label?: string };
 type Props = {
   data?: FeatureCollection<Point, Record<string, any>>;
   markerStyle: "logo" | "color";
-  showLabels: boolean;
-  labelColor: string;
+  showLabels: boolean;        // currently unused (kept for compatibility)
+  labelColor: string;         // currently unused (kept for compatibility)
   mapStyle: string;
   projection: "mercator" | "globe";
   allowRotate: boolean;
-  rasterSharpen: boolean;
+  rasterSharpen: boolean;     // currently unused (kept for compatibility)
   mapboxToken: string;
   home?: HomeLoc | null;
   enableHomePick?: boolean;
@@ -29,20 +29,26 @@ const L_CLUSTER_COUNT = "retailers-cluster-count";
 const L_POINTS = "retailers-points"; // fallback circles
 const L_LOGOS = "retailers-logos";   // symbol layer with retailer logos
 
+/** Prefix paths with repo name for GitHub Pages */
 function withBasePath(path: string) {
   const repo = process.env.NEXT_PUBLIC_REPO_NAME || "";
   const prefix = repo ? `/${repo}` : "";
   return `${prefix}${path}`;
 }
 
+/** Wait until a style is finished loading */
 async function waitStyle(map: MapboxMap) {
   if (map.isStyleLoaded()) return;
   await new Promise<void>((resolve) => {
-    const onIdle = () => { map.off("idle", onIdle); resolve(); };
+    const onIdle = () => {
+      map.off("idle", onIdle);
+      resolve();
+    };
     map.on("idle", onIdle);
   });
 }
 
+/** Try to load a retailer logo into the style sprite, return an image key or null */
 async function loadRetailerLogo(map: MapboxMap, retailer: string): Promise<string | null> {
   const base = withBasePath("/icons/");
   const fileBase = `${retailer} Logo`;
@@ -59,12 +65,13 @@ async function loadRetailerLogo(map: MapboxMap, retailer: string): Promise<strin
       if (!map.hasImage(key)) map.addImage(key, bmp, { pixelRatio: 2 });
       return key;
     } catch {
-      /* try next */
+      /* try next extension */
     }
   }
   return null;
 }
 
+/** Create sources & layers if missing (safe to call repeatedly) */
 function ensureSourcesAndLayers(map: MapboxMap) {
   if (!map.getSource(SOURCE_ID)) {
     map.addSource(SOURCE_ID, {
@@ -136,6 +143,7 @@ function ensureSourcesAndLayers(map: MapboxMap) {
   }
 }
 
+/** Push (possibly) enriched data into the GeoJSON source */
 function syncData(map: MapboxMap, data?: FeatureCollection<Point, Record<string, any>>) {
   const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
   if (!src) return;
@@ -197,6 +205,7 @@ export default function MapView({
     return Array.from(s.values());
   }, [data]);
 
+  // Initial map create
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -209,7 +218,7 @@ export default function MapView({
       attributionControl: true,
     });
 
-    map.touchZoomRotate.enable();
+    map.touchZoomRotate.enable(); // good mobile UX
     mapRef.current = map;
 
     map.on("load", async () => {
@@ -222,7 +231,8 @@ export default function MapView({
       }
     });
 
-    const onClick = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+    // NOTE: EventData type no longer exists in v3 typings. Use MapMouseEvent only.
+    const onClick = (e: mapboxgl.MapMouseEvent) => {
       if (!enableHomePick || !onPickHome) return;
       const { lng, lat } = e.lngLat;
       onPickHome(lng, lat);
@@ -237,11 +247,11 @@ export default function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Style changes require re-adding sources/layers/images
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // Re-apply style if it changed; re-create layers & images.
     map.setStyle(mapStyle);
     (async () => {
       await waitStyle(map);
@@ -255,12 +265,18 @@ export default function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyle]);
 
+  // Projection
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    try { map.setProjection(projection); } catch {}
+    try {
+      map.setProjection(projection);
+    } catch {
+      /* ignore if not supported */
+    }
   }, [projection]);
 
+  // Rotation controls
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -273,6 +289,7 @@ export default function MapView({
     }
   }, [allowRotate]);
 
+  // Toggle symbol/circle visibility (logos on/off)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -281,6 +298,7 @@ export default function MapView({
     if (map.getLayer(L_POINTS)) map.setLayoutProperty(L_POINTS, "visibility", "visible");
   }, [markerStyle]);
 
+  // Data changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
@@ -294,6 +312,7 @@ export default function MapView({
     })();
   }, [data, retailerNames]);
 
+  // Home marker (position and creation)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
