@@ -1,163 +1,94 @@
-﻿// scripts/partners-to-geojson.mjs
-// Converts data/partners.xlsx (or .xls/.xlsm) → public/data/retailers.geojson
-// If a row has Latitude/Longitude we use them; otherwise we geocode with Mapbox.
-// Uses/updates data/geocode-cache.json to avoid re-geocoding the same address.
+﻿// /scripts/partners-to-geojson.ts
+// Run with:  npx ts-node scripts/partners-to-geojson.ts
+// or add a package.json script: "partners:geojson": "ts-node scripts/partners-to-geojson.ts"
 
-import fs from "node:fs/promises";
+import fs from "node:fs";
 import path from "node:path";
-// IMPORTANT: use the ESM module and read() instead of readFile()
-import * as XLSX from "xlsx/xlsx.mjs";
+import * as XLSX from "xlsx";
+import type { FeatureCollection, Feature, Point } from "geojson";
 
-/** ---- utilities ---- */
-async function readJson(file) {
-  try {
-    const txt = await fs.readFile(file, "utf8");
-    return JSON.parse(txt);
-  } catch {
-    return {};
-  }
-}
-async function writeJson(file, obj) {
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, JSON.stringify(obj, null, 2), "utf8");
-}
-function pick(row, keys) {
+type Row = Record<string, any>;
+
+const INPUT = process.env.PARTNERS_XLSX || path.join("data", "partners.xlsx");
+const OUTPUT = path.join("data", "retailers.geojson");
+const SHEET_INDEX = 0;
+
+function getS(row: Row, keys: string[], def = ""): string {
   for (const k of keys) {
-    if (row && row[k] != null && String(row[k]).trim() !== "") return String(row[k]).trim();
+    const v = row[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && !Number.isNaN(v)) return String(v);
   }
-  return "";
-}
-function pickNum(row, keys) {
-  const v = pick(row, keys);
-  if (!v) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-function addrKey({ name, addr1, city, state, zip }) {
-  return [name, addr1, city, state, zip].filter(Boolean).join(", ").toLowerCase();
-}
-async function geocode(q, token) {
-  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-    q
-  )}.json?limit=1&country=US&access_token=${encodeURIComponent(token)}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Geocode failed (${r.status})`);
-  const j = await r.json();
-  const f = Array.isArray(j.features) && j.features[0];
-  if (!f?.center) throw new Error("No match");
-  const [lng, lat] = f.center;
-  return { lng: Number(lng), lat: Number(lat) };
+  return def;
 }
 
-/** ---- main ---- */
-async function main() {
-  const repoRoot = process.cwd();
-  const dataDir = path.join(repoRoot, "data");
-  const outFile = path.join(repoRoot, "public", "data", "retailers.geojson");
-  const cacheFile = path.join(repoRoot, "data", "geocode-cache.json");
-
-  // find partners workbook
-  const entries = await fs.readdir(dataDir);
-  const xlsxName =
-    entries.find((n) => /^partners\.(xlsx|xlsm|xls)$/i.test(n)) ||
-    entries.find((n) => /^partners/i.test(n) && /\.(xlsx|xlsm|xls)$/i.test(n));
-  if (!xlsxName) {
-    console.log("⚠ No Excel like data/partners.xlsx found. Skipping conversion.");
-    return;
+function getN(row: Row, keys: string[]): number | null {
+  for (const k of keys) {
+    const v = row[k];
+    if (typeof v === "number" && !Number.isNaN(v)) return v;
+    if (typeof v === "string" && v.trim() && !Number.isNaN(Number(v))) return Number(v);
   }
-  const wbPath = path.join(dataDir, xlsxName);
+  return null;
+}
 
-  // READ using Buffer + XLSX.read (works in ESM)
-  const buf = await fs.readFile(wbPath);
-  const wb = XLSX.read(buf, { type: "buffer" });
-  const sheetName = wb.SheetNames[0];
-  const sh = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sh, { defval: "" });
+function buildFeature(row: Row): Feature<Point, Record<string, any>> | null {
+  const lng = getN(row, ["Longitude", "longitude", "Lng", "lng", "Lon", "lon"]);
+  const lat = getN(row, ["Latitude", "latitude", "Lat", "lat"]);
+  if (lng == null || lat == null) return null; // skip rows without coordinates
 
-  const token =
-    process.env.MAPBOX_PUBLIC_TOKEN ||
-    process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
-    "";
+  const props: Record<string, any> = {
+    Retailer: getS(row, ["Retailer", "retailer"]),
+    Name: getS(row, ["Name", "name"]),
+    City: getS(row, ["City", "city"]),
+    State: getS(row, ["State", "state"]),
+    Zip: getS(row, ["Zip", "ZIP", "zip"]),
+    Category: getS(row, ["Category", "category"]),
+    Address: getS(row, ["Address", "address"]),
+  };
 
-  if (!token) {
-    console.log("⚠ MAPBOX token not present in env. Rows without lat/lng will be skipped.");
+  // Include Supplier(s) column (robust to naming variations)
+  const suppliers =
+    getS(row, ["Supplier(s)", "Suppliers", "Supplier", "supplier(s)", "suppliers"], "");
+  if (suppliers) props["Supplier(s)"] = suppliers;
+
+  // "Long Name" can be ignored per user, but if present, include for debugging
+  const longName = getS(row, ["Long Name", "LongName", "long name", "longName"], "");
+  if (longName) props["Long Name"] = longName;
+
+  return {
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [lng, lat],
+    },
+    properties: props,
+  };
+}
+
+function main() {
+  if (!fs.existsSync(INPUT)) {
+    console.error(`❌ Input not found: ${INPUT}`);
+    process.exit(1);
   }
-
-  const gc = await readJson(cacheFile); // cache map
-  const features = [];
-  let skipped = 0,
-    geocoded = 0,
-    usedCache = 0,
-    usedLatLng = 0;
+  const wb = XLSX.readFile(INPUT, { cellDates: false });
+  const wsName = wb.SheetNames[SHEET_INDEX];
+  const ws = wb.Sheets[wsName];
+  const rows: Row[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+  const feats: Feature<Point, Record<string, any>>[] = [];
 
   for (const row of rows) {
-    const retailer = pick(row, ["Retailer", "retailer", "Partner", "partner"]);
-    const name = pick(row, ["Name", "name", "Location", "location"]);
-    const city = pick(row, ["City", "city"]);
-    const state = pick(row, ["State", "state", "ST", "st"]);
-    const zip = pick(row, ["Zip", "ZIP", "zip", "Postal", "postal"]);
-    const category = pick(row, ["Category", "category", "Type", "type"]);
-    const addr1 = pick(row, ["Address", "address", "Address1", "Street", "street"]);
-
-    let lat = pickNum(row, ["lat", "Lat", "Latitude", "latitude", "LAT"]);
-    let lng = pickNum(row, ["lng", "Lng", "Long", "Lon", "Longitude", "longitude", "LNG"]);
-
-    if (lat != null && lng != null) {
-      usedLatLng++;
-    } else {
-      const key = addrKey({ name, addr1, city, state, zip });
-      if (key && gc[key]) {
-        lat = gc[key].lat;
-        lng = gc[key].lng;
-        usedCache++;
-      } else if (token && key) {
-        try {
-          const q = [name, addr1, city, state, zip].filter(Boolean).join(", ");
-          const pos = await geocode(q, token);
-          lat = pos.lat;
-          lng = pos.lng;
-          gc[key] = { lat, lng };
-          geocoded++;
-          await new Promise((r) => setTimeout(r, 120)); // be polite
-        } catch {
-          // no-op; will skip below
-        }
-      }
-    }
-
-    if (!(Number.isFinite(lat) && Number.isFinite(lng))) {
-      skipped++;
-      continue;
-    }
-
-    const props = {
-      Retailer: retailer,
-      Name: name,
-      City: city,
-      State: state,
-      Zip: zip,
-      Category: category,
-      Address: addr1,
-    };
-    features.push({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [lng, lat] },
-      properties: props,
-    });
+    const f = buildFeature(row);
+    if (f) feats.push(f);
   }
 
-  await fs.mkdir(path.dirname(outFile), { recursive: true });
-  await fs.writeFile(outFile, JSON.stringify({ type: "FeatureCollection", features }), "utf8");
-  try {
-    await writeJson(cacheFile, gc);
-  } catch {}
+  const fc: FeatureCollection<Point, Record<string, any>> = {
+    type: "FeatureCollection",
+    features: feats,
+  };
 
-  console.log(`✓ GeoJSON written: ${outFile}`);
-  console.log(`  rows: ${rows.length}, features: ${features.length}, skipped: ${skipped}`);
-  console.log(`  used lat/lng: ${usedLatLng}, cache: ${usedCache}, geocoded: ${geocoded}`);
+  fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
+  fs.writeFileSync(OUTPUT, JSON.stringify(fc, null, 2), "utf8");
+  console.log(`✅ Wrote ${feats.length} features to ${OUTPUT}`);
 }
 
-main().catch((e) => {
-  console.error("partners-to-geojson failed:", e?.message || e);
-  process.exit(1);
-});
+main();

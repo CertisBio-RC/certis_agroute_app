@@ -1,74 +1,140 @@
 // /utils/filtering.ts
-import type { FeatureCollection, Point } from "geojson";
+import type { Feature, FeatureCollection, Point } from "geojson";
 
-type Props = Record<string, any>;
+type RetailerProps = Record<string, any>;
 
-const STATE_KEYS = [
-  "state", "State", "STATE", "st", "St", "ST",
-  "state_code", "stateCode", "state_abbrev", "StateAbbrev",
-  "postal", "Postal", "abbr", "Abbr"
-];
-const RETAILER_KEYS = ["retailer", "Retailer"];
-const CATEGORY_KEYS = ["category", "Category"];
-const NAME_KEYS = ["name", "Name"];
-const CITY_KEYS = ["city", "City"];
-
-export function readString(p: Props, keys: string[]): string {
-  for (const k of keys) {
-    const v = p?.[k];
+function getProp(p: Record<string, any> | undefined, names: string[]): string {
+  if (!p) return "";
+  for (const n of names) {
+    const v = p[n];
     if (typeof v === "string" && v.trim()) return v.trim();
   }
   return "";
 }
 
-export function readState(p: Props): string {
-  const v = readString(p, STATE_KEYS);
-  return v ? v.trim().toUpperCase() : "";
+function toUpper2(s: string) {
+  return s.trim().toUpperCase();
 }
-export function readRetailer(p: Props): string { return readString(p, RETAILER_KEYS).trim(); }
-export function readCategory(p: Props): string { return readString(p, CATEGORY_KEYS).trim(); }
-export function readName(p: Props): string { return readString(p, NAME_KEYS).trim(); }
-export function readCity(p: Props): string { return readString(p, CITY_KEYS).trim(); }
 
+/* ---------- Readers ---------- */
+export function readState(f: Feature<Point, RetailerProps>): string {
+  const s = getProp(f.properties, ["state", "State"]);
+  return s ? toUpper2(s) : "";
+}
+
+export function readRetailer(f: Feature<Point, RetailerProps>): string {
+  return getProp(f.properties, ["retailer", "Retailer"]);
+}
+
+export function readCategory(f: Feature<Point, RetailerProps>): string {
+  return getProp(f.properties, ["category", "Category"]);
+}
+
+export function readCity(f: Feature<Point, RetailerProps>): string {
+  return getProp(f.properties, ["city", "City"]);
+}
+
+export function readName(f: Feature<Point, RetailerProps>): string {
+  return getProp(f.properties, ["name", "Name"]);
+}
+
+/** Parse Supplier(s) into a clean list: split by comma/semicolon/slash, trim, dedupe, keep case as-is for display */
+export function readSuppliersList(f: Feature<Point, RetailerProps>): string[] {
+  const p = f.properties || {};
+  const raw =
+    (typeof p["Supplier(s)"] === "string" && p["Supplier(s)"]) ||
+    (typeof p["Suppliers"] === "string" && p["Suppliers"]) ||
+    (typeof p["Supplier"] === "string" && p["Supplier"]) ||
+    (typeof p["supplier(s)"] === "string" && p["supplier(s)"]) ||
+    (typeof p["suppliers"] === "string" && p["suppliers"]) ||
+    "";
+  if (!raw.trim()) return [];
+  const parts = raw
+    .split(/[;,/|]/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // Deduplicate case-insensitively but preserve first-cased form
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of parts) {
+    const key = s.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+/** Distinct single-value reader */
 export function distinctValues(
-  fc: FeatureCollection<Point, Props> | null,
-  reader: (p: Props) => string
+  fc: FeatureCollection<Point, RetailerProps> | null,
+  reader: (f: Feature<Point, RetailerProps>) => string
 ): string[] {
   if (!fc) return [];
-  const s = new Set<string>();
+  const set = new Set<string>();
   for (const f of fc.features) {
-    const v = reader(f.properties || {});
-    if (v) s.add(v);
+    const v = reader(f);
+    if (v) set.add(v);
   }
-  return Array.from(s).sort((a, b) => a.localeCompare(b));
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+/** Distinct suppliers across all rows (flattened) */
+export function distinctSuppliers(
+  fc: FeatureCollection<Point, RetailerProps> | null
+): string[] {
+  if (!fc) return [];
+  const set = new Set<string>();
+  for (const f of fc.features) {
+    for (const s of readSuppliersList(f)) {
+      set.add(s);
+    }
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+/* ---------- Filtering ---------- */
 export function applyFilters(
-  fc: FeatureCollection<Point, Props>,
+  fc: FeatureCollection<Point, RetailerProps>,
   opts: {
-    state?: string;               // single-select (e.g., "IA")
-    states?: Set<string>;         // multi-select set of postal codes
+    state?: string;               // single-select state
+    states?: Set<string>;         // multi-state chips
     retailer?: string;
     category?: string;
+    supplier?: string;            // NEW: single-select supplier
   }
-): FeatureCollection<Point, Props> {
-  const wantOne = (val: string, target?: string) =>
-    !target || !target.trim() || val === target.trim();
+): FeatureCollection<Point, RetailerProps> {
+  const wantState = (opts.state || "").trim();
+  const chipStates = opts.states ?? new Set<string>();
+  const wantRetailer = (opts.retailer || "").trim();
+  const wantCategory = (opts.category || "").trim();
+  const wantSupplier = (opts.supplier || "").trim().toLowerCase();
 
-  const wantMany = (val: string, set?: Set<string>) =>
-    !set || set.size === 0 || set.has(val);
+  const useChipStates = chipStates.size > 0;
 
-  const features = fc.features.filter((f) => {
-    const p = (f.properties || {}) as Props;
-    const st = readState(p);        // normalized to UPPERCASE
-    const r  = readRetailer(p);
-    const c  = readCategory(p);
+  const out: Feature<Point, RetailerProps>[] = [];
+  for (const f of fc.features) {
+    const s = readState(f);
+    const r = readRetailer(f);
+    const c = readCategory(f);
 
-    const okState = wantOne(st, opts.state?.toUpperCase()) && wantMany(st, opts.states);
-    const okRetailer = wantOne(r, opts.retailer);
-    const okCategory = wantOne(c, opts.category);
-    return okState && okRetailer && okCategory;
-  });
+    if (useChipStates) {
+      if (!s || !chipStates.has(toUpper2(s))) continue;
+    } else if (wantState) {
+      if (!s || toUpper2(s) !== toUpper2(wantState)) continue;
+    }
 
-  return { type: "FeatureCollection", features };
+    if (wantRetailer && r !== wantRetailer) continue;
+    if (wantCategory && c !== wantCategory) continue;
+
+    if (wantSupplier) {
+      const suppliers = readSuppliersList(f).map((x) => x.toLowerCase());
+      if (!suppliers.includes(wantSupplier)) continue;
+    }
+
+    out.push(f);
+  }
+
+  return { type: "FeatureCollection", features: out };
 }
