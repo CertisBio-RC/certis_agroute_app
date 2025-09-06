@@ -2,7 +2,7 @@
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -11,55 +11,34 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Use Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: 20
+          cache: npm
 
       - name: Install deps
-        run: |
-          npm ci || npm install --no-audit --no-fund
+        run: npm ci
 
-      - name: Install converter deps (xlsx)
-        run: npm install --no-save xlsx
+      - name: Generate retailers GeoJSON
+        run: node scripts/partners-to-geojson.mjs
 
-      - name: Generate retailers.geojson from data/partners.xlsx
+      - name: Build (Next.js static export to ./out)
         env:
-          MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
-          NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
-        run: |
-          node -e "console.log('Token length:', (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN||'').length)"
-          node scripts/partners-to-geojson.mjs
-          ls -la public/data || true
-          test -f public/data/retailers.geojson || (echo 'Missing retailers.geojson' && exit 1)
+          NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+        run: npm run build
 
-      - name: Build (Next.js static export)
-        env:
-          NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
-          NEXT_PUBLIC_REPO_NAME: ${{ secrets.REPO_NAME }}
-          MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
-          REPO_NAME: ${{ secrets.REPO_NAME }}
-        run: |
-          npm run build
-          if [ ! -d "./out" ]; then
-            npx --yes next export
-          fi
-          echo "--- out/ contents ---"
-          ls -la out || true
-
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
@@ -70,7 +49,6 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
