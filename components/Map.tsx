@@ -1,503 +1,402 @@
-// /components/Map.tsx
-"use client";
+﻿'use client';
 
-import React, { useEffect, useMemo, useRef } from "react";
-import mapboxgl, { Map as MapboxMap, MapboxEvent } from "mapbox-gl";
-import type { Feature, FeatureCollection, Point } from "geojson";
+import React, { useEffect, useRef } from 'react';
+import mapboxgl, {
+  Map as MapboxMap,
+  LngLatLike,
+  GeoJSONSource,
+} from 'mapbox-gl';
+import type { FeatureCollection, Feature, Point } from 'geojson';
+import { assetUrl } from '../utils/mapbox';
 
-export type HomeLoc = { lng: number; lat: number; label?: string };
-
-type Props = {
-  data?: FeatureCollection<Point, Record<string, any>>;
-  markerStyle: "logo" | "color";
-  showLabels?: boolean;
-  labelColor?: string;
-
-  mapStyle: string; // style URL from page (e.g., mapbox://styles/...)
-  projection?: "mercator" | "globe";
-  allowRotate?: boolean;
-  rasterSharpen?: boolean;
-
-  mapboxToken: string;
-  home?: HomeLoc | null;
-
-  enableHomePick?: boolean;
-  onPickHome?: (lng: number, lat: number) => void;
+// Optional: keep for docs (not enforced on the prop anymore)
+export type RetailerProps = {
+  Retailer: string;
+  Name: string;
+  Category?: string;
+  State?: string;
+  Address?: string;
+  City?: string;
+  Zip?: string;
 };
 
-const EMPTY_FC: FeatureCollection<Point, any> = { type: "FeatureCollection", features: [] };
+export type HomeLoc = { lng: number; lat: number };
+type MarkerStyle = 'logo' | 'color';
 
-type RetailerFeature = Feature<Point, Record<string, any>>;
+type Props = {
+  /** GeoJSON to render (clustered). Loosened so callers with similar types compile. */
+  data?: FeatureCollection<Point, any>;
+  markerStyle?: MarkerStyle;
+  showLabels?: boolean;
+  labelColor?: string;
+  mapStyle: string;
+  projection?: 'mercator' | 'globe';
+  allowRotate?: boolean;
+  rasterSharpen?: boolean;
+  mapboxToken: string;
+  center?: LngLatLike;
+  zoom?: number;
+  home?: HomeLoc | null;
+  enableHomePick?: boolean;
+  onPickHome?: (lng: number, lat: number) => void;
+  className?: string;
+};
 
-function readRetailer(p: Record<string, any>): string {
-  return (p.Retailer ?? p.retailer ?? p.company ?? p.Brand ?? p.brand ?? "").toString().trim();
-}
-function readName(p: Record<string, any>): string {
-  // Prefer a human-friendly site/location name
-  return (
-    (p.Name ?? p.name ?? p.Location ?? p.location ?? p.Site ?? p.site ?? "").toString().trim() ||
-    readRetailer(p)
-  );
-}
-function readCategory(p: Record<string, any>): string {
-  return (p.Category ?? p.category ?? "").toString().trim();
-}
+const RETAILER_SOURCE_ID = 'retailers';
+const CLUSTER_LAYER_ID = 'retailer-clusters';
+const UNCLUSTERED_LAYER_ID = 'retailer-points';
+const LABEL_LAYER_ID = 'retailer-labels';
 
-// Normalize retailer → logo key (file stem). You can expand the mapping if needed.
-function logoKeyFor(retailer: string): string {
-  const k = retailer.toLowerCase();
-  // example special cases:
-  if (k.includes("growmark") || k.endsWith(" fs")) return "growmark-fs";
-  if (k.includes("winfield")) return "winfield";
-  if (k.includes("chs")) return "chs";
-  if (k.includes("nutrien")) return "nutrien";
-  if (k.includes("helena")) return "helena";
-  if (k.includes("agtegr")) return "agtegra";
-  // default: kebab
-  return k.replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
+const defer = (fn: () => void) => requestAnimationFrame(fn);
 
-// Add a derived 'logoKey' to features so the style can bind icon-image: ["get","logoKey"]
-function withLogoKey(fc: FeatureCollection<Point, Record<string, any>>): FeatureCollection<Point, any> {
-  const features = fc.features.map((f) => {
-    const p = { ...(f.properties || {}) };
-    const retailer = readRetailer(p);
-    p.logoKey = retailer ? logoKeyFor(retailer) : "";
-    p._label = readName(p);
-    p._category = readCategory(p);
-    return { ...f, properties: p };
-  });
-  return { type: "FeatureCollection", features };
+function logoCandidates(retailer: string): string[] {
+  const base = retailer.trim();
+  return [
+    `${base} - Logo.png`,
+    `${base} - Logo.jpg`,
+    `${base} - Logo.jpeg`,
+    `${base} - Logo.jfif`,
+    `${base}.png`,
+    `${base}.jpg`,
+    `${base}.jpeg`,
+    `${base}.jfif`,
+  ];
 }
 
-// Base-path safe URL (works locally and on GitHub Pages /<repo>)
-function assetUrl(path: string): string {
-  if (typeof window === "undefined") return path;
-  const p = path.startsWith("/") ? path : `/${path}`;
-  const parts = window.location.pathname.split("/").filter(Boolean);
-  // Heuristic: if running under /<repo>/..., prefix that repo for assets under /public
-  const base = parts.length > 0 ? `/${parts[0]}` : "";
-  // Avoid double-prefix if already present
-  return p.startsWith(`${base}/`) ? p : `${base}${p}`;
-}
-
-export default function MapView(props: Props) {
-  const {
-    data,
-    markerStyle,
-    showLabels = true,
-    labelColor = "#ffffff",
-    mapStyle,
-    projection = "globe",
-    allowRotate = true,
-    rasterSharpen = false,
-    mapboxToken,
-    home,
-    enableHomePick,
-    onPickHome,
-  } = props;
-
+const MapView: React.FC<Props> = ({
+  data,
+  markerStyle = 'logo',
+  showLabels = true,
+  labelColor = '#ffffff',
+  mapStyle,
+  projection = 'mercator',
+  allowRotate = true,
+  rasterSharpen = false,
+  mapboxToken,
+  center = [-93.0, 41.5],
+  zoom = 5,
+  home = null,
+  enableHomePick = false,
+  onPickHome,
+  className,
+}) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const isLoadedRef = useRef(false);
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const addedImagesRef = useRef<Set<string>>(new Set());
-  const currentStyleURL = useRef<string>("");
+  const imageCacheRef = useRef<Set<string>>(new Set());
 
-  const safeData = useMemo(() => (data ? withLogoKey(data) : EMPTY_FC), [data]);
-
-  // Initialize map once
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-
     mapboxgl.accessToken = mapboxToken;
+  }, [mapboxToken]);
+
+  useEffect(() => {
+    if (mapRef.current || !containerRef.current) return;
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: mapStyle,
-      projection,
-      center: [-94.0, 41.5], // Midwest-ish default
-      zoom: 5,
-      pitch: 0,
-      bearing: 0,
-      dragRotate: allowRotate,
-      pitchWithRotate: allowRotate,
+      center,
+      zoom,
+      cooperativeGestures: true,
+      attributionControl: true,
+      hash: false,
     });
 
     mapRef.current = map;
-    currentStyleURL.current = mapStyle;
+    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-right');
 
-    // Only proceed once the style is loaded the first time
-    map.once("load", () => {
+    map.once('load', () => {
       isLoadedRef.current = true;
-      applyProjection(map, projection);
-      setupInteractionFlags(map, allowRotate);
-      addOrUpdateData(map, safeData);
-      registerLogosAndLayers(map, safeData, markerStyle, showLabels, labelColor);
-      applyRasterSharpen(map, rasterSharpen);
+      try {
+        map.setProjection(projection as any);
+      } catch {}
+      setRotationEnabled(map, allowRotate);
+      addOrUpdateDataSource(map, data);
+      addOrRebuildLayers(map, { markerStyle, showLabels, labelColor });
       ensureHomeMarker(map, home);
-
-      fitToDataOnce(map, safeData);
     });
 
-    // On ANY subsequent style changes (e.g., switching basemap), re-add everything
-    map.on("styledata", (e: MapboxEvent) => {
-      const styleURL = map.getStyle()?.sprite || currentStyleURL.current;
-      // Skip early spam before the first "load"
-      if (!isLoadedRef.current) return;
-      // Rebuild sources/layers/images after style becomes usable
-      if (map.isStyleLoaded()) {
-        // Reset caches bound to the previous style
-        addedImagesRef.current.clear();
-
-        addOrUpdateData(map, safeData);
-        registerLogosAndLayers(map, safeData, markerStyle, showLabels, labelColor);
-        applyRasterSharpen(map, rasterSharpen);
+    const onStyleData = () => {
+      if (!map.isStyleLoaded()) return;
+      defer(() => {
+        imageCacheRef.current.clear();
+        addOrUpdateDataSource(map, data);
+        addOrRebuildLayers(map, { markerStyle, showLabels, labelColor });
         ensureHomeMarker(map, home);
-      }
-    });
+      });
+    };
+    map.on('styledata', onStyleData);
 
-    // Clean up on unmount
     return () => {
-      homeMarkerRef.current?.remove();
-      map.remove();
+      map.off('styledata', onStyleData);
+      try { map.remove(); } catch {}
       mapRef.current = null;
+      isLoadedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // If props change, reflect them (after first load)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    try { map.setStyle(mapStyle); } catch {}
+  }, [mapStyle]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoadedRef.current) return;
+    try { map.setProjection(projection as any); } catch {}
+  }, [projection]);
 
-    // Style URL switch → setStyle triggers styledata → rebuild
-    if (mapStyle && mapStyle !== currentStyleURL.current) {
-      currentStyleURL.current = mapStyle;
-      map.setStyle(mapStyle);
-      return;
-    }
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
+    setRotationEnabled(map, allowRotate && projection !== 'globe' ? true : allowRotate);
+  }, [allowRotate, projection]);
 
-    applyProjection(map, projection);
-    setupInteractionFlags(map, allowRotate);
-    applyRasterSharpen(map, rasterSharpen);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
+    addOrUpdateDataSource(map, data);
+    addOrRebuildLayers(map, { markerStyle, showLabels, labelColor });
+  }, [data, markerStyle, showLabels, labelColor]);
 
-    // Data refresh
-    addOrUpdateData(map, safeData);
-
-    // Marker style/labels refresh
-    rebuildSymbolVisibility(map, markerStyle, showLabels, labelColor);
-
-    // Home marker refresh
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
     ensureHomeMarker(map, home);
-  }, [mapStyle, projection, allowRotate, rasterSharpen, safeData, markerStyle, showLabels, labelColor, home]);
+  }, [home]);
 
-  // Click-to-pick-home
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !isLoadedRef.current) return;
-    const handle = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
-      if (!enableHomePick || !onPickHome) return;
-      const { lng, lat } = e.lngLat;
-      onPickHome(lng, lat);
-    };
-    map.on("click", handle);
-    return () => {
-      map.off("click", handle);
-    };
-  }, [enableHomePick, onPickHome]);
+    const _ = rasterSharpen;
+  }, [rasterSharpen]);
 
-  return <div ref={containerRef} className="h-[72vh] w-full" />;
-}
+  const addOrRebuildLayers = (
+    map: MapboxMap,
+    opts: { markerStyle: MarkerStyle; showLabels: boolean; labelColor: string }
+  ) => {
+    addOrUpdateDataSource(map, data);
 
-/* --------------------------- Map utilities --------------------------- */
+    safeRemoveLayer(map, LABEL_LAYER_ID);
+    safeRemoveLayer(map, UNCLUSTERED_LAYER_ID);
+    safeRemoveLayer(map, CLUSTER_LAYER_ID);
 
-function applyProjection(map: MapboxMap, projection: "mercator" | "globe") {
-  try {
-    map.setProjection(projection);
-  } catch {
-    // Projection may be missing temporarily during style reload
-  }
-}
+    map.addLayer({
+      id: CLUSTER_LAYER_ID,
+      type: 'circle',
+      source: RETAILER_SOURCE_ID,
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': '#2f80ed',
+        'circle-radius': ['step', ['get', 'point_count'], 15, 10, 18, 25, 22, 50, 28],
+        'circle-opacity': 0.8,
+        'circle-stroke-color': '#0b1d33',
+        'circle-stroke-width': 1.5,
+      },
+    });
 
-function setupInteractionFlags(map: MapboxMap, allowRotate: boolean) {
-  try {
-    if (allowRotate) {
-      map.dragRotate.enable();
-      map.touchZoomRotate.enableRotation();
+    if (opts.markerStyle === 'logo') {
+      prewarmRetailerImages(map, data, imageCacheRef.current).then(() => {
+        const matchExpr = buildIconMatchExpression(data, imageCacheRef.current);
+        map.addLayer({
+          id: UNCLUSTERED_LAYER_ID,
+          type: 'symbol',
+          source: RETAILER_SOURCE_ID,
+          filter: ['!', ['has', 'point_count']],
+          layout: {
+            'icon-image': matchExpr as any,
+            'icon-size': 0.25,
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+          },
+        });
+        addLabelLayer(map, opts);
+      });
     } else {
-      map.dragRotate.disable();
-      map.touchZoomRotate.disableRotation();
-      map.setPitch(0);
-      map.setBearing(0);
+      map.addLayer({
+        id: UNCLUSTERED_LAYER_ID,
+        type: 'circle',
+        source: RETAILER_SOURCE_ID,
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#00d084',
+          'circle-stroke-color': '#093b2c',
+          'circle-stroke-width': 1.5,
+        },
+      });
+      addLabelLayer(map, opts);
     }
-  } catch {
-    // ignore during style churn
-  }
-}
-
-function fitToDataOnce(map: MapboxMap, fc: FeatureCollection<Point, any>) {
-  if (!fc?.features?.length) return;
-  const coords = fc.features.map((f) => f.geometry.coordinates);
-  const xs = coords.map((c) => c[0]);
-  const ys = coords.map((c) => c[1]);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return;
-  try {
-    map.fitBounds([[minX, minY], [maxX, maxY]], { padding: 40, duration: 0 });
-  } catch { /* ignore */ }
-}
-
-function addOrUpdateData(map: MapboxMap, fc: FeatureCollection<Point, any>) {
-  const id = "retailers-src";
-  const existing = map.getSource(id) as mapboxgl.GeoJSONSource | undefined;
-
-  const clusterOpts: mapboxgl.GeoJSONSourceRaw = {
-    type: "geojson",
-    data: fc,
-    cluster: true,
-    clusterRadius: 60,
-    clusterMaxZoom: 10,
   };
 
-  if (existing) {
-    try {
-      existing.setData(fc as any);
-    } catch {
-      // source may be stale after style change; re-add
-      if (map.getSource(id)) {
-        // Remove layers before re-adding source
-        safeRemoveLayer(map, "retailers-clusters");
-        safeRemoveLayer(map, "retailers-cluster-count");
-        safeRemoveLayer(map, "retailers-points-logo");
-        safeRemoveLayer(map, "retailers-points-circle");
-        safeRemoveLayer(map, "retailers-labels");
-        safeRemoveSource(map, id);
-      }
-      map.addSource(id, clusterOpts);
-    }
-  } else {
-    map.addSource(id, clusterOpts);
-  }
-
-  // (Re)ensure cluster layers exist
-  addClusterLayers(map);
-}
-
-function addClusterLayers(map: MapboxMap) {
-  if (!map.getLayer("retailers-clusters")) {
+  const addLabelLayer = (
+    map: MapboxMap,
+    opts: { showLabels: boolean; labelColor: string }
+  ) => {
+    if (!opts.showLabels) return;
     map.addLayer({
-      id: "retailers-clusters",
-      type: "circle",
-      source: "retailers-src",
-      filter: ["has", "point_count"],
-      paint: {
-        "circle-color": "#334155",
-        "circle-radius": [
-          "step",
-          ["get", "point_count"],
-          16, 25, 20, 100, 26, 500, 32
-        ],
-        "circle-stroke-width": 1.5,
-        "circle-stroke-color": "#0f172a",
-        "circle-opacity": 0.8,
-      },
-    });
-  }
-  if (!map.getLayer("retailers-cluster-count")) {
-    map.addLayer({
-      id: "retailers-cluster-count",
-      type: "symbol",
-      source: "retailers-src",
-      filter: ["has", "point_count"],
+      id: LABEL_LAYER_ID,
+      type: 'symbol',
+      source: RETAILER_SOURCE_ID,
+      filter: ['!', ['has', 'point_count']],
       layout: {
-        "text-field": ["get", "point_count_abbreviated"],
-        "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-        "text-size": 12,
+        'text-field': ['get', 'Name'],
+        'text-size': 12,
+        'text-offset': [0, 1.1],
+        'text-allow-overlap': false,
       },
       paint: {
-        "text-color": "#ffffff",
+        'text-color': opts.labelColor || '#ffffff',
+        'text-halo-color': '#000000',
+        'text-halo-width': 1.2,
       },
     });
-  }
-}
+  };
 
-function registerLogosAndLayers(
-  map: MapboxMap,
-  fc: FeatureCollection<Point, any>,
-  markerStyle: "logo" | "color",
-  showLabels: boolean,
-  labelColor: string
-) {
-  // Ensure data source exists (and cluster layers)
-  addOrUpdateData(map, fc);
-
-  // Preload and register logo images for all distinct logoKeys
-  const keys = new Set<string>();
-  for (const f of fc.features as RetailerFeature[]) {
-    const k = f.properties?.logoKey;
-    if (k) keys.add(k);
-  }
-
-  // Attempt to load each logo image (silently skip missing)
-  const promises: Promise<void>[] = [];
-  keys.forEach((k) => {
-    promises.push(
-      addImageIfMissing(map, k, assetUrl(`/icons/${k}.png`)).catch(() => Promise.resolve())
-    );
-  });
-
-  Promise.all(promises).finally(() => {
-    // Add/refresh unclustered point layers (logo + circle fallback)
-    ensurePointLayers(map);
-
-    // Apply visibility per markerStyle
-    rebuildSymbolVisibility(map, markerStyle, showLabels, labelColor);
-  });
-}
-
-function ensurePointLayers(map: MapboxMap) {
-  // Unclustered logo layer
-  if (!map.getLayer("retailers-points-logo")) {
-    map.addLayer({
-      id: "retailers-points-logo",
-      type: "symbol",
-      source: "retailers-src",
-      filter: ["!", ["has", "point_count"]],
-      layout: {
-        "icon-image": ["get", "logoKey"],
-        "icon-size": 0.25,              // scale big PNGs down
-        "icon-allow-overlap": true,
-        "icon-anchor": "bottom",
-      },
-    });
-  }
-  // Unclustered circle fallback
-  if (!map.getLayer("retailers-points-circle")) {
-    map.addLayer({
-      id: "retailers-points-circle",
-      type: "circle",
-      source: "retailers-src",
-      filter: ["!", ["has", "point_count"]],
-      paint: {
-        "circle-radius": 6,
-        "circle-color": "#22c55e",
-        "circle-stroke-width": 1.5,
-        "circle-stroke-color": "#052e16",
-      },
-    });
-  }
-  // Optional labels
-  if (!map.getLayer("retailers-labels")) {
-    map.addLayer({
-      id: "retailers-labels",
-      type: "symbol",
-      source: "retailers-src",
-      filter: ["!", ["has", "point_count"]],
-      layout: {
-        "text-field": ["coalesce", ["get", "_label"], ["get", "Name"], ["get", "Retailer"]],
-        "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
-        "text-size": 11,
-        "text-offset": [0, 1.2],
-        "text-anchor": "top",
-        "text-allow-overlap": false,
-      },
-      paint: {
-        "text-color": labelColor || "#ffffff",
-        "text-halo-color": "#000000",
-        "text-halo-width": 1.2,
-      },
-    });
-  }
-}
-
-function rebuildSymbolVisibility(
-  map: MapboxMap,
-  markerStyle: "logo" | "color",
-  showLabels: boolean,
-  labelColor: string
-) {
-  // Toggle between logo vs color markers
-  const useLogo = markerStyle === "logo";
-  safeSetLayoutProperty(map, "retailers-points-logo", "visibility", useLogo ? "visible" : "none");
-  safeSetLayoutProperty(map, "retailers-points-circle", "visibility", useLogo ? "none" : "visible");
-
-  // Label toggling + color update
-  safeSetLayoutProperty(map, "retailers-labels", "visibility", showLabels ? "visible" : "none");
-  try {
-    map.setPaintProperty("retailers-labels", "text-color", labelColor || "#ffffff");
-  } catch { /* ignore */ }
-}
-
-function applyRasterSharpen(map: MapboxMap, enable: boolean) {
-  try {
-    const style = map.getStyle();
-    if (!style?.layers) return;
-    for (const layer of style.layers) {
-      if (layer.type === "raster") {
-        // These paint props exist on raster layers; adjust modestly
-        map.setPaintProperty(layer.id, "raster-contrast", enable ? 0.1 : 0);
-        map.setPaintProperty(layer.id, "raster-saturation", enable ? 0.05 : 0);
-        map.setPaintProperty(layer.id, "raster-brightness-min", enable ? 0.02 : 0);
-        map.setPaintProperty(layer.id, "raster-brightness-max", enable ? 0.98 : 1);
-      }
-    }
-  } catch { /* ignore while styles are swapping */ }
-}
-
-function ensureHomeMarker(map: MapboxMap, home?: HomeLoc | null) {
-  // Remove existing
-  if (homeMarkerRef.current) {
-    try { homeMarkerRef.current.remove(); } catch { /* ignore */ }
-    homeMarkerRef.current = null;
-  }
-  if (!home) return;
-
-  const el = document.createElement("div");
-  el.className = "rounded-full shadow ring-2 ring-black/50";
-  el.style.width = "18px";
-  el.style.height = "18px";
-  el.style.background = "#fde047"; // yellow
-  el.style.border = "2px solid #1c1917";
-
-  const marker = new mapboxgl.Marker({ element: el, anchor: "bottom", offset: [0, 0] })
-    .setLngLat([home.lng, home.lat])
-    .addTo(map);
-
-  homeMarkerRef.current = marker;
-}
-
-/* ----------------------- Image / layer helpers ---------------------- */
-
-function safeSetLayoutProperty(map: MapboxMap, layerId: string, prop: string, value: any) {
-  try { map.setLayoutProperty(layerId, prop, value); } catch { /* ignore */ }
-}
-function safeRemoveLayer(map: MapboxMap, layerId: string) {
-  try { if (map.getLayer(layerId)) map.removeLayer(layerId); } catch { /* ignore */ }
-}
-function safeRemoveSource(map: MapboxMap, sourceId: string) {
-  try { if (map.getSource(sourceId)) map.removeSource(sourceId); } catch { /* ignore */ }
-}
-
-function addImageIfMissing(map: MapboxMap, id: string, url: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (!id) return resolve();
-    // If the image is already registered on this style, skip
-    try {
-      if ((map as any).hasImage && (map as any).hasImage(id)) return resolve();
-    } catch { /* older typings */ }
-
-    // Load the image and add
-    map.loadImage(url, (err, image) => {
-      if (err || !image) return reject(err || new Error("no image"));
+  const addOrUpdateDataSource = (map: MapboxMap, fc?: FeatureCollection<Point, any>) => {
+    const src = map.getSource(RETAILER_SOURCE_ID) as GeoJSONSource | undefined;
+    const clusterOpts: any = {
+      type: 'geojson',
+      data: fc ?? emptyFC,
+      cluster: true,
+      clusterRadius: 50,
+      clusterMaxZoom: 12,
+    };
+    if (!src) {
+      map.addSource(RETAILER_SOURCE_ID, clusterOpts);
+    } else {
       try {
-        map.addImage(id, image, { sdf: false, pixelRatio: 1 });
-        resolve();
-      } catch (e) {
-        // If style just changed mid-flight, ignore
-        resolve();
+        src.setData(fc ?? emptyFC);
+      } catch {
+        safeRemoveLayer(map, LABEL_LAYER_ID);
+        safeRemoveLayer(map, UNCLUSTERED_LAYER_ID);
+        safeRemoveLayer(map, CLUSTER_LAYER_ID);
+        try { map.removeSource(RETAILER_SOURCE_ID); } catch {}
+        map.addSource(RETAILER_SOURCE_ID, clusterOpts);
       }
-    });
-  });
+    }
+  };
+
+  const ensureHomeMarker = (map: MapboxMap, homeLoc?: HomeLoc | null) => {
+    if (homeMarkerRef.current) {
+      try { homeMarkerRef.current.remove(); } catch {}
+      homeMarkerRef.current = null;
+    }
+    if (!homeLoc) return;
+
+    const el = document.createElement('div');
+    el.style.width = '22px';
+    el.style.height = '22px';
+    el.style.borderRadius = '50%';
+    el.style.background = '#ff375f';
+    el.style.boxShadow = '0 0 0 2px #ffffff, 0 1px 8px rgba(0,0,0,0.45)';
+
+    const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+      .setLngLat([homeLoc.lng, homeLoc.lat])
+      .addTo(map);
+
+    homeMarkerRef.current = marker;
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className={className ?? 'w-full h-[70vh] rounded-xl overflow-hidden border border-gray-800/40'}
+    />
+  );
+};
+
+const emptyFC: FeatureCollection<Point, any> = {
+  type: 'FeatureCollection',
+  features: [],
+};
+
+function safeRemoveLayer(map: MapboxMap, id: string) {
+  if (map.getLayer(id)) {
+    try { map.removeLayer(id); } catch {}
+  }
 }
+
+function setRotationEnabled(map: MapboxMap, enabled: boolean) {
+  try {
+    if (enabled) {
+      map.dragRotate.enable();
+      (map.touchZoomRotate as any)?.enableRotation?.();
+    } else {
+      map.dragRotate.disable();
+      (map.touchZoomRotate as any)?.disableRotation?.();
+    }
+  } catch {}
+}
+
+async function prewarmRetailerImages(
+  map: MapboxMap,
+  fc: FeatureCollection<Point, any> | undefined,
+  cache: Set<string>
+) {
+  if (!fc) return;
+
+  const names: string[] = [];
+  for (const f of fc.features) {
+    const r = String(f.properties?.Retailer ?? '').trim();
+    if (r && !names.includes(r)) names.push(r);
+    if (names.length >= 400) break;
+  }
+
+  const loadOne = (name: string) =>
+    new Promise<void>((resolve) => {
+      if (cache.has(name)) return resolve();
+      const tries = logoCandidates(name);
+      const tryNext = (i: number) => {
+        if (i >= tries.length) return resolve();
+        const url = assetUrl(`/icons/${tries[i]}`);
+        map.loadImage(url, (err, img) => {
+          if (!err && img) {
+            try {
+              if (!map.hasImage(name)) map.addImage(name, img as any, { pixelRatio: 2 });
+              cache.add(name);
+            } catch {}
+            return resolve();
+          }
+          tryNext(i + 1);
+        });
+      };
+      tryNext(0);
+    });
+
+  const pool = 12;
+  let idx = 0;
+  await Promise.all(
+    new Array(Math.min(pool, names.length)).fill(0).map(async () => {
+      while (idx < names.length) {
+        const i = idx++;
+        // eslint-disable-next-line no-await-in-loop
+        await loadOne(names[i]);
+      }
+    })
+  );
+}
+
+function buildIconMatchExpression(
+  fc: FeatureCollection<Point, any> | undefined,
+  cache: Set<string>
+) {
+  const expr: any[] = ['match', ['get', 'Retailer']];
+  if (fc) {
+    const seen = new Set<string>();
+    for (const f of fc.features) {
+      const r = String(f.properties?.Retailer ?? '').trim();
+      if (!r || seen.has(r)) continue;
+      seen.add(r);
+      if (cache.has(r)) {
+        expr.push(r, r);
+      }
+    }
+  }
+  expr.push('', 'marker-15');
+  return expr as any;
+}
+
+export default MapView;
+
