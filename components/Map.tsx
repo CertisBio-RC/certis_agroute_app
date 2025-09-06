@@ -1,213 +1,313 @@
-// /components/Map.tsx
+// components/Map.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
-import type { Feature, FeatureCollection, Point } from "geojson";
+import type { FeatureCollection, Feature, Point } from "geojson";
 import mapboxgl from "mapbox-gl";
 
-type HomeLoc = { lng: number; lat: number; label?: string };
+type MapboxMap = mapboxgl.Map;
+
+export type HomeLoc = { lng: number; lat: number; label?: string };
 
 type Props = {
   data?: FeatureCollection<Point, Record<string, any>>;
   markerStyle: "logo" | "color";
-  showLabels?: boolean;       // kept for future use
-  labelColor?: string;        // kept for future use
-  mapStyle: string;           // mapbox:// style URL
+  showLabels: boolean;
+  labelColor: string;
+  mapStyle: string;
   projection: "mercator" | "globe";
   allowRotate: boolean;
-  rasterSharpen: boolean;
+  rasterSharpen: boolean; // (no-op for now, but kept)
   mapboxToken: string;
   home?: HomeLoc | null;
   enableHomePick?: boolean;
   onPickHome?: (lng: number, lat: number) => void;
 };
 
-type MapboxMap = mapboxgl.Map;
+const SOURCE_ID = "retailers";
+const L_CLUSTER = "retailers-clusters";
+const L_CLUSTER_COUNT = "retailers-cluster-count";
+const L_POINTS = "retailers-points"; // fallback circles (non-clustered)
+const L_LOGOS = "retailers-logos"; // retailer logos (non-clustered)
 
-mapboxgl.accessToken = ""; // we set per-instance via options; leaving empty here is fine.
-
-/** Convert retailer name to an image id + filename base */
-function retailerToIconBase(retailer?: unknown) {
-  const r =
-    typeof retailer === "string" && retailer.trim()
-      ? retailer.trim()
-      : "";
-  // Normalize: remove slashes, collapse spaces, keep letters/digits/&/- and space
-  const safe = r.replace(/[\\/:"*?<>|]+/g, "").replace(/\s+/g, " ").trim();
-  return safe ? `${safe} Logo` : ""; // filenames are "<Retailer> Logo.*"
+// GH Pages basePath helper
+function withBasePath(path: string) {
+  const repo = process.env.NEXT_PUBLIC_REPO_NAME || "";
+  const prefix = repo ? `/${repo}` : "";
+  return `${prefix}${path}`;
 }
 
-/** Create an anchored HTML element for the Home marker. */
-function createHomeEl(label = "H"): HTMLElement {
-  const el = document.createElement("div");
-  el.className = "home-pin";
-  el.style.width = "28px";
-  el.style.height = "28px";
-  el.style.borderRadius = "50%";
-  el.style.background = "#16a34a";
-  el.style.border = "2px solid white";
-  el.style.boxShadow = "0 0 0 2px rgba(0,0,0,0.25)";
-  el.style.color = "white";
-  el.style.display = "flex";
-  el.style.alignItems = "center";
-  el.style.justifyContent = "center";
-  el.style.font = "600 14px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-  // anchor bottom-center and keep tip on coordinate at all zooms
-  el.style.transform = "translate(-50%, -100%)";
-  el.textContent = (label || "H").slice(0, 2);
-  return el;
+// Simple awaiter for fully loaded/idle style (prevents “Style is not done loading”)
+async function waitStyle(map: MapboxMap) {
+  if (map.isStyleLoaded()) return;
+  await new Promise<void>((resolve) => {
+    const onIdle = () => {
+      map.off("idle", onIdle);
+      resolve();
+    };
+    map.on("idle", onIdle);
+  });
 }
 
-/** Load an image into the style sprite if it doesn't already exist. */
-async function ensureImage(map: MapboxMap, id: string, exts: string[]) {
-  if (!id) return false;
-  if (map.hasImage(id)) return true;
+// Try to load one retailer logo with several common extensions.
+// Returns the image key if successfully added, otherwise null.
+async function loadRetailerLogo(map: MapboxMap, retailer: string): Promise<string | null> {
+  const base = withBasePath("/icons/");
+  const fileBase = `${retailer} Logo`; // file names e.g. "CHS Central Plains Logo.png"
+  const candidates = [".png", ".jpg", ".jpeg", ".jfif"];
 
-  // Try several extensions (png, jpg, webp, jfif)
-  for (const ext of exts) {
-    const url = `/icons/${id}.${ext}`;
+  for (const ext of candidates) {
     try {
-      const img = await loadHTMLImage(url);
-      if (!map.hasImage(id)) map.addImage(id, img as unknown as any, { sdf: false });
-      return true;
+      // Encode the file base (spaces, etc.)
+      const url = `${base}${encodeURIComponent(fileBase)}${ext}`;
+      const res = await fetch(url, { cache: "force-cache" });
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      const bmp = await createImageBitmap(blob);
+      const key = `logo:${retailer}`;
+      if (!map.hasImage(key)) map.addImage(key, bmp, { pixelRatio: 2 });
+      return key;
     } catch {
-      // try next extension
+      /* try next extension */
     }
   }
-  return false;
+  return null;
 }
 
-function loadHTMLImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = url;
-  });
-}
-
-/** Prepare data: add an 'icon' property to each feature based on Retailer. */
-function withIcons(
-  fc?: FeatureCollection<Point, Record<string, any>>
-): FeatureCollection<Point, Record<string, any>> | undefined {
-  if (!fc) return undefined;
-  const feats: Feature<Point, Record<string, any>>[] = fc.features.map((f) => {
-    const p = f.properties || {};
-    const retailer =
-      typeof p.retailer === "string" && p.retailer.trim()
-        ? p.retailer.trim()
-        : typeof p.Retailer === "string"
-        ? p.Retailer.trim()
-        : "";
-    const iconBase = retailerToIconBase(retailer);
-    return {
-      ...f,
-      properties: { ...p, retailer, icon: iconBase || undefined },
-    };
-  });
-  return { type: "FeatureCollection", features: feats };
-}
-
-/** Collect unique icon ids from a feature collection. */
-function collectIconIds(fc?: FeatureCollection<Point, any>): string[] {
-  if (!fc) return [];
-  const seen = new Set<string>();
-  for (const f of fc.features) {
-    const id = f.properties?.icon;
-    if (id && typeof id === "string") seen.add(id);
+// Build (or rebuild) our source + layers
+function ensureSourcesAndLayers(map: MapboxMap) {
+  if (!map.getSource(SOURCE_ID)) {
+    map.addSource(SOURCE_ID, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+      cluster: true,
+      clusterMaxZoom: 14,
+      clusterRadius: 50,
+    });
   }
-  return Array.from(seen);
+
+  if (!map.getLayer(L_CLUSTER)) {
+    map.addLayer({
+      id: L_CLUSTER,
+      type: "circle",
+      source: SOURCE_ID,
+      filter: ["has", "point_count"],
+      paint: {
+        "circle-color": [
+          "step",
+          ["get", "point_count"],
+          "#16a34a", // <= 10
+          10,
+          "#22c55e", // 11-25
+          25,
+          "#34d399", // 26+
+        ],
+        "circle-radius": ["step", ["get", "point_count"], 16, 10, 20, 25, 26],
+        "circle-stroke-width": 1.5,
+        "circle-stroke-color": "#0f172a",
+      },
+    });
+  }
+
+  if (!map.getLayer(L_CLUSTER_COUNT)) {
+    map.addLayer({
+      id: L_CLUSTER_COUNT,
+      type: "symbol",
+      source: SOURCE_ID,
+      filter: ["has", "point_count"],
+      layout: {
+        "text-field": ["to-string", ["get", "point_count"]],
+        "text-font": ["DIN Pro Medium", "Arial Unicode MS Bold"],
+        "text-size": 12,
+      },
+      paint: {
+        "text-color": "#ffffff",
+      },
+    });
+  }
+
+  if (!map.getLayer(L_POINTS)) {
+    map.addLayer({
+      id: L_POINTS,
+      type: "circle",
+      source: SOURCE_ID,
+      filter: ["!", ["has", "point_count"]],
+      paint: {
+        "circle-color": "#22c55e",
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 8, 6, 12, 7.5],
+        "circle-stroke-width": 1.25,
+        "circle-stroke-color": "#0f172a",
+      },
+    });
+  }
+
+  if (!map.getLayer(L_LOGOS)) {
+    map.addLayer({
+      id: L_LOGOS,
+      type: "symbol",
+      source: SOURCE_ID,
+      filter: ["all", ["!", ["has", "point_count"]], ["has", "logo"]],
+      layout: {
+        "icon-image": ["get", "logo"], // e.g., "logo:CHS Central Plains"
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.35, 8, 0.5, 12, 0.75],
+        "icon-allow-overlap": true,
+      },
+    });
+  }
 }
 
-const SOURCE_ID = "retailers";
-const LAYER_CIRCLE = "retailers-circles";
-const LAYER_SYMBOL = "retailers-logos";
-const LAYER_CLUSTER = "retailers-clusters";
-const LAYER_CLUSTER_COUNT = "retailers-cluster-count";
+// Push new data to the source.
+// We always show fallback circles; logos appear automatically once the images load.
+function syncData(map: MapboxMap, data?: FeatureCollection<Point, Record<string, any>>) {
+  const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+  if (!src) return;
 
-const MapView: React.FC<Props> = (props) => {
-  const {
-    data,
-    markerStyle,
-    mapStyle,
-    projection,
-    allowRotate,
-    rasterSharpen,
-    mapboxToken,
-    home,
-    enableHomePick,
-    onPickHome,
-  } = props;
+  if (!data) {
+    src.setData({ type: "FeatureCollection", features: [] });
+    return;
+  }
 
+  // Add a 'logo' property that points at the image key; if that
+  // image hasn’t been added yet, circles render; when the image is added,
+  // the symbol layer draws automatically.
+  const enriched: FeatureCollection<Point, Record<string, any>> = {
+    type: "FeatureCollection",
+    features: data.features.map((f) => {
+      const p = f.properties || {};
+      const retailer =
+        (typeof p.retailer === "string" && p.retailer.trim()) ||
+        (typeof p.Retailer === "string" && p.Retailer.trim()) ||
+        "";
+      const logoKey = retailer ? `logo:${retailer}` : undefined;
+      const newP = { ...p } as Record<string, any>;
+      if (logoKey) newP.logo = logoKey;
+      const nf: Feature<Point, Record<string, any>> = {
+        type: "Feature",
+        geometry: f.geometry,
+        properties: newP,
+      };
+      return nf;
+    }),
+  };
+
+  src.setData(enriched);
+}
+
+export default function MapView({
+  data,
+  markerStyle,
+  mapStyle,
+  projection,
+  allowRotate,
+  mapboxToken,
+  home,
+  enableHomePick,
+  onPickHome,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const currentDataRef = useRef<FeatureCollection<Point, any> | undefined>(undefined);
 
-  const prepared = useMemo(() => withIcons(data), [data]);
+  // Keep the current list of retailer names around for logo loading after style switches
+  const retailerNames = useMemo(() => {
+    const s = new Set<string>();
+    if (data) {
+      for (const f of data.features) {
+        const p = f.properties || {};
+        const r =
+          (typeof p.retailer === "string" && p.retailer.trim()) ||
+          (typeof p.Retailer === "string" && p.Retailer.trim()) ||
+          "";
+        if (r) s.add(r);
+      }
+    }
+    return Array.from(s.values());
+  }, [data]);
 
-  // ---------- Initialize map ----------
+  // Initialize the map once
   useEffect(() => {
     if (!containerRef.current) return;
-    // (re)create map when container or token available
+    if (mapRef.current) return;
+
+    mapboxgl.accessToken = mapboxToken || "";
+
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: mapStyle,
       projection,
-      accessToken: mapboxToken,
       attributionControl: true,
-      antialias: true,
+      locale: "en-US",
     });
+
+    // Improve touch behavior hints
+    map.touchZoomRotate.enable();
+
     mapRef.current = map;
 
-    // Base interactions
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: true, visualizePitch: true }), "top-right");
+    map.on("load", async () => {
+      await waitStyle(map);
+      ensureSourcesAndLayers(map);
 
-    const onLoad = () => {
-      // after style load we can add sources/layers/images
-      setupSourcesAndLayers(map, currentDataRef.current, markerStyle).catch(() => { /* ignore */ });
+      // First paint
+      syncData(map, data);
 
-      // click-to-pick home
-      map.on("click", (e) => {
-        if (!enableHomePick || !onPickHome) return;
-        const { lng, lat } = e.lngLat;
-        onPickHome(lng, lat);
-      });
+      // Load logos for any retailers we have; symbols appear as logos become available.
+      for (const r of retailerNames) {
+        // eslint-disable-next-line no-await-in-loop
+        await loadRetailerLogo(map, r);
+      }
+    });
 
-      // initial sharpen if requested
-      if (rasterSharpen) trySharpenRaster(map, true);
+    // Click to pick Home (only when enabled)
+    const onClick = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+      if (!enableHomePick || !onPickHome) return;
+      const { lng, lat } = e.lngLat;
+      onPickHome(lng, lat);
     };
-
-    // Map style events
-    map.on("load", onLoad);
+    map.on("click", onClick);
 
     return () => {
-      try { homeMarkerRef.current?.remove(); } catch {}
-      try { map.remove(); } catch {}
+      map.off("click", onClick);
+      map.remove();
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // mount once
+  }, []);
 
-  // ---------- Respond to style change ----------
+  // Update basemap style (and re-create layers) when mapStyle changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (map.getStyle()?.name && map.getStyle().sprite && map.getStyle().glyphs && map.getStyle().sources) {
-      // Force setStyle; will emit 'load' again, so re-add our layers in that handler
+
+    // If the style URL actually changes, re-add our sources/layers after it loads
+    if (map.getStyle().sprite !== mapStyle) {
       map.setStyle(mapStyle);
+      (async () => {
+        await waitStyle(map);
+        ensureSourcesAndLayers(map);
+        syncData(map, data);
+        for (const r of retailerNames) {
+          // re-load images after style switch (images are cleared with the style)
+          // eslint-disable-next-line no-await-in-loop
+          await loadRetailerLogo(map, r);
+        }
+      })();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyle]);
 
-  // ---------- Respond to projection change ----------
+  // Projection toggle (flat/globe)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    try { map.setProjection(projection as any); } catch {}
+    try {
+      map.setProjection(projection);
+    } catch {
+      /* ignore */
+    }
   }, [projection]);
 
-  // ---------- Allow rotate / pitch ----------
+  // Rotate settings
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -215,163 +315,83 @@ const MapView: React.FC<Props> = (props) => {
       map.dragRotate.enable();
     } else {
       map.dragRotate.disable();
-      // reset pitch so the view doesn't get stuck pitched
-      try { map.setPitch(0); } catch {}
-      try { map.setBearing(0); } catch {}
+      map.setPitch(0);
+      map.setBearing(0);
     }
   }, [allowRotate]);
 
-  // ---------- Sharpen satellite imagery ----------
+  // Toggle visibility between circles only vs logos overlay + circles
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    // after every style load we re-apply; guard if style not ready
-    const apply = () => trySharpenRaster(map, rasterSharpen);
-    if (map.isStyleLoaded()) apply();
-    map.once("load", apply);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rasterSharpen, mapStyle]);
+    const logosVisible = markerStyle === "logo";
+    if (map.getLayer(L_LOGOS)) map.setLayoutProperty(L_LOGOS, "visibility", logosVisible ? "visible" : "none");
+    if (map.getLayer(L_POINTS)) map.setLayoutProperty(L_POINTS, "visibility", "visible"); // keep circles visible as fallback
+  }, [markerStyle]);
 
-  // ---------- Update data (and images) ----------
+  // Push data whenever filters change
   useEffect(() => {
-    currentDataRef.current = prepared;
+    const map = mapRef.current;
+    if (!map) return;
+    if (!map.isStyleLoaded()) return;
+
+    ensureSourcesAndLayers(map);
+    syncData(map, data);
+
+    // Make sure logos are queued for any new retailers
+    (async () => {
+      for (const r of retailerNames) {
+        // eslint-disable-next-line no-await-in-loop
+        await loadRetailerLogo(map, r);
+      }
+    })();
+  }, [data, retailerNames]);
+
+  // Home marker
+  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    if (!map.isStyleLoaded()) {
-      map.once("load", () => {
-        setupSourcesAndLayers(map, prepared, markerStyle).catch(() => {});
-      });
-      return;
-    }
+    if (home && Number.isFinite(home.lng) && Number.isFinite(home.lat)) {
+      const el = document.createElement("div");
+      el.style.width = "28px";
+      el.style.height = "28px";
+      el.style.borderRadius = "50%";
+      el.style.background = "#10b981";
+      el.style.color = "#0f172a";
+      el.style.display = "grid";
+      el.style.placeItems = "center";
+      el.style.fontWeight = "700";
+      el.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      el.style.boxShadow = "0 0 0 2px #0f172a, 0 1px 6px rgba(0,0,0,.35)";
+      el.textContent = "H";
+      el.title = home.label || "Home";
 
-    // Ensure source exists; if not, (re)create full stack
-    const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-    if (!src) {
-      setupSourcesAndLayers(map, prepared, markerStyle).catch(() => {});
+      if (homeMarkerRef.current) {
+        homeMarkerRef.current.setLngLat([home.lng, home.lat]).setElement(el);
+      } else {
+        homeMarkerRef.current = new mapboxgl.Marker({
+          element: el,
+          anchor: "center",
+          pitchAlignment: "map",
+          rotationAlignment: "map",
+        })
+          .setLngLat([home.lng, home.lat])
+          .addTo(map);
+      }
     } else {
-      // update data
-      src.setData(prepared || { type: "FeatureCollection", features: [] });
-      // (re)load images for any new retailers
-      refreshImages(map, prepared).catch(() => {});
-      // toggle layers visibility based on markerStyle
-      setMarkerVisibility(map, markerStyle);
-    }
-  }, [prepared, markerStyle]);
-
-  // ---------- Update Home marker ----------
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    if (!home) {
-      try { homeMarkerRef.current?.remove(); } catch {}
-      homeMarkerRef.current = null;
-      return;
-    }
-
-    const el = createHomeEl(home.label || "H");
-    if (homeMarkerRef.current) {
-      // @ts-expect-error: setElement exists at runtime
-      homeMarkerRef.current.setElement?.(el);
-      homeMarkerRef.current.setLngLat([home.lng, home.lat]);
-    } else {
-      homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-        .setLngLat([home.lng, home.lat])
-        .addTo(map);
+      if (homeMarkerRef.current) {
+        homeMarkerRef.current.remove();
+        homeMarkerRef.current = null;
+      }
     }
   }, [home]);
 
-  return <div ref={containerRef} className="h-[70vh] w-full bg-black" />;
-};
-
-export default MapView;
-
-/* ---------------- helpers ---------------- */
-
-async function setupSourcesAndLayers(
-  map: MapboxMap,
-  fc: FeatureCollection<Point, any> | undefined,
-  markerStyle: "logo" | "color"
-) {
-  // Remove any prior layers/sources if style was reset
-  for (const id of [LAYER_CLUSTER_COUNT, LAYER_CLUSTER, LAYER_SYMBOL, LAYER_CIRCLE]) {
-    if (map.getLayer(id)) try { map.removeLayer(id); } catch {}
-  }
-  if (map.getSource(SOURCE_ID)) try { map.removeSource(SOURCE_ID); } catch {}
-
-  // Add source (no clustering by default; you can enable if you want)
-  map.addSource(SOURCE_ID, {
-    type: "geojson",
-    data: fc || { type: "FeatureCollection", features: [] },
-  });
-
-  // Circles (colored dots)
-  map.addLayer({
-    id: LAYER_CIRCLE,
-    type: "circle",
-    source: SOURCE_ID,
-    paint: {
-      "circle-radius": 6,
-      "circle-color": [
-        "case",
-        ["==", ["typeof", ["get", "retailer"]], "string"],
-        "#60a5fa", // blue for retailers
-        "#f97316"  // orange otherwise
-      ],
-      "circle-stroke-color": "#111827",
-      "circle-stroke-width": 1.5
-    },
-    layout: { visibility: markerStyle === "color" ? "visible" : "none" }
-  });
-
-  // Symbol (logos) – use per-feature icon from 'icon'
-  map.addLayer({
-    id: LAYER_SYMBOL,
-    type: "symbol",
-    source: SOURCE_ID,
-    layout: {
-      "icon-image": ["coalesce", ["get", "icon"], ""],
-      "icon-size": 0.6,
-      "icon-allow-overlap": true,
-      "icon-ignore-placement": true,
-      visibility: markerStyle === "logo" ? "visible" : "none"
-    }
-  });
-
-  // Preload any icons present in data
-  await refreshImages(map, fc);
-}
-
-async function refreshImages(map: MapboxMap, fc?: FeatureCollection<Point, any>) {
-  const ids = collectIconIds(fc);
-  const exts = ["png", "jpg", "webp", "jfif"]; // try a few common ones
-  for (const id of ids) {
-    await ensureImage(map, id, exts);
-  }
-}
-
-function setMarkerVisibility(map: MapboxMap, mode: "logo" | "color") {
-  const logoVis = mode === "logo" ? "visible" : "none";
-  const dotVis = mode === "color" ? "visible" : "none";
-  if (map.getLayer(LAYER_SYMBOL)) map.setLayoutProperty(LAYER_SYMBOL, "visibility", logoVis);
-  if (map.getLayer(LAYER_CIRCLE)) map.setLayoutProperty(LAYER_CIRCLE, "visibility", dotVis);
-}
-
-/** Boost contrast a bit for raster layers (satellite styles). */
-function trySharpenRaster(map: MapboxMap, on: boolean) {
-  try {
-    const style = map.getStyle();
-    if (!style || !style.layers) return;
-    for (const layer of style.layers) {
-      if (layer.type === "raster") {
-        const id = layer.id;
-        map.setPaintProperty(id, "raster-contrast", on ? 0.2 : 0);
-        map.setPaintProperty(id, "raster-saturation", on ? -0.05 : 0);
-        map.setPaintProperty(id, "raster-brightness-max", on ? 0.9 : 1.0);
-      }
-    }
-  } catch {
-    // non-fatal
-  }
+  return (
+    <div
+      ref={containerRef}
+      style={{ width: "100%", height: "72vh", borderRadius: 12, overflow: "hidden" }}
+      aria-label="Retailer Map"
+    />
+  );
 }
