@@ -1,4 +1,3 @@
-// components/Map.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
@@ -17,7 +16,7 @@ type Props = {
   mapStyle: string;
   projection: "mercator" | "globe";
   allowRotate: boolean;
-  rasterSharpen: boolean; // (no-op for now, but kept)
+  rasterSharpen: boolean;
   mapboxToken: string;
   home?: HomeLoc | null;
   enableHomePick?: boolean;
@@ -27,38 +26,30 @@ type Props = {
 const SOURCE_ID = "retailers";
 const L_CLUSTER = "retailers-clusters";
 const L_CLUSTER_COUNT = "retailers-cluster-count";
-const L_POINTS = "retailers-points"; // fallback circles (non-clustered)
-const L_LOGOS = "retailers-logos"; // retailer logos (non-clustered)
+const L_POINTS = "retailers-points"; // fallback circles
+const L_LOGOS = "retailers-logos";   // symbol layer with retailer logos
 
-// GH Pages basePath helper
 function withBasePath(path: string) {
   const repo = process.env.NEXT_PUBLIC_REPO_NAME || "";
   const prefix = repo ? `/${repo}` : "";
   return `${prefix}${path}`;
 }
 
-// Simple awaiter for fully loaded/idle style (prevents “Style is not done loading”)
 async function waitStyle(map: MapboxMap) {
   if (map.isStyleLoaded()) return;
   await new Promise<void>((resolve) => {
-    const onIdle = () => {
-      map.off("idle", onIdle);
-      resolve();
-    };
+    const onIdle = () => { map.off("idle", onIdle); resolve(); };
     map.on("idle", onIdle);
   });
 }
 
-// Try to load one retailer logo with several common extensions.
-// Returns the image key if successfully added, otherwise null.
 async function loadRetailerLogo(map: MapboxMap, retailer: string): Promise<string | null> {
   const base = withBasePath("/icons/");
-  const fileBase = `${retailer} Logo`; // file names e.g. "CHS Central Plains Logo.png"
-  const candidates = [".png", ".jpg", ".jpeg", ".jfif"];
+  const fileBase = `${retailer} Logo`;
+  const exts = [".png", ".jpg", ".jpeg", ".jfif"];
 
-  for (const ext of candidates) {
+  for (const ext of exts) {
     try {
-      // Encode the file base (spaces, etc.)
       const url = `${base}${encodeURIComponent(fileBase)}${ext}`;
       const res = await fetch(url, { cache: "force-cache" });
       if (!res.ok) continue;
@@ -68,13 +59,12 @@ async function loadRetailerLogo(map: MapboxMap, retailer: string): Promise<strin
       if (!map.hasImage(key)) map.addImage(key, bmp, { pixelRatio: 2 });
       return key;
     } catch {
-      /* try next extension */
+      /* try next */
     }
   }
   return null;
 }
 
-// Build (or rebuild) our source + layers
 function ensureSourcesAndLayers(map: MapboxMap) {
   if (!map.getSource(SOURCE_ID)) {
     map.addSource(SOURCE_ID, {
@@ -93,15 +83,7 @@ function ensureSourcesAndLayers(map: MapboxMap) {
       source: SOURCE_ID,
       filter: ["has", "point_count"],
       paint: {
-        "circle-color": [
-          "step",
-          ["get", "point_count"],
-          "#16a34a", // <= 10
-          10,
-          "#22c55e", // 11-25
-          25,
-          "#34d399", // 26+
-        ],
+        "circle-color": ["step", ["get", "point_count"], "#16a34a", 10, "#22c55e", 25, "#34d399"],
         "circle-radius": ["step", ["get", "point_count"], 16, 10, 20, 25, 26],
         "circle-stroke-width": 1.5,
         "circle-stroke-color": "#0f172a",
@@ -120,9 +102,7 @@ function ensureSourcesAndLayers(map: MapboxMap) {
         "text-font": ["DIN Pro Medium", "Arial Unicode MS Bold"],
         "text-size": 12,
       },
-      paint: {
-        "text-color": "#ffffff",
-      },
+      paint: { "text-color": "#ffffff" },
     });
   }
 
@@ -148,7 +128,7 @@ function ensureSourcesAndLayers(map: MapboxMap) {
       source: SOURCE_ID,
       filter: ["all", ["!", ["has", "point_count"]], ["has", "logo"]],
       layout: {
-        "icon-image": ["get", "logo"], // e.g., "logo:CHS Central Plains"
+        "icon-image": ["get", "logo"],
         "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.35, 8, 0.5, 12, 0.75],
         "icon-allow-overlap": true,
       },
@@ -156,8 +136,6 @@ function ensureSourcesAndLayers(map: MapboxMap) {
   }
 }
 
-// Push new data to the source.
-// We always show fallback circles; logos appear automatically once the images load.
 function syncData(map: MapboxMap, data?: FeatureCollection<Point, Record<string, any>>) {
   const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
   if (!src) return;
@@ -167,9 +145,6 @@ function syncData(map: MapboxMap, data?: FeatureCollection<Point, Record<string,
     return;
   }
 
-  // Add a 'logo' property that points at the image key; if that
-  // image hasn’t been added yet, circles render; when the image is added,
-  // the symbol layer draws automatically.
   const enriched: FeatureCollection<Point, Record<string, any>> = {
     type: "FeatureCollection",
     features: data.features.map((f) => {
@@ -178,9 +153,8 @@ function syncData(map: MapboxMap, data?: FeatureCollection<Point, Record<string,
         (typeof p.retailer === "string" && p.retailer.trim()) ||
         (typeof p.Retailer === "string" && p.Retailer.trim()) ||
         "";
-      const logoKey = retailer ? `logo:${retailer}` : undefined;
       const newP = { ...p } as Record<string, any>;
-      if (logoKey) newP.logo = logoKey;
+      if (retailer) newP.logo = `logo:${retailer}`;
       const nf: Feature<Point, Record<string, any>> = {
         type: "Feature",
         geometry: f.geometry,
@@ -208,7 +182,6 @@ export default function MapView({
   const mapRef = useRef<MapboxMap | null>(null);
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
-  // Keep the current list of retailer names around for logo loading after style switches
   const retailerNames = useMemo(() => {
     const s = new Set<string>();
     if (data) {
@@ -224,10 +197,8 @@ export default function MapView({
     return Array.from(s.values());
   }, [data]);
 
-  // Initialize the map once
   useEffect(() => {
-    if (!containerRef.current) return;
-    if (mapRef.current) return;
+    if (!containerRef.current || mapRef.current) return;
 
     mapboxgl.accessToken = mapboxToken || "";
 
@@ -236,29 +207,21 @@ export default function MapView({
       style: mapStyle,
       projection,
       attributionControl: true,
-      locale: "en-US",
     });
 
-    // Improve touch behavior hints
     map.touchZoomRotate.enable();
-
     mapRef.current = map;
 
     map.on("load", async () => {
       await waitStyle(map);
       ensureSourcesAndLayers(map);
-
-      // First paint
       syncData(map, data);
-
-      // Load logos for any retailers we have; symbols appear as logos become available.
       for (const r of retailerNames) {
         // eslint-disable-next-line no-await-in-loop
         await loadRetailerLogo(map, r);
       }
     });
 
-    // Click to pick Home (only when enabled)
     const onClick = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
       if (!enableHomePick || !onPickHome) return;
       const { lng, lat } = e.lngLat;
@@ -274,40 +237,30 @@ export default function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update basemap style (and re-create layers) when mapStyle changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // If the style URL actually changes, re-add our sources/layers after it loads
-    if (map.getStyle().sprite !== mapStyle) {
-      map.setStyle(mapStyle);
-      (async () => {
-        await waitStyle(map);
-        ensureSourcesAndLayers(map);
-        syncData(map, data);
-        for (const r of retailerNames) {
-          // re-load images after style switch (images are cleared with the style)
-          // eslint-disable-next-line no-await-in-loop
-          await loadRetailerLogo(map, r);
-        }
-      })();
-    }
+    // Re-apply style if it changed; re-create layers & images.
+    map.setStyle(mapStyle);
+    (async () => {
+      await waitStyle(map);
+      ensureSourcesAndLayers(map);
+      syncData(map, data);
+      for (const r of retailerNames) {
+        // eslint-disable-next-line no-await-in-loop
+        await loadRetailerLogo(map, r);
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyle]);
 
-  // Projection toggle (flat/globe)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    try {
-      map.setProjection(projection);
-    } catch {
-      /* ignore */
-    }
+    try { map.setProjection(projection); } catch {}
   }, [projection]);
 
-  // Rotate settings
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -320,25 +273,19 @@ export default function MapView({
     }
   }, [allowRotate]);
 
-  // Toggle visibility between circles only vs logos overlay + circles
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const logosVisible = markerStyle === "logo";
     if (map.getLayer(L_LOGOS)) map.setLayoutProperty(L_LOGOS, "visibility", logosVisible ? "visible" : "none");
-    if (map.getLayer(L_POINTS)) map.setLayoutProperty(L_POINTS, "visibility", "visible"); // keep circles visible as fallback
+    if (map.getLayer(L_POINTS)) map.setLayoutProperty(L_POINTS, "visibility", "visible");
   }, [markerStyle]);
 
-  // Push data whenever filters change
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    if (!map.isStyleLoaded()) return;
-
+    if (!map || !map.isStyleLoaded()) return;
     ensureSourcesAndLayers(map);
     syncData(map, data);
-
-    // Make sure logos are queued for any new retailers
     (async () => {
       for (const r of retailerNames) {
         // eslint-disable-next-line no-await-in-loop
@@ -347,7 +294,6 @@ export default function MapView({
     })();
   }, [data, retailerNames]);
 
-  // Home marker
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
