@@ -11,12 +11,12 @@ export type HomeLoc = { lng: number; lat: number; label?: string };
 type Props = {
   data?: FeatureCollection<Point, Record<string, any>>;
   markerStyle: "logo" | "color";
-  showLabels: boolean;        // currently unused (kept for compatibility)
-  labelColor: string;         // currently unused (kept for compatibility)
+  showLabels: boolean;        // kept for compat
+  labelColor: string;         // kept for compat
   mapStyle: string;
   projection: "mercator" | "globe";
   allowRotate: boolean;
-  rasterSharpen: boolean;     // currently unused (kept for compatibility)
+  rasterSharpen: boolean;     // kept for compat
   mapboxToken: string;
   home?: HomeLoc | null;
   enableHomePick?: boolean;
@@ -231,7 +231,7 @@ export default function MapView({
       }
     });
 
-    // NOTE: EventData type no longer exists in v3 typings. Use MapMouseEvent only.
+    // NOTE: v3 typings – use MapMouseEvent only
     const onClick = (e: mapboxgl.MapMouseEvent) => {
       if (!enableHomePick || !onPickHome) return;
       const { lng, lat } = e.lngLat;
@@ -312,12 +312,13 @@ export default function MapView({
     })();
   }, [data, retailerNames]);
 
-  // Home marker (position and creation)
+  // Home marker (position and creation) — RECREATE instead of setElement (v3)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     if (home && Number.isFinite(home.lng) && Number.isFinite(home.lat)) {
+      // build marker element
       const el = document.createElement("div");
       el.style.width = "28px";
       el.style.height = "28px";
@@ -332,18 +333,19 @@ export default function MapView({
       el.textContent = "H";
       el.title = home.label || "Home";
 
+      // remove & recreate marker (setElement no longer exists in v3)
       if (homeMarkerRef.current) {
-        homeMarkerRef.current.setLngLat([home.lng, home.lat]).setElement(el);
-      } else {
-        homeMarkerRef.current = new mapboxgl.Marker({
-          element: el,
-          anchor: "center",
-          pitchAlignment: "map",
-          rotationAlignment: "map",
-        })
-          .setLngLat([home.lng, home.lat])
-          .addTo(map);
+        homeMarkerRef.current.remove();
+        homeMarkerRef.current = null;
       }
+      homeMarkerRef.current = new mapboxgl.Marker({
+        element: el,
+        anchor: "center",
+        pitchAlignment: "map",
+        rotationAlignment: "map",
+      })
+        .setLngLat([home.lng, home.lat])
+        .addTo(map);
     } else {
       if (homeMarkerRef.current) {
         homeMarkerRef.current.remove();
