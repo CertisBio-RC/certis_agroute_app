@@ -19,11 +19,10 @@ export const metadata: Metadata = {
     title: "Certis AgRoute Planner",
     description: "Retailer map & optimized trip builder for Certis.",
   },
-  // GitHub Pages needs relative path (no leading slash)
+  // no leading slash so it works on GitHub Pages subpath
   icons: { icon: "favicon.ico" },
 };
 
-// Next.js 15: themeColor belongs in `viewport`
 export const viewport: Viewport = {
   themeColor: "#0ea5e9",
 };
@@ -31,6 +30,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {/* Build-time inline token so the client can always read it on GitHub Pages */}
+        <meta
+          name="mapbox-token"
+          content={process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? ""}
+        />
+      </head>
       <body className="bg-white text-gray-900">{children}</body>
     </html>
   );
