@@ -74,8 +74,9 @@ export default function Page() {
   // Load data once
   const reloadData = () => {
     const ts = Date.now();
-    // Use basePath-aware path if your next.config sets it; the bare /public/data works on Pages too.
-    fetch(`/data/retailers.geojson?ts=${ts}`, { cache: "no-store" })
+    // IMPORTANT: use a relative path so GitHub Pages base path (/certis_agroute_app) is respected.
+    const url = `data/retailers.geojson?ts=${ts}`;
+    fetch(url, { cache: "no-store" })
       .then((r) => {
         if (!r.ok) throw new Error(`retailers.geojson ${r.status}`);
         return r.json();
@@ -151,7 +152,6 @@ export default function Page() {
     // Compose list with optional Home
     const coords: [number, number][] = [];
     const params = new URLSearchParams({
-      // v2 optimized-trips allows these:
       annotations: "duration,distance",
       geometries: "geojson",
       overview: "full",
@@ -196,7 +196,6 @@ export default function Page() {
 
         const j: any = await r.json();
 
-        // Some errors arrive with 200 + message
         if (!j?.trips?.[0]) {
           const msg = typeof j?.message === "string" ? j.message : "No trips in response.";
           setLastTripsError(msg);
@@ -204,7 +203,6 @@ export default function Page() {
           break;
         }
 
-        // Work out travel order from waypoints (v2: waypoints on root or on trip)
         const wp = Array.isArray(j.waypoints) ? j.waypoints : j.trips?.[0]?.waypoints;
         let ordered: [number, number][] = [];
 
