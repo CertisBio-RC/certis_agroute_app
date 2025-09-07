@@ -5,10 +5,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
 import MapView, { type RetailerProps } from "@/components/Map";
 
-// Must match MapView’s prop exactly
+// match MapView markerStyle union
 type MarkerStyleOpt = "color" | "logo";
-
-// --- helpers ---------------------------------------------------------------
 
 type BasemapKey = "Hybrid" | "Satellite" | "Streets";
 const BASEMAPS: Record<BasemapKey, { style: string; sharpen?: boolean }> = {
@@ -36,22 +34,20 @@ function toRetailerProps(raw: any): RetailerProps {
   };
 }
 
-// --- page ------------------------------------------------------------------
-
 export default function Page() {
-  // Data
+  // data
   const [geojson, setGeojson] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
   const [loadingData, setLoadingData] = useState<boolean>(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
-  // Map token (env, window shim, or fetched text file)
+  // map token
   const [token, setToken] = useState<string>(
     process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ??
       (typeof window !== "undefined" ? (window as any).__MAPBOX_TOKEN : undefined) ??
       ""
   );
 
-  // UI state
+  // ui state
   const [basemap, setBasemap] = useState<BasemapKey>("Hybrid");
   const [markerStyle, setMarkerStyle] = useState<MarkerStyleOpt>("color");
   const [flatProjection, setFlatProjection] = useState<boolean>(true);
@@ -65,7 +61,7 @@ export default function Page() {
   const [stateFilter, setStateFilter] = useState<string>("All");
   const [home, setHome] = useState<{ lng: number; lat: number } | null>(null);
 
-  // Fetch token from mapbox-token.txt on client if not provided by env
+  // token fallback from file
   useEffect(() => {
     if (token) return;
     let cancelled = false;
@@ -85,7 +81,7 @@ export default function Page() {
     };
   }, [token]);
 
-  // Fetch retailers
+  // load retailers
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -101,9 +97,8 @@ export default function Page() {
             const props = toRetailerProps(f.properties ?? {});
             const withId: Feature<Point, RetailerProps> =
               f.id == null ? { ...f, id: (i + 1).toString(), properties: props } : { ...f, properties: props };
-            if ((withId.properties as any).Logo && String((withId.properties as any).Logo).startsWith("/")) {
-              (withId.properties as any).Logo = String((withId.properties as any).Logo).replace(/^\/+/, "");
-            }
+            const p: any = withId.properties;
+            if (p.Logo && String(p.Logo).startsWith("/")) p.Logo = String(p.Logo).replace(/^\/+/, "");
             return withId;
           }),
         };
@@ -119,7 +114,6 @@ export default function Page() {
     };
   }, []);
 
-  // Derived
   const states = useMemo(() => {
     const all = (geojson?.features ?? [])
       .map((f) => f.properties.State)
@@ -151,23 +145,15 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-200">
-      {/* Header */}
       <div className="container mx-auto px-4 py-4 flex items-center gap-6">
         <img src="certis-logo.png" alt="Certis" className="h-8 w-auto" />
-        <a className="text-sky-300 hover:underline" href="./">
-          Home
-        </a>
+        <a className="text-sky-300 hover:underline" href="./">Home</a>
         <h1 className="text-2xl font-bold">Certis AgRoute Planner</h1>
-        <div className="opacity-70">
-          {filteredGeojson?.features.length ?? geojson?.features.length ?? 0} retailers
-        </div>
+        <div className="opacity-70">{filteredGeojson?.features.length ?? geojson?.features.length ?? 0} retailers</div>
       </div>
 
-      {/* Main grid */}
       <div className="container mx-auto px-4 pb-8 grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Map controls */}
           <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
             <div className="font-semibold text-zinc-300 mb-3">MAP</div>
 
@@ -178,9 +164,7 @@ export default function Page() {
               onChange={(e) => setBasemap(e.target.value as BasemapKey)}
             >
               {Object.keys(BASEMAPS).map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
+                <option key={k} value={k}>{k}</option>
               ))}
             </select>
 
@@ -196,23 +180,13 @@ export default function Page() {
 
             <div className="space-y-2">
               <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={flatProjection}
-                  onChange={(e) => setFlatProjection(e.target.checked)}
-                />
+                <input type="checkbox" checked={flatProjection} onChange={(e) => setFlatProjection(e.target.checked)} />
                 <span>Flat (Mercator)</span>
               </label>
-
               <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={allowRotate}
-                  onChange={(e) => setAllowRotate(e.target.checked)}
-                />
+                <input type="checkbox" checked={allowRotate} onChange={(e) => setAllowRotate(e.target.checked)} />
                 <span>Rotate</span>
               </label>
-
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -224,30 +198,18 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Labels */}
           <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
             <div className="font-semibold text-zinc-300 mb-3">LABELS</div>
             <label className="flex items-center gap-2 mb-3">
-              <input
-                type="checkbox"
-                checked={showLabels}
-                onChange={(e) => setShowLabels(e.target.checked)}
-              />
+              <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
               <span>Show labels</span>
             </label>
             <label className="block text-sm mb-1">Label color</label>
-            <input
-              className="w-full h-2 rounded bg-zinc-800"
-              type="color"
-              value={labelColor}
-              onChange={(e) => setLabelColor(e.target.value)}
-            />
+            <input className="w-full h-2 rounded bg-zinc-800" type="color" value={labelColor} onChange={(e) => setLabelColor(e.target.value)} />
           </div>
 
-          {/* Filter */}
           <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
             <div className="font-semibold text-zinc-300 mb-3">FILTER</div>
-
             <label className="block text-sm mb-1">Search</label>
             <input
               className="w-full rounded-lg bg-zinc-800 border border-white/10 px-3 py-2 mb-3"
@@ -255,7 +217,6 @@ export default function Page() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-
             <label className="block text-sm mb-1">State</label>
             <select
               className="w-full rounded-lg bg-zinc-800 border border-white/10 px-3 py-2"
@@ -263,27 +224,18 @@ export default function Page() {
               onChange={(e) => setStateFilter(e.target.value)}
             >
               {states.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>
 
-          {/* Home */}
           <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
             <div className="font-semibold text-zinc-300 mb-3">HOME</div>
             <div className="flex gap-3">
-              <button
-                className="rounded-lg bg-sky-600/80 hover:bg-sky-600 px-4 py-2"
-                onClick={() => setHome({ lng: -97, lat: 38.5 })}
-              >
+              <button className="rounded-lg bg-sky-600/80 hover:bg-sky-600 px-4 py-2" onClick={() => setHome({ lng: -97, lat: 38.5 })}>
                 Set Example
               </button>
-              <button
-                className="rounded-lg bg-zinc-700 hover:bg-zinc-600 px-4 py-2"
-                onClick={() => setHome(null)}
-              >
+              <button className="rounded-lg bg-zinc-700 hover:bg-zinc-600 px-4 py-2" onClick={() => setHome(null)}>
                 Clear
               </button>
             </div>
@@ -293,7 +245,6 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Map area */}
         <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-4 relative min-h-[600px]">
           <MapView
             data={filteredGeojson || undefined}
@@ -302,7 +253,7 @@ export default function Page() {
             labelColor={labelColor}
             mapStyle={mapStyle}
             allowRotate={allowRotate}
-            flatProjection={flatProjection}
+            projection={flatProjection ? "mercator" : "globe"}
             rasterSharpen={sharpen}
             mapboxToken={token}
             home={home ?? undefined}
