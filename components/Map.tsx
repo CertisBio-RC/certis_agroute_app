@@ -61,17 +61,14 @@ export default function MapView({
   onPickHome,
   enableHomePick = false,
 }: Props) {
-  // If no token, render a friendly panel instead of throwing
   if (!mapboxToken) {
     return (
       <div className="relative w-full h-[80vh] grid place-items-center bg-black/80 text-white rounded">
         <div className="max-w-xl text-center space-y-3 px-6">
           <h2 className="text-lg font-semibold">Mapbox token not found</h2>
           <p className="text-sm opacity-90">
-            The app couldn’t find a Mapbox access token. Provide{" "}
-            <code className="px-1 bg-white/10 rounded">NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> at build
-            time, or add <code className="px-1 bg-white/10 rounded">public/mapbox-token.txt</code> with
-            your public <code>pk…</code> token.
+            Provide <code className="px-1 bg-white/10 rounded">NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> or add{" "}
+            <code className="px-1 bg-white/10 rounded">public/mapbox-token.txt</code> with your public token.
           </p>
         </div>
       </div>
@@ -83,7 +80,6 @@ export default function MapView({
   const isLoadedRef = useRef(false);
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
-  // Provide token
   mapboxgl.accessToken = mapboxToken;
 
   // Initialize map once
@@ -135,10 +131,11 @@ export default function MapView({
       try {
         homeMarkerRef.current?.remove();
       } catch {}
-      map.remove();
+      map.remove(); // don't return this
       mapRef.current = null;
       isLoadedRef.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyle]);
 
   // Update projection when it changes
@@ -188,7 +185,7 @@ export default function MapView({
     const map = mapRef.current;
     if (!map || !isLoadedRef.current || !data) return;
     upsertRetailerSourceAndLayers(map, data, showLabels, labelColor);
-  }, [data]);
+  }, [data, showLabels, labelColor]);
 
   // Toggle labels live
   useEffect(() => {
@@ -214,7 +211,7 @@ export default function MapView({
     ensureHomeMarker(map, homeMarkerRef, home ?? null);
   }, [home?.lng, home?.lat]);
 
-  // Pick home by clicking
+  // Pick home by clicking (cleanup must return void)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoadedRef.current) return;
@@ -224,7 +221,10 @@ export default function MapView({
       onPickHome(lng, lat);
     };
     map.on("click", handle);
-    return () => map.off("click", handle);
+    return () => {
+      // ensure cleanup returns void, not the Map instance
+      map.off("click", handle);
+    };
   }, [enableHomePick, onPickHome]);
 
   const info = useMemo(
