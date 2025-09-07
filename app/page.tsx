@@ -1,197 +1,370 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import type { Feature, FeatureCollection, Point } from "geojson";
-import MapView, { RetailerProps } from "@/components/Map";
+import React, { useEffect, useMemo, useRef } from "react";
+import mapboxgl, { Map as MapboxMap, LngLatLike } from "mapbox-gl";
+import type { FeatureCollection, Feature, Point } from "geojson";
 
-type MarkerStyle = "logo" | "color";
-
-type Basemap = {
-  id: string;
-  name: string;
-  uri: string;
-  sharpen?: boolean;
-};
-
-// Basemap choices (Mapbox styles + satellite)
-const BASEMAPS: Basemap[] = [
-  { id: "streets", name: "Mapbox Streets", uri: "mapbox://styles/mapbox/streets-v12" },
-  { id: "outdoors", name: "Mapbox Outdoors", uri: "mapbox://styles/mapbox/outdoors-v12" },
-  { id: "light", name: "Mapbox Light", uri: "mapbox://styles/mapbox/light-v11" },
-  { id: "dark", name: "Mapbox Dark", uri: "mapbox://styles/mapbox/dark-v11" },
-  { id: "satellite", name: "Satellite", uri: "mapbox://styles/mapbox/satellite-streets-v12", sharpen: true },
-];
-
-function normalizeCollection(json: any): FeatureCollection<Point, RetailerProps> {
-  const features: Feature<Point, any>[] = (json?.features || []) as Feature<Point, any>[];
-
-  const normalized = features.map((f: Feature<Point, any>, i: number) => {
-    const p: any = { ...(f.properties ?? {}) };
-
-    // Ensure an id exists
-    if (p.id == null) p.id = (i + 1).toString();
-
-    // Make any logo path relative (no leading slash) so it works on GitHub Pages
-    if (typeof p.Logo === "string" && p.Logo.startsWith("/")) {
-      p.Logo = p.Logo.slice(1);
-    }
-
-    // Coerce into RetailerProps shape
-    const coerced = p as RetailerProps;
-
-    return {
-      type: "Feature",
-      geometry: f.geometry,
-      properties: coerced,
-    } as Feature<Point, RetailerProps>;
-  });
-
-  return {
-    type: "FeatureCollection",
-    features: normalized as Feature<Point, RetailerProps>[],
-  };
+export interface RetailerProps {
+  Retailer: string;
+  Name: string;
+  City?: string;
+  State?: string;
+  Category?: string;
+  Address?: string;
+  Phone?: string;
+  Website?: string;
+  Logo?: string;   // relative e.g. "logos/basf.png"
+  Color?: string;  // hex color per-point if present
+  id?: string;
 }
 
-export default function Page() {
-  const [raw, setRaw] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
+export type MarkerStyle = "logo" | "color";
 
-  // Simple UI state
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>("logo");
-  const [basemapId, setBasemapId] = useState<string>("streets");
-  const [flatMap, setFlatMap] = useState<boolean>(true);
-  const [allowRotate, setAllowRotate] = useState<boolean>(false);
-  const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
+type Props = {
+  /** Retailers as GeoJSON FeatureCollection<Point, RetailerProps> */
+  data?: FeatureCollection<Point, RetailerProps>;
+  /** "logo" (still renders circles) or "color" */
+  markerStyle: MarkerStyle;
+  /** Show text labels for unclustered points */
+  showLabels: boolean;
+  /** CSS color for label text */
+  labelColor: string;
+  /** Mapbox style URI (e.g., 'mapbox://styles/mapbox/streets-v12') */
+  mapStyle: string;
+  /** "mercator" or "globe" */
+  projection?: "mercator" | "globe";
+  /** Allow user rotate (dragRotate & touch rotation) */
+  allowRotate?: boolean;
+  /** Slightly boost raster contrast for satellite styles */
+  rasterSharpen?: boolean;
+  /** Public Mapbox Token */
+  mapboxToken: string;
+};
 
-  // Load retailers GeoJSON (relative path for GitHub Pages)
+mapboxgl.workerClass =
+  // @ts-ignore –– allow bundlers that need this workaround
+  (require("mapbox-gl/dist/mapbox-gl-csp-worker").default as unknown) || undefined;
+
+const MAP_SOURCE_ID = "retailers-src";
+const L_CLUSTER = "retailers-clusters";
+const L_CLUSTER_COUNT = "retailers-cluster-count";
+const L_UNCLUSTERED = "retailers-unclustered";
+const L_UNCLUSTERED_LABELS = "retailers-unclustered-labels";
+
+function computeBbox(fc: FeatureCollection<Point, RetailerProps>) {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+
+  for (const f of fc.features) {
+    const c = f.geometry?.coordinates;
+    if (!c || c.length < 2) continue;
+    const [x, y] = c;
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+
+  if (
+    !Number.isFinite(minX) ||
+    !Number.isFinite(minY) ||
+    !Number.isFinite(maxX) ||
+    !Number.isFinite(maxY)
+  ) {
+    return null;
+  }
+  return [
+    [minX, minY],
+    [maxX, maxY],
+  ] as [[number, number], [number, number]];
+}
+
+function addOrUpdateSource(map: MapboxMap, fc: FeatureCollection<Point, RetailerProps>) {
+  const existing = map.getSource(MAP_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+  if (!existing) {
+    map.addSource(MAP_SOURCE_ID, {
+      type: "geojson",
+      data: fc,
+      cluster: true,
+      clusterRadius: 60,
+      clusterMaxZoom: 14,
+    });
+  } else {
+    existing.setData(fc as any);
+  }
+}
+
+function ensureLayers(map: MapboxMap, labelColor: string, markerStyle: MarkerStyle, showLabels: boolean) {
+  // Cluster circles
+  if (!map.getLayer(L_CLUSTER)) {
+    map.addLayer({
+      id: L_CLUSTER,
+      type: "circle",
+      source: MAP_SOURCE_ID,
+      filter: ["has", "point_count"],
+      paint: {
+        "circle-color": [
+          "step",
+          ["get", "point_count"],
+          "#60a5fa", // < 10
+          10,
+          "#3b82f6", // 10-24
+          25,
+          "#2563eb", // 25-49
+          50,
+          "#1d4ed8", // 50-99
+          100,
+          "#1e40af", // 100+
+        ],
+        "circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 25, 22, 50, 26, 100, 30],
+        "circle-opacity": 0.9,
+      },
+    });
+  }
+
+  // Cluster count symbols
+  if (!map.getLayer(L_CLUSTER_COUNT)) {
+    map.addLayer({
+      id: L_CLUSTER_COUNT,
+      type: "symbol",
+      source: MAP_SOURCE_ID,
+      filter: ["has", "point_count"],
+      layout: {
+        "text-field": ["to-string", ["get", "point_count"]],
+        "text-size": 12,
+        "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+      },
+      paint: {
+        "text-color": "#ffffff",
+        "text-halo-color": "#000000",
+        "text-halo-width": 1.2,
+      },
+    });
+  }
+
+  // Unclustered circles
+  if (!map.getLayer(L_UNCLUSTERED)) {
+    map.addLayer({
+      id: L_UNCLUSTERED,
+      type: "circle",
+      source: MAP_SOURCE_ID,
+      filter: ["!", ["has", "point_count"]],
+      paint: {
+        "circle-radius": 6,
+        "circle-stroke-width": 1,
+        "circle-stroke-color": "#111827",
+        "circle-color":
+          markerStyle === "color"
+            ? [
+                "coalesce",
+                ["get", "Color"],
+                "#22c55e", // default green if not provided
+              ]
+            : "#f59e0b", // amber-ish if "logo" chosen (we still draw circles)
+      },
+    });
+  } else {
+    // Update marker color mode dynamically
+    map.setPaintProperty(
+      L_UNCLUSTERED,
+      "circle-color",
+      markerStyle === "color"
+        ? (["coalesce", ["get", "Color"], "#22c55e"] as any)
+        : "#f59e0b"
+    );
+  }
+
+  // Labels (optional)
+  const labelsExist = Boolean(map.getLayer(L_UNCLUSTERED_LABELS));
+  if (showLabels && !labelsExist) {
+    map.addLayer({
+      id: L_UNCLUSTERED_LABELS,
+      type: "symbol",
+      source: MAP_SOURCE_ID,
+      filter: ["!", ["has", "point_count"]],
+      layout: {
+        "text-field": ["coalesce", ["get", "Name"], ["get", "Retailer"], ""],
+        "text-size": 11,
+        "text-offset": [0, 1],
+        "text-anchor": "top",
+        "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+      },
+      paint: {
+        "text-color": labelColor || "#ffffff",
+        "text-halo-color": "#000000",
+        "text-halo-width": 1.2,
+      },
+    });
+  } else if (!showLabels && labelsExist) {
+    map.removeLayer(L_UNCLUSTERED_LABELS);
+  } else if (showLabels && labelsExist) {
+    map.setPaintProperty(L_UNCLUSTERED_LABELS, "text-color", labelColor || "#ffffff");
+  }
+}
+
+export default function MapView({
+  data,
+  markerStyle,
+  showLabels,
+  labelColor,
+  mapStyle,
+  projection = "mercator",
+  allowRotate = false,
+  rasterSharpen = false,
+  mapboxToken,
+}: Props) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<MapboxMap | null>(null);
+  const isLoadedRef = useRef(false);
+
+  // Token
+  useMemo(() => {
+    if (mapboxToken) {
+      mapboxgl.accessToken = mapboxToken;
+    }
+    return null;
+  }, [mapboxToken]);
+
+  // Create map
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch("data/retailers.geojson", { cache: "no-store" });
-        const json = await res.json();
-        if (!mounted) return;
-        setRaw(normalizeCollection(json));
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("Failed to load retailers.geojson:", e);
-        if (!mounted) setRaw(null);
+    if (!containerRef.current) return;
+
+    const map = new mapboxgl.Map({
+      container: containerRef.current,
+      style: mapStyle,
+      projection: projection as any, // TS: underlying API accepts string names
+      center: [-96.9, 37.5] as LngLatLike,
+      zoom: 3.2,
+      attributionControl: false,
+    });
+
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
+    map.addControl(new mapboxgl.ScaleControl({ unit: "imperial" }), "bottom-left");
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }));
+
+    // Interaction toggles
+    const applyRotate = () => {
+      if (allowRotate) {
+        map.dragRotate.enable();
+        map.touchZoomRotate.enableRotation();
+      } else {
+        map.dragRotate.disable();
+        map.touchZoomRotate.disableRotation();
+        map.setPitch(0);
+        map.setBearing(0);
       }
-    })();
-    return () => {
-      mounted = false;
     };
-  }, []);
 
-  // No complex filtering applied right now; wire in your filters here if desired
-  const filteredGeojson = useMemo(() => {
-    if (!raw) return null;
-    return raw;
-  }, [raw]);
+    const applyRasterBoost = () => {
+      if (!rasterSharpen) return;
+      try {
+        const style = map.getStyle();
+        const layers = style?.layers || [];
+        for (const l of layers) {
+          if (l.type === "raster") {
+            // Contrast is a supported property; keep it mild
+            map.setPaintProperty(l.id, "raster-contrast", 0.08);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    };
 
-  const basemap = useMemo(() => {
-    const found = BASEMAPS.find((b) => b.id === basemapId) ?? BASEMAPS[0];
-    return found;
-  }, [basemapId]);
+    const addData = () => {
+      if (!data) return;
+      addOrUpdateSource(map, data);
+      ensureLayers(map, labelColor, markerStyle, showLabels);
 
-  const token = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN || "";
+      const bbox = computeBbox(data);
+      if (bbox) {
+        try {
+          map.fitBounds(bbox as any, { padding: 40, maxZoom: 7.5, duration: 600 });
+        } catch {
+          /* ignore */
+        }
+      }
+    };
 
-  return (
-    <main className="min-h-screen bg-white text-gray-900">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <img
-              src="certis-logo.png"
-              alt="Certis"
-              className="h-8 w-auto"
-              loading="eager"
-            />
-            <h1 className="text-lg font-semibold">Certis AgRoute Planner</h1>
-          </div>
+    map.on("load", () => {
+      isLoadedRef.current = true;
+      applyRotate();
+      applyRasterBoost();
+      addData();
+    });
 
-          {/* Quick Controls */}
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="text-sm">
-              Marker:
-              <select
-                className="ml-2 rounded border px-2 py-1 text-sm"
-                value={markerStyle}
-                onChange={(e) => setMarkerStyle(e.target.value as MarkerStyle)}
-              >
-                <option value="logo">Logo</option>
-                <option value="color">Color</option>
-              </select>
-            </label>
+    // When the style changes (switch basemaps), we must re-add source/layers
+    map.on("styledata", () => {
+      if (!isLoadedRef.current) return;
+      applyRasterBoost();
+      if (data) {
+        addOrUpdateSource(map, data);
+        ensureLayers(map, labelColor, markerStyle, showLabels);
+      }
+    });
 
-            <label className="text-sm">
-              Basemap:
-              <select
-                className="ml-2 rounded border px-2 py-1 text-sm"
-                value={basemapId}
-                onChange={(e) => setBasemapId(e.target.value)}
-              >
-                {BASEMAPS.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+    mapRef.current = map;
+    return () => {
+      isLoadedRef.current = false;
+      try {
+        map.remove();
+      } catch {
+        /* ignore */
+      }
+      mapRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapStyle, projection, mapboxToken]);
 
-            <label className="inline-flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={flatMap}
-                onChange={(e) => setFlatMap(e.target.checked)}
-              />
-              2D (Mercator)
-            </label>
+  // Update rotate toggle when prop changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
+    if (allowRotate) {
+      map.dragRotate.enable();
+      map.touchZoomRotate.enableRotation();
+    } else {
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+      try {
+        map.setPitch(0);
+        map.setBearing(0);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [allowRotate]);
 
-            <label className="inline-flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={allowRotate}
-                onChange={(e) => setAllowRotate(e.target.checked)}
-              />
-              Rotate
-            </label>
+  // Update raster contrast boost
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
+    if (!rasterSharpen) return;
+    try {
+      const style = map.getStyle();
+      const layers = style?.layers || [];
+      for (const l of layers) {
+        if (l.type === "raster") {
+          map.setPaintProperty(l.id, "raster-contrast", 0.08);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [rasterSharpen, mapStyle]);
 
-            <label className="inline-flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={sharpenImagery}
-                onChange={(e) => setSharpenImagery(e.target.checked)}
-                disabled={!basemap.sharpen}
-              />
-              Sharpen
-            </label>
-          </div>
-        </div>
-      </header>
+  // Update data / layers when data or rendering prefs change
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current || !data) return;
 
-      {/* Map */}
-      <section className="mx-auto mt-4 max-w-7xl px-4 pb-6">
-        <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
-          <MapView
-            data={filteredGeojson || undefined}
-            markerStyle={markerStyle}
-            showLabels={true}
-            labelColor="#fff200"
-            mapStyle={basemap.uri}
-            projection={flatMap ? "mercator" : "globe"}
-            allowRotate={allowRotate && !flatMap}
-            rasterSharpen={sharpenImagery && Boolean(basemap.sharpen)}
-            mapboxToken={token}
-          />
-        </div>
+    addOrUpdateSource(map, data);
+    ensureLayers(map, labelColor, markerStyle, showLabels);
+  }, [data, labelColor, markerStyle, showLabels]);
 
-        {/* Simple footer */}
-        <div className="mt-3 text-xs text-gray-500">
-          Data source: <code>public/data/retailers.geojson</code> — features loaded:{" "}
-          <strong>{filteredGeojson?.features?.length ?? 0}</strong>
-        </div>
-      </section>
-    </main>
-  );
+  return <div ref={containerRef} className="h-[70vh] w-full" />;
 }
