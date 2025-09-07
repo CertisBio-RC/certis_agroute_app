@@ -5,8 +5,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
 import MapView, { type RetailerProps } from "@/components/Map";
 
-// Local copy of the marker style union expected by MapView
-type MarkerStyleOpt = "color-dot" | "logo" | "dot";
+// Must match MapView's expected union exactly:
+type MarkerStyleOpt = "color" | "logo" | "dot";
 
 // --- helpers ---------------------------------------------------------------
 
@@ -53,7 +53,7 @@ export default function Page() {
 
   // UI state
   const [basemap, setBasemap] = useState<BasemapKey>("Hybrid");
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyleOpt>("color-dot");
+  const [markerStyle, setMarkerStyle] = useState<MarkerStyleOpt>("color");
   const [flatProjection, setFlatProjection] = useState<boolean>(true);
   const [allowRotate, setAllowRotate] = useState<boolean>(false);
   const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
@@ -192,7 +192,7 @@ export default function Page() {
               value={markerStyle}
               onChange={(e) => setMarkerStyle(e.target.value as MarkerStyleOpt)}
             >
-              <option value="color-dot">Color dot</option>
+              <option value="color">Color dot</option>
               <option value="logo">Logo</option>
               <option value="dot">Dot</option>
             </select>
