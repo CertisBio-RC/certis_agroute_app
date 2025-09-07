@@ -2,13 +2,12 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
-import MapView, {
-  type RetailerProps,
-  type MarkerStyle,
-  type HomeLoc,
-} from "@/components/Map";
+import MapView, { type RetailerProps } from "@/components/Map";
 
-// Basemap picker (simple for now)
+// Local type aliases (do not import from Map.tsx)
+type MarkerStyle = "logo" | "color";
+type HomeLoc = { lng: number; lat: number };
+
 type Basemap = { name: string; uri: string; sharpen?: boolean };
 const BASEMAPS: Basemap[] = [
   { name: "Streets", uri: "mapbox://styles/mapbox/streets-v12" },
@@ -19,7 +18,6 @@ const BASEMAPS: Basemap[] = [
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? "";
 
 export default function Page(_: {
-  // Next allows `searchParams` (and `params` for dynamic routes). Keep param type valid.
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
   const [geo, setGeo] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
@@ -31,7 +29,6 @@ export default function Page(_: {
   const [sharpenImagery, setSharpenImagery] = useState(true);
   const [home, setHome] = useState<HomeLoc | null>(null);
 
-  // Fetch retailers GeoJSON (relative path for GitHub Pages/static export)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -40,14 +37,15 @@ export default function Page(_: {
         const res = await fetch("data/retailers.geojson", { cache: "force-cache" });
         const json = (await res.json()) as FeatureCollection<Point, RetailerProps>;
 
-        // Clean up logos & set a stable feature.id (top-level) instead of properties.id
         const fixed: FeatureCollection<Point, RetailerProps> = {
           type: "FeatureCollection",
           features: (json.features || []).map((f, i) => {
-            const p = { ...(f.properties || {}) };
-            if (p.Logo && p.Logo.startsWith("/")) p.Logo = p.Logo.slice(1);
+            const props = { ...(f.properties || {}) };
+            if ((props as any).Logo && (props as any).Logo.startsWith("/")) {
+              (props as any).Logo = (props as any).Logo.slice(1);
+            }
             const withId: Feature<Point, RetailerProps> =
-              f.id == null ? { ...f, id: (i + 1).toString(), properties: p } : { ...f, properties: p };
+              f.id == null ? { ...f, id: (i + 1).toString(), properties: props } : { ...f, properties: props };
             return withId;
           }),
         };
@@ -66,15 +64,10 @@ export default function Page(_: {
   }, []);
 
   const basemap = BASEMAPS[basemapIdx];
-
-  const filteredGeojson: FeatureCollection<Point, RetailerProps> | null = useMemo(() => {
-    // (Hook is here for future filters; currently returns the data as-is.)
-    return geo;
-  }, [geo]);
+  const filteredGeojson: FeatureCollection<Point, RetailerProps> | null = useMemo(() => geo, [geo]);
 
   return (
     <main className="min-h-screen">
-      {/* Header */}
       <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img src="certis-logo.png" alt="Certis" className="h-8 w-auto" />
@@ -84,7 +77,6 @@ export default function Page(_: {
           </span>
         </div>
 
-        {/* Simple controls */}
         <div className="flex items-center gap-3">
           <label className="text-sm">
             Basemap{" "}
@@ -114,20 +106,12 @@ export default function Page(_: {
           </label>
 
           <label className="text-sm flex items-center gap-1">
-            <input
-              type="checkbox"
-              checked={flatMap}
-              onChange={(e) => setFlatMap(e.target.checked)}
-            />
+            <input type="checkbox" checked={flatMap} onChange={(e) => setFlatMap(e.target.checked)} />
             Flat (Mercator)
           </label>
 
           <label className="text-sm flex items-center gap-1">
-            <input
-              type="checkbox"
-              checked={allowRotate}
-              onChange={(e) => setAllowRotate(e.target.checked)}
-            />
+            <input type="checkbox" checked={allowRotate} onChange={(e) => setAllowRotate(e.target.checked)} />
             Rotate
           </label>
 
@@ -142,7 +126,6 @@ export default function Page(_: {
         </div>
       </div>
 
-      {/* Map */}
       <div className="p-4">
         <div className="overflow-hidden rounded-xl border border-gray-200">
           <MapView
