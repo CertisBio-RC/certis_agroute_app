@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
 import MapView, { type RetailerProps } from "@/components/Map";
 
-// Local type aliases (do not import from Map.tsx)
+// Local type aliases (don’t import these from Map.tsx)
 type MarkerStyle = "logo" | "color";
 type HomeLoc = { lng: number; lat: number };
 
@@ -35,17 +35,32 @@ export default function Page(_: {
       try {
         setLoading(true);
         const res = await fetch("data/retailers.geojson", { cache: "force-cache" });
-        const json = (await res.json()) as FeatureCollection<Point, RetailerProps>;
+        const json = (await res.json()) as FeatureCollection<Point, RetailerProps | Record<string, any>>;
 
         const fixed: FeatureCollection<Point, RetailerProps> = {
           type: "FeatureCollection",
           features: (json.features || []).map((f, i) => {
-            const props = { ...(f.properties || {}) };
-            if ((props as any).Logo && (props as any).Logo.startsWith("/")) {
-              (props as any).Logo = (props as any).Logo.slice(1);
-            }
+            const raw = (f.properties || {}) as Record<string, any>;
+
+            // Ensure required fields exist
+            const props: RetailerProps = {
+              Retailer: (raw.Retailer ?? raw.retailer ?? raw["Retailer "] ?? "Unknown") as string,
+              Name: (raw.Name ?? raw.name ?? raw.Store ?? "Unknown") as string,
+              City: raw.City,
+              State: raw.State,
+              Category: raw.Category ?? raw.Catagory, // sometimes misspelled
+              Address: raw.Address,
+              Phone: raw.Phone,
+              Website: raw.Website,
+              Logo: raw.Logo ? String(raw.Logo).replace(/^\/+/, "") : undefined,
+              Color: raw.Color,
+            };
+
             const withId: Feature<Point, RetailerProps> =
-              f.id == null ? { ...f, id: (i + 1).toString(), properties: props } : { ...f, properties: props };
+              f.id == null
+                ? { ...(f as Feature<Point, RetailerProps>), id: (i + 1).toString(), properties: props }
+                : { ...(f as Feature<Point, RetailerProps>), properties: props };
+
             return withId;
           }),
         };
@@ -64,7 +79,10 @@ export default function Page(_: {
   }, []);
 
   const basemap = BASEMAPS[basemapIdx];
-  const filteredGeojson: FeatureCollection<Point, RetailerProps> | null = useMemo(() => geo, [geo]);
+  const data: FeatureCollection<Point, RetailerProps> | undefined = useMemo(
+    () => geo ?? undefined,
+    [geo]
+  );
 
   return (
     <main className="min-h-screen">
@@ -73,7 +91,7 @@ export default function Page(_: {
           <img src="certis-logo.png" alt="Certis" className="h-8 w-auto" />
           <h1 className="text-xl font-semibold">Certis AgRoute Planner</h1>
           <span className="text-sm text-gray-500">
-            {loading ? "Loading retailers…" : `${filteredGeojson?.features.length ?? 0} retailers`}
+            {loading ? "Loading retailers…" : `${data?.features.length ?? 0} retailers`}
           </span>
         </div>
 
@@ -129,7 +147,7 @@ export default function Page(_: {
       <div className="p-4">
         <div className="overflow-hidden rounded-xl border border-gray-200">
           <MapView
-            data={filteredGeojson || undefined}
+            data={data}
             markerStyle={markerStyle}
             showLabels={true}
             labelColor="#fff200"
