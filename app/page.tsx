@@ -2,11 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point, BBox } from "geojson";
-import MapView, {
-  type RetailerProps,
-  type MarkerStyle,
-  type HomeLoc,
-} from "@/components/Map";
+import MapView, { type RetailerProps } from "@/components/Map";
+
+/** Local copies so we don’t depend on types exported by Map.tsx */
+type MarkerStyle = "logo" | "color";
+type HomeLoc = { lng: number; lat: number };
 
 type RawProps = {
   Retailer?: string;
@@ -23,9 +23,7 @@ type RawProps = {
 
 const MAPBOX_TOKEN =
   process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ??
-  (typeof window !== "undefined"
-    ? (window as any).__MAPBOX_TOKEN
-    : undefined) ??
+  (typeof window !== "undefined" ? (window as any).__MAPBOX_TOKEN : undefined) ??
   "";
 
 type Basemap =
@@ -56,11 +54,10 @@ function normalizeFeature(
     Website: raw.Website,
   };
 
-  // keep optional extras on the object but outside the strict type
+  // keep optional extras; Map.tsx ignores unknown props safely
   (props as any).Logo = raw.Logo ? String(raw.Logo).replace(/^\/+/, "") : undefined;
   (props as any).Color = raw.Color;
 
-  // ensure an id so clustering/selection is stable
   const withId =
     f.id == null ? { ...f, id: (i + 1).toString(), properties: props } : { ...f, properties: props };
 
@@ -134,12 +131,9 @@ export default function Page() {
 
   // ---------------- helpers ----------------
   function colorInput(v: string) {
-    // accept #RRGGBB or #RGB; fall back to previous if invalid
     if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) setLabelColor(v);
   }
-
   function setExampleHome() {
-    // central US
     setHome({ lng: -97.0, lat: 38.5 });
   }
   function clearHome() {
@@ -161,9 +155,7 @@ export default function Page() {
       </header>
 
       <main className="layout">
-        {/* SIDEBAR */}
         <aside className="sidebar">
-          {/* Map options */}
           <section className="card">
             <h2>Map</h2>
             <div className="field">
@@ -216,7 +208,6 @@ export default function Page() {
             </div>
           </section>
 
-          {/* Labels */}
           <section className="card">
             <h2>Labels</h2>
             <div className="toggles">
@@ -239,7 +230,6 @@ export default function Page() {
             </div>
           </section>
 
-          {/* Filter */}
           <section className="card">
             <h2>Filter</h2>
             <div className="field">
@@ -267,7 +257,6 @@ export default function Page() {
             </div>
           </section>
 
-          {/* Home */}
           <section className="card">
             <h2>Home</h2>
             <div className="row gap">
@@ -282,7 +271,6 @@ export default function Page() {
           </section>
         </aside>
 
-        {/* MAP */}
         <section className="map-shell">
           <MapView
             data={filtered}
