@@ -368,7 +368,7 @@ export default function Page() {
       <div className="mb-5 flex items-center gap-3">
         <Link href="/" className="flex items-center gap-3">
           <Image
-            src="/certis-logo.png"
+            src="certis-logo.png"
             alt="Certis Biologicals"
             width={160}
             height={38}
