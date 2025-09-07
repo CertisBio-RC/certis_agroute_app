@@ -33,9 +33,10 @@ jobs:
       - name: Generate retailers GeoJSON
         run: node scripts/partners-to-geojson.mjs
 
-      - name: Build (Next.js static export to ./out)
+      - name: Build static site
         env:
           NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+          GITHUB_PAGES: "true"
         run: npm run build
 
       - name: Upload Pages artifact
