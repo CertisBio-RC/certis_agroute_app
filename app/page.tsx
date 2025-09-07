@@ -5,8 +5,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
 import MapView, { type RetailerProps } from "@/components/Map";
 
-// Must match MapView's expected union exactly:
-type MarkerStyleOpt = "color" | "logo" | "dot";
+// Must match MapView’s prop exactly
+type MarkerStyleOpt = "color" | "logo";
 
 // --- helpers ---------------------------------------------------------------
 
@@ -65,7 +65,7 @@ export default function Page() {
   const [stateFilter, setStateFilter] = useState<string>("All");
   const [home, setHome] = useState<{ lng: number; lat: number } | null>(null);
 
-  // Fetch token from /mapbox-token.txt on client if not provided by env
+  // Fetch token from mapbox-token.txt on client if not provided by env
   useEffect(() => {
     if (token) return;
     let cancelled = false;
@@ -101,7 +101,6 @@ export default function Page() {
             const props = toRetailerProps(f.properties ?? {});
             const withId: Feature<Point, RetailerProps> =
               f.id == null ? { ...f, id: (i + 1).toString(), properties: props } : { ...f, properties: props };
-            // double-sanitize logo path
             if ((withId.properties as any).Logo && String((withId.properties as any).Logo).startsWith("/")) {
               (withId.properties as any).Logo = String((withId.properties as any).Logo).replace(/^\/+/, "");
             }
@@ -150,7 +149,6 @@ export default function Page() {
   const mapStyle = basemapCfg.style;
   const sharpen = sharpenImagery && !!basemapCfg.sharpen;
 
-  // Render
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-200">
       {/* Header */}
@@ -194,7 +192,6 @@ export default function Page() {
             >
               <option value="color">Color dot</option>
               <option value="logo">Logo</option>
-              <option value="dot">Dot</option>
             </select>
 
             <div className="space-y-2">
