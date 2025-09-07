@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
 import MapView, { type RetailerProps } from "@/components/Map";
 
-// Local only; we keep these here to avoid import coupling with the Map file.
 type MarkerStyle = "logo" | "color";
 type HomeLoc = { lng: number; lat: number };
 
@@ -15,8 +14,6 @@ const BASEMAPS: Basemap[] = [
   { name: "Satellite", uri: "mapbox://styles/mapbox/satellite-streets-v12", sharpen: true },
 ];
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? "";
-
 export default function Page() {
   const [geo, setGeo] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,7 +23,28 @@ export default function Page() {
   const [allowRotate, setAllowRotate] = useState(false);
   const [sharpenImagery, setSharpenImagery] = useState(true);
   const [home, setHome] = useState<HomeLoc | null>(null);
+  const [token, setToken] = useState<string>("");
 
+  // Get Mapbox token: prefer env at build-time; otherwise load from public/mapbox-token.txt (runtime)
+  useEffect(() => {
+    const envToken = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN;
+    if (envToken && envToken.length > 0) {
+      setToken(envToken);
+      return;
+    }
+    (async () => {
+      try {
+        const r = await fetch("mapbox-token.txt", { cache: "no-store" });
+        if (!r.ok) throw new Error("no mapbox-token.txt");
+        const t = (await r.text()).trim();
+        setToken(t);
+      } catch {
+        setToken("");
+      }
+    })();
+  }, []);
+
+  // Load + normalize retailers GeoJSON
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -39,8 +57,6 @@ export default function Page() {
           type: "FeatureCollection",
           features: (json.features || []).map((f, i) => {
             const raw = (f.properties || {}) as Record<string, any>;
-
-            // Ensure required fields always exist; normalize Logo path
             const props: RetailerProps = {
               Retailer: (raw.Retailer ?? raw.retailer ?? raw["Retailer "] ?? "Unknown") as string,
               Name: (raw.Name ?? raw.name ?? raw.Store ?? "Unknown") as string,
@@ -53,12 +69,10 @@ export default function Page() {
               Logo: raw.Logo ? String(raw.Logo).replace(/^\/+/, "") : undefined,
               Color: raw.Color,
             };
-
             const withId: Feature<Point, RetailerProps> =
               f.id == null
                 ? { ...(f as Feature<Point, RetailerProps>), id: (i + 1).toString(), properties: props }
                 : { ...(f as Feature<Point, RetailerProps>), properties: props };
-
             return withId;
           }),
         };
@@ -153,7 +167,7 @@ export default function Page() {
             projection={flatMap ? "mercator" : "globe"}
             allowRotate={allowRotate && !flatMap}
             rasterSharpen={sharpenImagery && Boolean(basemap.sharpen)}
-            mapboxToken={MAPBOX_TOKEN}
+            mapboxToken={token}
             onPickHome={(lng, lat) => setHome({ lng, lat })}
             home={home ?? undefined}
             enableHomePick={false}

@@ -14,12 +14,12 @@ export interface RetailerProps {
   Address?: string;
   Phone?: string;
   Website?: string;
-  Logo?: string;  // now included
-  Color?: string; // now included
+  Logo?: string;
+  Color?: string;
 }
 
 type ProjectionName = "mercator" | "globe";
-type MarkerStyle = "logo" | "color"; // we accept both; rendering uses circles
+type MarkerStyle = "logo" | "color";
 
 export type Props = {
   data?: FeatureCollection<Point, RetailerProps>;
@@ -32,7 +32,6 @@ export type Props = {
   rasterSharpen?: boolean;
   mapboxToken: string;
 
-  // Optional home marker support
   home?: { lng: number; lat: number };
   onPickHome?: (lng: number, lat: number) => void;
   enableHomePick?: boolean;
@@ -62,6 +61,23 @@ export default function MapView({
   onPickHome,
   enableHomePick = false,
 }: Props) {
+  // If no token, render a friendly panel instead of throwing
+  if (!mapboxToken) {
+    return (
+      <div className="relative w-full h-[80vh] grid place-items-center bg-black/80 text-white rounded">
+        <div className="max-w-xl text-center space-y-3 px-6">
+          <h2 className="text-lg font-semibold">Mapbox token not found</h2>
+          <p className="text-sm opacity-90">
+            The app couldn’t find a Mapbox access token. Provide{" "}
+            <code className="px-1 bg-white/10 rounded">NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> at build
+            time, or add <code className="px-1 bg-white/10 rounded">public/mapbox-token.txt</code> with
+            your public <code>pk…</code> token.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const isLoadedRef = useRef(false);
@@ -77,14 +93,13 @@ export default function MapView({
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: mapStyle,
-      center: [-96.9, 37.5], // roughly USA center
+      center: [-96.9, 37.5],
       zoom: 3.5,
       cooperativeGestures: true,
       attributionControl: true,
       projection,
     });
 
-    // Interactions: allowRotate controls dragRotate and pitch
     if (!allowRotate) {
       map.dragRotate.disable();
       map.touchZoomRotate.disableRotation();
@@ -97,26 +112,20 @@ export default function MapView({
 
     const onLoad = () => {
       isLoadedRef.current = true;
-      // After load, optionally tweak raster layers (contrast only, since sharpness isn't typed)
+
       if (rasterSharpen) {
         try {
           const style = map.getStyle();
-          const layers = (style?.layers ?? []);
+          const layers = style?.layers ?? [];
           for (const l of layers) {
             if (l.type === "raster") {
               map.setPaintProperty(l.id, "raster-contrast", clamp(0.08, -1, 1));
             }
           }
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
 
-      // If we already have data, ensure layers exist
-      if (data) {
-        upsertRetailerSourceAndLayers(map, data, showLabels, labelColor);
-      }
-      // If we already have home, render it
+      if (data) upsertRetailerSourceAndLayers(map, data, showLabels, labelColor);
       ensureHomeMarker(map, homeMarkerRef, home ?? null);
     };
 
@@ -130,19 +139,18 @@ export default function MapView({
       mapRef.current = null;
       isLoadedRef.current = false;
     };
-  }, [mapStyle]); // re-create when style URL changes
+  }, [mapStyle]);
 
-  // Update projection on change
+  // Update projection when it changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoadedRef.current) return;
     try {
-      // TS sometimes doesn't like string literal here; runtime supports it.
       (map as any).setProjection(projection);
     } catch {}
   }, [projection]);
 
-  // Update rotate enable/disable
+  // Rotate enable/disable
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -152,7 +160,6 @@ export default function MapView({
     } else {
       map.dragRotate.disable();
       map.touchZoomRotate.disableRotation();
-      // also reset bearing/pitch for a flat feel
       try {
         map.setBearing(0);
         map.setPitch(0);
@@ -160,32 +167,30 @@ export default function MapView({
     }
   }, [allowRotate]);
 
-  // Update raster contrast when toggled on/off (contrast only, safely typed)
+  // Raster contrast toggle
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoadedRef.current) return;
     try {
       const style = map.getStyle();
-      const layers = (style?.layers ?? []);
+      const layers = style?.layers ?? [];
       for (const l of layers) {
         if (l.type === "raster") {
           const val = rasterSharpen ? clamp(0.08, -1, 1) : 0;
           map.setPaintProperty(l.id, "raster-contrast", val);
         }
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [rasterSharpen]);
 
-  // Add or update source + layers when data changes
+  // Source + layers on data change
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoadedRef.current || !data) return;
     upsertRetailerSourceAndLayers(map, data, showLabels, labelColor);
   }, [data]);
 
-  // Toggle labels styling live
+  // Toggle labels live
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoadedRef.current) return;
@@ -209,21 +214,17 @@ export default function MapView({
     ensureHomeMarker(map, homeMarkerRef, home ?? null);
   }, [home?.lng, home?.lat]);
 
-  // Map click to pick home (if enabled)
+  // Pick home by clicking
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoadedRef.current) return;
-
     const handle = (e: mapboxgl.MapMouseEvent) => {
       if (!enableHomePick || !onPickHome) return;
       const { lng, lat } = e.lngLat;
       onPickHome(lng, lat);
     };
-
     map.on("click", handle);
-    return () => {
-      map.off("click", handle);
-    };
+    return () => map.off("click", handle);
   }, [enableHomePick, onPickHome]);
 
   const info = useMemo(
@@ -238,7 +239,6 @@ export default function MapView({
   return (
     <div className="relative w-full h-[80vh]">
       <div ref={containerRef} className="absolute inset-0" />
-      {/* Small corner info */}
       <div className="absolute left-2 bottom-2 z-10 rounded bg-black/50 text-white px-2 py-1 text-xs">
         <div>Retailers: {info.count}</div>
         <div>{info.projection}</div>
@@ -286,11 +286,11 @@ function addClusterLayers(map: MapboxMap) {
         "circle-color": [
           "step",
           ["get", "point_count"],
-          "#8ecae6", // small cluster
+          "#8ecae6",
           25,
-          "#219ebc", // medium
+          "#219ebc",
           100,
-          "#023047", // large
+          "#023047",
         ],
         "circle-radius": ["step", ["get", "point_count"], 16, 25, 22, 100, 30],
         "circle-opacity": 0.85,
@@ -326,11 +326,7 @@ function addPointLayer(map: MapboxMap) {
       source: SOURCE_ID,
       filter: ["!", ["has", "point_count"]],
       paint: {
-        "circle-color": [
-          "coalesce",
-          ["get", "Color"],
-          "#0ea5e9", // default teal
-        ],
+        "circle-color": ["coalesce", ["get", "Color"], "#0ea5e9"],
         "circle-radius": 6,
         "circle-stroke-color": "#000000",
         "circle-stroke-width": 0.75,
@@ -367,7 +363,6 @@ function ensureHomeMarker(
   mkRef: React.MutableRefObject<mapboxgl.Marker | null>,
   home: { lng: number; lat: number } | null
 ) {
-  // Remove current
   if (mkRef.current) {
     try {
       mkRef.current.remove();
@@ -380,7 +375,7 @@ function ensureHomeMarker(
   el.style.width = "18px";
   el.style.height = "18px";
   el.style.borderRadius = "9999px";
-  el.style.background = "#f59e0b"; // amber
+  el.style.background = "#f59e0b";
   el.style.border = "2px solid #000";
   el.title = "Home";
 
