@@ -15,46 +15,20 @@ type Basemap = {
 
 // Basemap choices (Mapbox styles + satellite)
 const BASEMAPS: Basemap[] = [
-  {
-    id: "streets",
-    name: "Mapbox Streets",
-    uri: "mapbox://styles/mapbox/streets-v12",
-  },
-  {
-    id: "outdoors",
-    name: "Mapbox Outdoors",
-    uri: "mapbox://styles/mapbox/outdoors-v12",
-  },
-  {
-    id: "light",
-    name: "Mapbox Light",
-    uri: "mapbox://styles/mapbox/light-v11",
-  },
-  {
-    id: "dark",
-    name: "Mapbox Dark",
-    uri: "mapbox://styles/mapbox/dark-v11",
-  },
-  {
-    id: "satellite",
-    name: "Satellite",
-    uri: "mapbox://styles/mapbox/satellite-streets-v12",
-    sharpen: true,
-  },
+  { id: "streets", name: "Mapbox Streets", uri: "mapbox://styles/mapbox/streets-v12" },
+  { id: "outdoors", name: "Mapbox Outdoors", uri: "mapbox://styles/mapbox/outdoors-v12" },
+  { id: "light", name: "Mapbox Light", uri: "mapbox://styles/mapbox/light-v11" },
+  { id: "dark", name: "Mapbox Dark", uri: "mapbox://styles/mapbox/dark-v11" },
+  { id: "satellite", name: "Satellite", uri: "mapbox://styles/mapbox/satellite-streets-v12", sharpen: true },
 ];
 
-function normalizeCollection(
-  json: any
-): FeatureCollection<Point, RetailerProps> {
-  const features: Feature<Point, any>[] = (json?.features || []) as Feature<
-    Point,
-    any
-  >[];
+function normalizeCollection(json: any): FeatureCollection<Point, RetailerProps> {
+  const features: Feature<Point, any>[] = (json?.features || []) as Feature<Point, any>[];
 
   const normalized = features.map((f: Feature<Point, any>, i: number) => {
     const p: any = { ...(f.properties ?? {}) };
 
-    // Ensure an id exists (TS-friendly by treating as 'any' during normalization)
+    // Ensure an id exists
     if (p.id == null) p.id = (i + 1).toString();
 
     // Make any logo path relative (no leading slash) so it works on GitHub Pages
@@ -62,7 +36,7 @@ function normalizeCollection(
       p.Logo = p.Logo.slice(1);
     }
 
-    // Coerce into RetailerProps shape as best as possible
+    // Coerce into RetailerProps shape
     const coerced = p as RetailerProps;
 
     return {
@@ -79,8 +53,7 @@ function normalizeCollection(
 }
 
 export default function Page() {
-  const [raw, setRaw] =
-    useState<FeatureCollection<Point, RetailerProps> | null>(null);
+  const [raw, setRaw] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
 
   // Simple UI state
   const [markerStyle, setMarkerStyle] = useState<MarkerStyle>("logo");
@@ -88,9 +61,6 @@ export default function Page() {
   const [flatMap, setFlatMap] = useState<boolean>(true);
   const [allowRotate, setAllowRotate] = useState<boolean>(false);
   const [sharpenImagery, setSharpenImagery] = useState<boolean>(true);
-
-  // Optional "home" point (if you enable pick-home in MapView)
-  const [home, setHome] = useState<{ lng: number; lat: number } | null>(null);
 
   // Load retailers GeoJSON (relative path for GitHub Pages)
   useEffect(() => {
@@ -123,9 +93,7 @@ export default function Page() {
     return found;
   }, [basemapId]);
 
-  const token =
-    process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
-    ""; // your .env.local already supplies this
+  const token = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN || "";
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -215,9 +183,6 @@ export default function Page() {
             allowRotate={allowRotate && !flatMap}
             rasterSharpen={sharpenImagery && Boolean(basemap.sharpen)}
             mapboxToken={token}
-            enableHomePick={false}
-            onPickHome={(lng, lat) => setHome({ lng, lat })}
-            home={home ?? undefined}
           />
         </div>
 
