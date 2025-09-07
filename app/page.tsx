@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
 import MapView, { type RetailerProps } from "@/components/Map";
 
-// Local type aliases (don’t import these from Map.tsx)
+// Local only; we keep these here to avoid import coupling with the Map file.
 type MarkerStyle = "logo" | "color";
 type HomeLoc = { lng: number; lat: number };
 
@@ -17,9 +17,7 @@ const BASEMAPS: Basemap[] = [
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? "";
 
-export default function Page(_: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}) {
+export default function Page() {
   const [geo, setGeo] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
   const [loading, setLoading] = useState(true);
   const [markerStyle, setMarkerStyle] = useState<MarkerStyle>("logo");
@@ -42,13 +40,13 @@ export default function Page(_: {
           features: (json.features || []).map((f, i) => {
             const raw = (f.properties || {}) as Record<string, any>;
 
-            // Ensure required fields exist
+            // Ensure required fields always exist; normalize Logo path
             const props: RetailerProps = {
               Retailer: (raw.Retailer ?? raw.retailer ?? raw["Retailer "] ?? "Unknown") as string,
               Name: (raw.Name ?? raw.name ?? raw.Store ?? "Unknown") as string,
               City: raw.City,
               State: raw.State,
-              Category: raw.Category ?? raw.Catagory, // sometimes misspelled
+              Category: raw.Category ?? raw.Catagory,
               Address: raw.Address,
               Phone: raw.Phone,
               Website: raw.Website,
@@ -158,6 +156,7 @@ export default function Page(_: {
             mapboxToken={MAPBOX_TOKEN}
             onPickHome={(lng, lat) => setHome({ lng, lat })}
             home={home ?? undefined}
+            enableHomePick={false}
           />
         </div>
       </div>

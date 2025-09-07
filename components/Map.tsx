@@ -1,453 +1,391 @@
-// components/Map.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
 import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
-import type { Feature, FeatureCollection, Point } from "geojson";
+import type { FeatureCollection, Point } from "geojson";
 
-// ---- Types you use elsewhere -------------------------------------------------
+// ---- Types that MUST match page.tsx normalization ----
 export interface RetailerProps {
-  Retailer: string;     // e.g., "Nutrien", "Wilbur-Ellis"
-  Name: string;         // store name or location name
+  Retailer: string;
+  Name: string;
   City?: string;
   State?: string;
   Category?: string;
   Address?: string;
   Phone?: string;
   Website?: string;
+  Logo?: string;  // now included
+  Color?: string; // now included
 }
 
-export type RetailerFC = FeatureCollection<Point, RetailerProps>;
-
-export interface HomeLoc {
-  lng: number;
-  lat: number;
-}
-
-// Limit to strings that Mapbox accepts cleanly without casting hacks
 type ProjectionName = "mercator" | "globe";
+type MarkerStyle = "logo" | "color"; // we accept both; rendering uses circles
 
-// ---- Component props ---------------------------------------------------------
-interface Props {
-  data?: RetailerFC;
-  markerStyle: "logo" | "color";
-  showLabels: boolean;
-  labelColor: string;
-  mapStyle: string;                    // style URL
-  projection?: ProjectionName;         // "mercator" | "globe"
+export type Props = {
+  data?: FeatureCollection<Point, RetailerProps>;
+  markerStyle: MarkerStyle;
+  showLabels?: boolean;
+  labelColor?: string;
+  mapStyle: string;
+  projection?: ProjectionName;
   allowRotate?: boolean;
-  rasterSharpen?: boolean;             // if true, gently tweak raster contrast/saturation
+  rasterSharpen?: boolean;
   mapboxToken: string;
-  pickHomeMode?: boolean;
+
+  // Optional home marker support
+  home?: { lng: number; lat: number };
   onPickHome?: (lng: number, lat: number) => void;
-  home?: HomeLoc | null;
-  className?: string;
-  style?: React.CSSProperties;
+  enableHomePick?: boolean;
+};
+
+const SOURCE_ID = "retailers-src";
+const L_CLUSTER = "retailers-clusters";
+const L_CLUSTER_COUNT = "retailers-cluster-count";
+const L_UNCLUSTERED = "retailers-points";
+const L_LABELS = "retailers-labels";
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
 }
 
-// ---- Small helpers -----------------------------------------------------------
-function clamp(v: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, v));
-}
-
-// Build a fairly stable ID prefix so we don’t collide with any other maps on page
-const ID = "retailers";
-const SRC_ID = `${ID}-src`;
-const CIRCLE_ID = `${ID}-circles`;
-const LABEL_ID = `${ID}-labels`;
-
-// We’ll keep HTML <Marker>s for the “logo” mode here, to clean them up on changes
-type LogoMarker = { marker: mapboxgl.Marker; id: string };
-function makeLogoEl(src: string, title: string) {
-  const size = 28;
-  const el = document.createElement("div");
-  el.style.width = `${size}px`;
-  el.style.height = `${size}px`;
-  el.style.borderRadius = "50%";
-  el.style.overflow = "hidden";
-  el.style.boxShadow = "0 0 0 2px rgba(0,0,0,0.45)";
-  el.style.background = "#fff";
-  el.title = title;
-
-  const img = document.createElement("img");
-  img.src = src;
-  img.alt = title;
-  img.style.width = "100%";
-  img.style.height = "100%";
-  img.style.objectFit = "contain";
-  el.appendChild(img);
-
-  return el;
-}
-
-// ---- Map component -----------------------------------------------------------
-const MapView: React.FC<Props> = ({
+export default function MapView({
   data,
   markerStyle,
-  showLabels,
-  labelColor,
+  showLabels = true,
+  labelColor = "#ffffff",
   mapStyle,
   projection = "mercator",
   allowRotate = false,
   rasterSharpen = false,
   mapboxToken,
-  pickHomeMode = false,
+  home,
   onPickHome,
-  home = null,
-  className,
-  style,
-}) => {
+  enableHomePick = false,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const isLoadedRef = useRef(false);
-
-  const logoMarkersRef = useRef<LogoMarker[]>([]);
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
-  // Ensure token
-  useMemo(() => {
-    mapboxgl.accessToken = mapboxToken || "";
-  }, [mapboxToken]);
+  // Provide token
+  mapboxgl.accessToken = mapboxToken;
 
-  // Init map
+  // Initialize map once
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || mapRef.current) return;
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: mapStyle,
-      projection,
-      // viewport defaults – tweak as you like
-      center: [-95.9, 39.5],
-      zoom: 3.6,
-      attributionControl: true,
+      center: [-96.9, 37.5], // roughly USA center
+      zoom: 3.5,
       cooperativeGestures: true,
+      attributionControl: true,
+      projection,
     });
+
+    // Interactions: allowRotate controls dragRotate and pitch
+    if (!allowRotate) {
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+    } else {
+      map.dragRotate.enable();
+      map.touchZoomRotate.enableRotation();
+    }
 
     mapRef.current = map;
 
-    // Basic controls
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: true, showZoom: true }), "top-right");
-    map.addControl(new mapboxgl.ScaleControl({ unit: "imperial", maxWidth: 160 }), "bottom-left");
-
-    // Rotation interaction
-    if (allowRotate) map.dragRotate.enable();
-    else map.dragRotate.disable();
-
-    map.on("load", () => {
+    const onLoad = () => {
       isLoadedRef.current = true;
-
-      // Optional raster tweaks – only for raster layers Mapbox knows about
+      // After load, optionally tweak raster layers (contrast only, since sharpness isn't typed)
       if (rasterSharpen) {
-        const layers = map.getStyle().layers || [];
-        for (const l of layers) {
-          if (l.type === "raster") {
-            // NOTE: "raster-sharpness" is not a Mapbox GL JS paint prop; omit to satisfy types/runtime.
-            map.setPaintProperty(l.id, "raster-contrast", clamp(0.08, -1, 1));
-            map.setPaintProperty(l.id, "raster-saturation", clamp(0.06, -1, 1));
+        try {
+          const style = map.getStyle();
+          const layers = (style?.layers ?? []);
+          for (const l of layers) {
+            if (l.type === "raster") {
+              map.setPaintProperty(l.id, "raster-contrast", clamp(0.08, -1, 1));
+            }
           }
+        } catch {
+          // ignore
         }
       }
 
-      // Source + default layers
-      ensureSource(map, data);
-      ensureVectorLayers(map, markerStyle, showLabels, labelColor);
-
-      // If logo mode, build HTML markers
-      if (markerStyle === "logo" && data) {
-        rebuildLogoMarkers(map, data, logoMarkersRef);
+      // If we already have data, ensure layers exist
+      if (data) {
+        upsertRetailerSourceAndLayers(map, data, showLabels, labelColor);
       }
+      // If we already have home, render it
+      ensureHomeMarker(map, homeMarkerRef, home ?? null);
+    };
 
-      // Home marker (if provided)
-      ensureHomeMarker(map, home);
-    });
+    map.on("load", onLoad);
 
     return () => {
-      // Cleanup markers first to avoid dangling DOM
-      clearLogoMarkers(logoMarkersRef);
-      if (homeMarkerRef.current) {
-        try { homeMarkerRef.current.remove(); } catch {}
-        homeMarkerRef.current = null;
-      }
-      isLoadedRef.current = false;
-      try { map.remove(); } catch {}
+      try {
+        homeMarkerRef.current?.remove();
+      } catch {}
+      map.remove();
       mapRef.current = null;
+      isLoadedRef.current = false;
     };
-  }, []); // mount once
+  }, [mapStyle]); // re-create when style URL changes
 
-  // Projection
+  // Update projection on change
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoadedRef.current) return;
     try {
-      map.setProjection(projection);
-    } catch { /* ignore */ }
+      // TS sometimes doesn't like string literal here; runtime supports it.
+      (map as any).setProjection(projection);
+    } catch {}
   }, [projection]);
 
-  // Rotate interaction
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !isLoadedRef.current) return;
-    if (allowRotate) map.dragRotate.enable();
-    else map.dragRotate.disable();
-  }, [allowRotate]);
-
-  // Style change (basemap)
+  // Update rotate enable/disable
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    if (allowRotate) {
+      map.dragRotate.enable();
+      map.touchZoomRotate.enableRotation();
+    } else {
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+      // also reset bearing/pitch for a flat feel
+      try {
+        map.setBearing(0);
+        map.setPitch(0);
+      } catch {}
+    }
+  }, [allowRotate]);
 
-    // When we change style URL, Mapbox rebuilds layers; re-add things on 'styledata'/'load'
-    let reattach = () => {
-      if (!isLoadedRef.current) return;
-      ensureSource(map, data);
-      ensureVectorLayers(map, markerStyle, showLabels, labelColor);
-      // Logo markers need to be rebuilt (because style reset nukes symbol layers we’re not using for logos anyway)
-      clearLogoMarkers(logoMarkersRef);
-      if (markerStyle === "logo" && data) rebuildLogoMarkers(map, data, logoMarkersRef);
-      ensureHomeMarker(map, home);
-    };
-
-    map.setStyle(mapStyle);
-    map.once("load", () => {
-      isLoadedRef.current = true;
-      if (rasterSharpen) {
-        const layers = map.getStyle().layers || [];
-        for (const l of layers) {
-          if (l.type === "raster") {
-            map.setPaintProperty(l.id, "raster-contrast", clamp(0.08, -1, 1));
-            map.setPaintProperty(l.id, "raster-saturation", clamp(0.06, -1, 1));
-          }
+  // Update raster contrast when toggled on/off (contrast only, safely typed)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
+    try {
+      const style = map.getStyle();
+      const layers = (style?.layers ?? []);
+      for (const l of layers) {
+        if (l.type === "raster") {
+          const val = rasterSharpen ? clamp(0.08, -1, 1) : 0;
+          map.setPaintProperty(l.id, "raster-contrast", val);
         }
       }
-      reattach();
-    });
-
-    return () => {
-      // noop
-    };
-  }, [mapStyle]);
-
-  // Data changes
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !isLoadedRef.current) return;
-
-    ensureSource(map, data);
-
-    // Vector layers react to showLabels/labelColor/markerStyle
-    ensureVectorLayers(map, markerStyle, showLabels, labelColor);
-
-    // Rebuild logo markers when data or style changes & we’re in logo mode
-    clearLogoMarkers(logoMarkersRef);
-    if (markerStyle === "logo" && data) rebuildLogoMarkers(map, data, logoMarkersRef);
-  }, [data, markerStyle, showLabels, labelColor]);
-
-  // Pick-home mode
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !isLoadedRef.current) return;
-
-    const handle = (e: mapboxgl.MapMouseEvent) => {
-      if (!pickHomeMode || !onPickHome) return;
-      const { lng, lat } = e.lngLat;
-      onPickHome(lng, lat);
-    };
-
-    if (pickHomeMode) {
-      map.getCanvas().style.cursor = "crosshair";
-      map.on("click", handle);
-    } else {
-      map.getCanvas().style.cursor = "";
-      map.off("click", handle);
+    } catch {
+      // ignore
     }
+  }, [rasterSharpen]);
 
-    return () => {
-      try { map.off("click", handle); } catch {}
-      if (map && !pickHomeMode) map.getCanvas().style.cursor = "";
-    };
-  }, [pickHomeMode, onPickHome]);
+  // Add or update source + layers when data changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current || !data) return;
+    upsertRetailerSourceAndLayers(map, data, showLabels, labelColor);
+  }, [data]);
+
+  // Toggle labels styling live
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
+    const hasLabels = map.getLayer(L_LABELS);
+    if (showLabels) {
+      if (!hasLabels && map.getSource(SOURCE_ID)) {
+        addLabelLayer(map, labelColor);
+      } else if (hasLabels) {
+        map.setPaintProperty(L_LABELS, "text-color", labelColor);
+        map.setLayoutProperty(L_LABELS, "visibility", "visible");
+      }
+    } else if (hasLabels) {
+      map.setLayoutProperty(L_LABELS, "visibility", "none");
+    }
+  }, [showLabels, labelColor]);
 
   // Home marker updates
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoadedRef.current) return;
-    ensureHomeMarker(map, home);
-  }, [home]);
+    ensureHomeMarker(map, homeMarkerRef, home ?? null);
+  }, [home?.lng, home?.lat]);
+
+  // Map click to pick home (if enabled)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
+
+    const handle = (e: mapboxgl.MapMouseEvent) => {
+      if (!enableHomePick || !onPickHome) return;
+      const { lng, lat } = e.lngLat;
+      onPickHome(lng, lat);
+    };
+
+    map.on("click", handle);
+    return () => {
+      map.off("click", handle);
+    };
+  }, [enableHomePick, onPickHome]);
+
+  const info = useMemo(
+    () => ({
+      count: data?.features?.length ?? 0,
+      style: mapStyle,
+      projection,
+    }),
+    [data, mapStyle, projection]
+  );
 
   return (
-    <div className={className} style={{ position: "relative", ...style }}>
-      <div ref={containerRef} className="w-full h-[640px] rounded-lg overflow-hidden" />
+    <div className="relative w-full h-[80vh]">
+      <div ref={containerRef} className="absolute inset-0" />
+      {/* Small corner info */}
+      <div className="absolute left-2 bottom-2 z-10 rounded bg-black/50 text-white px-2 py-1 text-xs">
+        <div>Retailers: {info.count}</div>
+        <div>{info.projection}</div>
+      </div>
     </div>
   );
-};
-
-export default MapView;
-
-// ---- Map helpers -------------------------------------------------------------
-
-function ensureSource(map: MapboxMap, fc?: RetailerFC) {
-  const existing = map.getSource(SRC_ID) as mapboxgl.GeoJSONSource | undefined;
-  if (!fc) {
-    // If no data, remove source & layers if they exist
-    if (map.getLayer(CIRCLE_ID)) map.removeLayer(CIRCLE_ID);
-    if (map.getLayer(LABEL_ID)) map.removeLayer(LABEL_ID);
-    if (existing) map.removeSource(SRC_ID);
-    return;
-  }
-
-  if (!existing) {
-    map.addSource(SRC_ID, {
-      type: "geojson",
-      data: fc,
-    });
-  } else {
-    existing.setData(fc);
-  }
 }
 
-function ensureVectorLayers(
+// --- helpers ---
+
+function upsertRetailerSourceAndLayers(
   map: MapboxMap,
-  markerStyle: "logo" | "color",
+  fc: FeatureCollection<Point, RetailerProps>,
   showLabels: boolean,
   labelColor: string
 ) {
-  // We use vector layers only for the "color" mode (logos use HTML markers)
-  const wantCircles = markerStyle === "color";
-  const haveCircle = !!map.getLayer(CIRCLE_ID);
+  const existing = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
 
-  if (wantCircles && !haveCircle) {
-    if (!map.getSource(SRC_ID)) return;
+  const clusterOpts: any = {
+    type: "geojson",
+    data: fc,
+    cluster: true,
+    clusterMaxZoom: 12,
+    clusterRadius: 40,
+  };
+
+  if (!existing) {
+    map.addSource(SOURCE_ID, clusterOpts);
+    addClusterLayers(map);
+    addPointLayer(map);
+    if (showLabels) addLabelLayer(map, labelColor);
+  } else {
+    existing.setData(fc as any);
+  }
+}
+
+function addClusterLayers(map: MapboxMap) {
+  if (!map.getLayer(L_CLUSTER)) {
     map.addLayer({
-      id: CIRCLE_ID,
+      id: L_CLUSTER,
       type: "circle",
-      source: SRC_ID,
+      source: SOURCE_ID,
+      filter: ["has", "point_count"],
       paint: {
-        "circle-radius": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          3, 3,
-          6, 5,
-          8, 7,
-          10, 9,
-        ],
         "circle-color": [
-          "case",
-          ["==", ["get", "Retailer"], "Nutrien"], "#0ea5e9",
-          ["==", ["get", "Retailer"], "Wilbur-Ellis"], "#f59e0b",
-          ["==", ["get", "Retailer"], "Helena"], "#10b981",
-          ["==", ["get", "Retailer"], "Growmark"], "#a855f7",
-          "#ef4444",
+          "step",
+          ["get", "point_count"],
+          "#8ecae6", // small cluster
+          25,
+          "#219ebc", // medium
+          100,
+          "#023047", // large
         ],
-        "circle-stroke-color": "#111827",
-        "circle-stroke-width": 1,
-        "circle-opacity": 0.9,
+        "circle-radius": ["step", ["get", "point_count"], 16, 25, 22, 100, 30],
+        "circle-opacity": 0.85,
       },
     });
-  } else if (!wantCircles && haveCircle) {
-    map.removeLayer(CIRCLE_ID);
   }
 
-  // Labels
-  const wantLabels = showLabels && markerStyle === "color";
-  const haveLabels = !!map.getLayer(LABEL_ID);
-
-  if (wantLabels && !haveLabels) {
-    if (!map.getSource(SRC_ID)) return;
+  if (!map.getLayer(L_CLUSTER_COUNT)) {
     map.addLayer({
-      id: LABEL_ID,
+      id: L_CLUSTER_COUNT,
       type: "symbol",
-      source: SRC_ID,
+      source: SOURCE_ID,
+      filter: ["has", "point_count"],
       layout: {
-        "text-field": ["coalesce", ["get", "Name"], ["get", "Retailer"]],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          3, 9,
-          6, 11,
-          10, 13
-        ],
-        "text-offset": [0, 1.0],
-        "text-anchor": "top",
-        "text-allow-overlap": false,
-        "text-optional": true,
+        "text-field": ["to-string", ["get", "point_count_abbreviated"]],
+        "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+        "text-size": 12,
       },
       paint: {
-        "text-color": labelColor || "#ffffff",
+        "text-color": "#ffffff",
         "text-halo-color": "#000000",
         "text-halo-width": 1.2,
       },
     });
-  } else if (!wantLabels && haveLabels) {
-    map.removeLayer(LABEL_ID);
   }
 }
 
-function rebuildLogoMarkers(
+function addPointLayer(map: MapboxMap) {
+  if (!map.getLayer(L_UNCLUSTERED)) {
+    map.addLayer({
+      id: L_UNCLUSTERED,
+      type: "circle",
+      source: SOURCE_ID,
+      filter: ["!", ["has", "point_count"]],
+      paint: {
+        "circle-color": [
+          "coalesce",
+          ["get", "Color"],
+          "#0ea5e9", // default teal
+        ],
+        "circle-radius": 6,
+        "circle-stroke-color": "#000000",
+        "circle-stroke-width": 0.75,
+      },
+    });
+  }
+}
+
+function addLabelLayer(map: MapboxMap, labelColor: string) {
+  if (map.getLayer(L_LABELS)) return;
+  map.addLayer({
+    id: L_LABELS,
+    type: "symbol",
+    source: SOURCE_ID,
+    filter: ["!", ["has", "point_count"]],
+    layout: {
+      "text-field": ["get", "Name"],
+      "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+      "text-size": 11,
+      "text-offset": [0, 1.1],
+      "text-anchor": "top",
+      "text-optional": true,
+    },
+    paint: {
+      "text-color": labelColor || "#ffffff",
+      "text-halo-color": "#000000",
+      "text-halo-width": 1.2,
+    },
+  });
+}
+
+function ensureHomeMarker(
   map: MapboxMap,
-  fc: RetailerFC,
-  store: React.MutableRefObject<LogoMarker[]>
+  mkRef: React.MutableRefObject<mapboxgl.Marker | null>,
+  home: { lng: number; lat: number } | null
 ) {
-  clearLogoMarkers(store);
-  if (!fc?.features?.length) return;
-
-  // Create one HTML marker per feature
-  for (const feat of fc.features) {
-    if (!feat?.geometry || feat.geometry.type !== "Point") continue;
-    const [lng, lat] = feat.geometry.coordinates;
-    const props = feat.properties || ({} as RetailerProps);
-    const retailer = props.Retailer || "store";
-    const title = props.Name || retailer;
-
-    const logoPath = `logos/${safeFile(retailer)}.png`; // served from /public/logos/
-
-    const el = makeLogoEl(logoPath, title);
-    const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-      .setLngLat([lng, lat])
-      .addTo(map);
-
-    const id = `${retailer}-${lng.toFixed(5)}-${lat.toFixed(5)}`;
-    store.current.push({ marker, id });
-  }
-}
-
-function clearLogoMarkers(store: React.MutableRefObject<LogoMarker[]>) {
-  for (const m of store.current) {
-    try { m.marker.remove(); } catch {}
-  }
-  store.current = [];
-}
-
-function safeFile(s: string) {
-  return s.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-_.]/g, "");
-}
-
-function ensureHomeMarker(map: MapboxMap, home?: HomeLoc | null) {
-  // Remove existing first
-  const mkRef = (homeMarkerRef as any) as React.MutableRefObject<mapboxgl.Marker | null>;
-  // (TypeScript trick: allow reuse outside component scope)
-  // In our component we always call through the exported ref above.
-
-  if (!("current" in mkRef)) return; // safety if called too early
-
+  // Remove current
   if (mkRef.current) {
-    try { mkRef.current.remove(); } catch {}
+    try {
+      mkRef.current.remove();
+    } catch {}
     mkRef.current = null;
   }
-
   if (!home) return;
 
   const el = document.createElement("div");
   el.style.width = "18px";
   el.style.height = "18px";
-  el.style.borderRadius = "50%";
-  el.style.background = "#22c55e";
-  el.style.boxShadow = "0 0 0 2px #00000088";
+  el.style.borderRadius = "9999px";
+  el.style.background = "#f59e0b"; // amber
+  el.style.border = "2px solid #000";
   el.title = "Home";
 
-  mkRef.current = new mapboxgl.Marker({ element: el, anchor: "center" })
+  const mk = new mapboxgl.Marker({ element: el, anchor: "center" })
     .setLngLat([home.lng, home.lat])
     .addTo(map);
+  mkRef.current = mk;
 }
