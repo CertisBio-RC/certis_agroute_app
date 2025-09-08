@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl, { Map as MapboxMap, LngLatLike, Marker } from "mapbox-gl";
 import type { FeatureCollection, Feature, Point } from "geojson";
+import type { MapMouseEvent } from "mapbox-gl"; // <-- fix: use MapMouseEvent
 
 // ---------- Types ----------
 export type RetailerProps = {
@@ -39,29 +40,19 @@ type Props = {
 
 // ---------- Helpers ----------
 function readTokenSync(): string | null {
-  // Try meta tag injected by layout.tsx
   if (typeof document !== "undefined") {
-    const meta = document.querySelector(
-      'meta[name="mapbox-token"]'
-    ) as HTMLMetaElement | null;
+    const meta = document.querySelector('meta[name="mapbox-token"]') as HTMLMetaElement | null;
     if (meta?.content) return meta.content;
-    // Optional window escape hatch
     const w = window as any;
-    if (typeof w.__MAPBOX_TOKEN === "string" && w.__MAPBOX_TOKEN) {
-      return w.__MAPBOX_TOKEN as string;
-    }
+    if (typeof w.__MAPBOX_TOKEN === "string" && w.__MAPBOX_TOKEN) return w.__MAPBOX_TOKEN;
   }
-  // Env (inlined at build time on Pages)
-  if (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN) {
-    return process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN;
-  }
+  if (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN) return process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN;
   return null;
 }
 
 function ensureSource(map: MapboxMap, id: string, spec: any) {
   if (!map.getSource(id)) map.addSource(id, spec);
 }
-
 function ensureLayer(map: MapboxMap, spec: mapboxgl.AnyLayer, beforeId?: string) {
   if (!map.getLayer(spec.id)) map.addLayer(spec, beforeId);
 }
@@ -80,23 +71,18 @@ export default function MapView({
   home,
   onPickHome,
 }: Props) {
-  // ❗ Hooks must be unconditionally called on every render
+  // Unconditional hooks (fixes React #310)
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [homeMarker, setHomeMarker] = useState<Marker | null>(null);
 
-  // Resolve a token synchronously so we don't “toggle” from 0 hooks → many hooks later
-  const token = useMemo(
-    () => mapboxToken ?? readTokenSync(),
-    [mapboxToken]
-  );
+  const token = useMemo(() => mapboxToken ?? readTokenSync(), [mapboxToken]);
 
-  // Create / destroy the map
+  // Create / destroy map
   useEffect(() => {
     const el = containerRef.current;
     if (!el || mapRef.current) return;
-    // If no token yet, we'll still render the container; map will start once token appears.
     if (!token) return;
 
     mapboxgl.accessToken = token;
@@ -115,13 +101,11 @@ export default function MapView({
     mapRef.current = map;
     map.on("load", () => {
       setIsLoaded(true);
-
-      // Slightly sharpen raster
-      const layers = map.getStyle().layers || [];
-      for (const l of layers) {
+      // gentle raster contrast
+      for (const l of map.getStyle().layers || []) {
         if (l.type === "raster") {
           try {
-            map.setPaintProperty(l.id, "raster-contrast", Math.max(-1, Math.min(1, rasterSharpen ? 0.08 : 0)));
+            map.setPaintProperty(l.id, "raster-contrast", rasterSharpen ? 0.08 : 0);
           } catch {}
         }
       }
@@ -136,17 +120,13 @@ export default function MapView({
     };
   }, [token, mapStyle, allowRotate, projection, rasterSharpen]);
 
-  // Add / update GeoJSON source & layers
+  // Source & layers
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoaded || !data) return;
 
-    ensureSource(map, "retailers", {
-      type: "geojson",
-      data,
-    });
+    ensureSource(map, "retailers", { type: "geojson", data });
 
-    // Simple circle marker layer (we can swap paint for “color-dot” vs “dot”)
     ensureLayer(map, {
       id: "retailers-circle",
       type: "circle",
@@ -159,7 +139,6 @@ export default function MapView({
       },
     });
 
-    // If color-dot, make the color data driven
     try {
       if (markerStyle === "color-dot") {
         map.setPaintProperty(
@@ -172,7 +151,6 @@ export default function MapView({
       }
     } catch {}
 
-    // Optional symbol labels
     if (showLabels) {
       ensureLayer(
         map,
@@ -198,8 +176,6 @@ export default function MapView({
     } else {
       if (map.getLayer("retailers-labels")) map.removeLayer("retailers-labels");
     }
-
-    // Logos (optional — when markerStyle is 'logo' we could add an icon layer; omitted for brevity)
   }, [isLoaded, data, markerStyle, showLabels, labelColor]);
 
   // Home marker
@@ -215,7 +191,6 @@ export default function MapView({
       return;
     }
 
-    // Create or move the marker
     let mk = homeMarker;
     if (!mk) {
       mk = new mapboxgl.Marker({ color: "#00d084" });
@@ -224,12 +199,12 @@ export default function MapView({
     mk!.setLngLat([home.lng, home.lat] as LngLatLike).addTo(map);
   }, [isLoaded, home]);
 
-  // Allow picking a home point when handler is provided
+  // Pick home (double-click)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoaded || !onPickHome) return;
 
-    const handler = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+    const handler = (e: MapMouseEvent) => {
       onPickHome(e.lngLat.lng, e.lngLat.lat);
     };
     map.on("dblclick", handler);
@@ -240,7 +215,6 @@ export default function MapView({
     };
   }, [isLoaded, onPickHome]);
 
-  // Render
   return (
     <div className="map-shell">
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
@@ -254,11 +228,19 @@ export default function MapView({
             background: "rgba(0,0,0,0.6)",
           }}
         >
-          <div style={{ background: "#171a21", border: "1px solid #2a3140", padding: 16, borderRadius: 12, color: "#e8eef6" }}>
+          <div
+            style={{
+              background: "#171a21",
+              border: "1px solid #2a3140",
+              padding: 16,
+              borderRadius: 12,
+              color: "#e8eef6",
+            }}
+          >
             <h3 style={{ marginTop: 0 }}>Mapbox token not found</h3>
             <p>
-              Provide <code>NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> (env) or add a
-              meta tag in <code>app/layout.tsx</code>.
+              Provide <code>NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> (env) or add the meta tag in{" "}
+              <code>app/layout.tsx</code>.
             </p>
           </div>
         </div>
