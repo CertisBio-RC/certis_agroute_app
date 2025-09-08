@@ -5,19 +5,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
 import MapView, {
   type RetailerProps,
-  type MarkerStyleOpt, // <- matches components/Map.tsx
+  type MarkerStyleOpt,
 } from "@/components/Map";
 
-// ---- UI state option types (kept narrow for safety) ----
 type StateOpt = "All" | string;
 type MapStyleOpt = "hybrid" | "satellite" | "streets";
 type ProjectionOpt = "mercator" | "globe";
 
-// ---- helpers ---------------------------------------------------------------
-const uniq = <T, K extends string | number>(
-  items: T[],
-  by: (t: T) => K
-): T[] => {
+const uniq = <T, K extends string | number>(items: T[], by: (t: T) => K): T[] => {
   const seen = new Set<K>();
   const out: T[] = [];
   for (const it of items) {
@@ -30,7 +25,6 @@ const uniq = <T, K extends string | number>(
   return out;
 };
 
-// ---- page ------------------------------------------------------------------
 export default function HomePage() {
   // filters
   const [stateFilter, setStateFilter] = useState<StateOpt>("All");
@@ -40,24 +34,23 @@ export default function HomePage() {
   // map options
   const [mapStyle, setMapStyle] = useState<MapStyleOpt>("hybrid");
   const [projection, setProjection] = useState<ProjectionOpt>("mercator");
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyleOpt>("dot"); // <- no "color-dot"
+  const [markerStyle, setMarkerStyle] = useState<MarkerStyleOpt>("dot");
   const [showLabels, setShowLabels] = useState<boolean>(true);
   const [labelColor, setLabelColor] = useState<string>("#fff200");
   const [allowRotate, setAllowRotate] = useState<boolean>(false);
   const [sharpen, setSharpen] = useState<boolean>(true);
 
-  // home location
+  // home
   const [home, setHome] = useState<{ lng: number; lat: number } | null>(null);
 
-  // token (layout meta, env, window var, or token file)
+  // token (env → window meta → fallback)
   const token =
-    process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ??
-    (typeof window !== "undefined"
-      ? (window as any).__MAPBOX_TOKEN || ""
-      : "") ||
-    "";
+    (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ??
+      (typeof window !== "undefined"
+        ? ((window as any).__MAPBOX_TOKEN as string | undefined)
+        : undefined)) ?? "";
 
-  // ---- load retailers GeoJSON ---------------------------------------------
+  // data
   const [geojson, setGeojson] = useState<
     FeatureCollection<Point, RetailerProps> | null
   >(null);
@@ -74,10 +67,8 @@ export default function HomePage() {
           Partial<RetailerProps> & { Logo?: string; Color?: string }
         >;
 
-        // sanitize & ensure id
         const features = (json.features || []).map((f, i) => {
           const raw = f.properties || {};
-          // strip leading slash on any Logo path (so it works on GitHub Pages subpath)
           const props: RetailerProps = {
             Retailer: String(raw.Retailer ?? ""),
             Name: String(raw.Name ?? ""),
@@ -87,11 +78,8 @@ export default function HomePage() {
             Address: raw.Address ? String(raw.Address) : undefined,
             Phone: raw.Phone ? String(raw.Phone) : undefined,
             Website: raw.Website ? String(raw.Website) : undefined,
-            // Map.tsx supports Color for color marker, keep if present
             Color: raw.Color ? String(raw.Color) : undefined,
-            // NOTE: do not include Logo here unless Map.tsx type includes it
           };
-
           const withId: Feature<Point, RetailerProps> =
             f.id == null
               ? { ...f, id: (i + 1).toString(), properties: props }
@@ -113,13 +101,11 @@ export default function HomePage() {
     };
   }, []);
 
-  // ---- derive filter lists -------------------------------------------------
+  // lists
   const allStates = useMemo(() => {
     if (!geojson) return ["All"] as string[];
     const list = uniq(
-      geojson.features
-        .map((f) => f.properties?.State)
-        .filter(Boolean) as string[],
+      geojson.features.map((f) => f.properties?.State).filter(Boolean) as string[],
       (s) => s
     ).sort();
     return ["All", ...list];
@@ -147,7 +133,7 @@ export default function HomePage() {
     return ["All", ...list];
   }, [geojson]);
 
-  // ---- filtered data -------------------------------------------------------
+  // filtered data
   const filteredGeojson = useMemo(() => {
     if (!geojson) return null;
     const feats = geojson.features.filter((f) => {
@@ -157,10 +143,10 @@ export default function HomePage() {
       if (categoryFilter !== "All" && p.Category !== categoryFilter) return false;
       return true;
     });
-    return { type: "FeatureCollection", features: feats } as FeatureCollection<
-      Point,
-      RetailerProps
-    >;
+    return {
+      type: "FeatureCollection",
+      features: feats,
+    } as FeatureCollection<Point, RetailerProps>;
   }, [geojson, stateFilter, retailerFilter, categoryFilter]);
 
   const clearFilters = () => {
@@ -169,17 +155,12 @@ export default function HomePage() {
     setCategoryFilter("All");
   };
 
-  // ---- UI ------------------------------------------------------------------
   return (
     <div className="page-root">
-      {/* header */}
       <div className="page-header">
         <div className="brand">
-          {/* relative path so it works on GH Pages */}
           <img src="logos/certis.png" alt="Certis" />
-          <a className="home-link" href="./">
-            Home
-          </a>
+          <a className="home-link" href="./">Home</a>
         </div>
         <div className="titles">
           <h1>Certis AgRoute Planner</h1>
@@ -188,56 +169,38 @@ export default function HomePage() {
       </div>
 
       <div className="layout">
-        {/* left rail */}
         <div className="sidebar">
           <div className="card">
             <h2>Filters</h2>
 
             <div className="field">
               <label>State</label>
-              <select
-                value={stateFilter}
-                onChange={(e) => setStateFilter(e.target.value)}
-              >
+              <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
                 {allStates.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
 
             <div className="field">
               <label>Retailer</label>
-              <select
-                value={retailerFilter}
-                onChange={(e) => setRetailerFilter(e.target.value)}
-              >
+              <select value={retailerFilter} onChange={(e) => setRetailerFilter(e.target.value)}>
                 {allRetailers.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
 
             <div className="field">
               <label>Category</label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              >
+              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
                 {allCategories.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
 
-            <button onClick={clearFilters}>
-              Clear Filters
-            </button>
+            <button onClick={clearFilters}>Clear Filters</button>
             <div className="muted small" style={{ marginTop: 6 }}>
               {filteredGeojson ? `${filteredGeojson.features.length} shown` : "…"}
             </div>
@@ -248,10 +211,7 @@ export default function HomePage() {
 
             <div className="field">
               <label>Basemap</label>
-              <select
-                value={mapStyle}
-                onChange={(e) => setMapStyle(e.target.value as MapStyleOpt)}
-              >
+              <select value={mapStyle} onChange={(e) => setMapStyle(e.target.value as MapStyleOpt)}>
                 <option value="hybrid">Hybrid</option>
                 <option value="satellite">Satellite</option>
                 <option value="streets">Streets</option>
@@ -297,10 +257,7 @@ export default function HomePage() {
 
             <div className="field">
               <label>Projection</label>
-              <select
-                value={projection}
-                onChange={(e) => setProjection(e.target.value as ProjectionOpt)}
-              >
+              <select value={projection} onChange={(e) => setProjection(e.target.value as ProjectionOpt)}>
                 <option value="mercator">Mercator</option>
                 <option value="globe">Globe</option>
               </select>
@@ -313,14 +270,12 @@ export default function HomePage() {
                 onChange={(e) => setMarkerStyle(e.target.value as MarkerStyleOpt)}
               >
                 <option value="dot">Dot</option>
-                {/* Only include "logo" if your Map.tsx supports it */}
                 <option value="logo">Logo</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* map panel */}
         <div className="map-shell">
           <MapView
             data={filteredGeojson || undefined}
