@@ -1,175 +1,204 @@
+// app/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
-import MapView, { type RetailerProps, type MarkerStyleOpt } from "@/components/Map";
+import MapView, {
+  type RetailerProps,
+  type MarkerStyleOpt, // <- matches components/Map.tsx
+} from "@/components/Map";
 
-/* ------------------------ Local UI types ------------------------ */
+// ---- UI state option types (kept narrow for safety) ----
 type StateOpt = "All" | string;
 type MapStyleOpt = "hybrid" | "satellite" | "streets";
 type ProjectionOpt = "mercator" | "globe";
 
-/* ----------------------- Helpers / Token ------------------------ */
-function getPublicToken(): string | undefined {
-  // 1) env at build-time (Next)
-  if (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN) {
-    return process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN;
+// ---- helpers ---------------------------------------------------------------
+const uniq = <T, K extends string | number>(
+  items: T[],
+  by: (t: T) => K
+): T[] => {
+  const seen = new Set<K>();
+  const out: T[] = [];
+  for (const it of items) {
+    const k = by(it);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(it);
+    }
   }
-  // 2) meta tag injected by layout.tsx (works on GitHub Pages too)
-  if (typeof document !== "undefined") {
-    const meta = document.querySelector('meta[name="mapbox-token"]') as HTMLMetaElement | null;
-    if (meta?.content) return meta.content;
-  }
-  // none: fall back to OSM inside the Map component
-  return undefined;
-}
+  return out;
+};
 
-/* --------------------------- Page ------------------------------- */
-export default function Page(): JSX.Element {
-  /* ---- data ---- */
-  const [geojson, setGeojson] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  /* ---- filters ---- */
+// ---- page ------------------------------------------------------------------
+export default function HomePage() {
+  // filters
   const [stateFilter, setStateFilter] = useState<StateOpt>("All");
   const [retailerFilter, setRetailerFilter] = useState<string>("All");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
 
-  /* ---- map options ---- */
+  // map options
   const [mapStyle, setMapStyle] = useState<MapStyleOpt>("hybrid");
   const [projection, setProjection] = useState<ProjectionOpt>("mercator");
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyleOpt>("color-dot");
+  const [markerStyle, setMarkerStyle] = useState<MarkerStyleOpt>("dot"); // <- no "color-dot"
   const [showLabels, setShowLabels] = useState<boolean>(true);
   const [labelColor, setLabelColor] = useState<string>("#fff200");
   const [allowRotate, setAllowRotate] = useState<boolean>(false);
   const [sharpen, setSharpen] = useState<boolean>(true);
 
-  /* ---- home (dbl-click) ---- */
+  // home location
   const [home, setHome] = useState<{ lng: number; lat: number } | null>(null);
 
-  /* ---- token ---- */
-  const [token, setToken] = useState<string | undefined>(undefined);
+  // token (layout meta, env, window var, or token file)
+  const token =
+    process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ??
+    (typeof window !== "undefined"
+      ? (window as any).__MAPBOX_TOKEN || ""
+      : "") ||
+    "";
+
+  // ---- load retailers GeoJSON ---------------------------------------------
+  const [geojson, setGeojson] = useState<
+    FeatureCollection<Point, RetailerProps> | null
+  >(null);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    setToken(getPublicToken());
-  }, []);
-
-  /* ---- load GeoJSON ---- */
-  useEffect(() => {
-    let aborted = false;
+    let alive = true;
     (async () => {
       try {
-        setLoading(true);
-        setError(null);
-        // IMPORTANT: relative path (no leading slash) for GitHub Pages subpath
         const res = await fetch("data/retailers.geojson", { cache: "no-store" });
-        if (!res.ok) throw new Error(`Failed to fetch retailers.geojson: ${res.status}`);
-        const json = await res.json();
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as FeatureCollection<
+          Point,
+          Partial<RetailerProps> & { Logo?: string; Color?: string }
+        >;
 
-        // Normalize properties and ensure relative logos (no leading slash)
-        const norm: FeatureCollection<Point, RetailerProps> = {
+        // sanitize & ensure id
+        const features = (json.features || []).map((f, i) => {
+          const raw = f.properties || {};
+          // strip leading slash on any Logo path (so it works on GitHub Pages subpath)
+          const props: RetailerProps = {
+            Retailer: String(raw.Retailer ?? ""),
+            Name: String(raw.Name ?? ""),
+            City: raw.City ? String(raw.City) : undefined,
+            State: raw.State ? String(raw.State) : undefined,
+            Category: raw.Category ? String(raw.Category) : undefined,
+            Address: raw.Address ? String(raw.Address) : undefined,
+            Phone: raw.Phone ? String(raw.Phone) : undefined,
+            Website: raw.Website ? String(raw.Website) : undefined,
+            // Map.tsx supports Color for color marker, keep if present
+            Color: raw.Color ? String(raw.Color) : undefined,
+            // NOTE: do not include Logo here unless Map.tsx type includes it
+          };
+
+          const withId: Feature<Point, RetailerProps> =
+            f.id == null
+              ? { ...f, id: (i + 1).toString(), properties: props }
+              : { ...f, properties: props };
+          return withId;
+        });
+
+        const cleaned: FeatureCollection<Point, RetailerProps> = {
           type: "FeatureCollection",
-          features: (json.features || []).map((f: Feature<Point, any>, i: number) => {
-            const p = { ...(f.properties || {}) } as RetailerProps & { Logo?: string };
-            if (p.Logo && p.Logo.startsWith("/")) p.Logo = p.Logo.replace(/^\/+/, "");
-            // coerces into our known shape (Retailer & Name should be present)
-            const props: RetailerProps = {
-              Retailer: String((p as any).Retailer ?? (p as any).retailer ?? ""),
-              Name: String((p as any).Name ?? (p as any).name ?? ""),
-              City: p.City,
-              State: p.State,
-              Category: p.Category,
-              Address: p.Address,
-              Phone: p.Phone,
-              Website: p.Website,
-              Color: p.Color,
-              Logo: p.Logo,
-            };
-            const withId: Feature<Point, RetailerProps> =
-              f.id == null ? { ...f, id: (i + 1).toString(), properties: props } : { ...f, properties: props };
-            return withId;
-          }),
+          features,
         };
-        if (!aborted) setGeojson(norm);
+        if (alive) setGeojson(cleaned);
       } catch (e: any) {
-        if (!aborted) setError(e?.message || "Failed to load data");
-      } finally {
-        if (!aborted) setLoading(false);
+        if (alive) setErr(String(e?.message || e));
       }
     })();
     return () => {
-      aborted = true;
+      alive = false;
     };
   }, []);
 
-  /* ---- filter options ---- */
+  // ---- derive filter lists -------------------------------------------------
   const allStates = useMemo(() => {
-    if (!geojson) return ["All"];
-    const s = new Set<string>();
-    for (const f of geojson.features) if (f.properties?.State) s.add(f.properties.State);
-    return ["All", ...Array.from(s).sort()];
+    if (!geojson) return ["All"] as string[];
+    const list = uniq(
+      geojson.features
+        .map((f) => f.properties?.State)
+        .filter(Boolean) as string[],
+      (s) => s
+    ).sort();
+    return ["All", ...list];
   }, [geojson]);
 
   const allRetailers = useMemo(() => {
-    if (!geojson) return ["All"];
-    const s = new Set<string>();
-    for (const f of geojson.features) if (f.properties?.Retailer) s.add(f.properties.Retailer);
-    return ["All", ...Array.from(s).sort()];
+    if (!geojson) return ["All"] as string[];
+    const list = uniq(
+      geojson.features
+        .map((f) => f.properties?.Retailer)
+        .filter(Boolean) as string[],
+      (s) => s
+    ).sort();
+    return ["All", ...list];
   }, [geojson]);
 
   const allCategories = useMemo(() => {
-    if (!geojson) return ["All"];
-    const s = new Set<string>();
-    for (const f of geojson.features) if (f.properties?.Category) s.add(f.properties.Category);
-    return ["All", ...Array.from(s).sort()];
+    if (!geojson) return ["All"] as string[];
+    const list = uniq(
+      geojson.features
+        .map((f) => f.properties?.Category)
+        .filter(Boolean) as string[],
+      (s) => s
+    ).sort();
+    return ["All", ...list];
   }, [geojson]);
 
-  /* ---- apply filters ---- */
-  const filteredGeojson: FeatureCollection<Point, RetailerProps> | null = useMemo(() => {
+  // ---- filtered data -------------------------------------------------------
+  const filteredGeojson = useMemo(() => {
     if (!geojson) return null;
-    const pass = (f: Feature<Point, RetailerProps>) => {
-      if (stateFilter !== "All" && f.properties?.State !== stateFilter) return false;
-      if (retailerFilter !== "All" && f.properties?.Retailer !== retailerFilter) return false;
-      if (categoryFilter !== "All" && f.properties?.Category !== categoryFilter) return false;
+    const feats = geojson.features.filter((f) => {
+      const p = f.properties || ({} as RetailerProps);
+      if (stateFilter !== "All" && p.State !== stateFilter) return false;
+      if (retailerFilter !== "All" && p.Retailer !== retailerFilter) return false;
+      if (categoryFilter !== "All" && p.Category !== categoryFilter) return false;
       return true;
-    };
-    return { type: "FeatureCollection", features: geojson.features.filter(pass) };
+    });
+    return { type: "FeatureCollection", features: feats } as FeatureCollection<
+      Point,
+      RetailerProps
+    >;
   }, [geojson, stateFilter, retailerFilter, categoryFilter]);
 
-  const shownCount = filteredGeojson?.features.length ?? 0;
-
-  /* ---- clear filters ---- */
-  function clearFilters() {
+  const clearFilters = () => {
     setStateFilter("All");
     setRetailerFilter("All");
     setCategoryFilter("All");
-  }
+  };
 
+  // ---- UI ------------------------------------------------------------------
   return (
     <div className="page-root">
-      {/* Header / brand */}
-      <header className="page-header">
+      {/* header */}
+      <div className="page-header">
         <div className="brand">
-          {/* RELATIVE path so it works on GitHub Pages subpath */}
+          {/* relative path so it works on GH Pages */}
           <img src="logos/certis.png" alt="Certis" />
-          <a className="home-link" href="./">Home</a>
+          <a className="home-link" href="./">
+            Home
+          </a>
         </div>
         <div className="titles">
           <h1>Certis AgRoute Planner</h1>
-          <p className="muted small">Filter retailers and visualize routes. Dbl-click map to set Home.</p>
+          <div className="muted small">Filter retailers and visualize routes. Dbl-click map to set Home.</div>
         </div>
-      </header>
+      </div>
 
       <div className="layout">
-        {/* Sidebar */}
-        <aside className="sidebar">
+        {/* left rail */}
+        <div className="sidebar">
           <div className="card">
             <h2>Filters</h2>
 
             <div className="field">
               <label>State</label>
-              <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
+              <select
+                value={stateFilter}
+                onChange={(e) => setStateFilter(e.target.value)}
+              >
                 {allStates.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -180,10 +209,13 @@ export default function Page(): JSX.Element {
 
             <div className="field">
               <label>Retailer</label>
-              <select value={retailerFilter} onChange={(e) => setRetailerFilter(e.target.value)}>
-                {allRetailers.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
+              <select
+                value={retailerFilter}
+                onChange={(e) => setRetailerFilter(e.target.value)}
+              >
+                {allRetailers.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>
@@ -191,18 +223,23 @@ export default function Page(): JSX.Element {
 
             <div className="field">
               <label>Category</label>
-              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-                {allCategories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+              >
+                {allCategories.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="row gap">
-              <button onClick={clearFilters}>Clear Filters</button>
-              <span className="muted small">{shownCount} shown</span>
+            <button onClick={clearFilters}>
+              Clear Filters
+            </button>
+            <div className="muted small" style={{ marginTop: 6 }}>
+              {filteredGeojson ? `${filteredGeojson.features.length} shown` : "…"}
             </div>
           </div>
 
@@ -211,45 +248,59 @@ export default function Page(): JSX.Element {
 
             <div className="field">
               <label>Basemap</label>
-              <select value={mapStyle} onChange={(e) => setMapStyle(e.target.value as MapStyleOpt)}>
+              <select
+                value={mapStyle}
+                onChange={(e) => setMapStyle(e.target.value as MapStyleOpt)}
+              >
                 <option value="hybrid">Hybrid</option>
                 <option value="satellite">Satellite</option>
                 <option value="streets">Streets</option>
               </select>
             </div>
 
-            <div className="toggles">
+            <div className="field">
               <label className="row gap">
-                <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={showLabels}
+                  onChange={(e) => setShowLabels(e.target.checked)}
+                />
                 Show labels
               </label>
+              <label>Label color</label>
+              <input
+                type="color"
+                value={labelColor}
+                onChange={(e) => setLabelColor(e.target.value)}
+              />
+            </div>
 
-              <div className="row gap">
-                <label className="small muted" style={{ width: 84 }}>
-                  Label color
-                </label>
-                <input
-                  type="color"
-                  value={labelColor}
-                  onChange={(e) => setLabelColor(e.target.value)}
-                  style={{ width: 64, height: 28 }}
-                />
-              </div>
-
+            <div className="toggles">
               <label className="row gap">
-                <input type="checkbox" checked={allowRotate} onChange={(e) => setAllowRotate(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={allowRotate}
+                  onChange={(e) => setAllowRotate(e.target.checked)}
+                />
                 Allow rotate
               </label>
 
               <label className="row gap">
-                <input type="checkbox" checked={sharpen} onChange={(e) => setSharpen(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={sharpen}
+                  onChange={(e) => setSharpen(e.target.checked)}
+                />
                 Sharpen imagery (raster contrast)
               </label>
             </div>
 
             <div className="field">
               <label>Projection</label>
-              <select value={projection} onChange={(e) => setProjection(e.target.value as ProjectionOpt)}>
+              <select
+                value={projection}
+                onChange={(e) => setProjection(e.target.value as ProjectionOpt)}
+              >
                 <option value="mercator">Mercator</option>
                 <option value="globe">Globe</option>
               </select>
@@ -257,42 +308,44 @@ export default function Page(): JSX.Element {
 
             <div className="field">
               <label>Marker style</label>
-              <select value={markerStyle} onChange={(e) => setMarkerStyle(e.target.value as MarkerStyleOpt)}>
-                <option value="color-dot">Color dot</option>
+              <select
+                value={markerStyle}
+                onChange={(e) => setMarkerStyle(e.target.value as MarkerStyleOpt)}
+              >
                 <option value="dot">Dot</option>
-                <option value="logo">Logo (if available)</option>
+                {/* Only include "logo" if your Map.tsx supports it */}
+                <option value="logo">Logo</option>
               </select>
             </div>
           </div>
-        </aside>
+        </div>
 
-        {/* Map */}
+        {/* map panel */}
         <div className="map-shell">
-          {error && (
-            <div className="p-3 text-sm text-red-300/90">
-              <strong className="block mb-1">Data error</strong>
-              <span className="opacity-80">{error}</span>
-            </div>
-          )}
-
-          {/* Only render the map after data loads (or with empty data) */}
-          <div className="overflow-hidden rounded-xl border border-gray-800/40">
-            <MapView
-              data={filteredGeojson || undefined}
-              markerStyle={markerStyle}
-              showLabels={showLabels}
-              labelColor={labelColor}
-              mapStyle={mapStyle}
-              projection={projection}
-              allowRotate={allowRotate}
-              rasterSharpen={sharpen}
-              mapboxToken={token}
-              home={home ?? undefined}
-              onPickHome={(lng, lat) => setHome({ lng, lat })}
-            />
+          <MapView
+            data={filteredGeojson || undefined}
+            markerStyle={markerStyle}
+            showLabels={showLabels}
+            labelColor={labelColor}
+            mapStyle={mapStyle}
+            projection={projection}
+            allowRotate={allowRotate}
+            rasterSharpen={sharpen}
+            mapboxToken={token}
+            onPickHome={(lng, lat) => setHome({ lng, lat })}
+            home={home ?? undefined}
+          />
+          <div className="map-footer">
+            <span>Scroll to zoom • drag to pan • dbl-click to set Home</span>
           </div>
         </div>
       </div>
+
+      {err ? (
+        <div className="card" style={{ marginTop: 12, color: "#f87171" }}>
+          Data load error: {err}
+        </div>
+      ) : null}
     </div>
   );
 }
