@@ -1,312 +1,305 @@
-// app/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { FeatureCollection, Feature, Point } from "geojson";
-import MapView, { type RetailerProps, type MarkerStyle, type Projection } from "@/components/Map";
+import MapView, { type RetailerProps } from "@/components/Map";
 
-type MarkerStyleOpt = "logo" | "dot" | "color-dot";
+/* ---------------- Error boundary ---------------- */
+class MapErrorBoundary extends React.Component<{ children: React.ReactNode }, { err?: Error }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { err: undefined };
+  }
+  static getDerivedStateFromError(err: Error) {
+    return { err };
+  }
+  componentDidCatch(err: Error, info: any) {
+    // helpful in devtools
+    console.error("Map crashed:", err, info);
+    (window as any).__lastMapError = err;
+  }
+  render() {
+    if (this.state.err) {
+      return (
+        <div style={{ padding: 24 }}>
+          <h2>Map failed to render</h2>
+          <p style={{ opacity: 0.8 }}>
+            {this.state.err.message || String(this.state.err)}
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
-const BASEMAPS: Record<
-  string,
-  { label: string; style: string; projection?: Projection; sharpen?: boolean }
-> = {
-  hybrid: {
-    label: "Hybrid",
-    style: "mapbox://styles/mapbox/satellite-streets-v12",
-    projection: "mercator",
-    sharpen: true,
-  },
-  satellite: {
-    label: "Satellite",
-    style: "mapbox://styles/mapbox/satellite-v9",
-    projection: "mercator",
-    sharpen: true,
-  },
-  streets: {
-    label: "Streets",
-    style: "mapbox://styles/mapbox/streets-v12",
-    projection: "mercator",
-    sharpen: false,
-  },
+/* ---------------- Local page-only types ---------------- */
+type MarkerStyle = "logo" | "dot" | "color-dot";
+type BasemapKey = "hybrid" | "satellite" | "streets" | "light" | "dark";
+type HomeLoc = { lng: number; lat: number };
+
+const BASEMAPS: Record<BasemapKey, string> = {
+  hybrid: "mapbox://styles/mapbox/satellite-streets-v12",
+  satellite: "mapbox://styles/mapbox/satellite-v9",
+  streets: "mapbox://styles/mapbox/streets-v12",
+  light: "mapbox://styles/mapbox/light-v11",
+  dark: "mapbox://styles/mapbox/dark-v11",
 };
 
 export default function Page() {
-  // --- data ------------------------------------------------------------------
+  /* ---------------- State ---------------- */
+  const [token, setToken] = useState<string>("");
   const [geojson, setGeojson] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
-  const [retailerCount, setRetailerCount] = useState(0);
 
+  const [basemap, setBasemap] = useState<BasemapKey>("hybrid");
+  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>("color-dot");
+
+  const [projectionFlat, setProjectionFlat] = useState<boolean>(true);
+  const [allowRotate, setAllowRotate] = useState<boolean>(false);
+  const [rasterSharpen, setRasterSharpen] = useState<boolean>(true);
+
+  const [showLabels, setShowLabels] = useState<boolean>(true);
+  const [labelColor, setLabelColor] = useState<string>("#fff200");
+
+  const [query, setQuery] = useState<string>("");
+  const [stateFilter, setStateFilter] = useState<string>("All");
+
+  const [home, setHome] = useState<HomeLoc | null>({ lng: -97, lat: 38.5 });
+
+  /* ---------------- Token ---------------- */
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("data/retailers.geojson");
-        const json = (await res.json()) as FeatureCollection<Point, any>;
+    const env = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? "";
+    if (env) {
+      setToken(env);
+      return;
+    }
+    if (typeof document !== "undefined") {
+      const meta = document.querySelector('meta[name="mapbox-token"]') as HTMLMetaElement | null;
+      const metaVal = meta?.content ?? "";
+      const win = (window as any) || {};
+      setToken(metaVal || win.__MAPBOX_TOKEN || "");
+    }
+  }, []);
 
-        // Normalize properties & IDs
-        const normalized: FeatureCollection<Point, RetailerProps> = {
+  /* ---------------- Data fetch + normalize ---------------- */
+  useEffect(() => {
+    let alive = true;
+    fetch("data/retailers.geojson")
+      .then((r) => r.json())
+      .then((json: FeatureCollection<Point, RetailerProps>) => {
+        if (!alive) return;
+
+        const fixed: FeatureCollection<Point, RetailerProps> = {
           type: "FeatureCollection",
           features: (json.features || []).map((f, i) => {
-            const raw = (f.properties || {}) as Record<string, unknown>;
-            const props: RetailerProps = {
-              Retailer: String(raw.Retailer ?? raw.retailer ?? raw.name ?? "Retailer"),
-              Name: String(raw.Name ?? raw.name ?? raw.Retailer ?? "—"),
-              City: raw.City ? String(raw.City) : undefined,
-              State: raw.State ? String(raw.State) : undefined,
-              Category: raw.Category ? String(raw.Category) : undefined,
-              Address: raw.Address ? String(raw.Address) : undefined,
-              Phone: raw.Phone ? String(raw.Phone) : undefined,
-              Website: raw.Website ? String(raw.Website) : undefined,
-              Color: raw.Color ? String(raw.Color) : undefined,
-              Logo: raw.Logo ? String(raw.Logo).replace(/^\/+/, "") : undefined,
-            };
+            const props: any = { ...(f.properties || {}) };
+
+            // Ensure string id so clustering / feature ids are stable-ish
             const withId: Feature<Point, RetailerProps> =
               f.id == null ? { ...f, id: (i + 1).toString(), properties: props } : { ...f, properties: props };
-            return withId;
+
+            // If dataset uses leading slash in logos, trim it for GH Pages
+            if (typeof props.Logo === "string" && props.Logo.startsWith("/")) {
+              props.Logo = props.Logo.replace(/^\/+/, "");
+            }
+            return withId as Feature<Point, RetailerProps>;
           }),
         };
 
-        setGeojson(normalized);
-        setRetailerCount(normalized.features.length);
-      } catch (err) {
-        console.error("Failed to load retailers:", err);
+        setGeojson(fixed);
+      })
+      .catch((e) => {
+        console.error("Failed to load retailers.geojson", e);
         setGeojson({ type: "FeatureCollection", features: [] });
-        setRetailerCount(0);
-      }
-    })();
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  // --- UI state ---------------------------------------------------------------
-  const [basemapKey, setBasemapKey] = useState<keyof typeof BASEMAPS>("hybrid");
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyleOpt>("color-dot");
-  const [flatProjection, setFlatProjection] = useState(true);
-  const [allowRotate, setAllowRotate] = useState(false);
-  const [sharpen, setSharpen] = useState(true);
-
-  const [showLabels, setShowLabels] = useState(true);
-  const [labelColor, setLabelColor] = useState<string>("#fff000");
-
-  const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState<string>("All");
-
-  const [home, setHome] = useState<{ lng: number; lat: number } | null>({ lng: -97, lat: 38.5 });
-
-  // mapbox token
-  const [token, setToken] = useState<string>(
-    process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ??
-      (typeof window !== "undefined" ? (window as any).__MAPBOX_TOKEN : undefined) ??
-      ""
-  );
-
-  useEffect(() => {
-    if (token) return;
-    // Try public/mapbox-token.txt
-    (async () => {
-      try {
-        const res = await fetch("mapbox-token.txt");
-        if (res.ok) {
-          const txt = (await res.text()).trim();
-          if (txt) setToken(txt);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-  }, [token]);
-
-  // Derived: map style + projection
-  const mapStyle = BASEMAPS[basemapKey].style;
-  const projection: Projection = flatProjection ? "mercator" : "globe";
-  const sharpenImagery = sharpen && Boolean(BASEMAPS[basemapKey].sharpen);
-
-  // All states for dropdown
-  const allStates = useMemo(() => {
+  /* ---------------- Derived filters ---------------- */
+  const stateList = useMemo(() => {
     const s = new Set<string>();
     (geojson?.features || []).forEach((f) => {
-      const st = f.properties?.State;
-      if (st) s.add(st);
+      const st = (f.properties as any)?.State ?? (f.properties as any)?.state;
+      if (st) s.add(String(st));
     });
-    return Array.from(s).sort();
+    return ["All", ...Array.from(s).sort()];
   }, [geojson]);
 
-  // Filter
-  const filteredGeojson = useMemo<FeatureCollection<Point, RetailerProps> | null>(() => {
+  const filteredGeojson = useMemo(() => {
     if (!geojson) return null;
-    const q = search.trim().toLowerCase();
-    const st = stateFilter;
-    const feats = geojson.features.filter((f) => {
-      const p = f.properties;
-      if (!p) return false;
-      const inState = st === "All" || p.State === st;
-      if (!q) return inState;
-      const blob = [p.Retailer, p.Name, p.City, p.State, p.Category].filter(Boolean).join(" ").toLowerCase();
-      return inState && blob.includes(q);
-    });
-    return { type: "FeatureCollection", features: feats };
-  }, [geojson, search, stateFilter]);
+    const q = query.trim().toLowerCase();
+    return {
+      type: "FeatureCollection",
+      features: geojson.features.filter((f) => {
+        const p: any = f.properties || {};
+        if (stateFilter !== "All" && (p.State ?? p.state) !== stateFilter) return false;
+        if (!q) return true;
+        const hay = [
+          p.Retailer,
+          p.Name,
+          p.City,
+          p.State ?? p.state,
+          p.Category,
+          p.Address,
+          p.Phone,
+          p.Website,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      }),
+    } as FeatureCollection<Point, RetailerProps>;
+  }, [geojson, query, stateFilter]);
 
-  const markerStyleStrict: MarkerStyle = markerStyle === "logo" ? "logo" : markerStyle;
+  /* ---------------- Map props ---------------- */
+  const mapStyle = BASEMAPS[basemap];
+  const projection = projectionFlat ? "mercator" : "globe";
 
+  /* ---------------- Render ---------------- */
   return (
-    <div className="min-h-screen bg-[#0b0f14] text-white">
-      <header className="sticky top-0 z-10 border-b border-white/10 bg-black/40 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center gap-4">
-          <img src="logos/certis.svg" alt="Certis" className="h-6 w-auto opacity-90" />
-          <a href="./" className="text-sky-300 hover:text-sky-200 text-sm">Home</a>
-          <h1 className="ml-2 text-xl md:text-2xl font-semibold">Certis AgRoute Planner</h1>
-          <div className="ml-auto text-sm text-white/70">{retailerCount} retailers</div>
+    <div className="page-root">
+      {/* Header */}
+      <header className="page-header">
+        <div className="brand">
+          {/* Keep this path relative for GH Pages subpath */}
+          <img src="logos/certis-white.png" alt="Certis" />
+          <a className="home-link" href="./">Home</a>
+        </div>
+        <div className="titles">
+          <h1>Certis AgRoute Planner</h1>
+          <div className="muted small">
+            {geojson ? `${geojson.features.length} retailers` : "Loading retailers..."}
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        {/* GRID: sidebar + map */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
-          {/* LEFT: Controls ------------------------------------------------------ */}
-          <div className="space-y-4">
-            {/* MAP card */}
-            <section className="rounded-xl border border-white/10 bg-white/5 p-4 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/70">Map</h2>
+      {/* 2-column grid */}
+      <div className="layout">
+        {/* Sidebar */}
+        <aside className="sidebar">
+          <section className="card">
+            <h2>Map</h2>
+            <div className="field">
+              <label>Basemap</label>
+              <select value={basemap} onChange={(e) => setBasemap(e.target.value as BasemapKey)}>
+                <option value="hybrid">Hybrid</option>
+                <option value="satellite">Satellite</option>
+                <option value="streets">Streets</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
 
-              <div className="mb-3">
-                <label className="block text-xs text-white/60 mb-1">Basemap</label>
-                <select
-                  className="w-full rounded-lg bg-black/30 px-3 py-2 outline-none ring-1 ring-white/10"
-                  value={basemapKey}
-                  onChange={(e) => setBasemapKey(e.target.value as keyof typeof BASEMAPS)}
-                >
-                  {Object.entries(BASEMAPS).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="field">
+              <label>Markers</label>
+              <select value={markerStyle} onChange={(e) => setMarkerStyle(e.target.value as MarkerStyle)}>
+                <option value="color-dot">Color dot</option>
+                <option value="dot">Dot</option>
+                <option value="logo">Logo</option>
+              </select>
+            </div>
 
-              <div className="mb-3">
-                <label className="block text-xs text-white/60 mb-1">Markers</label>
-                <select
-                  className="w-full rounded-lg bg-black/30 px-3 py-2 outline-none ring-1 ring-white/10"
-                  value={markerStyle}
-                  onChange={(e) => setMarkerStyle(e.target.value as MarkerStyleOpt)}
-                >
-                  <option value="color-dot">Color dot</option>
-                  <option value="dot">Dot</option>
-                  <option value="logo">Logo (fallback to color dot)</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={flatProjection}
-                    onChange={(e) => setFlatProjection(e.target.checked)}
-                  />
-                  <span>Flat (Mercator)</span>
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input type="checkbox" checked={allowRotate} onChange={(e) => setAllowRotate(e.target.checked)} />
-                  <span>Rotate</span>
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input type="checkbox" checked={sharpen} onChange={(e) => setSharpen(e.target.checked)} />
-                  <span>Sharpen imagery</span>
-                </label>
-              </div>
-            </section>
-
-            {/* LABELS card */}
-            <section className="rounded-xl border border-white/10 bg-white/5 p-4 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/70">Labels</h2>
-              <label className="inline-flex items-center gap-2 mb-2">
-                <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
-                <span>Show labels</span>
+            <div className="toggles">
+              <label className="row gap">
+                <input type="checkbox" checked={projectionFlat} onChange={(e) => setProjectionFlat(e.target.checked)} />
+                <span>Flat (Mercator)</span>
               </label>
-              <div>
-                <label className="block text-xs text-white/60 mb-1">Label color</label>
-                <input
-                  type="color"
-                  value={labelColor}
-                  onChange={(e) => setLabelColor(e.target.value)}
-                  className="h-8 w-full rounded-lg bg-black/30 outline-none ring-1 ring-white/10"
-                />
-              </div>
-            </section>
+              <label className="row gap">
+                <input type="checkbox" checked={allowRotate} onChange={(e) => setAllowRotate(e.target.checked)} />
+                <span>Rotate</span>
+              </label>
+              <label className="row gap">
+                <input type="checkbox" checked={rasterSharpen} onChange={(e) => setRasterSharpen(e.target.checked)} />
+                <span>Sharpen imagery</span>
+              </label>
+            </div>
+          </section>
 
-            {/* FILTER card */}
-            <section className="rounded-xl border border-white/10 bg-white/5 p-4 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/70">Filter</h2>
-              <div className="mb-3">
-                <label className="block text-xs text-white/60 mb-1">Search</label>
-                <input
-                  type="text"
-                  placeholder="Retailer, name, city..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full rounded-lg bg-black/30 px-3 py-2 outline-none ring-1 ring-white/10"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-white/60 mb-1">State</label>
-                <select
-                  className="w-full rounded-lg bg-black/30 px-3 py-2 outline-none ring-1 ring-white/10"
-                  value={stateFilter}
-                  onChange={(e) => setStateFilter(e.target.value)}
-                >
-                  <option value="All">All</option>
-                  {allStates.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </section>
+          <section className="card">
+            <h2>Labels</h2>
+            <label className="row gap">
+              <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
+              <span>Show labels</span>
+            </label>
+            <div className="field">
+              <label>Label color</label>
+              <input type="color" value={labelColor} onChange={(e) => setLabelColor(e.target.value)} />
+            </div>
+          </section>
 
-            {/* HOME card */}
-            <section className="rounded-xl border border-white/10 bg-white/5 p-4 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/70">Home</h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setHome({ lng: -97, lat: 38.5 })}
-                  className="rounded-lg bg-sky-600 px-3 py-2 text-sm hover:bg-sky-500"
-                >
-                  Set Example
-                </button>
-                <button
-                  onClick={() => setHome(null)}
-                  className="rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20"
-                >
-                  Clear
-                </button>
-              </div>
-              <div className="mt-2 text-sm text-white/70">
-                lng: {home?.lng.toFixed(4) ?? "—"} / lat: {home?.lat.toFixed(4) ?? "—"}
-              </div>
-            </section>
-          </div>
+          <section className="card">
+            <h2>Filter</h2>
+            <div className="field">
+              <label>Search</label>
+              <input
+                type="text"
+                placeholder="Retailer, name, city..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>State</label>
+              <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
+                {stateList.map((st) => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
+            </div>
+          </section>
 
-          {/* RIGHT: Map ---------------------------------------------------------- */}
-          <div>
-            <div className="overflow-hidden rounded-xl border border-white/10 shadow-sm">
+          <section className="card">
+            <h2>Home</h2>
+            <div className="row gap" style={{ marginBottom: 8 }}>
+              <button onClick={() => setHome({ lng: -97, lat: 38.5 })}>Set Example</button>
+              <button className="ghost" onClick={() => setHome(null)}>Clear</button>
+            </div>
+            <div className="small muted">
+              lng: {home ? home.lng.toFixed(4) : "-"} / lat: {home ? home.lat.toFixed(4) : "-"}
+            </div>
+          </section>
+        </aside>
+
+        {/* Map panel */}
+        <main className="map-shell">
+          {/* Gate rendering so Map.tsx never mounts with missing inputs */}
+          {!token ? (
+            <div style={{ padding: 24 }}>
+              <h2>Mapbox token not found</h2>
+              <p className="small muted">
+                Provide NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN (env) or the meta tag in <code>app/layout.tsx</code>.
+              </p>
+            </div>
+          ) : !filteredGeojson ? (
+            <div style={{ padding: 24 }}>
+              <h2>Loading retailers…</h2>
+            </div>
+          ) : (
+            <MapErrorBoundary>
               <MapView
-                data={filteredGeojson || undefined}
-                markerStyle={markerStyleStrict}
+                data={filteredGeojson}
+                markerStyle={markerStyle}
                 showLabels={showLabels}
                 labelColor={labelColor}
-                mapStyle={mapStyle}
+                mapStyle={BASEMAPS[basemap]}
+                projection={projection as any}  /* "mercator" | "globe" */
                 allowRotate={allowRotate}
-                projection={projection}
-                rasterSharpen={sharpenImagery}
+                rasterSharpen={rasterSharpen}
                 mapboxToken={token}
                 home={home ?? undefined}
               />
-            </div>
-            <div className="mt-2 text-xs text-white/60">
-              Use two fingers to move the map • Use ctrl + scroll to zoom the map
-            </div>
+            </MapErrorBoundary>
+          )}
+
+          <div className="map-footer">
+            <span>Use two fingers to move the map</span>
+            <span>Use ctrl + scroll to zoom the map</span>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
