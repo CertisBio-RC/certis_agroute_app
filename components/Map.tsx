@@ -1,4 +1,3 @@
-// /components/Map.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
@@ -14,11 +13,11 @@ export type RetailerProps = {
   Address?: string;
   Phone?: string;
   Website?: string;
-  Logo?: string;   // e.g. "logos/acme.png" (no leading slash)
-  Color?: string;  // hex like "#ff9900" for color-dot mode
+  Logo?: string;
+  Color?: string;
 };
 
-export type MarkerStyle = "color-dot" | "dot"; // keep it simple and reliable on Pages
+export type MarkerStyle = "color-dot" | "dot";
 
 type Props = {
   data?: FeatureCollection<Point, RetailerProps>;
@@ -26,16 +25,13 @@ type Props = {
   showLabels: boolean;
   labelColor: string;
 
-  // UI options
   mapStyle: "hybrid" | "satellite" | "streets";
   allowRotate: boolean;
   projection: "mercator" | "globe";
   rasterSharpen: boolean;
 
-  // infra
   mapboxToken: string;
 
-  // Home support
   home?: { lng: number; lat: number };
 };
 
@@ -66,7 +62,6 @@ export default function MapView({
   const mapRef = useRef<MapboxMap | null>(null);
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
-  // Guard — show a friendly card if token missing
   if (!mapboxToken) {
     return (
       <div className="map-shell grid place-items-center">
@@ -81,11 +76,9 @@ export default function MapView({
     );
   }
 
-  // Init / re-init when base style or projection changes
   useEffect(() => {
     mapboxgl.accessToken = mapboxToken;
 
-    // destroy old map if any
     if (mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
@@ -105,23 +98,18 @@ export default function MapView({
 
     map.addControl(new mapboxgl.AttributionControl({ compact: true }));
     map.on("load", () => {
-      // base raster tweak
       if (rasterSharpen) {
         const layers = map.getStyle().layers || [];
         for (const l of layers) {
           if (l.type === "raster") {
-            // only properties that exist on raster layers
             try {
-              // @ts-ignore (older type defs)
+              // @ts-ignore older defs
               map.setPaintProperty(l.id, "raster-contrast", 0.08);
-            } catch {
-              /* no-op */
-            }
+            } catch {}
           }
         }
       }
 
-      // add empty source; we'll setData below
       if (!map.getSource("retailers")) {
         map.addSource("retailers", {
           type: "geojson",
@@ -132,7 +120,6 @@ export default function MapView({
         });
       }
 
-      // circle layer (color or default)
       if (!map.getLayer("retailers-circle")) {
         map.addLayer({
           id: "retailers-circle",
@@ -140,17 +127,16 @@ export default function MapView({
           source: "retailers",
           paint: {
             "circle-radius": 5,
-            "circle-color":
-              markerStyle === "color-dot"
-                ? ["coalesce", ["get", "Color"], "#ffb703"]
-                : "#ffb703",
+            // Cast the expression to any to satisfy TS in strict mode
+            "circle-color": (markerStyle === "color-dot"
+              ? ["coalesce", ["get", "Color"], "#ffb703"]
+              : "#ffb703") as any,
             "circle-stroke-color": "#000",
             "circle-stroke-width": 0.6,
           },
         });
       }
 
-      // labels
       if (!map.getLayer("retailers-label")) {
         map.addLayer({
           id: "retailers-label",
@@ -173,12 +159,10 @@ export default function MapView({
         });
       }
 
-      // set initial data
       if (data) {
         (map.getSource("retailers") as mapboxgl.GeoJSONSource).setData(data);
       }
 
-      // HOME marker
       if (home) {
         if (homeMarkerRef.current) {
           homeMarkerRef.current.remove();
@@ -201,7 +185,6 @@ export default function MapView({
     };
   }, [mapStyle, projection, allowRotate, rasterSharpen, mapboxToken]);
 
-  // Update data
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
@@ -209,7 +192,6 @@ export default function MapView({
     if (src && data) src.setData(data);
   }, [data]);
 
-  // Update labels visibility / color
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
@@ -219,19 +201,19 @@ export default function MapView({
     }
   }, [showLabels, labelColor]);
 
-  // Update circle coloring when marker style changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
     if (map.getLayer("retailers-circle")) {
-      const paint = markerStyle === "color-dot"
-        ? ["coalesce", ["get", "Color"], "#ffb703"]
-        : "#ffb703";
-      map.setPaintProperty("retailers-circle", "circle-color", paint);
+      const paint =
+        markerStyle === "color-dot"
+          ? (["coalesce", ["get", "Color"], "#ffb703"] as any)
+          : ("#ffb703" as any);
+      // Cast to any to satisfy TS signature
+      map.setPaintProperty("retailers-circle", "circle-color", paint as any);
     }
   }, [markerStyle]);
 
-  // Update HOME marker position
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
