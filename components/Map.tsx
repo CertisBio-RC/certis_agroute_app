@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl, { Map as MapboxMap, LngLatLike, Marker } from "mapbox-gl";
 import type { FeatureCollection, Point } from "geojson";
 import type { MapMouseEvent } from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css"; // <-- ensure Mapbox styles
+import "mapbox-gl/dist/mapbox-gl.css";
 
 // ---------- Types ----------
 export type RetailerProps = {
@@ -30,13 +30,27 @@ type Props = {
   markerStyle: MarkerStyleOpt;
   showLabels: boolean;
   labelColor: string;
-  mapStyle: string;
+  mapStyle: string; // e.g. "mapbox://styles/mapbox/satellite-streets-v12"
   allowRotate: boolean;
   projection: "mercator" | "globe";
   rasterSharpen: boolean;
   mapboxToken?: string;
   home?: HomeLoc;
   onPickHome?: (lng: number, lat: number) => void;
+};
+
+// ---------- Fallback raster style (no token needed) ----------
+const OSM_STYLE: any = {
+  version: 8,
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "© OpenStreetMap contributors",
+    },
+  },
+  layers: [{ id: "osm", type: "raster", source: "osm" }],
 };
 
 // ---------- Helpers ----------
@@ -79,6 +93,7 @@ export default function MapView(props: Props) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [homeMarker, setHomeMarker] = useState<Marker | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [usingFallback, setUsingFallback] = useState(false);
 
   const token = useMemo(() => mapboxToken ?? readTokenSync(), [mapboxToken]);
 
@@ -86,14 +101,15 @@ export default function MapView(props: Props) {
   useEffect(() => {
     const el = containerRef.current;
     if (!el || mapRef.current) return;
-    if (!token) return;
+
+    const startOnFallback = !token;
+    if (token) mapboxgl.accessToken = token;
 
     setMapError(null);
-    mapboxgl.accessToken = token;
 
     const map = new mapboxgl.Map({
       container: el,
-      style: mapStyle,
+      style: startOnFallback ? OSM_STYLE : mapStyle,
       center: [-97, 38.5],
       zoom: 3.5,
       cooperativeGestures: true,
@@ -103,9 +119,11 @@ export default function MapView(props: Props) {
     });
 
     mapRef.current = map;
+    setUsingFallback(startOnFallback);
 
     const onLoad = () => {
       setIsLoaded(true);
+      // gentle “sharpen” for raster layers
       for (const l of map.getStyle().layers || []) {
         if (l.type === "raster") {
           try {
@@ -115,7 +133,6 @@ export default function MapView(props: Props) {
       }
     };
     const onError = (e: any) => {
-      // Surface the most helpful bit from Mapbox errors (401/403/style missing, etc.)
       const msg =
         e?.error?.message ||
         e?.error?.statusText ||
@@ -137,6 +154,23 @@ export default function MapView(props: Props) {
       setIsLoaded(false);
     };
   }, [token, mapStyle, allowRotate, projection, rasterSharpen]);
+
+  // switch to fallback (manual)
+  const switchToFallback = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      setMapError(null);
+      map.setStyle(OSM_STYLE);
+      setUsingFallback(true);
+      // When style changes, wait for load again
+      const reAdd = () => setIsLoaded(true);
+      setIsLoaded(false);
+      map.once("load", reAdd);
+    } catch (e: any) {
+      setMapError(e?.message || "Failed to switch style");
+    }
+  };
 
   // data layers
   useEffect(() => {
@@ -233,6 +267,7 @@ export default function MapView(props: Props) {
   return (
     <div className="map-shell">
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+
       {(tokenMissing || mapError) && (
         <div
           style={{
@@ -254,21 +289,26 @@ export default function MapView(props: Props) {
               maxWidth: 560,
             }}
           >
-            <h3 style={{ marginTop: 0 }}>
-              {tokenMissing ? "Mapbox token not found" : "Map error"}
-            </h3>
+            <h3 style={{ marginTop: 0 }}>{tokenMissing ? "Mapbox token not found" : "Map error"}</h3>
             {tokenMissing ? (
               <p>
-                Provide <code>NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> (env) or the{' '}
+                Provide <code>NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> or the{' '}
                 <code>&lt;meta name="mapbox-token" /&gt;</code> in <code>app/layout.tsx</code>.
               </p>
             ) : (
-              <p className="small">
-                {mapError}
-                <br />
-                (Open DevTools → Network to see the failing request; 401/403 usually means token
-                scope or URL restriction.)
-              </p>
+              <>
+                <p className="small">
+                  {mapError}
+                  <br />
+                  (DevTools → Network will show the failing request. 401/403 usually means token
+                  scope or URL restriction.)
+                </p>
+                {!usingFallback && (
+                  <button onClick={switchToFallback} style={{ marginTop: 8 }}>
+                    Use open basemap
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
