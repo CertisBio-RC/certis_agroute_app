@@ -42,6 +42,8 @@ type Props = {
 // ---------- Fallback raster style (no token needed) ----------
 const OSM_STYLE: any = {
   version: 8,
+  // 👇 Add a public glyphs source so text labels can render without Mapbox
+  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
   sources: {
     osm: {
       type: "raster",
