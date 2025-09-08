@@ -1,9 +1,9 @@
-// components/Map.tsx
+// /components/Map.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
-import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
-import type { FeatureCollection, Point } from "geojson";
+import mapboxgl, { Map as MapboxMap, LngLatLike } from "mapbox-gl";
+import type { FeatureCollection, Feature, Point } from "geojson";
 
 export type RetailerProps = {
   Retailer: string;
@@ -14,34 +14,41 @@ export type RetailerProps = {
   Address?: string;
   Phone?: string;
   Website?: string;
-  Color?: string;
-  Logo?: string;
+  Logo?: string;   // e.g. "logos/acme.png" (no leading slash)
+  Color?: string;  // hex like "#ff9900" for color-dot mode
 };
 
-export type MarkerStyle = "dot" | "color-dot" | "logo";
-export type Projection = "mercator" | "globe";
+export type MarkerStyle = "color-dot" | "dot"; // keep it simple and reliable on Pages
 
-export type Props = {
+type Props = {
   data?: FeatureCollection<Point, RetailerProps>;
   markerStyle: MarkerStyle;
   showLabels: boolean;
   labelColor: string;
-  mapStyle: string; // Mapbox style URL
+
+  // UI options
+  mapStyle: "hybrid" | "satellite" | "streets";
   allowRotate: boolean;
-  projection: Projection;
+  projection: "mercator" | "globe";
   rasterSharpen: boolean;
+
+  // infra
   mapboxToken: string;
+
+  // Home support
   home?: { lng: number; lat: number };
 };
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
+function styleUrl(style: Props["mapStyle"]): string {
+  switch (style) {
+    case "hybrid":
+      return "mapbox://styles/mapbox/satellite-streets-v12";
+    case "satellite":
+      return "mapbox://styles/mapbox/satellite-v9";
+    default:
+      return "mapbox://styles/mapbox/streets-v12";
+  }
 }
-
-const MAP_ID = "retailers";
-const LABEL_LAYER_ID = "retailer-labels";
-const DOT_LAYER_ID = "retailer-dots";
-const COLOR_DOT_LAYER_ID = "retailer-color-dots";
 
 export default function MapView({
   data,
@@ -55,191 +62,195 @@ export default function MapView({
   mapboxToken,
   home,
 }: Props) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapNode = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
-  const readyRef = useRef(false);
+  const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
-  // If no token: show a friendly message (no crash)
+  // Guard — show a friendly card if token missing
   if (!mapboxToken) {
     return (
-      <div className="flex h-[70vh] min-h-[520px] items-center justify-center rounded-xl border border-white/10 bg-black/40">
-        <div className="max-w-xl text-center">
-          <h2 className="text-2xl font-semibold mb-2">Mapbox token not found</h2>
-          <p className="text-white/80">
-            Provide <code className="px-1 bg-white/10 rounded">NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> or add{" "}
-            <code className="px-1 bg-white/10 rounded">public/mapbox-token.txt</code> with your public token.
+      <div className="map-shell grid place-items-center">
+        <div className="rounded-xl border border-gray-800/40 bg-black px-6 py-5 text-gray-200">
+          <h2 className="mb-2 text-xl font-semibold">Mapbox token not found</h2>
+          <p className="text-sm opacity-80">
+            Provide <code className="px-1 bg-white/10 rounded">NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code>{" "}
+            (env) or the meta tag in <code>app/layout.tsx</code>.
           </p>
         </div>
       </div>
     );
   }
 
-  // Create / recreate the map when fundamental inputs change
+  // Init / re-init when base style or projection changes
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    mapboxgl.accessToken = mapboxToken;
 
-    // destroy previous
+    // destroy old map if any
     if (mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
-      readyRef.current = false;
     }
 
-    mapboxgl.accessToken = mapboxToken;
-
     const map = new mapboxgl.Map({
-      container: el,
-      style: mapStyle,
-      center: [-97, 38.5],
-      zoom: 4,
+      container: mapNode.current as HTMLDivElement,
+      style: styleUrl(mapStyle),
+      center: [-97, 38.35],
+      zoom: 3.7,
+      attributionControl: false,
       pitchWithRotate: allowRotate,
       dragRotate: allowRotate,
       cooperativeGestures: true,
+      projection: { name: projection },
     });
 
-    mapRef.current = map;
-
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }));
     map.on("load", () => {
-      readyRef.current = true;
-
-      // projection
-      try {
-        map.setProjection(projection);
-      } catch {
-        // ignore if style doesn't support projection
-      }
-
-      // optional raster sharpen (contrast)
+      // base raster tweak
       if (rasterSharpen) {
-        const layers = map.getStyle().layers ?? [];
+        const layers = map.getStyle().layers || [];
         for (const l of layers) {
           if (l.type === "raster") {
-            map.setPaintProperty(l.id, "raster-contrast", clamp(0.08, -1, 1));
+            // only properties that exist on raster layers
+            try {
+              // @ts-ignore (older type defs)
+              map.setPaintProperty(l.id, "raster-contrast", 0.08);
+            } catch {
+              /* no-op */
+            }
           }
         }
       }
 
-      // add empty/real source up front
-      if (!map.getSource(MAP_ID)) {
-        map.addSource(MAP_ID, {
+      // add empty source; we'll setData below
+      if (!map.getSource("retailers")) {
+        map.addSource("retailers", {
           type: "geojson",
-          data: data || { type: "FeatureCollection", features: [] },
+          data: {
+            type: "FeatureCollection",
+            features: [],
+          } as FeatureCollection<Point, RetailerProps>,
         });
       }
 
-      // DOT layer (default)
-      if (!map.getLayer(DOT_LAYER_ID)) {
+      // circle layer (color or default)
+      if (!map.getLayer("retailers-circle")) {
         map.addLayer({
-          id: DOT_LAYER_ID,
+          id: "retailers-circle",
           type: "circle",
-          source: MAP_ID,
+          source: "retailers",
           paint: {
-            "circle-radius": 6,
-            "circle-color": "#ffcc00",
-            "circle-stroke-width": 1.5,
-            "circle-stroke-color": "#222",
+            "circle-radius": 5,
+            "circle-color":
+              markerStyle === "color-dot"
+                ? ["coalesce", ["get", "Color"], "#ffb703"]
+                : "#ffb703",
+            "circle-stroke-color": "#000",
+            "circle-stroke-width": 0.6,
           },
         });
       }
 
-      // COLOR DOT
-      if (!map.getLayer(COLOR_DOT_LAYER_ID)) {
+      // labels
+      if (!map.getLayer("retailers-label")) {
         map.addLayer({
-          id: COLOR_DOT_LAYER_ID,
-          type: "circle",
-          source: MAP_ID,
-          paint: {
-            "circle-radius": 6,
-            "circle-color": [
-              "case",
-              ["has", "Color", ["object", ["get", "properties"]]],
-              ["coalesce", ["get", "Color"], "#ffcc00"],
-              "#ffcc00",
-            ],
-            "circle-stroke-width": 1.5,
-            "circle-stroke-color": "#222",
-          },
-          layout: { visibility: "none" },
-        });
-      }
-
-      // LABELS
-      if (!map.getLayer(LABEL_LAYER_ID)) {
-        map.addLayer({
-          id: LABEL_LAYER_ID,
+          id: "retailers-label",
           type: "symbol",
-          source: MAP_ID,
+          source: "retailers",
           layout: {
-            "text-field": ["coalesce", ["get", "Name"], ["get", "Retailer"], "—"],
-            "text-size": 12,
-            "text-offset": [0, 1],
+            "text-field": ["get", "Name"],
+            "text-size": 10,
+            "text-offset": [0, 1.2],
             "text-anchor": "top",
+            "text-allow-overlap": false,
+            "text-optional": true,
             visibility: showLabels ? "visible" : "none",
           },
-          paint: { "text-color": labelColor },
+          paint: {
+            "text-color": labelColor || "#fff200",
+            "text-halo-color": "#000000",
+            "text-halo-width": 1.2,
+          },
         });
       }
 
-      // Home marker
-      if (home) {
-        new mapboxgl.Marker({ color: "#32d583" }).setLngLat([home.lng, home.lat]).addTo(map);
+      // set initial data
+      if (data) {
+        (map.getSource("retailers") as mapboxgl.GeoJSONSource).setData(data);
       }
 
-      // show the chosen marker layer
-      applyMarkerVisibility(map, markerStyle);
+      // HOME marker
+      if (home) {
+        if (homeMarkerRef.current) {
+          homeMarkerRef.current.remove();
+          homeMarkerRef.current = null;
+        }
+        homeMarkerRef.current = new mapboxgl.Marker({ color: "#00e0ff" })
+          .setLngLat([home.lng, home.lat] as LngLatLike)
+          .addTo(map);
+      }
     });
 
-    return () => {
-      map.remove();
-      readyRef.current = false;
-      mapRef.current = null;
-    };
-  }, [mapStyle, mapboxToken, allowRotate, projection, rasterSharpen, markerStyle, home]);
+    mapRef.current = map;
 
-  // Update geojson when data changes
+    return () => {
+      if (homeMarkerRef.current) {
+        homeMarkerRef.current.remove();
+        homeMarkerRef.current = null;
+      }
+      map.remove();
+    };
+  }, [mapStyle, projection, allowRotate, rasterSharpen, mapboxToken]);
+
+  // Update data
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !readyRef.current) return;
-    const src = map.getSource(MAP_ID) as mapboxgl.GeoJSONSource | undefined;
+    if (!map || !map.isStyleLoaded()) return;
+    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | undefined;
     if (src && data) src.setData(data);
   }, [data]);
 
-  // Update label toggle / color
+  // Update labels visibility / color
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !readyRef.current) return;
-    if (map.getLayer(LABEL_LAYER_ID)) {
-      map.setLayoutProperty(LABEL_LAYER_ID, "visibility", showLabels ? "visible" : "none");
-      map.setPaintProperty(LABEL_LAYER_ID, "text-color", labelColor);
+    if (!map || !map.isStyleLoaded()) return;
+    if (map.getLayer("retailers-label")) {
+      map.setLayoutProperty("retailers-label", "visibility", showLabels ? "visible" : "none");
+      map.setPaintProperty("retailers-label", "text-color", labelColor || "#fff200");
     }
   }, [showLabels, labelColor]);
 
-  // Update marker style without recreating map
+  // Update circle coloring when marker style changes
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !readyRef.current) return;
-    applyMarkerVisibility(map, markerStyle);
+    if (!map || !map.isStyleLoaded()) return;
+    if (map.getLayer("retailers-circle")) {
+      const paint = markerStyle === "color-dot"
+        ? ["coalesce", ["get", "Color"], "#ffb703"]
+        : "#ffb703";
+      map.setPaintProperty("retailers-circle", "circle-color", paint);
+    }
   }, [markerStyle]);
 
-  return <div ref={containerRef} className="h-[70vh] min-h-[520px] w-full" />;
-}
+  // Update HOME marker position
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
 
-function applyMarkerVisibility(map: MapboxMap, style: MarkerStyle) {
-  // default both off, then enable one
-  if (map.getLayer(DOT_LAYER_ID)) map.setLayoutProperty(DOT_LAYER_ID, "visibility", "none");
-  if (map.getLayer(COLOR_DOT_LAYER_ID)) map.setLayoutProperty(COLOR_DOT_LAYER_ID, "visibility", "none");
+    if (home) {
+      if (!homeMarkerRef.current) {
+        homeMarkerRef.current = new mapboxgl.Marker({ color: "#00e0ff" })
+          .setLngLat([home.lng, home.lat] as LngLatLike)
+          .addTo(map);
+      } else {
+        homeMarkerRef.current.setLngLat([home.lng, home.lat] as LngLatLike);
+      }
+    } else {
+      if (homeMarkerRef.current) {
+        homeMarkerRef.current.remove();
+        homeMarkerRef.current = null;
+      }
+    }
+  }, [home]);
 
-  switch (style) {
-    case "dot":
-      if (map.getLayer(DOT_LAYER_ID)) map.setLayoutProperty(DOT_LAYER_ID, "visibility", "visible");
-      break;
-    case "color-dot":
-      if (map.getLayer(COLOR_DOT_LAYER_ID)) map.setLayoutProperty(COLOR_DOT_LAYER_ID, "visibility", "visible");
-      break;
-    case "logo":
-      // (for now) fall back to color dots; logos require sprite/image management
-      if (map.getLayer(COLOR_DOT_LAYER_ID)) map.setLayoutProperty(COLOR_DOT_LAYER_ID, "visibility", "visible");
-      break;
-  }
+  return <div ref={mapNode} className="map-shell" />;
 }

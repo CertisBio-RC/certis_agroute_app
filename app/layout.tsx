@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     title: "Certis AgRoute Planner",
     description: "Retailer map & optimized trip builder for Certis.",
   },
-  // no leading slash so it works on GitHub Pages subpath
+  // IMPORTANT: no leading slash, so it works on GitHub Pages subpath
   icons: { icon: "favicon.ico" },
 };
 
