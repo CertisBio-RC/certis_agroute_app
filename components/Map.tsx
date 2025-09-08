@@ -2,8 +2,9 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl, { Map as MapboxMap, LngLatLike, Marker } from "mapbox-gl";
-import type { FeatureCollection, Feature, Point } from "geojson";
-import type { MapMouseEvent } from "mapbox-gl"; // <-- fix: use MapMouseEvent
+import type { FeatureCollection, Point } from "geojson";
+import type { MapMouseEvent } from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css"; // <-- ensure Mapbox styles
 
 // ---------- Types ----------
 export type RetailerProps = {
@@ -49,7 +50,6 @@ function readTokenSync(): string | null {
   if (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN) return process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN;
   return null;
 }
-
 function ensureSource(map: MapboxMap, id: string, spec: any) {
   if (!map.getSource(id)) map.addSource(id, spec);
 }
@@ -58,50 +58,54 @@ function ensureLayer(map: MapboxMap, spec: mapboxgl.AnyLayer, beforeId?: string)
 }
 
 // ---------- Component ----------
-export default function MapView({
-  data,
-  markerStyle,
-  showLabels,
-  labelColor,
-  mapStyle,
-  allowRotate,
-  projection,
-  rasterSharpen,
-  mapboxToken,
-  home,
-  onPickHome,
-}: Props) {
-  // Unconditional hooks (fixes React #310)
+export default function MapView(props: Props) {
+  // keep hook order stable
+  const {
+    data,
+    markerStyle,
+    showLabels,
+    labelColor,
+    mapStyle,
+    allowRotate,
+    projection,
+    rasterSharpen,
+    mapboxToken,
+    home,
+    onPickHome,
+  } = props;
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [homeMarker, setHomeMarker] = useState<Marker | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   const token = useMemo(() => mapboxToken ?? readTokenSync(), [mapboxToken]);
 
-  // Create / destroy map
+  // create/destroy
   useEffect(() => {
     const el = containerRef.current;
     if (!el || mapRef.current) return;
     if (!token) return;
 
+    setMapError(null);
     mapboxgl.accessToken = token;
+
     const map = new mapboxgl.Map({
       container: el,
       style: mapStyle,
       center: [-97, 38.5],
       zoom: 3.5,
-      attributionControl: true,
       cooperativeGestures: true,
+      attributionControl: true,
       pitchWithRotate: allowRotate,
-      interactive: true,
       projection: projection === "globe" ? "globe" : "mercator",
     });
 
     mapRef.current = map;
-    map.on("load", () => {
+
+    const onLoad = () => {
       setIsLoaded(true);
-      // gentle raster contrast
       for (const l of map.getStyle().layers || []) {
         if (l.type === "raster") {
           try {
@@ -109,10 +113,24 @@ export default function MapView({
           } catch {}
         }
       }
-    });
+    };
+    const onError = (e: any) => {
+      // Surface the most helpful bit from Mapbox errors (401/403/style missing, etc.)
+      const msg =
+        e?.error?.message ||
+        e?.error?.statusText ||
+        (typeof e?.error === "string" ? e.error : "") ||
+        "Map error";
+      setMapError(msg);
+    };
+
+    map.on("load", onLoad);
+    map.on("error", onError);
 
     return () => {
       try {
+        map.off("load", onLoad);
+        map.off("error", onError);
         map.remove();
       } catch {}
       mapRef.current = null;
@@ -120,7 +138,7 @@ export default function MapView({
     };
   }, [token, mapStyle, allowRotate, projection, rasterSharpen]);
 
-  // Source & layers
+  // data layers
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoaded || !data) return;
@@ -163,7 +181,6 @@ export default function MapView({
             "text-size": 12,
             "text-offset": [0, 1.0],
             "text-anchor": "top",
-            "text-allow-overlap": false,
           },
           paint: {
             "text-color": labelColor || "#fff200",
@@ -173,12 +190,12 @@ export default function MapView({
         },
         "retailers-circle"
       );
-    } else {
-      if (map.getLayer("retailers-labels")) map.removeLayer("retailers-labels");
+    } else if (map.getLayer("retailers-labels")) {
+      map.removeLayer("retailers-labels");
     }
   }, [isLoaded, data, markerStyle, showLabels, labelColor]);
 
-  // Home marker
+  // home marker
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoaded) return;
@@ -190,7 +207,6 @@ export default function MapView({
       }
       return;
     }
-
     let mk = homeMarker;
     if (!mk) {
       mk = new mapboxgl.Marker({ color: "#00d084" });
@@ -199,14 +215,11 @@ export default function MapView({
     mk!.setLngLat([home.lng, home.lat] as LngLatLike).addTo(map);
   }, [isLoaded, home]);
 
-  // Pick home (double-click)
+  // pick home
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isLoaded || !onPickHome) return;
-
-    const handler = (e: MapMouseEvent) => {
-      onPickHome(e.lngLat.lng, e.lngLat.lat);
-    };
+    const handler = (e: MapMouseEvent) => onPickHome(e.lngLat.lng, e.lngLat.lat);
     map.on("dblclick", handler);
     return () => {
       try {
@@ -215,10 +228,12 @@ export default function MapView({
     };
   }, [isLoaded, onPickHome]);
 
+  const tokenMissing = !token;
+
   return (
     <div className="map-shell">
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
-      {!token && (
+      {(tokenMissing || mapError) && (
         <div
           style={{
             position: "absolute",
@@ -226,6 +241,7 @@ export default function MapView({
             display: "grid",
             placeItems: "center",
             background: "rgba(0,0,0,0.6)",
+            textAlign: "center",
           }}
         >
           <div
@@ -235,13 +251,25 @@ export default function MapView({
               padding: 16,
               borderRadius: 12,
               color: "#e8eef6",
+              maxWidth: 560,
             }}
           >
-            <h3 style={{ marginTop: 0 }}>Mapbox token not found</h3>
-            <p>
-              Provide <code>NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> (env) or add the meta tag in{" "}
-              <code>app/layout.tsx</code>.
-            </p>
+            <h3 style={{ marginTop: 0 }}>
+              {tokenMissing ? "Mapbox token not found" : "Map error"}
+            </h3>
+            {tokenMissing ? (
+              <p>
+                Provide <code>NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN</code> (env) or the{' '}
+                <code>&lt;meta name="mapbox-token" /&gt;</code> in <code>app/layout.tsx</code>.
+              </p>
+            ) : (
+              <p className="small">
+                {mapError}
+                <br />
+                (Open DevTools → Network to see the failing request; 401/403 usually means token
+                scope or URL restriction.)
+              </p>
+            )}
           </div>
         </div>
       )}
