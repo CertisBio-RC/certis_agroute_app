@@ -17,9 +17,42 @@ const BASEMAPS: Record<BasemapKey, string> = {
   dark: "mapbox://styles/mapbox/dark-v11",
 };
 
+/* ---------------- Error boundary so prod shows real errors ---------------- */
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // Log to console for GH Pages
+    console.error("Boundary caught:", error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 16 }}>
+          <h2>Something blew up in the Map panel</h2>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>
+            {String(this.state.error?.message || this.state.error)}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function Page() {
   /* ---------------- State ---------------- */
   const [token, setToken] = useState<string>("");
+  const [tokenReady, setTokenReady] = useState<boolean>(false);
+
   const [geojson, setGeojson] = useState<FeatureCollection<Point, RetailerProps> | null>(null);
 
   const [basemap, setBasemap] = useState<BasemapKey>("hybrid");
@@ -41,30 +74,45 @@ export default function Page() {
   useEffect(() => {
     let cancelled = false;
 
+    const finish = (t: string) => {
+      if (cancelled) return;
+      setToken(t);
+      setTokenReady(true);
+    };
+
+    // 1) env at build time
     const fromEnv = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? "";
     if (fromEnv) {
-      setToken(fromEnv);
-      return;
+      finish(fromEnv);
+      return () => {
+        cancelled = true;
+      };
     }
 
+    // 2) meta at runtime (layout.tsx)
     const fromMeta =
       typeof document !== "undefined"
         ? (document.querySelector('meta[name="mapbox-token"]') as HTMLMetaElement | null)?.content ?? ""
         : "";
     if (fromMeta) {
-      setToken(fromMeta);
-      return;
+      finish(fromMeta);
+      return () => {
+        cancelled = true;
+      };
     }
 
-    // Final fallback: fetch public/mapbox-token.txt at runtime (relative path!)
+    // 3) file at runtime
     (async () => {
       try {
         const res = await fetch("mapbox-token.txt", { cache: "no-store" });
-        if (!res.ok) return;
-        const txt = (await res.text()).trim();
-        if (!cancelled && txt) setToken(txt);
+        if (res.ok) {
+          const txt = (await res.text()).trim();
+          finish(txt);
+        } else {
+          finish(""); // resolved, but empty means MapView will show its card
+        }
       } catch {
-        /* no-op */
+        finish("");
       }
     })();
 
@@ -85,10 +133,8 @@ export default function Page() {
           type: "FeatureCollection",
           features: (json.features || []).map((f, i) => {
             const props: any = { ...(f.properties || {}) };
-            // Ensure a string id
             const withId: Feature<Point, RetailerProps> =
               f.id == null ? { ...f, id: (i + 1).toString(), properties: props } : { ...f, properties: props };
-            // Trim leading slash in logos for GH Pages
             if (typeof props.Logo === "string" && props.Logo.startsWith("/")) {
               props.Logo = props.Logo.replace(/^\/+/, "");
             }
@@ -144,7 +190,6 @@ export default function Page() {
     } as FeatureCollection<Point, RetailerProps>;
   }, [geojson, query, stateFilter]);
 
-  /* ---------------- Map props ---------------- */
   const projection = projectionFlat ? "mercator" : "globe";
 
   /* ---------------- Render ---------------- */
@@ -253,24 +298,30 @@ export default function Page() {
 
         {/* Map panel */}
         <main className="map-shell">
-          {/* Only gate on data; allow token to resolve via fallback fetch */}
           {!filteredGeojson ? (
             <div style={{ padding: 24 }}>
               <h2>Loading retailers…</h2>
             </div>
+          ) : !tokenReady ? (
+            <div style={{ padding: 24 }}>
+              <h2>Loading map…</h2>
+              <div className="muted small">Resolving Mapbox token</div>
+            </div>
           ) : (
-            <MapView
-              data={filteredGeojson}
-              markerStyle={markerStyle}
-              showLabels={showLabels}
-              labelColor={labelColor}
-              mapStyle={BASEMAPS[basemap]}
-              projection={projection as any}
-              allowRotate={allowRotate}
-              rasterSharpen={rasterSharpen}
-              mapboxToken={token || undefined}
-              home={home ?? undefined}
-            />
+            <ErrorBoundary>
+              <MapView
+                data={filteredGeojson}
+                markerStyle={markerStyle}
+                showLabels={showLabels}
+                labelColor={labelColor}
+                mapStyle={BASEMAPS[basemap]}
+                projection={(projectionFlat ? "mercator" : "globe") as any}
+                allowRotate={allowRotate}
+                rasterSharpen={rasterSharpen}
+                mapboxToken={token || undefined}
+                home={home ?? undefined}
+              />
+            </ErrorBoundary>
           )}
 
           <div className="map-footer">
