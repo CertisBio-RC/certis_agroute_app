@@ -1,6 +1,6 @@
 ﻿// scripts/geocode-retailers.mjs
-// Geocode features missing geometry using Mapbox Forward Geocoding.
-// Usage: MAPBOX_PUBLIC_TOKEN=... node scripts/geocode-retailers.mjs
+// Geocode features with missing geometry using Mapbox Forward Geocoding.
+// Usage (PowerShell):  node scripts/geocode-retailers.mjs
 import fs from "fs/promises";
 import path from "path";
 import process from "process";
@@ -50,22 +50,17 @@ async function geocodeOne(q) {
     throw new Error("retailers.geojson is not a valid FeatureCollection");
   }
 
-  let already = 0,
-    updated = 0,
-    skipped = 0;
+  let already = 0, updated = 0, skipped = 0;
   const cache = new Map();
 
   for (const f of fc.features) {
     const g = f?.geometry;
     if (g && g.type === "Point" && validLngLat(g.coordinates)) {
-      already++;
-      continue;
+      already++; continue;
     }
     const q = addr(f?.properties);
-    if (!q) {
-      skipped++;
-      continue;
-    }
+    if (!q) { skipped++; continue; }
+
     const key = q.toLowerCase();
     let center = cache.get(key);
     if (!center) {
