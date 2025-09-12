@@ -14,7 +14,7 @@ const getToken = () =>
 /* ===== TYPES ===== */
 type Feature = {
   type: "Feature";
-  geometry: { type: "Point"; coordinates: [number, number] };
+  geometry: { type: string; coordinates?: any };
   properties: Record<string, any>;
 };
 type FC = { type: "FeatureCollection"; features: Feature[] };
@@ -35,6 +35,20 @@ const slug = (s: string) =>
     .replace(/\s+/g, "-")
     .toLowerCase();
 
+/* ===== SANITIZERS ===== */
+function isValidLngLat(coords: any): coords is [number, number] {
+  return (
+    Array.isArray(coords) &&
+    coords.length === 2 &&
+    Number.isFinite(coords[0]) &&
+    Number.isFinite(coords[1]) &&
+    coords[0] >= -180 &&
+    coords[0] <= 180 &&
+    coords[1] >= -90 &&
+    coords[1] <= 90
+  );
+}
+
 /* ===== Mapbox (lazy) ===== */
 let mapboxgl: any;
 
@@ -44,9 +58,7 @@ export default function Page() {
 
   /* ---------- UI STATE ---------- */
   const [basemap, setBasemap] = useState<"hybrid" | "streets">("hybrid");
-  // Default to DOTS so you always see points even if logos are missing:
-  const [markerStyle, setMarkerStyle] = useState<"dots" | "logos">("dots");
-
+  const [markerStyle, setMarkerStyle] = useState<"dots" | "logos">("dots"); // default to dots
   const [stateF, setStateF] = useState("All");
   const [retailerF, setRetailerF] = useState("All");
   const [categoryF, setCategoryF] = useState("All");
@@ -76,13 +88,19 @@ export default function Page() {
     };
   }, [dataUrl]);
 
-  // Normalize + filter + option lists
-  const { filtered, states, retailers, categories, bbox } = useMemo(() => {
+  // Normalize + sanitize + filter + option lists + bbox
+  const { filtered, states, retailers, categories, bbox, skipped } = useMemo(() => {
     const out: FC = { type: "FeatureCollection", features: [] };
     const S = new Set<string>(), R = new Set<string>(), C = new Set<string>();
     const bb = { minX: 180, minY: 90, maxX: -180, maxY: -90 };
+    let skipped = 0;
 
     for (const f of raw?.features ?? []) {
+      if (!f || !f.geometry || f.geometry.type !== "Point" || !isValidLngLat(f.geometry.coordinates)) {
+        skipped++;
+        continue;
+      }
+
       const st = String(gp(f.properties, SKEYS) ?? "").trim();
       const rt = String(gp(f.properties, RKEYS) ?? "").trim();
       const ct = String(gp(f.properties, CKEYS) ?? "").trim();
@@ -96,10 +114,12 @@ export default function Page() {
         (retailerF === "All" || rt === retailerF) &&
         (categoryF === "All" || ct === categoryF)
       ) {
-        // ensure icon id exists (even if we show dots)
         const iconId = `logo-${slug(rt || "unknown")}`;
+        const [x, y] = f.geometry.coordinates as [number, number];
+
         out.features.push({
-          ...f,
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [x, y] },
           properties: {
             ...f.properties,
             __state: st,
@@ -109,14 +129,10 @@ export default function Page() {
           },
         });
 
-        // update bbox
-        const [x, y] = f.geometry.coordinates;
-        if (typeof x === "number" && typeof y === "number") {
-          if (x < bb.minX) bb.minX = x;
-          if (y < bb.minY) bb.minY = y;
-          if (x > bb.maxX) bb.maxX = x;
-          if (y > bb.maxY) bb.maxY = y;
-        }
+        if (x < bb.minX) bb.minX = x;
+        if (y < bb.minY) bb.minY = y;
+        if (x > bb.maxX) bb.maxX = x;
+        if (y > bb.maxY) bb.maxY = y;
       }
     }
 
@@ -126,16 +142,23 @@ export default function Page() {
         ? ([bb.minX, bb.minY, bb.maxX, bb.maxY] as [number, number, number, number])
         : null;
 
-    return { filtered: out, states: sorted(S), retailers: sorted(R), categories: sorted(C), bbox };
+    return {
+      filtered: out,
+      states: sorted(S),
+      retailers: sorted(R),
+      categories: sorted(C),
+      bbox,
+      skipped,
+    };
   }, [raw, stateF, retailerF, categoryF]);
 
   /* ---------- MAP ---------- */
   const mapRef = useRef<any>(null);
   const mapEl = useRef<HTMLDivElement | null>(null);
 
-  // Helper: ensure source + layers exist, or update them
+  // Helper: ensure source + layers exist, or update them safely
   const ensureLayers = (map: any) => {
-    // Always lock projection to flat
+    // Lock projection to FLAT
     try {
       if (map.getProjection?.().name !== "mercator") map.setProjection?.("mercator");
     } catch {}
@@ -215,7 +238,7 @@ export default function Page() {
       (map.getSource("retailers") as any).setData(filtered as any);
     }
 
-    // Toggle which unclustered layer is visible
+    // Toggle unclustered visibility
     map.setLayoutProperty("unclustered-point", "visibility", markerStyle === "dots" ? "visible" : "none");
     map.setLayoutProperty("unclustered-logo", "visibility", markerStyle === "logos" ? "visible" : "none");
   };
@@ -228,7 +251,6 @@ export default function Page() {
       const hasToken = !!MAPBOX_TOKEN;
       if (hasToken) mapboxgl.accessToken = MAPBOX_TOKEN;
 
-      // Clean previous instance
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -266,10 +288,8 @@ export default function Page() {
       });
       mapRef.current = map;
 
-      // Add/update layers when style loads
       map.on("load", () => {
         ensureLayers(map);
-        // Fit to data once on first load if we have features
         if (bbox) {
           map.fitBounds(
             [
@@ -289,16 +309,16 @@ export default function Page() {
         mapRef.current = null;
       }
     };
-  }, [MAPBOX_TOKEN, basemap, markerStyle]); // (filtered handled below)
+  }, [MAPBOX_TOKEN, basemap, markerStyle]); // filtered handled below
 
-  // Update source data whenever filters change (no re-create)
+  // Update source and visibility on data/style toggles without recreating the map
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     ensureLayers(map);
   }, [filtered, markerStyle]);
 
-  // Load retailer logos (only if user chooses “logos”; png → jpg fallback)
+  // Load retailer logos only when needed (png → jpg fallback)
   useEffect(() => {
     if (markerStyle !== "logos") return;
     const map = mapRef.current;
@@ -323,10 +343,7 @@ export default function Page() {
   const shown = filtered.features.length;
 
   /* =======================
-     LOCKED GRID LAYOUT
-     - Sidebar on the LEFT (360px)
-     - MAP on the RIGHT
-     - Map fills its grid cell fully
+     LOCKED 2-COLUMN GRID
      ======================= */
   return (
     <div
@@ -339,14 +356,14 @@ export default function Page() {
         <div className="flex items-center gap-3 mb-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={`${BASE_PATH}/certis-logo.png?v=3`}
+            src={`${BASE_PATH}/certis-logo.png?v=4`}
             alt="Certis"
             className="h-6 w-auto object-contain"
             onError={(e) => {
               const t = e.currentTarget as HTMLImageElement;
               if (!t.dataset.fb) {
                 t.dataset.fb = "1";
-                t.src = `${BASE_PATH}/certis-logo.jpg?v=3`;
+                t.src = `${BASE_PATH}/certis-logo.jpg?v=4`;
               }
             }}
           />
@@ -415,6 +432,9 @@ export default function Page() {
               Clear Filters
             </button>
             <span className="text-xs opacity-75">{shown} shown</span>
+            {skipped > 0 && (
+              <span className="text-[11px] opacity-60">({skipped} skipped: invalid geometry)</span>
+            )}
           </div>
         </section>
 
