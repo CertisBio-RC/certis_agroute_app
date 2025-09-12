@@ -1,11 +1,25 @@
-﻿/** @type {import("next").NextConfig} */
-const isGH = process.env.GITHUB_PAGES === "true";
-const repo = "certis_agroute_app";
+﻿// next.config.mjs
 
-export default {
+const repo = process.env.NEXT_PUBLIC_REPO_NAME || "certis_agroute_app";
+const isCI = !!process.env.GITHUB_ACTIONS || !!process.env.CI;
+
+const basePath = isCI ? `/${repo}` : (process.env.NEXT_PUBLIC_BASE_PATH || "");
+const assetPrefix = isCI
+  ? `/${repo}/`
+  : (process.env.NEXT_PUBLIC_BASE_PATH
+      ? `${process.env.NEXT_PUBLIC_BASE_PATH.replace(/\/?$/, "/")}`
+      : "");
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: "export",
-  trailingSlash: true,
+  basePath,
+  assetPrefix,
   images: { unoptimized: true },
-  basePath: isGH ? `/${repo}` : "",
-  assetPrefix: isGH ? `/${repo}/` : "",
+  trailingSlash: true,
+  env: {
+    NEXT_PUBLIC_BASE_PATH: basePath || "",
+  },
 };
+
+export default nextConfig;
