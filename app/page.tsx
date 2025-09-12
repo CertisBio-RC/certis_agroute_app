@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-/* ------------ ENV HELPERS ------------ */
+/* ===== ENV HELPERS ===== */
 const getBasePath = () =>
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_BASE_PATH) || "";
 const getToken = () =>
@@ -11,7 +11,7 @@ const getToken = () =>
       process.env.MAPBOX_PUBLIC_TOKEN)) ||
   "";
 
-/* ------------ TYPES ------------ */
+/* ===== TYPES ===== */
 type Feature = {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };
@@ -23,8 +23,8 @@ const SKEYS = ["state", "State", "STATE"];
 const RKEYS = ["retailer", "Retailer", "RETAILER"];
 const CKEYS = ["category", "Category", "CATEGORY"];
 
-const getProp = (obj: any, keys: string[]) => {
-  for (const k of keys) if (obj?.[k] != null) return obj[k];
+const gp = (obj: any, keys: string[]) => {
+  for (const k of keys) if (obj && obj[k] != null) return obj[k];
   return undefined;
 };
 const slug = (s: string) =>
@@ -35,29 +35,28 @@ const slug = (s: string) =>
     .replace(/\s+/g, "-")
     .toLowerCase();
 
-/* ------------ MAPBOX (lazy import) ------------ */
+/* ===== Mapbox (lazy) ===== */
 let mapboxgl: any;
 
-/* ==============================================
-   PAGE
-   ============================================== */
 export default function Page() {
   const BASE_PATH = useMemo(getBasePath, []);
   const MAPBOX_TOKEN = useMemo(getToken, []);
 
-  /* ----- UI STATE ----- */
+  /* ---------- UI STATE ---------- */
   const [basemap, setBasemap] = useState<"hybrid" | "streets">("hybrid");
-  const [markerStyle, setMarkerStyle] = useState<"logos" | "dots">("logos");
+  // Default to DOTS so you always see points even if logos are missing:
+  const [markerStyle, setMarkerStyle] = useState<"dots" | "logos">("dots");
+
   const [stateF, setStateF] = useState("All");
   const [retailerF, setRetailerF] = useState("All");
   const [categoryF, setCategoryF] = useState("All");
 
-  /* ----- DATA ----- */
+  /* ---------- DATA ---------- */
   const [raw, setRaw] = useState<FC | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const dataUrl = useMemo(() => {
-    const v = `v=${Date.now()}`; // cache-bust GH Pages
+    const v = `v=${Date.now()}`; // GH Pages cache-buster
     const path = `${BASE_PATH}/data/retailers.geojson`;
     return path.includes("?") ? `${path}&${v}` : `${path}?${v}`;
   }, [BASE_PATH]);
@@ -77,22 +76,28 @@ export default function Page() {
     };
   }, [dataUrl]);
 
-  const { filtered, states, retailers, categories } = useMemo(() => {
+  // Normalize + filter + option lists
+  const { filtered, states, retailers, categories, bbox } = useMemo(() => {
     const out: FC = { type: "FeatureCollection", features: [] };
     const S = new Set<string>(), R = new Set<string>(), C = new Set<string>();
+    const bb = { minX: 180, minY: 90, maxX: -180, maxY: -90 };
 
     for (const f of raw?.features ?? []) {
-      const st = String(getProp(f.properties, SKEYS) ?? "").trim();
-      const rt = String(getProp(f.properties, RKEYS) ?? "").trim();
-      const ct = String(getProp(f.properties, CKEYS) ?? "").trim();
+      const st = String(gp(f.properties, SKEYS) ?? "").trim();
+      const rt = String(gp(f.properties, RKEYS) ?? "").trim();
+      const ct = String(gp(f.properties, CKEYS) ?? "").trim();
 
       if (st) S.add(st);
       if (rt) R.add(rt);
       if (ct) C.add(ct);
 
-      if ((stateF === "All" || st === stateF) &&
-          (retailerF === "All" || rt === retailerF) &&
-          (categoryF === "All" || ct === categoryF)) {
+      if (
+        (stateF === "All" || st === stateF) &&
+        (retailerF === "All" || rt === retailerF) &&
+        (categoryF === "All" || ct === categoryF)
+      ) {
+        // ensure icon id exists (even if we show dots)
+        const iconId = `logo-${slug(rt || "unknown")}`;
         out.features.push({
           ...f,
           properties: {
@@ -100,20 +105,122 @@ export default function Page() {
             __state: st,
             __retailer: rt || "Unknown",
             __category: ct,
-            __icon: `logo-${slug(rt || "unknown")}`,
+            __icon: iconId,
           },
         });
+
+        // update bbox
+        const [x, y] = f.geometry.coordinates;
+        if (typeof x === "number" && typeof y === "number") {
+          if (x < bb.minX) bb.minX = x;
+          if (y < bb.minY) bb.minY = y;
+          if (x > bb.maxX) bb.maxX = x;
+          if (y > bb.maxY) bb.maxY = y;
+        }
       }
     }
+
     const sorted = (s: Set<string>) => ["All", ...Array.from(s).sort((a, b) => a.localeCompare(b))];
-    return { filtered: out, states: sorted(S), retailers: sorted(R), categories: sorted(C) };
+    const bbox =
+      out.features.length > 0
+        ? ([bb.minX, bb.minY, bb.maxX, bb.maxY] as [number, number, number, number])
+        : null;
+
+    return { filtered: out, states: sorted(S), retailers: sorted(R), categories: sorted(C), bbox };
   }, [raw, stateF, retailerF, categoryF]);
 
-  /* ----- MAP ----- */
+  /* ---------- MAP ---------- */
   const mapRef = useRef<any>(null);
-  const mapWrapRef = useRef<HTMLDivElement | null>(null);
+  const mapEl = useRef<HTMLDivElement | null>(null);
 
-  // Create / recreate the map when style inputs change
+  // Helper: ensure source + layers exist, or update them
+  const ensureLayers = (map: any) => {
+    // Always lock projection to flat
+    try {
+      if (map.getProjection?.().name !== "mercator") map.setProjection?.("mercator");
+    } catch {}
+
+    if (!map.getSource("retailers")) {
+      map.addSource("retailers", {
+        type: "geojson",
+        data: filtered as any,
+        cluster: true,
+        clusterRadius: 40,
+        clusterMaxZoom: 11,
+      });
+
+      map.addLayer({
+        id: "clusters",
+        type: "circle",
+        source: "retailers",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-radius": ["step", ["get", "point_count"], 14, 25, 20, 100, 28],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+          "circle-color": ["step", ["get", "point_count"], "#5B8DEF", 25, "#3FB07C", 100, "#F28B2E"],
+        },
+      });
+
+      map.addLayer({
+        id: "cluster-count",
+        type: "symbol",
+        source: "retailers",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-size": 12,
+          "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+        },
+        paint: { "text-color": "#ffffff" },
+      });
+
+      map.addLayer({
+        id: "unclustered-point",
+        type: "circle",
+        source: "retailers",
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-radius": 6,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+          "circle-color": "#1C7CFF",
+        },
+      });
+
+      map.addLayer({
+        id: "unclustered-logo",
+        type: "symbol",
+        source: "retailers",
+        filter: ["!", ["has", "point_count"]],
+        layout: {
+          "icon-image": ["get", "__icon"],
+          "icon-size": 0.5,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "visibility": "none", // hidden unless markerStyle === 'logos'
+        },
+      });
+
+      // Cursor UX
+      const p = () => (map.getCanvas().style.cursor = "pointer");
+      const d = () => (map.getCanvas().style.cursor = "");
+      map.on("mouseenter", "clusters", p);
+      map.on("mouseleave", "clusters", d);
+      map.on("mouseenter", "unclustered-point", p);
+      map.on("mouseleave", "unclustered-point", d);
+      map.on("mouseenter", "unclustered-logo", p);
+      map.on("mouseleave", "unclustered-logo", d);
+    } else {
+      (map.getSource("retailers") as any).setData(filtered as any);
+    }
+
+    // Toggle which unclustered layer is visible
+    map.setLayoutProperty("unclustered-point", "visibility", markerStyle === "dots" ? "visible" : "none");
+    map.setLayoutProperty("unclustered-logo", "visibility", markerStyle === "logos" ? "visible" : "none");
+  };
+
+  // Create / recreate map when style inputs change
   useEffect(() => {
     (async () => {
       const mod = await import("mapbox-gl");
@@ -149,104 +256,31 @@ export default function Page() {
           };
 
       const map = new mapboxgl.Map({
-        container: mapWrapRef.current as HTMLDivElement,
+        container: mapEl.current as HTMLDivElement,
         style,
         center: [-96.7, 41.5],
         zoom: 5,
         cooperativeGestures: true,
         attributionControl: true,
-        // 🔒 Freeze projection to FLAT
         projection: "mercator",
       });
       mapRef.current = map;
 
-      const addOrUpdateLayers = () => {
-        // Make sure projection can’t switch to globe on style changes
-        try {
-          if (map.getProjection?.().name !== "mercator") map.setProjection?.("mercator");
-        } catch {}
-
-        if (!map.getSource("retailers")) {
-          map.addSource("retailers", {
-            type: "geojson",
-            data: filtered as any,
-            cluster: true,
-            clusterRadius: 40,
-            clusterMaxZoom: 11,
-          });
-
-          map.addLayer({
-            id: "clusters",
-            type: "circle",
-            source: "retailers",
-            filter: ["has", "point_count"],
-            paint: {
-              "circle-radius": ["step", ["get", "point_count"], 14, 25, 20, 100, 28],
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
-              "circle-color": ["step", ["get", "point_count"], "#5B8DEF", 25, "#3FB07C", 100, "#F28B2E"],
-            },
-          });
-
-          map.addLayer({
-            id: "cluster-count",
-            type: "symbol",
-            source: "retailers",
-            filter: ["has", "point_count"],
-            layout: {
-              "text-field": ["get", "point_count_abbreviated"],
-              "text-size": 12,
-              "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-            },
-            paint: { "text-color": "#ffffff" },
-          });
-
-          map.addLayer({
-            id: "unclustered-point",
-            type: "circle",
-            source: "retailers",
-            filter: ["!", ["has", "point_count"]],
-            paint: {
-              "circle-radius": 6,
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
-              "circle-color": "#1C7CFF",
-            },
-          });
-
-          map.addLayer({
-            id: "unclustered-logo",
-            type: "symbol",
-            source: "retailers",
-            filter: ["!", ["has", "point_count"]],
-            layout: {
-              "icon-image": ["get", "__icon"],
-              "icon-size": 0.5,
-              "icon-allow-overlap": true,
-              "icon-ignore-placement": true,
-            },
-          });
-
-          // Cursor UX
-          const p = () => (map.getCanvas().style.cursor = "pointer");
-          const d = () => (map.getCanvas().style.cursor = "");
-          map.on("mouseenter", "clusters", p);
-          map.on("mouseleave", "clusters", d);
-          map.on("mouseenter", "unclustered-point", p);
-          map.on("mouseleave", "unclustered-point", d);
-          map.on("mouseenter", "unclustered-logo", p);
-          map.on("mouseleave", "unclustered-logo", d);
-        } else {
-          (map.getSource("retailers") as any).setData(filtered as any);
+      // Add/update layers when style loads
+      map.on("load", () => {
+        ensureLayers(map);
+        // Fit to data once on first load if we have features
+        if (bbox) {
+          map.fitBounds(
+            [
+              [bbox[0], bbox[1]],
+              [bbox[2], bbox[3]],
+            ],
+            { padding: 40, duration: 0 }
+          );
         }
-
-        // Respect current marker style
-        map.setLayoutProperty("unclustered-point", "visibility", markerStyle === "dots" ? "visible" : "none");
-        map.setLayoutProperty("unclustered-logo", "visibility", markerStyle === "logos" ? "visible" : "none");
-      };
-
-      map.on("load", addOrUpdateLayers);
-      map.on("style.load", addOrUpdateLayers);
+      });
+      map.on("style.load", () => ensureLayers(map));
     })();
 
     return () => {
@@ -255,23 +289,24 @@ export default function Page() {
         mapRef.current = null;
       }
     };
-  }, [MAPBOX_TOKEN, basemap, markerStyle, filtered]);
+  }, [MAPBOX_TOKEN, basemap, markerStyle]); // (filtered handled below)
 
-  // Keep source fresh when filters change
+  // Update source data whenever filters change (no re-create)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const src = map.getSource?.("retailers");
-    if (src) (src as any).setData(filtered as any);
-  }, [filtered]);
+    ensureLayers(map);
+  }, [filtered, markerStyle]);
 
-  // Load retailer logos (png → jpg fallback)
+  // Load retailer logos (only if user chooses “logos”; png → jpg fallback)
   useEffect(() => {
+    if (markerStyle !== "logos") return;
     const map = mapRef.current;
     if (!map) return;
+
     for (const f of filtered.features) {
-      const r = String(getProp(f.properties, ["__retailer"]) || "");
-      const id = String(getProp(f.properties, ["__icon"]) || "");
+      const r = String(gp(f.properties, ["__retailer"]) || "");
+      const id = String(gp(f.properties, ["__icon"]) || "");
       if (!r || !id || map.hasImage(id)) continue;
 
       const base = `${BASE_PATH}/icons/${r} Logo`;
@@ -283,34 +318,35 @@ export default function Page() {
         });
       tryAdd(`${base}.png`, () => tryAdd(`${base}.jpg`));
     }
-  }, [filtered, BASE_PATH]);
+  }, [filtered, markerStyle, BASE_PATH]);
 
   const shown = filtered.features.length;
 
-  /* ------------- LOCKED GRID LAYOUT -------------
-     - Sidebar fixed 360px
-     - Map column fills remaining width
-     - min-h-0 and absolute fill prevent the “two-fingers” text stack
-  ------------------------------------------------ */
+  /* =======================
+     LOCKED GRID LAYOUT
+     - Sidebar on the LEFT (360px)
+     - MAP on the RIGHT
+     - Map fills its grid cell fully
+     ======================= */
   return (
     <div
       className="h-[100dvh] grid bg-neutral-900 text-neutral-100"
       style={{ gridTemplateColumns: "360px 1fr" }}
     >
-      {/* SIDEBAR */}
+      {/* LEFT: SIDEBAR */}
       <aside className="h-full min-h-0 overflow-auto border-r border-neutral-800 p-4">
-        {/* Header with logo (BASE_PATH-prefixed + cache-buster + JPG fallback) */}
+        {/* Header with BASE_PATH-prefixed logo (with jpg fallback) */}
         <div className="flex items-center gap-3 mb-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={`${BASE_PATH}/certis-logo.png?v=2`}
+            src={`${BASE_PATH}/certis-logo.png?v=3`}
             alt="Certis"
             className="h-6 w-auto object-contain"
             onError={(e) => {
               const t = e.currentTarget as HTMLImageElement;
-              if (!t.dataset.fallback) {
-                t.dataset.fallback = "1";
-                t.src = `${BASE_PATH}/certis-logo.jpg?v=2`;
+              if (!t.dataset.fb) {
+                t.dataset.fb = "1";
+                t.src = `${BASE_PATH}/certis-logo.jpg?v=3`;
               }
             }}
           />
@@ -321,10 +357,10 @@ export default function Page() {
 
         <h1 className="text-2xl font-semibold mb-1">Certis AgRoute Planner</h1>
         <p className="text-xs opacity-70 mb-4">
-          Filter retailers and visualize routes. Dbl-click map to set Home (coming back next).
+          Filter retailers and visualize routes. Dbl-click map to set Home.
         </p>
 
-        {/* Filters */}
+        {/* FILTERS */}
         <section className="rounded-2xl bg-neutral-800 p-3 mb-4">
           <h2 className="text-sm font-semibold mb-2">Filters</h2>
 
@@ -335,7 +371,9 @@ export default function Page() {
             onChange={(e) => setStateF(e.target.value)}
           >
             {states.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
 
@@ -346,7 +384,9 @@ export default function Page() {
             onChange={(e) => setRetailerF(e.target.value)}
           >
             {retailers.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
 
@@ -357,14 +397,20 @@ export default function Page() {
             onChange={(e) => setCategoryF(e.target.value)}
           >
             {categories.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
 
           <div className="flex items-center gap-2 mt-1">
             <button
               className="px-3 py-2 rounded bg-sky-600 hover:bg-sky-500"
-              onClick={() => { setStateF("All"); setRetailerF("All"); setCategoryF("All"); }}
+              onClick={() => {
+                setStateF("All");
+                setRetailerF("All");
+                setCategoryF("All");
+              }}
             >
               Clear Filters
             </button>
@@ -372,7 +418,7 @@ export default function Page() {
           </div>
         </section>
 
-        {/* Map options */}
+        {/* MAP OPTIONS */}
         <section className="rounded-2xl bg-neutral-800 p-3">
           <h2 className="text-sm font-semibold mb-2">Map Options</h2>
 
@@ -394,8 +440,8 @@ export default function Page() {
             value={markerStyle}
             onChange={(e) => setMarkerStyle(e.target.value as any)}
           >
-            <option value="logos">Retailer logos</option>
             <option value="dots">Colored dots</option>
+            <option value="logos">Retailer logos</option>
           </select>
 
           <p className="text-[11px] opacity-60 mt-3">
@@ -408,10 +454,9 @@ export default function Page() {
         </section>
       </aside>
 
-      {/* MAP COLUMN */}
-      <main className="h-full min-h-0 relative">
-        {/* Absolute fill prevents the “use two fingers” text stacking */}
-        <div ref={mapWrapRef} className="absolute inset-0 rounded-xl overflow-hidden" />
+      {/* RIGHT: MAP */}
+      <main className="relative h-full min-h-0">
+        <div ref={mapEl} className="absolute inset-0 rounded-xl overflow-hidden" />
       </main>
     </div>
   );
