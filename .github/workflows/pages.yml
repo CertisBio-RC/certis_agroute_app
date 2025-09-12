@@ -1,8 +1,8 @@
-﻿name: Deploy to GitHub Pages
+﻿name: Deploy Certis AgRoute Planner to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -18,29 +18,32 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: 20
+          cache: npm
 
-      - name: Install
+      - name: Install deps
         run: npm ci
 
-      - name: Build (Next.js static export)
+      # Build dataset from data/retailers.xlsx -> public/data/retailers.geojson
+      - name: Build retailers.geojson from spreadsheet
         env:
-          # Provide the token *at build time* so Next.js can inline it
+          MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
+        run: node scripts/build-retailers.cjs
+
+      # Next.js static export to ./out (next.config.mjs has output: "export")
+      - name: Build Next.js (static export)
+        env:
+          GITHUB_ACTIONS: "true"                       # enables basePath/assetPrefix
+          NEXT_PUBLIC_BASE_PATH: "/certis_agroute_app" # the sub-path on Pages
           NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
           MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
-          # Optional: used by some UIs
-          NEXT_PUBLIC_REPO_NAME: certis_agroute_app
-        run: |
-          npm run build   # next build + export to ./out via next.config.mjs
+        run: npm run build
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
@@ -52,6 +55,5 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
