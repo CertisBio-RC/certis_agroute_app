@@ -74,7 +74,6 @@ async function fetchScaledBitmap(url: string, maxPx = 64): Promise<ImageBitmap> 
   const w = Math.max(1, Math.round(bmp.width * ratio));
   const h = Math.max(1, Math.round(bmp.height * ratio));
 
-  // draw centered into a square canvas maxPx x maxPx
   if (typeof OffscreenCanvas !== "undefined") {
     const oc = new OffscreenCanvas(maxPx, maxPx);
     const ctx = oc.getContext("2d")!;
@@ -82,8 +81,7 @@ async function fetchScaledBitmap(url: string, maxPx = 64): Promise<ImageBitmap> 
     const dx = Math.floor((maxPx - w) / 2);
     const dy = Math.floor((maxPx - h) / 2);
     ctx.drawImage(bmp, dx, dy, w, h);
-    // OffscreenCanvas → ImageBitmap is zero-copy
-    // @ts-ignore - transferToImageBitmap exists on OffscreenCanvas
+    // @ts-ignore
     const scaled = oc.transferToImageBitmap ? oc.transferToImageBitmap() : await createImageBitmap(oc as any);
     return scaled;
   } else {
@@ -183,6 +181,15 @@ export default function Map({
       pitchWithRotate: false,
       dragRotate: false,
     });
+
+    // Restore projection toggle (only when token is present; OSM fallback can't do globe)
+    if (token) {
+      try {
+        m.addControl(new (mapboxgl as any).ProjectionControl({ default: "mercator" }), "top-right");
+      } catch {
+        // ignore if control not available in current mapbox-gl build
+      }
+    }
 
     // Prevent default double-click zoom so dblclick can set Home
     m.doubleClickZoom.disable();
@@ -318,23 +325,21 @@ export default function Map({
           filter: ["!", ["has", "point_count"]],
           layout: {
             "icon-image": ["get", "__iconId"], // per-feature image id
-            // These sizes assume logos are pre-scaled to 64×64.
             "icon-size": [
               "interpolate",
               ["linear"],
               ["zoom"],
               4,
-              0.35, // ~22 px
+              0.35,
               10,
-              0.45, // ~29 px
+              0.45,
               14,
-              0.55, // ~35 px
+              0.55,
             ],
             "icon-allow-overlap": true,
-            "icon-optional": true, // ok if not loaded yet
+            "icon-optional": true,
           },
           paint: {
-            // fade slightly at ultra zoom so nothing overwhelms the map
             "icon-opacity": [
               "interpolate",
               ["linear"],
@@ -482,7 +487,7 @@ export default function Map({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** NOTE: We avoid setStyle at runtime to keep layers intact. */
+  /** We avoid setStyle at runtime to keep layers intact. */
   useEffect(() => {
     // no-op by design
   }, [basemap, token]);
@@ -545,7 +550,7 @@ export default function Map({
         let added = false;
         for (const url of candidates) {
           try {
-            const scaled = await fetchScaledBitmap(url, 64); // normalize size
+            const scaled = await fetchScaledBitmap(url, 64);
             if (!m.hasImage(id)) m.addImage(id, scaled, { pixelRatio: 1 });
             loadedLogos.current.add(id);
             added = true;
@@ -557,7 +562,7 @@ export default function Map({
 
         // If none worked, add a colored dot fallback as the image id
         if (!added && !m.hasImage(id)) {
-          m.addImage(id, makeDot("#3b82f6")); // blue dot fallback
+          m.addImage(id, makeDot("#3b82f6"));
           loadedLogos.current.add(id);
         }
       }
