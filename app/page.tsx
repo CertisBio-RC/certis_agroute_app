@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Map from "@/components/Map";
 
-/* --- ENV HELPERS --- */
+/* ---------- ENV HELPERS ---------- */
 const BASE_PATH =
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_BASE_PATH) || "";
 const MAPBOX_TOKEN =
@@ -12,7 +12,7 @@ const MAPBOX_TOKEN =
       process.env.MAPBOX_PUBLIC_TOKEN)) ||
   "";
 
-/* --- TYPES --- */
+/* ---------- TYPES ---------- */
 type Feature = {
   type: "Feature";
   geometry: { type: string; coordinates?: [number, number] } | null;
@@ -20,10 +20,12 @@ type Feature = {
 };
 type FC = { type: "FeatureCollection"; features: Feature[] };
 
+type Stop = { coord: [number, number]; title: string };
+
+/* ---------- UTILS ---------- */
 const SKEYS = ["state", "State", "STATE"];
 const RKEYS = ["retailer", "Retailer", "RETAILER"];
 const CKEYS = ["category", "Category", "CATEGORY"];
-
 const gp = (obj: any, keys: string[]) => {
   for (const k of keys) if (obj && obj[k] != null) return obj[k];
   return undefined;
@@ -38,18 +40,33 @@ const isLngLat = (c: any): c is [number, number] =>
   c[1] >= -90 &&
   c[1] <= 90;
 
+const fmtLatLng = ([lng, lat]: [number, number]) =>
+  `${lat.toFixed(6)},${lng.toFixed(6)}`;
+
+/* ---------- PAGE ---------- */
 export default function Page() {
-  /* UI STATE */
+  /* Filters / options */
   const [stateF, setStateF] = useState("All");
   const [retailerF, setRetailerF] = useState("All");
   const [categoryF, setCategoryF] = useState("All");
   const [basemap, setBasemap] = useState<"hybrid" | "streets">("hybrid");
   const [markerStyle, setMarkerStyle] = useState<"dots" | "logos">("dots");
 
-  /* DATA */
+  /* Data */
   const [raw, setRaw] = useState<FC | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  /* Trip planner state */
+  const [home, setHome] = useState<[number, number] | null>(null); // [lng,lat]
+  const [homeQuery, setHomeQuery] = useState("");
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [routeGeoJSON, setRouteGeoJSON] = useState<any | null>(null);
+  const [legs, setLegs] = useState<Array<{ from: [number, number]; to: [number, number] }>>([]);
+  const [roundtrip, setRoundtrip] = useState(true);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optError, setOptError] = useState<string | null>(null);
+
+  /* Load retailers */
   const dataUrl = useMemo(() => {
     const v = `v=${Date.now()}`;
     const u = `${BASE_PATH}/data/retailers.geojson`;
@@ -71,7 +88,7 @@ export default function Page() {
     };
   }, [dataUrl]);
 
-  /* Normalize + filter + stats */
+  /* Normalize + filter */
   const { fc, states, retailers, categories, bbox, shown, skipped } = useMemo(() => {
     const out: FC = { type: "FeatureCollection", features: [] };
     const S = new Set<string>(),
@@ -129,7 +146,135 @@ export default function Page() {
     };
   }, [raw, stateF, retailerF, categoryF]);
 
-  /* ------- RENDER (LOCKED 2-COLUMN GRID) ------- */
+  /* Persist/restore trip state */
+  useEffect(() => {
+    try {
+      const j = localStorage.getItem("certis_trip_v1");
+      if (!j) return;
+      const p = JSON.parse(j);
+      if (Array.isArray(p?.stops)) setStops(p.stops);
+      if (Array.isArray(p?.home) && p.home.length === 2) setHome(p.home);
+      if (typeof p?.roundtrip === "boolean") setRoundtrip(p.roundtrip);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("certis_trip_v1", JSON.stringify({ home, stops, roundtrip }));
+    } catch {}
+  }, [home, stops, roundtrip]);
+
+  /* Map event callbacks */
+  const handleMapDblClick = useCallback((lnglat: [number, number]) => {
+    setHome(lnglat);
+  }, []);
+  const handlePointClick = useCallback((lnglat: [number, number], title: string) => {
+    setStops((s) => (s.find((t) => t.coord[0] === lnglat[0] && t.coord[1] === lnglat[1]) ? s : [...s, { coord: lnglat, title }]));
+  }, []);
+
+  /* Geocode "Home" from text */
+  const geocodeHome = async () => {
+    if (!homeQuery.trim()) return;
+    if (!MAPBOX_TOKEN) {
+      alert("Mapbox token missing. Add NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN.");
+      return;
+    }
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+        homeQuery.trim()
+      )}.json?limit=1&access_token=${MAPBOX_TOKEN}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`geocode failed: ${r.status}`);
+      const j = await r.json();
+      const f = j?.features?.[0];
+      if (f?.center && Array.isArray(f.center) && f.center.length === 2) {
+        setHome([f.center[0], f.center[1]]);
+      } else {
+        alert("Could not geocode that address.");
+      }
+    } catch (e: any) {
+      alert(`Geocoding error: ${e?.message || e}`);
+    }
+  };
+
+  /* Optimize trip with Mapbox Optimization API */
+  const optimizeTrip = async () => {
+    setOptError(null);
+    setRouteGeoJSON(null);
+    setLegs([]);
+
+    if (!MAPBOX_TOKEN) {
+      setOptError("Mapbox token missing; set NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN.");
+      return;
+    }
+    if (!home) {
+      setOptError("Set Home (address or double-click the map).");
+      return;
+    }
+    if (stops.length === 0) {
+      setOptError("Add at least one stop (click a point).");
+      return;
+    }
+
+    try {
+      setOptimizing(true);
+      const coords = [home, ...stops.map((s) => s.coord)];
+      const coordStr = coords.map(([lng, lat]) => `${lng},${lat}`).join(";");
+      const params = new URLSearchParams({
+        access_token: MAPBOX_TOKEN,
+        geometries: "geojson",
+        overview: "full",
+        roundtrip: String(roundtrip),
+      });
+      // If not roundtrip, force start at Home and end at last added stop
+      if (!roundtrip) {
+        params.set("source", "first");
+        params.set("destination", "last");
+      }
+
+      const url = `https://api.mapbox.com/optimized-trips/v2/driving/${coordStr}?${params.toString()}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`Optimization failed: ${r.status}`);
+      const j = await r.json();
+
+      const trip = j?.trips?.[0];
+      if (!trip?.geometry) throw new Error("No trip found.");
+
+      // Build legs list (per-leg Google/Apple/Waze links use these coordinates)
+      const ordered: [number, number][] = trip?.geometry?.coordinates || [];
+      const legPairs: Array<{ from: [number, number]; to: [number, number] }> = [];
+      for (let i = 0; i < ordered.length - 1; i++) {
+        legPairs.push({ from: ordered[i], to: ordered[i + 1] });
+      }
+
+      setRouteGeoJSON({ type: "Feature", geometry: trip.geometry, properties: {} });
+      setLegs(legPairs);
+    } catch (e: any) {
+      setOptError(String(e?.message || e));
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const clearTrip = () => {
+    setStops([]);
+    setRouteGeoJSON(null);
+    setLegs([]);
+  };
+  const removeStop = (i: number) => {
+    setStops((s) => s.filter((_, idx) => idx !== i));
+  };
+
+  /* Link builders (per leg) */
+  const googleLeg = (from: [number, number], to: [number, number]) =>
+    `https://www.google.com/maps/dir/?api=1&origin=${fmtLatLng(from)}&destination=${fmtLatLng(
+      to
+    )}&travelmode=driving`;
+  const appleLeg = (from: [number, number], to: [number, number]) =>
+    `https://maps.apple.com/?saddr=${fmtLatLng(from)}&daddr=${fmtLatLng(to)}&dirflg=d`;
+  const wazeLeg = (_from: [number, number], to: [number, number]) =>
+    `https://waze.com/ul?ll=${fmtLatLng(to)}&navigate=yes`;
+
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -149,11 +294,11 @@ export default function Page() {
           padding: 16,
         }}
       >
-        {/* Header w/ small, fixed-size logo */}
+        {/* Header + logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={`${BASE_PATH}/certis-logo.png?v=9`}
+            src={`${BASE_PATH}/certis-logo.png?v=10`}
             alt="Certis"
             width={148}
             height={34}
@@ -166,10 +311,11 @@ export default function Page() {
 
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Certis AgRoute Planner</h1>
         <p style={{ fontSize: 12, opacity: 0.75, marginBottom: 14 }}>
-          Filter retailers and visualize routes. Dbl-click map to set Home.
+          Filter retailers and plan optimized trips. Double-click map to set <b>Home</b>. Click a point to <b>add
+          stop</b>.
         </p>
 
-        {/* Filters card */}
+        {/* Filters */}
         <section
           style={{
             background: "#111827",
@@ -231,13 +377,14 @@ export default function Page() {
           </div>
         </section>
 
-        {/* Map options card */}
+        {/* Map options */}
         <section
           style={{
             background: "#111827",
             border: "1px solid #334155",
             borderRadius: 14,
             padding: 12,
+            marginBottom: 14,
           }}
         >
           <h2 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Map Options</h2>
@@ -276,6 +423,143 @@ export default function Page() {
             )}
           </p>
         </section>
+
+        {/* Trip Planner */}
+        <section
+          style={{
+            background: "#111827",
+            border: "1px solid #334155",
+            borderRadius: 14,
+            padding: 12,
+          }}
+        >
+          <h2 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Trip Planner</h2>
+
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>
+              Home (address or double-click map)
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                placeholder="123 Main St, City ST"
+                value={homeQuery}
+                onChange={(e) => setHomeQuery(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: "#0a0a0a",
+                  color: "#e5e5e5",
+                  padding: 8,
+                  borderRadius: 8,
+                  border: "1px solid #334155",
+                }}
+              />
+              <button
+                onClick={geocodeHome}
+                style={{ padding: "8px 12px", borderRadius: 8, background: "#22c55e", color: "#111", fontWeight: 700 }}
+              >
+                Set
+              </button>
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 6 }}>
+              {home ? `Home: ${fmtLatLng([home[0], home[1]])}` : "No Home set."}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>Stops (click map points to add)</div>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+              {stops.map((s, i) => (
+                <li
+                  key={`${s.coord[0]},${s.coord[1]}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    padding: "6px 8px",
+                    borderRadius: 8,
+                    background: "#0b1322",
+                    border: "1px solid #24324a",
+                  }}
+                >
+                  <div style={{ fontSize: 12 }}>
+                    <b>{i + 1}.</b>{" "}
+                    {s.title || (
+                      <span style={{ opacity: 0.75 }}>{fmtLatLng([s.coord[0], s.coord[1]])}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => removeStop(i)}
+                    style={{ padding: "4px 8px", borderRadius: 6, background: "#ef4444", color: "#fff" }}
+                    title="Remove"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+              {stops.length === 0 && (
+                <li style={{ fontSize: 12, opacity: 0.7 }}>No stops yet. Click a dot/logo on the map.</li>
+              )}
+            </ul>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+            <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="checkbox" checked={roundtrip} onChange={(e) => setRoundtrip(e.target.checked)} />
+              Roundtrip
+            </label>
+            <button
+              onClick={optimizeTrip}
+              disabled={optimizing || !home || stops.length === 0}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                background: optimizing ? "#64748b" : "#0ea5e9",
+                color: "#fff",
+                fontWeight: 700,
+              }}
+              title={!home ? "Set Home first" : stops.length === 0 ? "Add at least one stop" : "Optimize"}
+            >
+              {optimizing ? "Optimizing…" : "Optimize Trip"}
+            </button>
+            <button
+              onClick={clearTrip}
+              style={{ padding: "8px 12px", borderRadius: 8, background: "#334155", color: "#e5e5e5", fontWeight: 600 }}
+            >
+              Clear Trip
+            </button>
+          </div>
+
+          {optError && (
+            <div style={{ color: "#fca5a5", fontSize: 12, marginTop: 8 }}>
+              {optError}
+            </div>
+          )}
+
+          {legs.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Optimized legs</div>
+              <ol style={{ paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                {legs.map((leg, i) => (
+                  <li key={i} style={{ fontSize: 12 }}>
+                    <span style={{ opacity: 0.85 }}>Leg {i + 1}</span>{" "}
+                    <a href={googleLeg(leg.from, leg.to)} target="_blank" rel="noreferrer">
+                      Google
+                    </a>{" "}
+                    •{" "}
+                    <a href={appleLeg(leg.from, leg.to)} target="_blank" rel="noreferrer">
+                      Apple
+                    </a>{" "}
+                    •{" "}
+                    <a href={wazeLeg(leg.from, leg.to)} target="_blank" rel="noreferrer">
+                      Waze
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </section>
       </aside>
 
       {/* RIGHT: MAP */}
@@ -287,6 +571,12 @@ export default function Page() {
           markerStyle={markerStyle}
           data={fc}
           bbox={bbox}
+          /* trip planner props */
+          home={home}
+          stops={stops}
+          routeGeoJSON={routeGeoJSON}
+          onMapDblClick={handleMapDblClick}
+          onPointClick={handlePointClick}
         />
       </main>
     </div>
