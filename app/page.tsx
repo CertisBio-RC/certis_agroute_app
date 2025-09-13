@@ -1,18 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Map from "@/components/Map";
+import { useEffect, useMemo, useRef } from "react";
+import mapboxgl, { Map as MbMap } from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 
-/* ---------- ENV HELPERS ---------- */
-const BASE_PATH =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_BASE_PATH) || "";
-const MAPBOX_TOKEN =
-  (typeof process !== "undefined" &&
-    (process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
-      process.env.MAPBOX_PUBLIC_TOKEN)) ||
-  "";
-
-/* ---------- TYPES ---------- */
 type Feature = {
   type: "Feature";
   geometry: { type: string; coordinates?: [number, number] } | null;
@@ -20,725 +11,469 @@ type Feature = {
 };
 type FC = { type: "FeatureCollection"; features: Feature[] };
 
-type Stop = { coord: [number, number]; title: string };
+type Stop = { coord: [number, number]; title?: string };
 
-/* ---------- UTILS ---------- */
-const SKEYS = ["state", "State", "STATE"];
-const RKEYS = ["retailer", "Retailer", "RETAILER"];
-const CKEYS = ["category", "Category", "CATEGORY"];
-const gp = (obj: any, keys: string[]) => {
-  for (const k of keys) if (obj && obj[k] != null) return obj[k];
-  return undefined;
+type MapProps = {
+  basePath: string;            // "/certis_agroute_app" or ""
+  token?: string;              // NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN (optional)
+  basemap: "hybrid" | "streets";
+  markerStyle: "dots" | "logos";
+  data: FC;
+  bbox: [number, number, number, number] | null;
+  home: [number, number] | null;
+  stops: Stop[];
+  routeGeoJSON: any | null;
+  onMapDblClick?: (lnglat: [number, number]) => void;
+  onPointClick?: (lnglat: [number, number], title: string) => void;
 };
+
 const isLngLat = (c: any): c is [number, number] =>
-  Array.isArray(c) &&
-  c.length === 2 &&
-  Number.isFinite(c[0]) &&
-  Number.isFinite(c[1]) &&
-  c[0] >= -180 &&
-  c[0] <= 180 &&
-  c[1] >= -90 &&
-  c[1] <= 90;
+  Array.isArray(c) && c.length === 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]);
 
-const fmtLatLng = ([lng, lat]: [number, number]) =>
-  `${lat.toFixed(6)},${lng.toFixed(6)}`;
+const RETAILER_KEYS = ["__retailerName", "Retailer", "retailer", "RETAILER"];
+const NAME_KEYS     = ["Name", "name", "NAME"];
+const CAT_KEYS      = ["Category", "category", "CATEGORY"];
+const STATE_KEYS    = ["State", "state", "STATE"];
+const ADDR_KEYS     = ["Address", "address", "ADDRESS"];
+const CITY_KEYS     = ["City", "city", "CITY"];
+const ZIP_KEYS      = ["Zip", "zip", "ZIP"];
 
-/* ---------- SMALL UI HELPERS ---------- */
-function Pill({ children }: { children: any }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "2px 8px",
-        borderRadius: 999,
-        background: "#0b1322",
-        border: "1px solid #24324a",
-        fontSize: 11,
-      }}
-    >
-      {children}
-    </span>
-  );
+const gp = (obj: any, keys: string[], fallback = ""): string => {
+  for (const k of keys) if (obj && obj[k] != null) return String(obj[k]);
+  return fallback;
+};
+
+const CAT_COLOR: Record<string, string> = {
+  Kingpin:         "#ff2d55",
+  Agronomy:        "#22c55e",
+  "Office/Service":"#f59e0b",
+  Specialty:       "#a855f7",
+  Warehouse:       "#06b6d4",
+};
+
+function retailerNameToCandidates(r: string): string[] {
+  const raw = r.trim();
+  const collapsed = raw.replace(/\s+/g, " ");
+  const noSpaces = collapsed.replace(/\s+/g, "");
+  const safe = collapsed.replace(/[^\w\- ]+/g, "");
+  const dashed = collapsed.replace(/\s+/g, "-");
+  const withLogo = `${collapsed} Logo`;
+  return [...new Set([collapsed, withLogo, safe, dashed, noSpaces].filter(Boolean))];
 }
 
-function MultiSelect({
-  label,
-  options,
-  selected,
-  setSelected,
-  maxHeight = 160,
-  columns = 1,
-}: {
-  label: string;
-  options: string[];
-  selected: Set<string>;
-  setSelected: (s: Set<string>) => void;
-  maxHeight?: number;
-  columns?: number;
-}) {
-  const toggle = (v: string) => {
-    const n = new Set(selected);
-    if (n.has(v)) n.delete(v);
-    else n.add(v);
-    setSelected(n);
-  };
-  const all = () => setSelected(new Set(options));
-  const none = () => setSelected(new Set());
+async function fetchScaledBitmap(url: string, maxPx = 64): Promise<ImageBitmap> {
+  const r = await fetch(url, { cache: "force-cache" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const blob = await r.blob();
+  const bmp = await createImageBitmap(blob);
 
-  return (
-    <div
-      style={{
-        background: "#111827",
-        border: "1px solid #334155",
-        borderRadius: 14,
-        padding: 12,
-        marginBottom: 14,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 8,
-          marginBottom: 8,
-        }}
-      >
-        <h2 style={{ fontSize: 13, fontWeight: 700 }}>{label}</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Pill>
-            {selected.size === 0
-              ? "All"
-              : `${selected.size} of ${options.length}`}
-          </Pill>
-          <button
-            onClick={all}
-            style={{
-              padding: "6px 8px",
-              borderRadius: 8,
-              background: "#0ea5e9",
-              color: "#fff",
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-            title="Select all"
-          >
-            All
-          </button>
-          <button
-            onClick={none}
-            style={{
-              padding: "6px 8px",
-              borderRadius: 8,
-              background: "#334155",
-              color: "#e5e5e5",
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-            title="Clear"
-          >
-            None
-          </button>
-        </div>
-      </div>
+  const k = Math.min(maxPx / bmp.width, maxPx / bmp.height, 1);
+  const w = Math.max(1, Math.round(bmp.width * k));
+  const h = Math.max(1, Math.round(bmp.height * k));
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${columns}, 1fr)`,
-          gap: 6,
-          maxHeight,
-          overflow: "auto",
-          paddingRight: 4,
-        }}
-      >
-        {options.map((opt) => {
-          const id = `${label}-${opt}`.replace(/\s+/g, "-");
-          const checked = selected.size === 0 ? false : selected.has(opt);
-          return (
-            <label
-              key={opt}
-              htmlFor={id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 8px",
-                borderRadius: 8,
-                background: checked ? "#0b1322" : "transparent",
-                border: checked ? "1px solid #24324a" : "1px solid transparent",
-                cursor: "pointer",
-                fontSize: 12,
-              }}
-            >
-              <input
-                id={id}
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggle(opt)}
-              />
-              <span>{opt}</span>
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
+  if (typeof OffscreenCanvas !== "undefined") {
+    const oc = new OffscreenCanvas(maxPx, maxPx);
+    const ctx = oc.getContext("2d")!;
+    ctx.clearRect(0, 0, maxPx, maxPx);
+    ctx.drawImage(bmp, Math.floor((maxPx - w) / 2), Math.floor((maxPx - h) / 2), w, h);
+    // @ts-ignore
+    return oc.transferToImageBitmap ? oc.transferToImageBitmap() : await createImageBitmap(oc as any);
+  } else {
+    const c = document.createElement("canvas");
+    c.width = maxPx; c.height = maxPx;
+    const ctx = c.getContext("2d")!;
+    ctx.clearRect(0, 0, maxPx, maxPx);
+    ctx.drawImage(bmp, Math.floor((maxPx - w) / 2), Math.floor((maxPx - h) / 2), w, h);
+    return await createImageBitmap(c);
+  }
 }
 
-/* ---------- PAGE ---------- */
-export default function Page() {
-  /* Multi-select filters: empty = All */
-  const [selStates, setSelStates] = useState<Set<string>>(new Set());
-  const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
-  const [selCategories, setSelCategories] = useState<Set<string>>(new Set());
+function makeDot(color: string): ImageData {
+  const size = 24;
+  let ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
+  let canvas: any;
+  if (typeof OffscreenCanvas !== "undefined") {
+    canvas = new OffscreenCanvas(size, size);
+    ctx = canvas.getContext("2d");
+  } else {
+    canvas = document.createElement("canvas");
+    canvas.width = size; canvas.height = size;
+    ctx = canvas.getContext("2d");
+  }
+  if (!ctx) return new ImageData(1, 1);
+  ctx.clearRect(0, 0, size, size);
+  // @ts-ignore
+  ctx.beginPath(); ctx.arc(size/2, size/2, size/2-1, 0, Math.PI*2);
+  // @ts-ignore
+  ctx.fillStyle = color; ctx.fill();
+  // @ts-ignore
+  return ctx.getImageData(0, 0, size, size);
+}
 
-  /* Map options */
-  const [basemap, setBasemap] = useState<"hybrid" | "streets">("hybrid");
-  const [markerStyle, setMarkerStyle] = useState<"dots" | "logos">("dots");
+export default function Map({
+  basePath,
+  token,
+  basemap,
+  markerStyle,
+  data,
+  bbox,
+  home,
+  stops,
+  routeGeoJSON,
+  onMapDblClick,
+  onPointClick,
+}: MapProps) {
+  const mapRef = useRef<MbMap | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const loadedLogos = useRef<Set<string>>(new Set());
 
-  /* Data */
-  const [raw, setRaw] = useState<FC | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  /* Trip planner state */
-  const [home, setHome] = useState<[number, number] | null>(null); // [lng,lat]
-  const [homeQuery, setHomeQuery] = useState("");
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [routeGeoJSON, setRouteGeoJSON] = useState<any | null>(null);
-  const [legs, setLegs] = useState<Array<{ from: [number, number]; to: [number, number] }>>([]);
-  const [roundtrip, setRoundtrip] = useState(true);
-  const [optimizing, setOptimizing] = useState(false);
-  const [optError, setOptError] = useState<string | null>(null);
-
-  /* Load retailers */
-  const dataUrl = useMemo(() => {
-    const v = `v=${Date.now()}`;
-    const u = `${BASE_PATH}/data/retailers.geojson`;
-    return u.includes("?") ? `${u}&${v}` : `${u}?${v}`;
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoadError(null);
-    fetch(dataUrl)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`retailers fetch failed: ${r.status}`);
-        const j = (await r.json()) as FC;
-        if (!cancelled) setRaw(j);
-      })
-      .catch((e) => !cancelled && setLoadError(String(e?.message || e)));
-    return () => {
-      cancelled = true;
-    };
-  }, [dataUrl]);
-
-  /* Build option lists (from raw, unfiltered) */
-  const optionLists = useMemo(() => {
-    const S = new Set<string>(),
-      R = new Set<string>(),
-      C = new Set<string>();
-    for (const f of raw?.features ?? []) {
-      const st = String(gp(f.properties, SKEYS) ?? "").trim();
-      const rt = String(gp(f.properties, RKEYS) ?? "").trim();
-      const ct = String(gp(f.properties, CKEYS) ?? "").trim();
-      if (st) S.add(st);
-      if (rt) R.add(rt);
-      if (ct) C.add(ct);
+  const retailersInData = useMemo(() => {
+    const s = new Set<string>();
+    for (const f of data.features) {
+      const r = gp(f.properties, RETAILER_KEYS).trim();
+      if (r) s.add(r);
     }
-    const sort = (s: Set<string>) =>
-      Array.from(s).sort((a, b) => a.localeCompare(b));
-    return {
-      states: sort(S),
-      retailers: sort(R),
-      categories: sort(C),
-    };
-  }, [raw]);
+    return [...s];
+  }, [data]);
 
-  /* Apply filters */
-  const { fc, bbox, shown, skipped } = useMemo(() => {
-    const out: FC = { type: "FeatureCollection", features: [] };
-    const bb = { minX: 180, minY: 90, maxX: -180, maxY: -90 };
-    let shown = 0,
-      skipped = 0;
+  // init
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
 
-    for (const f of raw?.features ?? []) {
-      const st = String(gp(f.properties, SKEYS) ?? "").trim();
-      const rt = String(gp(f.properties, RKEYS) ?? "").trim();
-      const ct = String(gp(f.properties, CKEYS) ?? "").trim();
+    if (token) mapboxgl.accessToken = token;
 
-      const inStates = selStates.size === 0 || selStates.has(st);
-      const inRetailers = selRetailers.size === 0 || selRetailers.has(rt);
-      const inCats = selCategories.size === 0 || selCategories.has(ct);
-      if (!(inStates && inRetailers && inCats)) continue;
+    const m = new mapboxgl.Map({
+      container: containerRef.current,
+      style: token
+        ? (basemap === "hybrid"
+            ? "mapbox://styles/mapbox/satellite-streets-v12"
+            : "mapbox://styles/mapbox/streets-v12")
+        : {
+            version: 8,
+            sources: {
+              "osm-tiles": {
+                type: "raster",
+                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+                tileSize: 256,
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              }
+            },
+            layers: [{ id: "osm-tiles", type: "raster", source: "osm-tiles" }],
+          } as any,
+      center: [-97.2, 40.8],
+      zoom: 4,
+      cooperativeGestures: true,
+      attributionControl: true,
+      pitchWithRotate: false,
+      dragRotate: false,
+    });
 
-      const c = f.geometry?.coordinates;
-      if (!isLngLat(c)) {
-        skipped++;
-        continue;
+    if (token) {
+      try { m.addControl(new (mapboxgl as any).ProjectionControl({ default: "mercator" }), "top-right"); } catch {}
+    }
+    m.doubleClickZoom.disable();
+
+    m.on("load", () => {
+      // MAIN clustered source for “regular” points (NOT kingpins)
+      if (!m.getSource("retailers")) {
+        m.addSource("retailers", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+          cluster: true,
+          clusterMaxZoom: 7,    // fade out clusters sooner
+          clusterRadius: 50,
+        });
       }
-      out.features.push({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: c },
-        properties: { ...f.properties, __retailerName: rt || "Unknown" },
+
+      // A separate NON-clustered source ONLY for kingpins (so they’re always visible)
+      if (!m.getSource("kingpins")) {
+        m.addSource("kingpins", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+      }
+
+      // clusters (visible only up to zoom 7)
+      if (!m.getLayer("clusters")) {
+        m.addLayer({
+          id: "clusters",
+          type: "circle",
+          source: "retailers",
+          filter: ["all", ["has", "point_count"], ["<=", ["zoom"], 7]],
+          paint: {
+            "circle-color": [
+              "step",
+              ["get", "point_count"],
+              "#60a5fa", 10, "#3b82f6", 30, "#1d4ed8",
+            ],
+            "circle-radius": [
+              "step",
+              ["get", "point_count"],
+              16, 10, 22, 30, 28,
+            ],
+            "circle-stroke-color": "#0f172a",
+            "circle-stroke-width": 1.5,
+          },
+        });
+      }
+      if (!m.getLayer("cluster-count")) {
+        m.addLayer({
+          id: "cluster-count",
+          type: "symbol",
+          source: "retailers",
+          filter: ["all", ["has", "point_count"], ["<=", ["zoom"], 7]],
+          layout: {
+            "text-field": ["get", "point_count_abbreviated"],
+            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+            "text-size": 12,
+          },
+          paint: { "text-color": "#ffffff" },
+        });
+      }
+
+      // non-kingpin unclustered dots
+      if (!m.getLayer("unclustered")) {
+        m.addLayer({
+          id: "unclustered",
+          type: "circle",
+          source: "retailers",
+          filter: ["all", ["!", ["has", "point_count"]]],
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4, 10, 6, 14, 8],
+            "circle-stroke-width": 1,
+            "circle-stroke-color": "#0f172a",
+            "circle-color": [
+              "match",
+              ["get", "Category"],
+              "Agronomy",        CAT_COLOR["Agronomy"],
+              "Office/Service",  CAT_COLOR["Office/Service"],
+              "Specialty",       CAT_COLOR["Specialty"],
+              "Warehouse",       CAT_COLOR["Warehouse"],
+              /* default */       "#3b82f6"
+            ],
+          },
+        }, "clusters");
+      }
+
+      // kingpins: ring/halo + solid circle — non-clustered and ALWAYS visible
+      if (!m.getLayer("kingpin-ring")) {
+        m.addLayer({
+          id: "kingpin-ring",
+          type: "circle",
+          source: "kingpins",
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 7, 10, 11, 14, 14],
+            "circle-color": "rgba(255,45,85,0.22)",
+            "circle-stroke-color": "#ff2d55",
+            "circle-stroke-width": 2,
+          },
+        });
+      }
+      if (!m.getLayer("kingpin-points")) {
+        m.addLayer({
+          id: "kingpin-points",
+          type: "circle",
+          source: "kingpins",
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 6.5, 10, 10, 14, 14],
+            "circle-color": CAT_COLOR["Kingpin"],
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 2,
+          },
+        });
+      }
+
+      // logos (non-kingpin) — optional view
+      if (!m.getLayer("retailer-logos")) {
+        m.addLayer({
+          id: "retailer-logos",
+          type: "symbol",
+          source: "retailers",
+          filter: ["!", ["has", "point_count"]],
+          layout: {
+            "icon-image": ["get", "__iconId"],
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 4, 0.35, 10, 0.45, 14, 0.55],
+            "icon-allow-overlap": true,
+            "icon-optional": true,
+          },
+          paint: {
+            "icon-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.95, 16, 0.85, 19, 0.70],
+          },
+        });
+        try { m.moveLayer("kingpin-points"); } catch {}
+      }
+
+      // trip overlays
+      if (!m.getSource("home-pt")) {
+        m.addSource("home-pt", { type: "geojson", data: { type: "FeatureCollection", features: [] }});
+      }
+      if (!m.getLayer("home-pt")) {
+        m.addLayer({
+          id: "home-pt", type: "circle", source: "home-pt",
+          paint: { "circle-radius": 7, "circle-color": "#22c55e", "circle-stroke-color": "#052e16", "circle-stroke-width": 2 }
+        });
+      }
+
+      if (!m.getSource("stops-pt")) {
+        m.addSource("stops-pt", { type: "geojson", data: { type: "FeatureCollection", features: [] }});
+      }
+      if (!m.getLayer("stops-pt")) {
+        m.addLayer({
+          id: "stops-pt", type: "circle", source: "stops-pt",
+          paint: { "circle-radius": 6, "circle-color": "#eab308", "circle-stroke-color": "#713f12", "circle-stroke-width": 2 }
+        });
+      }
+
+      if (!m.getSource("route")) {
+        m.addSource("route", { type: "geojson", data: { type: "FeatureCollection", features: [] }});
+      }
+      if (!m.getLayer("route")) {
+        m.addLayer({
+          id: "route", type: "line", source: "route",
+          paint: { "line-color": "#22c55e", "line-width": 4, "line-opacity": 0.9 }
+        });
+      }
+
+      // robust hover & click
+      const hitLayers = ["unclustered", "retailer-logos", "kingpin-points"];
+
+      const hidePopup = () => popupRef.current?.remove();
+
+      m.on("mousemove", (e) => {
+        const feats = m.queryRenderedFeatures(e.point, { layers: hitLayers });
+        if (!feats.length) {
+          m.getCanvas().style.cursor = "";
+          hidePopup();
+          return;
+        }
+        m.getCanvas().style.cursor = "pointer";
+        const f: any = feats[0];
+        const p = f.properties || {};
+        const html = `
+          <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto; font-size:12px">
+            <div style="font-weight:700; margin-bottom:4px">${gp(p, RETAILER_KEYS) || "Retailer"}</div>
+            ${gp(p, NAME_KEYS) ? `<div>${gp(p, NAME_KEYS)}</div>` : ""}
+            ${gp(p, CAT_KEYS) ? `<div><b>${gp(p, CAT_KEYS)}</b></div>` : ""}
+            ${[gp(p, ADDR_KEYS), gp(p, CITY_KEYS), gp(p, ZIP_KEYS)].filter(Boolean).join(", ")}
+          </div>`;
+        if (!popupRef.current) popupRef.current = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, offset: 10 });
+        popupRef.current.setLngLat(e.lngLat).setHTML(html).addTo(m);
       });
-      shown++;
-      if (c[0] < bb.minX) bb.minX = c[0];
-      if (c[1] < bb.minY) bb.minY = c[1];
-      if (c[0] > bb.maxX) bb.maxX = c[0];
-      if (c[1] > bb.maxY) bb.maxY = c[1];
-    }
 
-    const bbox =
-      out.features.length > 0 ? ([bb.minX, bb.minY, bb.maxX, bb.maxY] as [number, number, number, number]) : null;
-
-    return { fc: out, bbox, shown, skipped };
-  }, [raw, selStates, selRetailers, selCategories]);
-
-  /* Persist/restore trip state */
-  useEffect(() => {
-    try {
-      const j = localStorage.getItem("certis_trip_v1");
-      if (!j) return;
-      const p = JSON.parse(j);
-      if (Array.isArray(p?.stops)) setStops(p.stops);
-      if (Array.isArray(p?.home) && p.home.length === 2) setHome(p.home);
-      if (typeof p?.roundtrip === "boolean") setRoundtrip(p.roundtrip);
-    } catch {}
-  }, []);
-  useEffect(() => {
-    try {
-      localStorage.setItem("certis_trip_v1", JSON.stringify({ home, stops, roundtrip }));
-    } catch {}
-  }, [home, stops, roundtrip]);
-
-  /* Map event callbacks */
-  const handleMapDblClick = useCallback((lnglat: [number, number]) => {
-    setHome(lnglat);
-  }, []);
-  const handlePointClick = useCallback((lnglat: [number, number], title: string) => {
-    setStops((s) => (s.find((t) => t.coord[0] === lnglat[0] && t.coord[1] === lnglat[1]) ? s : [...s, { coord: lnglat, title }]));
-  }, []);
-
-  /* Geocode "Home" from text */
-  const geocodeHome = async () => {
-    if (!homeQuery.trim()) return;
-    if (!MAPBOX_TOKEN) {
-      alert("Mapbox token missing. Add NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN.");
-      return;
-    }
-    try {
-      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-        homeQuery.trim()
-      )}.json?limit=1&access_token=${MAPBOX_TOKEN}`;
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`geocode failed: ${r.status}`);
-      const j = await r.json();
-      const f = j?.features?.[0];
-      if (f?.center && Array.isArray(f.center) && f.center.length === 2) {
-        setHome([f.center[0], f.center[1]]);
-      } else {
-        alert("Could not geocode that address.");
-      }
-    } catch (e: any) {
-      alert(`Geocoding error: ${e?.message || e}`);
-    }
-  };
-
-  /* Optimize trip (correct v1 endpoint; 12-point limit) */
-  const optimizeTrip = async () => {
-    setOptError(null);
-    setRouteGeoJSON(null);
-    setLegs([]);
-
-    if (!MAPBOX_TOKEN) {
-      setOptError("Mapbox token missing; set NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN.");
-      return;
-    }
-    if (!home) {
-      setOptError("Set Home (address/ZIP or double-click the map).");
-      return;
-    }
-    if (stops.length === 0) {
-      setOptError("Add at least one stop (click a point).");
-      return;
-    }
-
-    // Mapbox standard plan supports up to 12 coordinates (home + 11 stops)
-    const coords: [number, number][] = [home, ...stops.map((s) => s.coord)];
-    if (coords.length > 12) {
-      setOptError(
-        `Too many points: ${coords.length}. Limit is 12 (Home + 11 stops). Remove a few stops and try again.`
-      );
-      return;
-    }
-
-    try {
-      setOptimizing(true);
-
-      const coordStr = coords.map(([lng, lat]) => `${lng},${lat}`).join(";");
-      const params = new URLSearchParams({
-        access_token: MAPBOX_TOKEN,
-        geometries: "geojson",
-        overview: "full",
-        roundtrip: String(roundtrip),
-        steps: "false",
+      m.on("click", (e) => {
+        const feats = m.queryRenderedFeatures(e.point, { layers: hitLayers });
+        if (!feats.length) return;
+        hidePopup();
+        const f: any = feats[0];
+        const c: any = f?.geometry?.coordinates;
+        if (isLngLat(c)) {
+          const title = gp(f.properties || {}, NAME_KEYS) || gp(f.properties || {}, RETAILER_KEYS);
+          onPointClick?.([c[0], c[1]], title);
+        }
       });
-      params.set("source", "first");
-      if (!roundtrip) params.set("destination", "last");
 
-      const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordStr}?${params.toString()}`;
+      m.on("click", "clusters", (e) => {
+        const features = m.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+        const clusterId = features[0].properties?.cluster_id;
+        const source: any = m.getSource("retailers");
+        source.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
+          if (err) return;
+          m.easeTo({ center: (features[0].geometry as any).coordinates, zoom });
+        });
+      });
 
-      const r = await fetch(url);
-      const rawText = await r.text();
-      let j: any;
-      try {
-        j = JSON.parse(rawText);
-      } catch {
-        if (!r.ok) throw new Error(`Mapbox error ${r.status}: ${rawText}`);
-        throw new Error("Unexpected response from Mapbox.");
-      }
+      m.on("dblclick", (e) => onMapDblClick?.([e.lngLat.lng, e.lngLat.lat]));
 
-      if (!r.ok || (j.code && j.code !== "Ok")) {
-        const msg = j.message || j.error || j.code || `HTTP ${r.status}`;
-        throw new Error(String(msg));
-      }
+      mapRef.current = m;
+    });
 
-      const trip = j?.trips?.[0];
-      if (!trip?.geometry) throw new Error("No trip found.");
+    return () => { mapRef.current?.remove(); mapRef.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-      let order: number[] | null = Array.isArray(trip.waypoint_order) ? trip.waypoint_order : null;
-      if (!order && Array.isArray(j.waypoints)) {
-        order = j.waypoints.map((w: any) => w.waypoint_index);
-      }
-      if (!order || order.length !== coords.length) {
-        order = coords.map((_c, i) => i);
-      }
+  // switch dots vs logos; kingpins unaffected (always visible)
+  useEffect(() => {
+    const m = mapRef.current; if (!m) return;
+    const setVis = (id: string, v: "visible" | "none") => { if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", v); };
+    const dotsOn = markerStyle === "dots";
+    setVis("unclustered",    dotsOn ? "visible" : "none");
+    setVis("retailer-logos", dotsOn ? "none"    : "visible");
+    setVis("kingpin-ring",   "visible");
+    setVis("kingpin-points", "visible");
+  }, [markerStyle]);
 
-      const orderedCoords: [number, number][] = order.map((i: number) => coords[i]);
-      if (roundtrip && orderedCoords.length > 1) {
-        orderedCoords.push(orderedCoords[0]);
-      }
+  // feed data + preload logos + separate kingpins source; fit bounds
+  useEffect(() => {
+    const m = mapRef.current; if (!m) return;
+    const src = m.getSource("retailers") as mapboxgl.GeoJSONSource; if (!src) return;
+    const kingSrc = m.getSource("kingpins") as mapboxgl.GeoJSONSource;
 
-      const legPairs: Array<{ from: [number, number]; to: [number, number] }> = [];
-      for (let i = 0; i < orderedCoords.length - 1; i++) {
-        legPairs.push({ from: orderedCoords[i], to: orderedCoords[i + 1] });
-      }
+    const nonKing: Feature[] = [];
+    const king: Feature[] = [];
 
-      setRouteGeoJSON({ type: "Feature", geometry: trip.geometry, properties: {} });
-      setLegs(legPairs);
-    } catch (e: any) {
-      setOptError(String(e?.message || e));
-    } finally {
-      setOptimizing(false);
+    for (const f of data.features) {
+      const cat = gp(f.properties, CAT_KEYS);
+      const r = gp(f.properties, RETAILER_KEYS).trim();
+      const iconId = r ? `logo-${r.toLowerCase().replace(/\s+/g, "_")}` : "";
+      const ff: Feature = { type: "Feature", geometry: f.geometry, properties: { ...f.properties, __iconId: iconId } };
+      if (cat === "Kingpin") king.push(ff); else nonKing.push(ff);
     }
-  };
 
-  const clearTrip = () => {
-    setStops([]);
-    setRouteGeoJSON(null);
-    setLegs([]);
-  };
-  const removeStop = (i: number) => {
-    setStops((s) => s.filter((_, idx) => idx !== i));
-  };
+    src.setData({ type: "FeatureCollection", features: nonKing } as any);
+    kingSrc?.setData({ type: "FeatureCollection", features: king } as any);
 
-  /* Link builders (per leg) */
-  const googleLeg = (from: [number, number], to: [number, number]) =>
-    `https://www.google.com/maps/dir/?api=1&origin=${fmtLatLng(from)}&destination=${fmtLatLng(
-      to
-    )}&travelmode=driving`;
-  const appleLeg = (from: [number, number], to: [number, number]) =>
-    `https://maps.apple.com/?saddr=${fmtLatLng(from)}&daddr=${fmtLatLng(to)}&dirflg=d`;
-  const wazeLeg = (_from: [number, number], to: [number, number]) =>
-    `https://waze.com/ul?ll=${fmtLatLng(to)}&navigate=yes`;
+    if (bbox && isFinite(bbox[0])) {
+      try { m.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 60, duration: 600 }); } catch {}
+    }
 
-  /* ---------- RENDER ---------- */
-  return (
-    <div
-      style={{
-        height: "100dvh",
-        display: "grid",
-        gridTemplateColumns: "420px 1fr",
-        background: "#0a0a0a",
-        color: "#e5e5e5",
-      }}
-    >
-      {/* LEFT SIDEBAR */}
-      <aside
-        style={{
-          height: "100%",
-          overflow: "auto",
-          borderRight: "1px solid #262626",
-          padding: 16,
-        }}
-      >
-        {/* Header + logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`${BASE_PATH}/certis-logo.png?v=12`}
-            alt="Certis"
-            width={148}
-            height={34}
-            style={{ width: 148, height: "auto", display: "block" }}
-          />
-          <a href={`${BASE_PATH}/`} style={{ fontSize: 12, opacity: 0.8 }}>
-            Home
-          </a>
-        </div>
+    (async () => {
+      for (const r of retailersInData) {
+        const id = `logo-${r.toLowerCase().replace(/\s+/g, "_")}`;
+        if (loadedLogos.current.has(id)) continue;
 
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Certis AgRoute Planner</h1>
-        <p style={{ fontSize: 12, opacity: 0.75, marginBottom: 14 }}>
-          Filter retailers and plan optimized trips. Double-click map to set <b>Home</b>. Click a point to <b>add
-          stop</b>.
-        </p>
+        const bases = retailerNameToCandidates(r);
+        const candidates: string[] = [];
+        for (const b of bases) {
+          const enc = encodeURIComponent(b);
+          candidates.push(`${basePath}/icons/${enc}.png`, `${basePath}/icons/${enc}.jpg`, `${basePath}/icons/${enc}.jpeg`);
+          candidates.push(`${basePath}/icons/${b}.png`,   `${basePath}/icons/${b}.jpg`,   `${basePath}/icons/${b}.jpeg`);
+        }
+        let added = false;
+        for (const url of candidates) {
+          try {
+            const scaled = await fetchScaledBitmap(url, 64);
+            if (!m.hasImage(id)) m.addImage(id, scaled, { pixelRatio: 1 });
+            loadedLogos.current.add(id); added = true; break;
+          } catch {}
+        }
+        if (!added && !m.hasImage(id)) {
+          m.addImage(id, makeDot("#3b82f6")); loadedLogos.current.add(id);
+        }
+      }
+    })();
+  }, [data, bbox, retailersInData, basePath]);
 
-        {/* MULTI-SELECT FILTERS */}
-        <MultiSelect
-          label="States"
-          options={optionLists.states}
-          selected={selStates}
-          setSelected={setSelStates}
-          columns={2}
-          maxHeight={140}
-        />
-        <MultiSelect
-          label="Retailers"
-          options={optionLists.retailers}
-          selected={selRetailers}
-          setSelected={setSelRetailers}
-          columns={1}
-          maxHeight={200}
-        />
-        <MultiSelect
-          label="Categories"
-          options={optionLists.categories}
-          selected={selCategories}
-          setSelected={setSelCategories}
-          columns={1}
-          maxHeight={120}
-        />
+  // overlays
+  useEffect(() => {
+    const m = mapRef.current; if (!m) return;
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-          <button
-            style={{ padding: "8px 12px", borderRadius: 8, background: "#0ea5e9", color: "#fff", fontWeight: 600 }}
-            onClick={() => {
-              setSelStates(new Set());
-              setSelRetailers(new Set());
-              setSelCategories(new Set());
-            }}
-          >
-            Clear Filters
-          </button>
-          <span style={{ fontSize: 12, opacity: 0.8 }}>
-            {shown} shown{skipped ? ` (${skipped} skipped: invalid geometry)` : ""}
-          </span>
-        </div>
+    const homeSrc = m.getSource("home-pt")  as mapboxgl.GeoJSONSource;
+    const stopsSrc = m.getSource("stops-pt") as mapboxgl.GeoJSONSource;
+    const routeSrc = m.getSource("route")    as mapboxgl.GeoJSONSource;
 
-        {/* Map options */}
-        <section
-          style={{
-            background: "#111827",
-            border: "1px solid #334155",
-            borderRadius: 14,
-            padding: 12,
-            marginBottom: 14,
-          }}
-        >
-          <h2 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Map Options</h2>
+    homeSrc?.setData({
+      type: "FeatureCollection",
+      features: home ? [{ type: "Feature", geometry: { type: "Point", coordinates: home }, properties: {} }] : [],
+    } as any);
 
-          <label style={{ fontSize: 12, opacity: 0.8 }}>Basemap</label>
-          <select
-            style={{ width: "100%", marginTop: 4, marginBottom: 8, background: "#0a0a0a", padding: 8, borderRadius: 8 }}
-            value={basemap}
-            onChange={(e) => setBasemap(e.target.value as any)}
-            disabled={!MAPBOX_TOKEN}
-            title={MAPBOX_TOKEN ? "" : "Mapbox token missing — using OSM fallback"}
-          >
-            <option value="hybrid">Hybrid</option>
-            <option value="streets">Streets</option>
-          </select>
+    stopsSrc?.setData({
+      type: "FeatureCollection",
+      features: (stops || []).map(s => ({ type: "Feature", geometry: { type: "Point", coordinates: s.coord }, properties: {} })),
+    } as any);
 
-          <label style={{ fontSize: 12, opacity: 0.8 }}>Markers</label>
-          <select
-            style={{ width: "100%", marginTop: 4, background: "#0a0a0a", padding: 8, borderRadius: 8 }}
-            value={markerStyle}
-            onChange={(e) => setMarkerStyle(e.target.value as any)}
-          >
-            <option value="dots">Colored dots</option>
-            <option value="logos">Retailer logos</option>
-          </select>
+    routeSrc?.setData(routeGeoJSON || { type: "FeatureCollection", features: [] });
+  }, [home, stops, routeGeoJSON]);
 
-          <p style={{ fontSize: 11, opacity: 0.7, marginTop: 10 }}>
-            Token detected: <b>{MAPBOX_TOKEN ? "yes" : "no (OSM fallback)"}</b>
-            <br />
-            Data path: <code>{BASE_PATH}/data/retailers.geojson</code>
-            {loadError && (
-              <>
-                <br />
-                <span style={{ color: "#fca5a5" }}>Error: {loadError}</span>
-              </>
-            )}
-          </p>
-        </section>
-
-        {/* Trip Planner */}
-        <section
-          style={{
-            background: "#111827",
-            border: "1px solid #334155",
-            borderRadius: 14,
-            padding: 12,
-          }}
-        >
-          <h2 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Trip Planner</h2>
-
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>
-              Home (address or double-click map)
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                placeholder="ZIP or address (e.g., 50638)"
-                value={homeQuery}
-                onChange={(e) => setHomeQuery(e.target.value)}
-                style={{
-                  flex: 1,
-                  background: "#0a0a0a",
-                  color: "#e5e5e5",
-                  padding: 8,
-                  borderRadius: 8,
-                  border: "1px solid #334155",
-                }}
-              />
-              <button
-                onClick={geocodeHome}
-                style={{ padding: "8px 12px", borderRadius: 8, background: "#22c55e", color: "#111", fontWeight: 700 }}
-              >
-                Set
-              </button>
-            </div>
-            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 6 }}>
-              {home ? `Home: ${fmtLatLng([home[0], home[1]])}` : "No Home set."}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>Stops (click map points to add)</div>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-              {stops.map((s, i) => (
-                <li
-                  key={`${s.coord[0]},${s.coord[1]}`}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    padding: "6px 8px",
-                    borderRadius: 8,
-                    background: "#0b1322",
-                    border: "1px solid #24324a",
-                  }}
-                >
-                  <div style={{ fontSize: 12 }}>
-                    <b>{i + 1}.</b>{" "}
-                    {s.title || (
-                      <span style={{ opacity: 0.75 }}>{fmtLatLng([s.coord[0], s.coord[1]])}</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => removeStop(i)}
-                    style={{ padding: "4px 8px", borderRadius: 6, background: "#ef4444", color: "#fff" }}
-                    title="Remove"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-              {stops.length === 0 && (
-                <li style={{ fontSize: 12, opacity: 0.7 }}>No stops yet. Click a dot/logo on the map.</li>
-              )}
-            </ul>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
-            <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
-              <input type="checkbox" checked={roundtrip} onChange={(e) => setRoundtrip(e.target.checked)} />
-              Roundtrip
-            </label>
-            <button
-              onClick={optimizeTrip}
-              disabled={optimizing || !home || stops.length === 0}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 8,
-                background: optimizing ? "#64748b" : "#0ea5e9",
-                color: "#fff",
-                fontWeight: 700,
-              }}
-              title={!home ? "Set Home first" : stops.length === 0 ? "Add at least one stop" : "Optimize"}
-            >
-              {optimizing ? "Optimizing…" : "Optimize Trip"}
-            </button>
-            <button
-              onClick={clearTrip}
-              style={{ padding: "8px 12px", borderRadius: 8, background: "#334155", color: "#e5e5e5", fontWeight: 600 }}
-            >
-              Clear Trip
-            </button>
-          </div>
-
-          {optError && (
-            <div style={{ color: "#fca5a5", fontSize: 12, marginTop: 8 }}>
-              {optError}
-            </div>
-          )}
-
-          {legs.length > 0 && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Optimized legs</div>
-              <ol style={{ paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
-                {legs.map((leg, i) => (
-                  <li key={i} style={{ fontSize: 12 }}>
-                    <span style={{ opacity: 0.85 }}>Leg {i + 1}</span>{" "}
-                    <a href={googleLeg(leg.from, leg.to)} target="_blank" rel="noreferrer">
-                      Google
-                    </a>{" "}
-                    •{" "}
-                    <a href={appleLeg(leg.from, leg.to)} target="_blank" rel="noreferrer">
-                      Apple
-                    </a>{" "}
-                    •{" "}
-                    <a href={wazeLeg(leg.from, leg.to)} target="_blank" rel="noreferrer">
-                      Waze
-                    </a>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-        </section>
-      </aside>
-
-      {/* RIGHT: MAP */}
-      <main style={{ position: "relative" }}>
-        <Map
-          basePath={BASE_PATH}
-          token={MAPBOX_TOKEN}
-          basemap={basemap}
-          markerStyle={markerStyle}
-          data={fc}
-          bbox={bbox}
-          /* trip planner props */
-          home={home}
-          stops={stops}
-          routeGeoJSON={routeGeoJSON}
-          onMapDblClick={handleMapDblClick}
-          onPointClick={handlePointClick}
-        />
-      </main>
-    </div>
-  );
+  return <div style={{height:"100%",width:"100%"}}><div ref={containerRef} style={{height:"100%",width:"100%"}} /></div>;
 }
