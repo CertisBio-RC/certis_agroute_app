@@ -21,7 +21,7 @@ type GJFeature = {
 };
 type GJFC = { type: "FeatureCollection"; features: GJFeature[] };
 
-// Accept a readonly tuple to avoid the past TS error
+// Accept a readonly tuple to avoid TS readonly vs mutable issues
 type BBox = Readonly<[number, number, number, number]>;
 
 export type CertisMapProps = {
@@ -139,12 +139,12 @@ export default function CertisMap({
         });
       }
 
-      // Unclustered dots
+      // Unclustered dots (ALWAYS an expression; never boolean)
       map.addLayer({
         id: "unclustered-dots",
         type: "circle",
         source: "retailers",
-        filter: clustered ? ["!", ["has", "point_count"]] : true,
+        filter: clustered ? ["!", ["has", "point_count"]] : ["all"],
         paint: {
           "circle-radius": [
             "case",
