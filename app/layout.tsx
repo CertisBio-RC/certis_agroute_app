@@ -1,3 +1,6 @@
+// Import Tailwind once at the root so styles always apply
+import "./globals.css";
+
 export const metadata = {
   title: "Certis AgRoute Planner",
   description:
@@ -13,22 +16,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      {/* globals.css is imported here so Tailwind styles load */}
       <head />
       <body className="bg-[#0B0F14] text-slate-100 antialiased">
+        {/* Header */}
         <header className="sticky top-0 z-50 bg-[#0B0F14]/95 border-b border-slate-800">
           <div className="mx-auto max-w-[1800px] px-4 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              {/* Use base path so the logo resolves locally and on Pages */}
+              {/* Keep the logo sane even if Tailwind failed to load */}
               <img
                 src={`${BASE_PATH}/certis-logo.png`}
                 alt="Certis Biologicals"
                 className="h-10 w-auto select-none"
+                style={{ maxHeight: 44, height: "44px", width: "auto" }}
                 draggable={false}
               />
             </div>
 
-            {/* Right-aligned “Reset Map” as requested */}
+            {/* Right-aligned as requested */}
             <nav className="flex items-center gap-3">
               <a
                 href={`${BASE_PATH}/`}
@@ -40,10 +44,9 @@ export default function RootLayout({
           </div>
         </header>
 
+        {/* Content */}
         <main className="mx-auto max-w-[1800px] px-4 py-4">{children}</main>
       </body>
     </html>
   );
 }
-
-import "./globals.css";
