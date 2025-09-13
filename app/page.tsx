@@ -196,7 +196,7 @@ export default function Page() {
     }
   };
 
-  /* Optimize trip with Mapbox Optimization API */
+  /* Optimize trip with Mapbox Optimization API (v1) */
   const optimizeTrip = async () => {
     setOptError(null);
     setRouteGeoJSON(null);
@@ -207,7 +207,7 @@ export default function Page() {
       return;
     }
     if (!home) {
-      setOptError("Set Home (address or double-click the map).");
+      setOptError("Set Home (address/ZIP or double-click the map).");
       return;
     }
     if (stops.length === 0) {
@@ -215,35 +215,78 @@ export default function Page() {
       return;
     }
 
+    // Mapbox standard plan supports up to 12 coordinates (home + 11 stops)
+    const coords: [number, number][] = [home, ...stops.map((s) => s.coord)];
+    if (coords.length > 12) {
+      setOptError(
+        `Too many points for one optimization request: ${coords.length}. Limit is 12 (Home + 11 stops). Remove a few stops and try again.`
+      );
+      return;
+    }
+
     try {
       setOptimizing(true);
-      const coords = [home, ...stops.map((s) => s.coord)];
+
       const coordStr = coords.map(([lng, lat]) => `${lng},${lat}`).join(";");
       const params = new URLSearchParams({
         access_token: MAPBOX_TOKEN,
         geometries: "geojson",
         overview: "full",
         roundtrip: String(roundtrip),
+        steps: "false",
       });
-      // If not roundtrip, force start at Home and end at last added stop
-      if (!roundtrip) {
-        params.set("source", "first");
-        params.set("destination", "last");
+      // Always start at Home (first coord). If not roundtrip, also end at last coord.
+      params.set("source", "first");
+      if (!roundtrip) params.set("destination", "last");
+
+      const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordStr}?${params.toString()}`;
+
+      const r = await fetch(url);
+      const rawText = await r.text(); // allow detailed error body
+      let j: any;
+      try {
+        j = JSON.parse(rawText);
+      } catch {
+        if (!r.ok) throw new Error(`Mapbox error ${r.status}: ${rawText}`);
+        throw new Error("Unexpected response from Mapbox.");
       }
 
-      const url = `https://api.mapbox.com/optimized-trips/v2/driving/${coordStr}?${params.toString()}`;
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`Optimization failed: ${r.status}`);
-      const j = await r.json();
+      if (!r.ok || (j.code && j.code !== "Ok")) {
+        const msg = j.message || j.error || j.code || `HTTP ${r.status}`;
+        throw new Error(String(msg));
+      }
 
       const trip = j?.trips?.[0];
       if (!trip?.geometry) throw new Error("No trip found.");
 
-      // Build legs list (per-leg Google/Apple/Waze links use these coordinates)
-      const ordered: [number, number][] = trip?.geometry?.coordinates || [];
+      // Determine optimized order of input coordinates
+      // Prefer trip.waypoint_order; fallback to waypoints[].waypoint_index
+      let order: number[] | null = Array.isArray(trip.waypoint_order) ? trip.waypoint_order : null;
+      if (!order && Array.isArray(j.waypoints)) {
+        const arr = j.waypoints
+          .slice()
+          .sort((a: any, b: any) => (a.waypoint_index ?? 0) - (b.waypoint_index ?? 0));
+        order = arr.map((w: any) => w.trip_index != null ? w.trip_index : w.waypoint_index);
+        // If that still looks odd, map back by 'waypoint_index'
+        if (!order || order.some((x: any) => typeof x !== "number")) {
+          order = j.waypoints.map((w: any) => w.waypoint_index);
+        }
+      }
+      if (!order || !Array.isArray(order) || order.length !== coords.length) {
+        // As a final fallback, use input order (still valid if source=first)
+        order = coords.map((_c, i) => i);
+      }
+
+      const orderedCoords: [number, number][] = order.map((i: number) => coords[i]);
+      // If roundtrip, ensure last leg returns to start for external links
+      if (roundtrip && orderedCoords.length > 1) {
+        orderedCoords.push(orderedCoords[0]);
+      }
+
+      // Build leg pairs from ordered coordinates
       const legPairs: Array<{ from: [number, number]; to: [number, number] }> = [];
-      for (let i = 0; i < ordered.length - 1; i++) {
-        legPairs.push({ from: ordered[i], to: ordered[i + 1] });
+      for (let i = 0; i < orderedCoords.length - 1; i++) {
+        legPairs.push({ from: orderedCoords[i], to: orderedCoords[i + 1] });
       }
 
       setRouteGeoJSON({ type: "Feature", geometry: trip.geometry, properties: {} });
@@ -441,7 +484,7 @@ export default function Page() {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <input
-                placeholder="123 Main St, City ST"
+                placeholder="ZIP or address (e.g., 50638)"
                 value={homeQuery}
                 onChange={(e) => setHomeQuery(e.target.value)}
                 style={{
