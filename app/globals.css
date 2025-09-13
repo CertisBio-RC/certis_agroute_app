@@ -1,82 +1,172 @@
-/* app/globals.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ------- Theme ------- */
+:root {
+  --bg: #0a0c10;
+  --panel: #12151c;
+  --card: #161a22;
+  --text: #e8eaee;
+  --muted: #97a1ad;
+  --border: #2a3140;
+  --accent: #0ec5a5;
+}
 
-/* Page height safety */
-html, body, #__next {
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
   height: 100%;
 }
 
-/* App shell: 2-column grid */
-.app-shell{
-  @apply mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8;
-  display: grid;
-  grid-template-columns: 380px minmax(0,1fr);
-  gap: 1rem;
-  height: calc(100svh - 56px); /* 56px header */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+    Apple Color Emoji, Segoe UI Emoji;
 }
 
-/* Sidebar */
+a {
+  color: #9ecbff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+/* ------- Header ------- */
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0));
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(6px);
+}
+
+.brand-logo {
+  height: 52px;
+  width: auto;
+}
+
+.header-nav {
+  display: flex;
+  gap: 10px;
+}
+
+/* ------- Grid Layout ------- */
+.app-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  padding: 16px 20px 20px;
+  align-items: start;
+}
+
 .aside {
-  @apply rounded-xl bg-[#0f141b] border border-white/10 overflow-hidden;
+  position: sticky;
+  top: 74px; /* below header */
   display: flex;
   flex-direction: column;
-  min-height: 0;      /* for proper overflow */
-}
-.aside-inner{
-  @apply p-4 sm:p-5;
-  overflow: auto;
+  gap: 16px;
 }
 
-/* Map panel */
-.map-panel{
-  @apply rounded-xl bg-black border border-white/10 overflow-hidden;
-  position: relative;
-  min-height: 0;  /* for child 100% height */
-}
-.map-fill{
-  position: absolute;
-  inset: 0;
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
 }
 
-/* Make Mapbox canvas fill */
-.mapboxgl-canvas,
-.mapboxgl-map {
-  width: 100% !important;
-  height: 100% !important;
+.panel-title {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  margin-bottom: 10px;
+  font-size: 15px;
 }
 
-/* Cards / fieldsets in the sidebar */
-.block-card{
-  @apply rounded-lg border border-white/10 bg-white/5 p-3 sm:p-4;
-}
-.block-title{
-  @apply mb-2 text-sm font-semibold tracking-wide text-slate-200;
+.field + .field {
+  margin-top: 12px;
 }
 
-/* Form bits */
+.label {
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
 .select,
 .input,
-.button {
-  @apply h-9 rounded-md border border-white/15 bg-white/5 px-3 text-sm;
-}
-.button {
-  @apply font-medium hover:bg-white/10;
-}
-
-/* Small help text */
-.help {
-  @apply text-[12px] text-slate-400;
+.btn {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 14px;
 }
 
-/* Responsive: collapse to single column on narrow screens */
-@media (max-width: 1024px){
-  .app-shell{
+.select {
+  appearance: none;
+}
+
+.btn {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.btn:hover {
+  border-color: #3a4354;
+}
+
+.btn.ghost {
+  width: auto;
+  background: transparent;
+}
+
+.hint {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ------- Map Card ------- */
+.map-shell {
+  min-height: calc(100vh - 120px);
+}
+
+.map-card {
+  height: calc(100vh - 120px);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* ------- Responsive ------- */
+@media (max-width: 1080px) {
+  .app-grid {
     grid-template-columns: 1fr;
-    height: auto;
   }
-  .map-panel{
-    height: 70svh;
+  .aside {
+    position: static;
+  }
+  .map-card {
+    height: 60vh;
   }
 }
