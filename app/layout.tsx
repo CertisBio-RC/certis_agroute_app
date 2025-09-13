@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        {/* Single header/logo (avoid duplicates elsewhere) */}
         <header className="site-header">
           <img
             src={`${BASE_PATH}/certis-logo.png`}
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <button id="reset-map-btn" className="btn">Reset Map</button>
           </nav>
         </header>
+
         <main>{children}</main>
       </body>
     </html>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import CertisMap from "@/components/CertisMap";
 
 type LngLat = [number, number];
+
 type GJPoint = { type: "Point"; coordinates: LngLat };
 type GJFeature = {
   type: "Feature";
@@ -20,6 +21,9 @@ type GJFeature = {
 };
 type GJFC = { type: "FeatureCollection"; features: GJFeature[] };
 
+// readonly tuple, which the map now happily accepts
+type BBox = Readonly<[number, number, number, number]>;
+
 const BASE_PATH =
   process.env.NEXT_PUBLIC_BASE_PATH ??
   (typeof window !== "undefined" && (window as any).__NEXT_ROUTER_BASEPATH__) ??
@@ -32,7 +36,7 @@ function uniqSorted(a: string[]) {
   return [...new Set(a)].sort((x, y) => x.localeCompare(y));
 }
 
-function fcBBox(fc: GJFC): [number, number, number, number] {
+function fcBBox(fc: GJFC): BBox {
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
@@ -46,8 +50,10 @@ function fcBBox(fc: GJFC): [number, number, number, number] {
     if (x > maxX) maxX = x;
     if (y > maxY) maxY = y;
   }
-  if (!isFinite(minX)) return [-125, 24, -66.9, 49.5];
-  return [minX, minY, maxX, maxY];
+  if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+    return [-125, 24, -66.9, 49.5] as const;
+  }
+  return [minX, minY, maxX, maxY] as const;
 }
 
 export default function Page() {
@@ -65,7 +71,7 @@ export default function Page() {
   const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
   const [selTypes, setSelTypes] = useState<Set<string>>(new Set());
 
-  // Reset key forces map to re-mount (fit bounds)
+  // Reset key forces map to re-mount (fit bounds & clear in-map state)
   const [resetKey, setResetKey] = useState(0);
 
   // Load GeoJSON
@@ -139,7 +145,10 @@ export default function Page() {
     };
   }, [fc, selStates, selRetailers, selTypes]);
 
-  const filteredBBox = useMemo(() => (filteredFc ? fcBBox(filteredFc) : ([-125, 24, -66.9, 49.5] as const)), [filteredFc]);
+  const filteredBBox: BBox = useMemo(() => {
+    if (!filteredFc) return [-125, 24, -66.9, 49.5] as const;
+    return fcBBox(filteredFc);
+  }, [filteredFc]);
 
   // helpers
   function toggle(set: Set<string>, value: string): Set<string> {
@@ -222,12 +231,8 @@ export default function Page() {
               </span>
             </div>
             <div className="field" style={{ display: "flex", gap: 8 }}>
-              <button className="btn ghost" onClick={allStates} type="button">
-                All
-              </button>
-              <button className="btn ghost" onClick={noneStates} type="button">
-                None
-              </button>
+              <button className="btn ghost" onClick={allStates} type="button">All</button>
+              <button className="btn ghost" onClick={noneStates} type="button">None</button>
             </div>
             <div className="panel" style={{ maxHeight: 160, overflow: "auto" }}>
               {statesList.map((s) => (
@@ -252,12 +257,8 @@ export default function Page() {
               </span>
             </div>
             <div className="field" style={{ display: "flex", gap: 8 }}>
-              <button className="btn ghost" onClick={allRetailers} type="button">
-                All
-              </button>
-              <button className="btn ghost" onClick={noneRetailers} type="button">
-                None
-              </button>
+              <button className="btn ghost" onClick={allRetailers} type="button">All</button>
+              <button className="btn ghost" onClick={noneRetailers} type="button">None</button>
             </div>
             <div className="panel" style={{ maxHeight: 180, overflow: "auto" }}>
               {retailersList.map((r) => (
@@ -282,12 +283,8 @@ export default function Page() {
               </span>
             </div>
             <div className="field" style={{ display: "flex", gap: 8 }}>
-              <button className="btn ghost" onClick={allTypes} type="button">
-                All
-              </button>
-              <button className="btn ghost" onClick={noneTypes} type="button">
-                None
-              </button>
+              <button className="btn ghost" onClick={allTypes} type="button">All</button>
+              <button className="btn ghost" onClick={noneTypes} type="button">None</button>
             </div>
             <div className="panel" style={{ maxHeight: 140, overflow: "auto" }}>
               {typesList.map((t) => (

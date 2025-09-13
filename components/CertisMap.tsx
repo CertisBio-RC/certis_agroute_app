@@ -21,12 +21,15 @@ type GJFeature = {
 };
 type GJFC = { type: "FeatureCollection"; features: GJFeature[] };
 
+// Accept a readonly tuple to avoid the past TS error
+type BBox = Readonly<[number, number, number, number]>;
+
 export type CertisMapProps = {
   token: string;
   basemap: "Hybrid" | "Streets";
   markerStyle: "Colored dots" | "Logos";
-  data: GJFC; // already filtered by the page
-  bbox: [number, number, number, number];
+  data: GJFC;          // already filtered by the page
+  bbox: BBox;          // readonly is OK; we convert to Mapbox bounds internally
 };
 
 const MAP_STYLES: Record<CertisMapProps["basemap"], string> = {
@@ -76,18 +79,18 @@ export default function CertisMap({
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "bottom-right");
 
     map.on("load", () => {
-      const [minX, minY, maxX, maxY] = bbox;
-      if (isFinite(minX) && isFinite(minY) && isFinite(maxX) && isFinite(maxY)) {
-        map.fitBounds(
-          [
-            [minX, minY],
-            [maxX, maxY],
-          ],
-          { padding: 40, duration: 0 }
-        );
+      // Fit once on load
+      if (bbox) {
+        const [w, s, e, n] = bbox;
+        const bounds: mapboxgl.LngLatBoundsLike = [
+          [w, s],
+          [e, n],
+        ];
+        map.fitBounds(bounds, { padding: 40, duration: 0 });
       }
 
       const clustered = markerStyle !== "Logos";
+
       map.addSource("retailers", {
         type: "geojson",
         data,
@@ -96,6 +99,7 @@ export default function CertisMap({
         clusterRadius: 45,
       });
 
+      // Clusters (dots only)
       if (clustered) {
         map.addLayer({
           id: "clusters",
@@ -135,6 +139,7 @@ export default function CertisMap({
         });
       }
 
+      // Unclustered dots
       map.addLayer({
         id: "unclustered-dots",
         type: "circle",
@@ -173,7 +178,7 @@ export default function CertisMap({
         },
       });
 
-      // Always-on-top kingpin overlay
+      // Always-on-top kingpins
       map.addLayer({
         id: "kingpin-circles",
         type: "circle",
@@ -188,6 +193,7 @@ export default function CertisMap({
         },
       });
 
+      // Logos (simple text stand-in)
       if (markerStyle === "Logos") {
         map.addLayer({
           id: "retailer-logos",
@@ -216,12 +222,13 @@ export default function CertisMap({
         });
       }
 
-      // Hover popup (dots, logos, kingpins)
+      // Hover popups on dots/kingpins/logos
       popupRef.current = new mapboxgl.Popup({
         closeButton: false,
         closeOnClick: false,
         offset: 12,
       });
+
       const hoverLayers = ["unclustered-dots", "kingpin-circles"];
       if (markerStyle === "Logos") hoverLayers.push("retailer-logos");
 
