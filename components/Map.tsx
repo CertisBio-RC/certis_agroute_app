@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import mapboxgl, { Map as MbMap } from "mapbox-gl";
+import mapboxgl, { Map as MbMap, MapLayerMouseEvent } from "mapbox-gl";
 
 type Feature = {
   type: "Feature";
@@ -51,7 +51,7 @@ function gp(obj: any, keys: string[], fallback = ""): string {
   return fallback;
 }
 
-/** Build candidate logo basenames for a retailer (no extension). */
+/** Build candidate logo basenames (no extension). */
 function retailerNameToCandidates(r: string): string[] {
   const raw = r.trim();
   const collapsed = raw.replace(/\s+/g, " ");
@@ -59,10 +59,7 @@ function retailerNameToCandidates(r: string): string[] {
   const safe = collapsed.replace(/[^\w\- ]+/g, "");
   const dashed = collapsed.replace(/\s+/g, "-");
   const withLogo = `${collapsed} Logo`;
-  // order by likelihood
-  const uniq = new Set(
-    [collapsed, withLogo, safe, dashed, noSpaces].filter(Boolean)
-  );
+  const uniq = new Set([collapsed, withLogo, safe, dashed, noSpaces].filter(Boolean));
   return [...uniq];
 }
 
@@ -70,22 +67,35 @@ async function loadImageAsBitmap(url: string): Promise<ImageBitmap> {
   const r = await fetch(url, { cache: "force-cache" });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const blob = await r.blob();
-  // Some browsers require options to satisfy CORS; blob URLs are same-origin
   const bmp = await createImageBitmap(blob);
   return bmp;
 }
 
-/** Create a tiny colored dot as ImageData fallback. */
+/** Create a small colored dot ImageData as a logo fallback. */
 function makeDot(color: string): ImageData {
   const size = 16;
-  const c = new OffscreenCanvas(size, size);
-  const ctx = c.getContext("2d")!;
+  // Use OffscreenCanvas if available; otherwise HTMLCanvasElement
+  let ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
+  let canvas: any;
+  if (typeof OffscreenCanvas !== "undefined") {
+    canvas = new OffscreenCanvas(size, size);
+    ctx = canvas.getContext("2d");
+  } else {
+    canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    ctx = canvas.getContext("2d");
+  }
+  if (!ctx) {
+    // Extremely rare; return a 1x1 transparent pixel
+    return new ImageData(1, 1);
+  }
   ctx.clearRect(0, 0, size, size);
-  ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.fill();
-  return ctx.getImageData(0, 0, size, size);
+  (ctx as any).beginPath();
+  (ctx as any).arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
+  (ctx as any).fillStyle = color;
+  (ctx as any).fill();
+  return (ctx as any).getImageData(0, 0, size, size);
 }
 
 export default function Map({
@@ -141,13 +151,7 @@ export default function Map({
                   '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
               },
             },
-            layers: [
-              {
-                id: "osm-tiles",
-                type: "raster",
-                source: "osm-tiles",
-              },
-            ],
+            layers: [{ id: "osm-tiles", type: "raster", source: "osm-tiles" }],
           } as any,
       center: [-97.2, 40.8],
       zoom: 4,
@@ -385,7 +389,7 @@ export default function Map({
       }
 
       // Interactions
-      const showPopup = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+      const showPopup = (e: MapLayerMouseEvent) => {
         const f: any = e.features && e.features[0];
         if (!f) return;
         const p = f.properties || {};
@@ -422,7 +426,7 @@ export default function Map({
           m.getCanvas().style.cursor = "";
           hidePopup();
         });
-        m.on("mousemove", layerId, showPopup);
+        m.on("mousemove", layerId, (ev) => showPopup(ev as MapLayerMouseEvent));
         m.on("click", layerId, (e: any) => {
           hidePopup();
           const f: any = e.features && e.features[0];
@@ -436,9 +440,7 @@ export default function Map({
 
       // Zoom into clusters on click
       m.on("click", "clusters", (e) => {
-        const features = m.queryRenderedFeatures(e.point, {
-          layers: ["clusters"],
-        });
+        const features = m.queryRenderedFeatures(e.point, { layers: ["clusters"] });
         const clusterId = features[0].properties?.cluster_id;
         const source: any = m.getSource("retailers");
         source.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
@@ -462,16 +464,10 @@ export default function Map({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Update basemap style when token exists and user switches it. */
+  /** NOTE: Changing Mapbox style at runtime clears layers. If you allow basemap switching,
+      you'll need to re-add sources/layers after setStyle. For now we keep initial style. */
   useEffect(() => {
-    const m = mapRef.current;
-    if (!m || !token) return;
-    const style =
-      basemap === "hybrid"
-        ? "mapbox://styles/mapbox/satellite-streets-v12"
-        : "mapbox://styles/mapbox/streets-v12";
-    if ((m as any).getStyle()?.sprite?.includes(basemap)) return; // crude but avoids re-style if same
-    m.setStyle(style);
+    // intentionally no-op to avoid wiping layers on setStyle
   }, [basemap, token]);
 
   /** Load data, annotate features with icon ids, feed source, and preload logos. */
@@ -513,7 +509,7 @@ export default function Map({
       } catch {}
     }
 
-    // Preload unique logos if markerStyle is logos (or do it anyway, it’s cheap)
+    // Preload unique logos
     const doLoad = async () => {
       for (const r of retailersInData) {
         const id = `logo-${r.toLowerCase().replace(/\s+/g, "_")}`;
@@ -556,7 +552,7 @@ export default function Map({
     doLoad();
   }, [data, bbox, retailersInData, basePath, markerStyle]);
 
-  /** Toggle visibility between dots & logos (kingpin ring stays always-on). */
+  /** Toggle visibility between dots & logos (kingpin ring stays always-on for logos). */
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
@@ -565,7 +561,7 @@ export default function Map({
     };
     setVis("unclustered", markerStyle === "dots" ? "visible" : "none");
     setVis("retailer-logos", markerStyle === "logos" ? "visible" : "none");
-    // ring should only show in logos mode (optional). Keep visible for both if you prefer:
+    // Show the red halo only in logos mode (change to always visible if desired)
     setVis("kingpin-ring", markerStyle === "logos" ? "visible" : "none");
   }, [markerStyle]);
 
