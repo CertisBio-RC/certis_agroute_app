@@ -1,24 +1,17 @@
-﻿// next.config.mjs
+﻿/** @type {import('next').NextConfig} */
 
-const repo = process.env.NEXT_PUBLIC_REPO_NAME || "certis_agroute_app";
-const isCI = !!process.env.GITHUB_ACTIONS || !!process.env.CI;
+const IS_CI = process.env.GITHUB_ACTIONS === "true" || process.env.CI === "true";
+const BASE = IS_CI ? "/certis_agroute_app" : "";
+const ASSET_PREFIX = IS_CI ? "/certis_agroute_app/" : undefined;
 
-const basePath = isCI ? `/${repo}` : (process.env.NEXT_PUBLIC_BASE_PATH || "");
-const assetPrefix = isCI
-  ? `/${repo}/`
-  : (process.env.NEXT_PUBLIC_BASE_PATH
-      ? `${process.env.NEXT_PUBLIC_BASE_PATH.replace(/\/?$/, "/")}`
-      : "");
-
-/** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export",
-  basePath,
-  assetPrefix,
-  images: { unoptimized: true },
-  trailingSlash: true,
-  env: {
-    NEXT_PUBLIC_BASE_PATH: basePath || "",
+  output: "export",              // for GitHub Pages
+  basePath: BASE,                // sub-path
+  assetPrefix: ASSET_PREFIX,     // make CSS/JS fetch from the sub-path
+  trailingSlash: true,           // safer for static export on Pages
+  images: { unoptimized: true }, // no remote loader needed on Pages
+  experimental: {
+    // keep app router defaults happy
   },
 };
 

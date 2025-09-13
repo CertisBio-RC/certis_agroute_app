@@ -1,43 +1,49 @@
-// /app/layout.tsx
-import type { Metadata, Viewport } from "next";
-import "./globals.css";
-
-export const metadata: Metadata = {
-  title: {
-    default: "Certis AgRoute Planner",
-    template: "%s — Certis AgRoute Planner",
-  },
+export const metadata = {
+  title: "Certis AgRoute Planner",
   description:
-    "Retailer map & optimized trip builder for Certis: filter by state/retailer/category and plan efficient legs (≤12 stops/leg).",
-  openGraph: {
-    title: "Certis AgRoute Planner",
-    description: "Retailer map & optimized trip builder for Certis.",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Certis AgRoute Planner",
-    description: "Retailer map & optimized trip builder for Certis.",
-  },
-  // IMPORTANT: no leading slash, so it works on GitHub Pages subpath
-  icons: { icon: "favicon.ico" },
+    "Filter retailers and plan optimized trips. Double-click map to set Home. Click a point to add stop.",
 };
 
-export const viewport: Viewport = {
-  themeColor: "#0ea5e9",
-};
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <head>
-        {/* Build-time inline token so the client can always read it on GitHub Pages */}
-        <meta
-          name="mapbox-token"
-          content={process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? ""}
-        />
-      </head>
-      <body className="bg-white text-gray-900">{children}</body>
+      {/* globals.css is imported here so Tailwind styles load */}
+      <head />
+      <body className="bg-[#0B0F14] text-slate-100 antialiased">
+        <header className="sticky top-0 z-50 bg-[#0B0F14]/95 border-b border-slate-800">
+          <div className="mx-auto max-w-[1800px] px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              {/* Use base path so the logo resolves locally and on Pages */}
+              <img
+                src={`${BASE_PATH}/certis-logo.png`}
+                alt="Certis Biologicals"
+                className="h-10 w-auto select-none"
+                draggable={false}
+              />
+            </div>
+
+            {/* Right-aligned “Reset Map” as requested */}
+            <nav className="flex items-center gap-3">
+              <a
+                href={`${BASE_PATH}/`}
+                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              >
+                Reset Map
+              </a>
+            </nav>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-[1800px] px-4 py-4">{children}</main>
+      </body>
     </html>
   );
 }
+
+import "./globals.css";
