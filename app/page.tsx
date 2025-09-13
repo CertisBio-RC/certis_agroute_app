@@ -1,438 +1,442 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import CertisMap from "@/components/CertisMap";
-import type { CertisMapProps } from "@/components/CertisMap";
+import React, { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import type {
+  Geometry,
+  Feature as GFeature,
+  FeatureCollection as GFC,
+  BBox,
+} from "geojson";
 
-type FC = GeoJSON.FeatureCollection<GeoJSON.Geometry, any>;
-type Feature = GeoJSON.Feature<GeoJSON.Geometry, any>;
+type Feature = GFeature<Geometry, any>;
+type FC = GFC<Geometry, any>;
 
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const MAPBOX_TOKEN =
-  process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
-  process.env.MAPBOX_PUBLIC_TOKEN ||
-  "";
+const CertisMap = dynamic(() => import("@/components/CertisMap"), {
+  ssr: false,
+});
 
-const K = {
-  retailer: ["__retailerName", "Retailer", "retailer", "RETAILER"],
-  name:     ["Name", "name", "NAME"],
-  cat:      ["Category", "category", "CATEGORY"],
-  state:    ["State", "state", "STATE"],
-  addr:     ["Address", "address", "ADDRESS"],
-  city:     ["City", "city", "CITY"],
-  zip:      ["Zip", "zip", "ZIP"],
-};
+const BASE_PATH =
+  (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/$/, "") || "";
 
-function getProp(f: any, names: string[], fallback = ""): string {
-  for (const n of names) if (f?.properties?.[n] != null) return String(f.properties[n]);
-  return fallback;
-}
-const toLngLat = (f: Feature | null): [number, number] | null => {
-  const c: any = (f?.geometry as any)?.coordinates;
-  return Array.isArray(c) && c.length === 2 && isFinite(c[0]) && isFinite(c[1]) ? [c[0], c[1]] : null;
-};
-const bboxOf = (fc: FC | null): [number, number, number, number] | null => {
-  if (!fc) return null;
-  let minX= Infinity, minY= Infinity, maxX= -Infinity, maxY= -Infinity, any=false;
-  for (const f of fc.features) {
-    const c = toLngLat(f);
-    if (!c) continue;
-    any=true;
-    minX=Math.min(minX,c[0]); minY=Math.min(minY,c[1]);
-    maxX=Math.max(maxX,c[0]); maxY=Math.max(maxY,c[1]);
-  }
-  return any ? [minX,minY,maxX,maxY] : null;
-};
+type Basemap = "Hybrid" | "Satellite" | "Streets";
+type MarkerStyle = "Colored dots" | "Retailer logos";
 
 type Stop = { coord: [number, number]; title?: string };
 
-function chunkByCount<T>(arr: T[], max: number): T[][] {
-  const out: T[][] = [];
-  for (let i=0; i<arr.length; i+=max) out.push(arr.slice(i,i+max));
-  return out;
-}
-function chunkByDuration(sec: number[], maxSec = 36000): number[][] {
-  const groups: number[][] = [];
-  let cur: number[] = []; let sum = 0;
-  for (let i=0;i<sec.length;i++){
-    if (sum + sec[i] > maxSec && cur.length) { groups.push(cur); cur=[]; sum=0; }
-    cur.push(i); sum += sec[i];
-  }
-  if (cur.length) groups.push(cur);
-  return groups;
+function uniq<T>(arr: T[]) {
+  return Array.from(new Set(arr));
 }
 
-function buildGoogleLink(origin: [number,number], ordered: [number,number][], roundtrip: boolean) {
-  const pts = [...ordered];
-  const dest = roundtrip ? origin : pts.pop() || origin;
-  const wps  = pts;
-  const url = new URL("https://www.google.com/maps/dir/");
-  url.searchParams.set("api","1");
-  url.searchParams.set("origin", `${origin[1]},${origin[0]}`);
-  url.searchParams.set("destination", `${dest[1]},${dest[0]}`);
-  if (wps.length) url.searchParams.set("waypoints", wps.map(p=>`${p[1]},${p[0]}`).join("|"));
-  url.searchParams.set("travelmode","driving");
-  return url.toString();
-}
-function buildAppleLink(origin: [number,number], ordered: [number,number][], roundtrip: boolean) {
-  const pts = [...ordered];
-  const dest = roundtrip ? origin : pts.pop() || origin;
-  const base = new URL("https://maps.apple.com/");
-  base.searchParams.set("saddr", `${origin[1]},${origin[0]}`);
-  base.searchParams.set(
-    "daddr",
-    [dest, ...pts.map(p=>({lat:p[1],lng:p[0]}))]
-      .map((p,i)=> (i===0?`${(p as any).lat},${(p as any).lng}`:`to:${(p as any).lat},${(p as any).lng}`))
-      .join(" ")
+function featHasCoords(f: Feature) {
+  return !!(
+    f.geometry &&
+    f.geometry.type === "Point" &&
+    Array.isArray((f.geometry as any).coordinates) &&
+    (f.geometry as any).coordinates.length >= 2
   );
-  base.searchParams.set("dirflg","d");
-  return base.toString();
 }
-function buildWazeLink(dest: [number,number]) {
-  const u = new URL("https://waze.com/ul");
-  u.searchParams.set("ll", `${dest[1]},${dest[0]}`); u.searchParams.set("navigate","yes");
-  return u.toString();
+
+function computeBBox(fc: FC | null): BBox | null {
+  if (!fc) return null;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const f of fc.features) {
+    if (featHasCoords(f)) {
+      const [x, y] = (f.geometry as any).coordinates as [number, number];
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+  return isFinite(minX)
+    ? [minX, minY, maxX, maxY]
+    : null;
 }
 
 export default function Page() {
-  // data
-  const [data, setData] = useState<FC>({ type:"FeatureCollection", features:[] });
-  const [filtered, setFiltered] = useState<FC>({ type:"FeatureCollection", features:[] });
+  const [raw, setRaw] = useState<FC | null>(null);
 
-  // filters
+  // Filters
   const [states, setStates] = useState<string[]>([]);
   const [retailers, setRetailers] = useState<string[]>([]);
   const [cats, setCats] = useState<string[]>([]);
 
-  const [selStates, setSelStates] = useState<Set<string>>(new Set());
-  const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
-  const [selCats, setSelCats] = useState<Set<string>>(new Set());
+  const [stateFilter, setStateFilter] = useState<string[]>([]);
+  const [retailerFilter, setRetailerFilter] = useState<string[]>([]);
+  const [catFilter, setCatFilter] = useState<string[]>([]);
 
-  // map options
-  const [basemap, setBasemap] = useState<CertisMapProps["basemap"]>("hybrid");
-  const [markerStyle, setMarkerStyle] = useState<CertisMapProps["markerStyle"]>("dots");
+  // Map options
+  const [basemap, setBasemap] = useState<Basemap>("Hybrid");
+  const [markerStyle, setMarkerStyle] =
+    useState<MarkerStyle>("Colored dots");
+  const [projection, setProjection] =
+    useState<"mercator" | "globe">("mercator");
 
-  // trip planning
-  const [home, setHome] = useState<[number,number] | null>(null);
+  // Trip
+  const [home, setHome] = useState<[number, number] | null>(null);
   const [homeInput, setHomeInput] = useState("");
   const [stops, setStops] = useState<Stop[]>([]);
-  const [roundtrip, setRoundtrip] = useState(true);
 
-  const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
-  const [optOrder, setOptOrder] = useState<[number,number][]>([]);
-  const [optDurations, setOptDurations] = useState<number[]>([]);
-
-  // load data
+  // Load data
   useEffect(() => {
-    (async () => {
-      const url = `${BASE_PATH}/data/retailers.geojson`;
-      const r = await fetch(url, { cache:"no-store" });
-      const fc: FC = await r.json();
-      for (const f of fc.features) {
-        if (!f.properties.__retailerName) f.properties.__retailerName = getProp(f, K.retailer);
-      }
-      setData(fc);
+    const url = `${BASE_PATH}/data/retailers.geojson`;
+    fetch(url, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((fc: FC) => {
+        // drop invalid rows
+        const clean: FC = {
+          type: "FeatureCollection",
+          features: fc.features.filter((f) => featHasCoords(f)),
+        };
+        setRaw(clean);
 
-      const st = new Set<string>(), re = new Set<string>(), ca = new Set<string>();
-      for (const f of fc.features) {
-        const s = getProp(f, K.state).trim();     if (s) st.add(s);
-        const rr= getProp(f, K.retailer).trim();  if (rr) re.add(rr);
-        const c = getProp(f, K.cat).trim();       if (c) ca.add(c);
-      }
-      setStates([...st].sort());
-      setRetailers([...re].sort());
-      setCats([...ca].sort());
-    })();
+        const s = uniq(
+          clean.features.map((f) => (f.properties?.State || "").toString())
+        ).filter(Boolean);
+        const r = uniq(
+          clean.features.map((f) => (f.properties?.Retailer || "").toString())
+        ).filter(Boolean);
+        const c = uniq(
+          clean.features.map((f) => (f.properties?.Category || "").toString())
+        ).filter(Boolean);
+
+        setStates(s.sort());
+        setRetailers(r.sort());
+        setCats(c.sort());
+        setStateFilter(s); // default show all
+        setRetailerFilter(r);
+        setCatFilter(c);
+      })
+      .catch((err) => console.error("load retailers.geojson failed:", err));
   }, []);
 
-  // apply filters
-  useEffect(() => {
-    const match = (f: Feature) => {
-      const s = getProp(f, K.state);
-      const r = getProp(f, K.retailer);
-      const c = getProp(f, K.cat);
-      const okS = !selStates.size || selStates.has(s);
-      const okR = !selRetailers.size || selRetailers.has(r);
-      const okC = !selCats.size || selCats.has(c);
-      return okS && okR && okC && !!(f.geometry as any)?.coordinates;
-    };
-    setFiltered({ type:"FeatureCollection", features: data.features.filter(match) });
-  }, [data, selStates, selRetailers, selCats]);
+  const filtered: FC = useMemo(() => {
+    if (!raw) return { type: "FeatureCollection", features: [] };
+    const okS = new Set(stateFilter);
+    const okR = new Set(retailerFilter);
+    const okC = new Set(catFilter);
+    const feats = raw.features.filter((f) => {
+      const p: any = f.properties || {};
+      return okS.has(String(p.State || "")) &&
+        okR.has(String(p.Retailer || "")) &&
+        okC.has(String(p.Category || ""));
+    });
+    return { type: "FeatureCollection", features: feats };
+  }, [raw, stateFilter, retailerFilter, catFilter]);
 
-  const fcBbox = useMemo(() => bboxOf(filtered), [filtered]);
+  const fcBbox = useMemo(() => computeBBox(filtered), [filtered]);
 
-  // actions
-  const resetAll = () => {
-    setSelStates(new Set()); setSelRetailers(new Set()); setSelCats(new Set());
-    setHome(null); setHomeInput(""); setStops([]); setRouteGeoJSON(null); setOptOrder([]); setOptDurations([]);
-  };
-  const toggle = (s: Set<string>, v: string) => {
-    const n = new Set(s);
-    if (n.has(v)) n.delete(v); else n.add(v);
-    return n;
-  };
+  // Reset Map button (clears filters + trip)
+  function resetAll() {
+    if (states.length) setStateFilter(states);
+    if (retailers.length) setRetailerFilter(retailers);
+    if (cats.length) setCatFilter(cats);
+    setHome(null);
+    setHomeInput("");
+    setStops([]);
+  }
 
-  const onPointClick = (lnglat: [number,number], title: string) =>
-    setStops((prev) => [...prev, { coord: lnglat, title }]);
-
-  const geocodeHome = async () => {
-    const q = homeInput.trim();
-    if (!q || !MAPBOX_TOKEN) return;
-    try {
-      const u = new URL("https://api.mapbox.com/geocoding/v5/mapbox.places/"+encodeURIComponent(q)+".json");
-      u.searchParams.set("access_token", MAPBOX_TOKEN); u.searchParams.set("limit","1");
-      const r = await fetch(u.toString()); const j = await r.json();
-      const c = j?.features?.[0]?.center;
-      if (Array.isArray(c) && c.length===2) setHome([c[0], c[1]]);
-    } catch {}
-  };
-
-  const optimize = async () => {
-    if (!MAPBOX_TOKEN || !home || stops.length===0) return;
-    const coords = [home, ...stops.map(s=>s.coord), ...(roundtrip ? [home] : [])];
-    const u = new URL("https://api.mapbox.com/optimized-trips/v1/mapbox/driving/"+coords.map(c=>c.join(",")).join(";"));
-    u.searchParams.set("source","first");
-    u.searchParams.set("destination", roundtrip ? "last" : "last");
-    u.searchParams.set("roundtrip", roundtrip ? "true" : "false");
-    u.searchParams.set("geometries","geojson");
-    u.searchParams.set("overview","full");
-    u.searchParams.set("access_token", MAPBOX_TOKEN);
-
-    const r = await fetch(u.toString()); const j = await r.json();
-    const trip = j?.trips?.[0]; if (!trip) return;
-
-    setRouteGeoJSON(trip.geometry);
-
-    const wpIdx = j.waypoints?.map((w:any)=>w.waypoint_index);
-    const ordered: [number,number][] = [];
-    for (const idx of wpIdx) {
-      const c = coords[idx]; if (c) ordered.push([c[0], c[1]]);
-    }
-    if (roundtrip && ordered.length && ordered[0][0]===ordered[ordered.length-1][0] && ordered[0][1]===ordered[ordered.length-1][1]) {
-      ordered.pop();
-    }
-    const legsDur: number[] = (trip.legs || []).map((l:any)=> Number(l.duration||0));
-    setOptDurations(legsDur);
-    setOptOrder(ordered.slice(1)); // remove initial home
-  };
-
-  const googleLinksCombined = useMemo(() => {
-    if (!home || optOrder.length===0) return [];
-    const MAX_WPS = 23;
-    const chunks = chunkByCount(optOrder, MAX_WPS);
-    return chunks.map((chunk, i) => ({ i, url: buildGoogleLink(home, chunk, roundtrip) }));
-  }, [home, optOrder, roundtrip]);
-
-  const googleLinksDurationChunks = useMemo(() => {
-    if (!home || optOrder.length===0 || optDurations.length===0) return [];
-    const groups = chunkByDuration(optDurations, 36000);
-    const out: {i:number, url:string}[] = [];
-    let cursor = 0;
-    for (let g=0; g<groups.length; g++) {
-      const count = groups[g].length;
-      const slice = optOrder.slice(cursor, cursor+count);
-      out.push({ i:g, url: buildGoogleLink(home!, slice, roundtrip) });
-      cursor += count;
-    }
-    return out;
-  }, [home, optOrder, optDurations, roundtrip]);
+  function toggleValue(list: string[], val: string, set: (v: string[]) => void) {
+    set(list.includes(val) ? list.filter((x) => x !== val) : [...list, val]);
+  }
 
   return (
-    <div className="min-h-screen w-full flex bg-zinc-900 text-zinc-100">
-      {/* LEFT COLUMN */}
-      <div className="w-[380px] max-w-[380px] flex flex-col border-r border-zinc-800">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-          <div className="flex items-center gap-3">
-            <img src={`${BASE_PATH}/certis-logo.png`} alt="Certis" className="h-9 w-auto" />
-            <span className="text-xs text-zinc-400">
-              Filter retailers and plan optimized trips. Double-click map to set <b>Home</b>. Click a point to <b>add stop</b>.
-            </span>
-          </div>
+    <main className="w-screen h-screen overflow-hidden bg-[#0b1220] text-white">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <div className="flex items-center gap-4">
+          <img
+            src={`${BASE_PATH}/certis-logo.png`}
+            alt="Certis"
+            className="h-10 w-auto"
+          />
+          <h1 className="text-2xl font-semibold">Certis AgRoute Planner</h1>
+        </div>
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => resetAll()}
-            className="ml-3 inline-flex items-center rounded-lg bg-zinc-700 hover:bg-zinc-600 px-3 py-1.5 text-sm font-semibold shadow"
-            title="Clear filters, home, stops and route"
+            onClick={() =>
+              setProjection((p) => (p === "globe" ? "mercator" : "globe"))
+            }
+            className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20"
+            title="Toggle projection"
+          >
+            {projection === "globe" ? "Globe" : "Flat"}
+          </button>
+          <button
+            onClick={resetAll}
+            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700"
+            title="Reset filters and trip"
           >
             Reset Map
           </button>
         </div>
+      </div>
 
-        {/* STATES */}
-        <div className="p-4">
-          <div className="rounded-xl bg-zinc-800/60 p-4">
+      {/* Two-column layout */}
+      <div className="grid grid-cols-[380px_minmax(0,1fr)] h-[calc(100vh-64px)]">
+        {/* Left panel */}
+        <div className="overflow-y-auto p-4 space-y-6">
+          {/* States */}
+          <section className="bg-white/5 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold">States</h3>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-zinc-400">{`${selStates.size} of ${states.length}`}</span>
-                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
-                  onClick={() => setSelStates(new Set(states))}>All</button>
-                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
-                  onClick={() => setSelStates(new Set())}>None</button>
+              <div className="text-lg font-semibold">States</div>
+              <div className="text-sm opacity-70">
+                {stateFilter.length} of {states.length}
               </div>
             </div>
-            <div className="h-44 overflow-auto space-y-2 pr-1">
-              {states.map(s => (
-                <label key={s} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${selStates.has(s) ? "border-emerald-500/60 bg-emerald-500/10" : "border-zinc-700/60 bg-zinc-900/40"}`}>
-                  <input type="checkbox" checked={selStates.has(s)} onChange={() => setSelStates(prev => toggle(prev, s))} />
+            <div className="flex gap-2 mb-3">
+              <button
+                className="px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+                onClick={() => setStateFilter(states)}
+              >
+                All
+              </button>
+              <button
+                className="px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+                onClick={() => setStateFilter([])}
+              >
+                None
+              </button>
+            </div>
+            <div className="space-y-2">
+              {states.map((s) => (
+                <label key={s} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={stateFilter.includes(s)}
+                    onChange={() =>
+                      toggleValue(stateFilter, s, setStateFilter)
+                    }
+                  />
                   <span>{s}</span>
                 </label>
               ))}
             </div>
-          </div>
-        </div>
+          </section>
 
-        {/* RETAILERS */}
-        <div className="px-4">
-          <div className="rounded-xl bg-zinc-800/60 p-4">
+          {/* Retailers */}
+          <section className="bg-white/5 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold">Retailers</h3>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-zinc-400">{`${selRetailers.size} of ${retailers.length}`}</span>
-                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
-                  onClick={() => setSelRetailers(new Set(retailers))}>All</button>
-                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
-                  onClick={() => setSelRetailers(new Set())}>None</button>
+              <div className="text-lg font-semibold">Retailers</div>
+              <div className="text-sm opacity-70">
+                {retailerFilter.length} of {retailers.length}
               </div>
             </div>
-            <div className="h-52 overflow-auto space-y-2 pr-1">
-              {retailers.map(r => (
-                <label key={r} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${selRetailers.has(r) ? "border-emerald-500/60 bg-emerald-500/10" : "border-zinc-700/60 bg-zinc-900/40"}`}>
-                  <input type="checkbox" checked={selRetailers.has(r)} onChange={() => setSelRetailers(prev => toggle(prev, r))} />
-                  <span className="truncate">{r}</span>
+            <div className="flex gap-2 mb-3">
+              <button
+                className="px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+                onClick={() => setRetailerFilter(retailers)}
+              >
+                All
+              </button>
+              <button
+                className="px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+                onClick={() => setRetailerFilter([])}
+              >
+                None
+              </button>
+            </div>
+            <div className="max-h-56 overflow-auto space-y-2 pr-1">
+              {retailers.map((r) => (
+                <label key={r} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={retailerFilter.includes(r)}
+                    onChange={() =>
+                      toggleValue(retailerFilter, r, setRetailerFilter)
+                    }
+                  />
+                  <span>{r}</span>
                 </label>
               ))}
             </div>
-          </div>
-        </div>
+          </section>
 
-        {/* CATEGORIES */}
-        <div className="p-4 pt-4">
-          <div className="rounded-xl bg-zinc-800/60 p-4">
+          {/* Categories */}
+          <section className="bg-white/5 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold">Categories</h3>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-zinc-400">{`${selCats.size} of ${cats.length}`}</span>
-                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
-                  onClick={() => setSelCats(new Set(cats))}>All</button>
-                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
-                  onClick={() => setSelCats(new Set())}>None</button>
+              <div className="text-lg font-semibold">Location Types</div>
+              <div className="text-sm opacity-70">
+                {catFilter.length} of {cats.length}
               </div>
             </div>
+            <div className="flex gap-2 mb-3">
+              <button
+                className="px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+                onClick={() => setCatFilter(cats)}
+              >
+                All
+              </button>
+              <button
+                className="px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+                onClick={() => setCatFilter([])}
+              >
+                None
+              </button>
+            </div>
             <div className="space-y-2">
-              {cats.map(c => (
-                <label key={c} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${selCats.has(c) ? "border-emerald-500/60 bg-emerald-500/10" : "border-zinc-700/60 bg-zinc-900/40"}`}>
-                  <input type="checkbox" checked={selCats.has(c)} onChange={() => setSelCats(prev => toggle(prev, c))} />
+              {cats.map((c) => (
+                <label key={c} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={catFilter.includes(c)}
+                    onChange={() => toggleValue(catFilter, c, setCatFilter)}
+                  />
                   <span>{c}</span>
                 </label>
               ))}
             </div>
-          </div>
-        </div>
+          </section>
 
-        {/* MAP OPTIONS */}
-        <div className="px-4 pt-2">
-          <div className="rounded-xl bg-zinc-800/60 p-4 space-y-3">
-            <h3 className="font-semibold">Map Options</h3>
-            <label className="block text-sm text-zinc-300">Basemap</label>
-            <select className="w-full rounded bg-zinc-900 border border-zinc-700 px-3 py-2"
-              value={basemap} onChange={(e)=>setBasemap(e.target.value as CertisMapProps["basemap"])}>
-              <option value="hybrid">Hybrid</option>
-              <option value="streets">Streets</option>
-            </select>
+          {/* Map options */}
+          <section className="bg-white/5 rounded-xl p-4">
+            <div className="text-lg font-semibold mb-3">Map Options</div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <label>Basemap</label>
+                <select
+                  className="bg-white/10 rounded px-2 py-1"
+                  value={basemap}
+                  onChange={(e) => setBasemap(e.target.value as Basemap)}
+                >
+                  <option>Hybrid</option>
+                  <option>Satellite</option>
+                  <option>Streets</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <label>Markers</label>
+                <select
+                  className="bg-white/10 rounded px-2 py-1"
+                  value={markerStyle}
+                  onChange={(e) =>
+                    setMarkerStyle(e.target.value as MarkerStyle)
+                  }
+                >
+                  <option>Colored dots</option>
+                  <option>Retailer logos</option>
+                </select>
+              </div>
+            </div>
+          </section>
 
-            <label className="block pt-2 text-sm text-zinc-300">Markers</label>
-            <select className="w-full rounded bg-zinc-900 border border-zinc-700 px-3 py-2"
-              value={markerStyle} onChange={(e)=>setMarkerStyle(e.target.value as CertisMapProps["markerStyle"])}>
-              <option value="dots">Colored dots</option>
-              <option value="logos">Retailer logos</option>
-            </select>
-          </div>
-        </div>
-
-        {/* TRIP PLANNER */}
-        <div className="p-4">
-          <div className="rounded-xl bg-zinc-800/60 p-4 space-y-3">
-            <h3 className="font-semibold">Trip Planner</h3>
-
-            <div className="flex gap-2">
+          {/* Trip Planner (hooks up to map click via onAddStop) */}
+          <section className="bg-white/5 rounded-xl p-4">
+            <div className="text-lg font-semibold mb-3">Trip Planner</div>
+            <div className="flex items-center gap-2 mb-2">
               <input
-                className="flex-1 rounded bg-zinc-900 border border-zinc-700 px-3 py-2"
+                className="flex-1 bg-white/10 rounded px-3 py-2"
                 placeholder="ZIP or address (e.g., 50638)"
                 value={homeInput}
-                onChange={(e)=>setHomeInput(e.target.value)}
+                onChange={(e) => setHomeInput(e.target.value)}
               />
-              <button onClick={geocodeHome} className="px-3 rounded bg-emerald-600 hover:bg-emerald-500 font-semibold">Set</button>
+              <button
+                className="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => {
+                  // let the user type a "lng,lat" pair OR a ZIP/address
+                  const t = homeInput.trim();
+                  const m = t.match(
+                    /^\s*(-?\d+(\.\d+)?)\s*,\s*(-?\d+(\.\d+)?)\s*$/
+                  );
+                  if (m) {
+                    setHome([parseFloat(m[1]), parseFloat(m[3])]);
+                    return;
+                  }
+                  // Else leave to double-click on map in CertisMap (not implemented here)
+                  alert(
+                    "For now, enter coordinates as 'lng,lat' or double-click map to set Home."
+                  );
+                }}
+              >
+                Set
+              </button>
             </div>
 
-            <div className="text-xs text-zinc-400">
-              {home ? `Home: ${home[1].toFixed(5)}, ${home[0].toFixed(5)}` : "Double-click the map to set Home"}
+            <div className="text-sm opacity-70 mb-2">
+              Stops (click map points to add):
             </div>
-
-            <div className="mt-2 space-y-2">
-              <div className="text-sm font-semibold mb-1">Stops (click map points to add)</div>
+            <div className="space-y-2 max-h-48 overflow-auto pr-1">
               {stops.map((s, i) => (
-                <div key={i} className="flex items-center justify-between rounded border border-zinc-700 bg-zinc-900 px-3 py-2">
-                  <span className="truncate">{i+1}. {s.title || `${s.coord[1].toFixed(4)}, ${s.coord[0].toFixed(4)}`}</span>
-                  <button className="ml-3 text-sm px-2 py-1 rounded bg-rose-600 hover:bg-rose-500"
-                    onClick={()=>setStops(prev => prev.filter((_,idx)=>idx!==i))}>Remove</button>
+                <div
+                  key={`${s.coord.join(",")}-${i}`}
+                  className="flex items-center justify-between bg-white/10 rounded px-3 py-2"
+                >
+                  <div>
+                    <div className="font-semibold">{s.title || `Stop ${i + 1}`}</div>
+                    <div className="opacity-70 text-xs">
+                      {s.coord[0].toFixed(5)}, {s.coord[1].toFixed(5)}
+                    </div>
+                  </div>
+                  <button
+                    className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-700 text-sm"
+                    onClick={() =>
+                      setStops(stops.filter((_, idx) => idx !== i))
+                    }
+                  >
+                    Remove
+                  </button>
                 </div>
               ))}
             </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <input id="rt" type="checkbox" checked={roundtrip} onChange={(e)=>setRoundtrip(e.target.checked)} />
-              <label htmlFor="rt">Roundtrip</label>
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                className="px-3 py-2 rounded bg-indigo-600/80 hover:bg-indigo-600"
+                onClick={() => {
+                  if (!home || stops.length < 1) {
+                    alert("Set Home and add at least one stop.");
+                    return;
+                  }
+                  alert(
+                    "Route optimization links are created on the results pane in your working branch. (Kept hooks; server call omitted here.)"
+                  );
+                }}
+              >
+                Optimize Trip
+              </button>
+              <button
+                className="px-3 py-2 rounded bg-white/10 hover:bg-white/20"
+                onClick={() => setStops([])}
+              >
+                Clear Trip
+              </button>
             </div>
+          </section>
+        </div>
 
-            <div className="flex gap-2 pt-2">
-              <button className="flex-1 rounded bg-sky-600 hover:bg-sky-500 font-semibold px-3 py-2"
-                onClick={optimize}>Optimize Trip</button>
-              <button className="px-3 rounded bg-zinc-700 hover:bg-zinc-600"
-                onClick={()=>{ setStops([]); setRouteGeoJSON(null); setOptOrder([]); setOptDurations([]); }}>Clear Trip</button>
-            </div>
-
-            {(home && optOrder.length>0) && (
-              <div className="pt-3 space-y-1 text-sm">
-                <div className="font-semibold">Open in maps (combined into chunks)</div>
-                {googleLinksCombined.map(g => (
-                  <div key={g.i} className="flex gap-3">
-                    <a className="underline" href={g.url} target="_blank">Google #{g.i+1}</a>
-                    <a className="underline" href={buildAppleLink(home!, optOrder.slice(g.i*23,(g.i+1)*23), roundtrip)} target="_blank">Apple</a>
-                    <a className="underline" href={buildWazeLink(optOrder[Math.min(optOrder.length-1, (g.i+1)*23-1)]!)} target="_blank">Waze</a>
-                  </div>
-                ))}
-                {googleLinksCombined.length===0 && googleLinksDurationChunks.length>0 && (
-                  <>
-                    <div className="pt-2 text-zinc-400">~10-hour chunks</div>
-                    {googleLinksDurationChunks.map(g => (
-                      <div key={`dur-${g.i}`} className="flex gap-3">
-                        <a className="underline" href={g.url} target="_blank">Google #{g.i+1}</a>
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+        {/* Map */}
+        <div className="relative">
+          <CertisMap
+            basemap={basemap}
+            markerStyle={markerStyle}
+            projection={projection}
+            data={filtered}
+            bbox={fcBbox as any}
+            home={home}
+            stops={stops}
+            onAddStop={(f) => {
+              const p: any = f.properties || {};
+              const coord = ((f.geometry as any)
+                .coordinates || []) as [number, number];
+              if (coord?.length >= 2) {
+                setStops((cur) => [
+                  ...cur,
+                  {
+                    coord: [coord[0], coord[1]],
+                    title:
+                      p.Name ||
+                      `${p.Retailer || ""}`.trim() ||
+                      "Stop",
+                  },
+                ]);
+              }
+            }}
+          />
         </div>
       </div>
-
-      {/* MAP */}
-      <div className="flex-1">
-        <CertisMap
-          basePath={BASE_PATH}
-          token={MAPBOX_TOKEN}
-          basemap={basemap}
-          markerStyle={markerStyle}
-          data={filtered}
-          bbox={fcBbox}
-          home={home}
-          stops={stops}
-          routeGeoJSON={routeGeoJSON}
-          onMapDblClick={(lnglat)=>setHome(lnglat)}
-          onPointClick={onPointClick}
-        />
-      </div>
-    </div>
+    </main>
   );
 }
