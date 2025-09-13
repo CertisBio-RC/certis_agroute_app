@@ -1,14 +1,37 @@
-/* ------- Theme ------- */
+/* ==========================================================================
+   Certis AgRoute – Global Styles (app/globals.css)
+   --------------------------------------------------------------------------
+   - Dark theme tokens
+   - Base resets & typography
+   - Header (sticky)
+   - App grid (2-column with sticky sidebar)
+   - Panels, fields, buttons
+   - Map container sizing (map fills right column)
+   - Mapbox popup theming + popup content (c-popup)
+   - Responsive tweaks
+   ========================================================================== */
+
+/* ------- Theme Tokens ------- */
 :root {
+  --header-h: 72px;
+
   --bg: #0a0c10;
   --panel: #12151c;
   --card: #161a22;
+
   --text: #e8eaee;
   --muted: #97a1ad;
+
   --border: #2a3140;
+
   --accent: #0ec5a5;
+  --accent-2: #65a9ff;
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
 
+/* ------- Base Reset ------- */
 *,
 *::before,
 *::after {
@@ -20,6 +43,11 @@ body {
   height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -27,72 +55,127 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
-    Apple Color Emoji, Segoe UI Emoji;
+    "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
 }
 
 a {
   color: #9ecbff;
   text-decoration: none;
 }
-
 a:hover {
   text-decoration: underline;
 }
 
-img {
-  display: block;
-  max-width: 100%;
+:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
 }
 
-/* ------- Header ------- */
+/* ------- Header (sticky) ------- */
 .site-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0));
   position: sticky;
   top: 0;
   z-index: 50;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0));
   backdrop-filter: blur(6px);
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .brand-logo {
-  height: 52px;
+  height: 52px; /* keeps logo sane */
   width: auto;
 }
 
-.header-nav {
+.header-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
 }
 
-/* ------- Grid Layout ------- */
+.btn-reset {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.btn-reset:hover {
+  border-color: #3a4354;
+  background: rgba(255,255,255,0.06);
+}
+
+/* ------- App Grid (sidebar + map) ------- */
 .app-grid {
   display: grid;
   grid-template-columns: 360px 1fr;
-  gap: 16px;
+  column-gap: 16px;
   padding: 16px 20px 20px;
   align-items: start;
 }
 
+/* Sidebar sticks under header */
 .aside {
   position: sticky;
-  top: 74px; /* below header */
+  top: calc(var(--header-h) + 8px);
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.panel {
+/* Right column shell & card ensure the map can stretch */
+.map-shell {
+  min-height: calc(100vh - (var(--header-h) + 40px));
+}
+.map-card {
+  height: calc(100vh - (var(--header-h) + 40px));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-soft);
+}
+
+/* If your map container is a child div, let it fill */
+.map-card > .mapbox-container,
+.map-card > div {
+  width: 100%;
+  height: 100%;
+}
+
+/* ------- Panels & Blocks ------- */
+.panel,
+.block-card {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px;
+  box-shadow: var(--shadow-soft);
 }
 
-.panel-title {
+.panel-title,
+.block-title {
   font-weight: 600;
   letter-spacing: 0.2px;
   margin-bottom: 10px;
@@ -104,11 +187,13 @@ img {
 }
 
 .label {
+  display: block;
   margin-bottom: 6px;
   font-size: 12.5px;
   color: var(--muted);
 }
 
+/* ------- Inputs & Buttons ------- */
 .select,
 .input,
 .btn {
@@ -127,38 +212,93 @@ img {
 
 .btn {
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color .15s ease, background .15s ease;
 }
-
 .btn:hover {
   border-color: #3a4354;
 }
-
 .btn.ghost {
   width: auto;
   background: transparent;
 }
 
+/* Pills (All / None toggles) */
+.pills {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+.pill {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pill.active {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 2px rgba(101,169,255,0.25) inset;
+}
+
+/* Small helper text */
 .hint {
   margin-top: 8px;
   font-size: 12.5px;
   color: var(--muted);
 }
 
-/* ------- Map Card ------- */
-.map-shell {
-  min-height: calc(100vh - 120px);
+/* ------- Mapbox Popup Theming ------- */
+.mapboxgl-popup {
+  z-index: 60;
 }
 
-.map-card {
-  height: calc(100vh - 120px);
+.mapboxgl-popup-content {
   background: var(--panel);
+  color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+}
+
+.mapboxgl-popup-tip {
+  border-top-color: var(--panel) !important;
+  border-bottom-color: var(--panel) !important;
+}
+
+/* Custom popup content used by CertisMap (logo + text) */
+.c-popup { font: 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#e8eaee; }
+.c-popup__head { display:flex; gap:10px; align-items:center; margin-bottom:6px; }
+.c-popup-logo { width:46px; height:auto; border-radius:6px; border:1px solid rgba(255,255,255,.15); background:#0b1016; padding:4px; }
+.c-popup__titles { display:flex; flex-direction:column; gap:2px; }
+.c-popup__retailer { font-weight:600; }
+.c-popup__name { color:#cbd3dc; }
+.c-popup__meta { margin-top:4px; }
+.c-popup__cat { font-size:12px; color:#96a1ad; }
+.c-popup__addr { margin-top:2px; font-size:12px; color:#cbd3dc; }
+
+/* ------- Utilities ------- */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
 /* ------- Responsive ------- */
+@media (max-width: 1200px) {
+  .app-grid {
+    grid-template-columns: 320px 1fr;
+  }
+}
+
 @media (max-width: 1080px) {
   .app-grid {
     grid-template-columns: 1fr;
@@ -166,7 +306,10 @@ img {
   .aside {
     position: static;
   }
+  .map-shell {
+    min-height: 60vh;
+  }
   .map-card {
-    height: 60vh;
+    height: 60vh; /* mobile: show a big map */
   }
 }
