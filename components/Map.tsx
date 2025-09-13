@@ -17,6 +17,8 @@ export default function Map(props: {
   const mapRef = useRef<any>(null);
   const mapEl = useRef<HTMLDivElement | null>(null);
   const mapboxglRef = useRef<any>(null);
+  const popupRef = useRef<any>(null);
+  const handlersBoundRef = useRef(false);
 
   const uniqueRetailers = useMemo(() => {
     const s = new Set<string>();
@@ -34,7 +36,6 @@ export default function Map(props: {
       const hasToken = !!token;
       if (hasToken) mapboxgl.accessToken = token;
 
-      // Destroy previous map, if any
       if (mapRef.current) {
         try {
           mapRef.current.remove();
@@ -70,9 +71,16 @@ export default function Map(props: {
         zoom: 5,
         cooperativeGestures: true,
         attributionControl: true,
-        projection: "mercator", // force flat map
+        projection: "mercator",
       });
       mapRef.current = map;
+
+      popupRef.current = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 10,
+        maxWidth: "320px",
+      });
 
       function ensureLayers() {
         // Source
@@ -118,7 +126,7 @@ export default function Map(props: {
           });
         }
 
-        // Unclustered dots (always available)
+        // Dots (always available)
         if (!map.getLayer("dots")) {
           map.addLayer({
             id: "dots",
@@ -137,8 +145,58 @@ export default function Map(props: {
           map.setLayoutProperty("dots", "visibility", markerStyle === "dots" ? "visible" : "none");
         }
 
-        // Preload retailer images (png → jpg fallback) then add logo layer
-        const addOrUpdateLogoLayer = () => {
+        // Prepare icon name on features
+        for (const f of data.features) {
+          const r = String(f?.properties?.__retailerName || "").trim();
+          const key = r
+            .toLowerCase()
+            .replace(/[^\w\s-]/g, "")
+            .replace(/\s+/g, "-");
+          f.properties.__iconName = `retailer-${key}`;
+        }
+
+        const registerImages = async () => {
+          const tryLoad = (url: string) =>
+            new Promise<HTMLImageElement | null>((res) => {
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.onload = () => res(img);
+              img.onerror = () => res(null);
+              img.src = url;
+            });
+
+          const jobs = uniqueRetailers.map(async (r) => {
+            const key = r
+              .toLowerCase()
+              .replace(/[^\w\s-]/g, "")
+              .replace(/\s+/g, "-");
+            const name = `retailer-${key}`;
+            if (map.hasImage(name)) return;
+
+            const pretty = r.replace(/[\\/:*?"<>|]/g, " ").trim();
+            const png = `${basePath}/icons/${pretty} Logo.png`;
+            const jpg = `${basePath}/icons/${pretty} Logo.jpg`;
+
+            let image: HTMLImageElement | ImageBitmap | null = await tryLoad(png);
+            if (!image) image = await tryLoad(jpg);
+
+            if (!image) {
+              // TS-safe fallback: tiny transparent ImageData
+              const empty = new ImageData(8, 8);
+              try {
+                map.addImage(name, empty, { pixelRatio: 2 });
+              } catch {}
+              return;
+            }
+
+            try {
+              map.addImage(name, image as any, { pixelRatio: 2 });
+            } catch {}
+          });
+
+          await Promise.all(jobs);
+
+          // Logos with safe scaling; hide at extreme zoom
           if (!map.getLayer("logos")) {
             map.addLayer({
               id: "logos",
@@ -147,11 +205,10 @@ export default function Map(props: {
               filter: [
                 "all",
                 ["!", ["has", "point_count"]],
-                ["<", ["zoom"], 15], // hide logos at extreme zoom to prevent giant sprites
+                ["<", ["zoom"], 15], // prevent giant sprites
               ],
               layout: {
-                "icon-image": ["get", "__iconName"], // set on feature via data-driven property
-                // Size curve caps growth; big originals become small, never screen-filling
+                "icon-image": ["get", "__iconName"],
                 "icon-size": ["interpolate", ["linear"], ["zoom"], 4, 0.12, 8, 0.18, 12, 0.24, 14, 0.28],
                 "icon-allow-overlap": true,
                 "icon-ignore-placement": true,
@@ -163,60 +220,60 @@ export default function Map(props: {
           }
         };
 
-        // Set data-driven icon name property (e.g., "retailer-central-valley-ag")
-        // and register the corresponding sprite images once per retailer.
-        for (const f of data.features) {
-          const r = String(f?.properties?.__retailerName || "").trim();
-          const key = r
-            .toLowerCase()
-            .replace(/[^\w\s-]/g, "")
-            .replace(/\s+/g, "-");
-          f.properties.__iconName = `retailer-${key}`;
-        }
+        registerImages();
 
-        const registerImages = async () => {
-          const promises = uniqueRetailers.map(async (r) => {
-            const key = r
-              .toLowerCase()
-              .replace(/[^\w\s-]/g, "")
-              .replace(/\s+/g, "-");
-            const name = `retailer-${key}`;
-            if (map.hasImage(name)) return;
+        // Hover popup handlers (bind once)
+        if (!handlersBoundRef.current) {
+          handlersBoundRef.current = true;
 
-            const tryLoad = (url: string) =>
-              new Promise<HTMLImageElement | null>((res) => {
-                const img = new Image();
-                img.crossOrigin = "anonymous";
-                img.onload = () => res(img);
-                img.onerror = () => res(null);
-                img.src = url;
-              });
+          const showPopup = (e: any) => {
+            const f = e?.features?.[0];
+            if (!f) return;
+            const p = f.properties || {};
+            const retailer = p.Retailer || p.__retailerName || "Retailer";
+            const name = p.Name || "";
+            const addr = [p.Address, p.City, p.State, p.Zip].filter(Boolean).join(", ");
+            const cat = p.Category ? `<div style="opacity:.8">${p.Category}</div>` : "";
+            const html = `
+              <div style="font: 12px/1.35 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:#111;">
+                <div style="font-weight:700">${retailer}</div>
+                ${name ? `<div>${name}</div>` : ""}
+                ${addr ? `<div style="opacity:.8">${addr}</div>` : ""}
+                ${cat}
+              </div>`;
 
-            // Look for "<Retailer> Logo.(png|jpg)" under /icons/
-            const pretty = r.replace(/[\\/:*?"<>|]/g, " ").trim();
-            const png = `${basePath}/icons/${pretty} Logo.png`;
-            const jpg = `${basePath}/icons/${pretty} Logo.jpg`;
+            const coords = f.geometry?.coordinates;
+            if (!Array.isArray(coords)) return;
 
-            let image = await tryLoad(png);
-            if (!image) image = await tryLoad(jpg);
+            popupRef.current.setLngLat(coords as [number, number]).setHTML(html).addTo(map);
+            map.getCanvas().style.cursor = "pointer";
+          };
 
-            // Fallback: tiny transparent dot prevents missing-image warnings
-            if (!image) {
-              const c = document.createElement("canvas");
-              c.width = 8;
-              c.height = 8;
-              image = c;
-            }
+          const hidePopup = () => {
             try {
-              map.addImage(name, image as any, { pixelRatio: 2 });
+              popupRef.current?.remove();
             } catch {}
+            map.getCanvas().style.cursor = "";
+          };
+
+          ["dots", "logos"].forEach((layer) => {
+            map.on("mouseenter", layer, showPopup);
+            map.on("mousemove", layer, showPopup);
+            map.on("mouseleave", layer, hidePopup);
           });
 
-          await Promise.all(promises);
-          addOrUpdateLogoLayer();
-        };
-
-        registerImages();
+          map.on("click", "clusters", (e: any) => {
+            const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+            const clusterId = features?.[0]?.properties?.cluster_id;
+            const source = map.getSource("retailers") as any;
+            if (!clusterId || !source?.getClusterExpansionZoom) return;
+            source.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
+              if (err) return;
+              const center = features[0].geometry.coordinates as [number, number];
+              map.easeTo({ center, zoom });
+            });
+          });
+        }
       }
 
       map.on("load", () => {
@@ -242,11 +299,11 @@ export default function Map(props: {
         } catch {}
         mapRef.current = null;
       }
+      handlersBoundRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, basemap]);
 
-  // Update data + visibility when filters/markerStyle change
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
