@@ -1,16 +1,12 @@
 ﻿/** @type {import('next').NextConfig} */
+const isCI = process.env.GITHUB_ACTIONS === 'true';
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || (isCI ? '/certis_agroute_app' : '');
 
-const IS_CI = process.env.GITHUB_ACTIONS === "true" || process.env.CI === "true";
-
-// Use ONLY basePath for GitHub Pages.
-// assetPrefix can conflict on static export and produce `/_next/...` links.
-const BASE = IS_CI ? "/certis_agroute_app" : "";
-
-const nextConfig = {
-  output: "export",
-  basePath: BASE,
+export default {
+  output: 'export', // we deploy to GitHub Pages as a static site
+  basePath: BASE_PATH || undefined,
+  assetPrefix: BASE_PATH ? `${BASE_PATH}/` : undefined,
+  images: { unoptimized: true }, // Pages CDN can’t optimize
   trailingSlash: true,
-  images: { unoptimized: true },
+  reactStrictMode: true,
 };
-
-export default nextConfig;
