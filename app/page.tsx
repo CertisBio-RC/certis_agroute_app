@@ -1,120 +1,122 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import CertisMap, { Stop } from '@/components/CertisMap';
+import { useMemo, useState } from 'react';
+import CertisMap from '@/components/CertisMap';
 
-// --------- env + constants ----------
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || ''; // "/certis_agroute_app" on Pages
+const BASE_PATH =
+  process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== '/'
+    ? process.env.NEXT_PUBLIC_BASE_PATH!
+    : '/certis_agroute_app';
+
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
-// Pre-zoom extent over Midwest-ish (lngLat bbox)
-const DEFAULT_BBOX: [number, number, number, number] = [-106, 35.5, -84.5, 49];
+type LngLat = [number, number];
 
 export default function Page() {
-  // These can stay lowercase – CertisMap now normalizes internally
+  // --- UI state (keep simple; your existing advanced filters can replace these) ---
   const [basemap, setBasemap] = useState<'hybrid' | 'streets'>('hybrid');
   const [markerStyle, setMarkerStyle] = useState<'dots' | 'logos'>('dots');
 
-  // Trip planner bits (kept simple here)
-  const [home, setHome] = useState<[number, number] | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [route, setRoute] = useState<any | null>(null);
+  // Trip state (wire up to your optimizer if you already have one)
+  const [home, setHome] = useState<LngLat | null>(null);
+  const [stops, setStops] = useState<Array<{ title: string; coord: LngLat }>>([]);
 
+  // Data path (your workflow builds this)
   const dataUrl = useMemo(
     () => `${BASE_PATH}/data/retailers.geojson`,
     []
   );
 
-  const resetMap = () => {
-    setHome(null);
+  // Handlers
+  const onMapDblClick = (lnglat: LngLat) => setHome(lnglat);
+  const onPointClick = (lnglat: LngLat, title: string) =>
+    setStops((prev) => [...prev, { title, coord: lnglat }]);
+
+  const clearTrip = () => {
     setStops([]);
-    setRoute(null);
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#0b1021] text-white">
-      {/* Header */}
-      <header className="flex items-center justify-between px-5 py-3">
-        <img
-          src={`${BASE_PATH}/certis-logo.png`}
-          alt="Certis Biologicals"
-          className="h-10 w-auto"
-        />
-        <button
-          className="text-indigo-300 hover:text-indigo-200 underline underline-offset-4"
-          onClick={resetMap}
-        >
-          Reset Map
-        </button>
-      </header>
-
-      {/* Body: 2-column */}
-      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4 px-5 pb-6">
-        {/* Left column – controls (kept short here) */}
-        <aside className="rounded-xl bg-[#0f172a] p-4 space-y-4">
-          <h2 className="text-xl font-semibold">Map Options</h2>
-
-          <div>
-            <div className="text-sm mb-1 opacity-80">Basemap</div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setBasemap('hybrid')}
-                className={`px-3 py-1 rounded ${basemap === 'hybrid' ? 'bg-indigo-600' : 'bg-slate-700'}`}
+    <>
+      {/* Sidebar */}
+      <aside className="aside">
+        <div className="aside-inner space-y-4">
+          <section className="block-card">
+            <div className="block-title">Map Options</div>
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                className="select col-span-2"
+                value={basemap}
+                onChange={(e) => setBasemap(e.target.value as 'hybrid' | 'streets')}
               >
-                Hybrid
-              </button>
-              <button
-                onClick={() => setBasemap('streets')}
-                className={`px-3 py-1 rounded ${basemap === 'streets' ? 'bg-indigo-600' : 'bg-slate-700'}`}
+                <option value="hybrid">Hybrid</option>
+                <option value="streets">Streets</option>
+              </select>
+
+              <select
+                className="select col-span-2"
+                value={markerStyle}
+                onChange={(e) => setMarkerStyle(e.target.value as 'dots' | 'logos')}
               >
-                Streets
-              </button>
+                <option value="dots">Colored dots</option>
+                <option value="logos">Retailer logos</option>
+              </select>
             </div>
-          </div>
+            <p className="mt-2 help">
+              Double-click the map to set <span className="font-medium">Home</span>. Click a
+              point to add a <span className="font-medium">stop</span>.
+            </p>
+          </section>
 
-          <div>
-            <div className="text-sm mb-1 opacity-80">Markers</div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMarkerStyle('dots')}
-                className={`px-3 py-1 rounded ${markerStyle === 'dots' ? 'bg-indigo-600' : 'bg-slate-700'}`}
-              >
-                Colored dots
+          {/* Replace with your full multi-select blocks (States, Retailers, Location Types) */}
+          <section className="block-card">
+            <div className="block-title">Filters</div>
+            <p className="help">
+              Your existing filter UI goes here. The layout won’t affect your current logic.
+            </p>
+          </section>
+
+          {/* Trip Planner shell (wire up to your optimizer) */}
+          <section className="block-card">
+            <div className="block-title">Trip Planner</div>
+            <div className="space-y-2">
+              <button className="button w-full" onClick={clearTrip}>
+                Clear Trip
               </button>
-              <button
-                onClick={() => setMarkerStyle('logos')}
-                className={`px-3 py-1 rounded ${markerStyle === 'logos' ? 'bg-indigo-600' : 'bg-slate-700'}`}
-              >
-                Logos
-              </button>
+              <div className="help">
+                Home: {home ? `${home[1].toFixed(5)}, ${home[0].toFixed(5)}` : 'unset'}
+              </div>
+              {stops.length > 0 && (
+                <ul className="text-sm space-y-1">
+                  {stops.map((s, i) => (
+                    <li key={i} className="truncate">
+                      {i + 1}. {s.title}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          </div>
+          </section>
+        </div>
+      </aside>
 
-          <div className="pt-2 border-t border-slate-700/40">
-            <p className="text-sm opacity-80">Tip: Double-click the map to set <span className="font-semibold">Home</span>. Click a point to add a <span className="font-semibold">stop</span>.</p>
-          </div>
-        </aside>
-
-        {/* Right – the map itself */}
-        <main className="rounded-xl overflow-hidden min-h-[70vh] lg:min-h-[78vh]">
+      {/* Map */}
+      <section className="map-panel">
+        <div className="map-fill">
           <CertisMap
             basePath={BASE_PATH}
             token={MAPBOX_TOKEN}
-            basemap={basemap}
-            markerStyle={markerStyle}
-            dataUrl={dataUrl}
-            bbox={DEFAULT_BBOX}
-            home={home}
-            stops={stops}
-            routeGeoJSON={route || undefined}
-            onMapDblClick={(lnglat) => setHome(lnglat)}
-            onPointClick={(lnglat, title) =>
-              setStops((prev) => prev.concat({ title, coords: lnglat }))
-            }
-            globe={false}
+            basemap={basemap}          {/* lower-case supported in your component */}
+            markerStyle={markerStyle}  {/* 'dots' | 'logos' */}
+            dataUrl={dataUrl}          {/* component fetches FeatureCollection */}
+            home={home as any}
+            stops={stops as any}
+            routeGeoJSON={null as any}
+            onMapDblClick={onMapDblClick}
+            onPointClick={onPointClick}
           />
-        </main>
-      </div>
-    </div>
+        </div>
+      </section>
+    </>
   );
 }
