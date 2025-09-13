@@ -1,123 +1,118 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import CertisMap, { Stop } from '@/components/CertisMap';
 
-const CertisMap = dynamic(() => import('@/components/CertisMap'), { ssr: false });
+// --------- env + constants ----------
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || ''; // "/certis_agroute_app" on Pages
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || '';
-const MAPBOX_TOKEN =
-  process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
-  process.env.MAPBOX_PUBLIC_TOKEN ||
-  '';
+// Pre-zoom extent over Midwest-ish (lngLat bbox)
+const DEFAULT_BBOX: [number, number, number, number] = [-106, 35.5, -84.5, 49];
 
 export default function Page() {
-  // Minimal local state the map already expects
+  // These can stay lowercase – CertisMap now normalizes internally
   const [basemap, setBasemap] = useState<'hybrid' | 'streets'>('hybrid');
   const [markerStyle, setMarkerStyle] = useState<'dots' | 'logos'>('dots');
 
-  // Data URL (served from /public/data under Pages sub-path)
-  const dataUrl = useMemo(() => `${BASE_PATH}/data/retailers.geojson`, []);
-
-  // No-op handlers (your CertisMap implements full behavior)
+  // Trip planner bits (kept simple here)
   const [home, setHome] = useState<[number, number] | null>(null);
-  const [stops, setStops] = useState<Array<{ title: string; coord: [number, number] }>>([]);
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [route, setRoute] = useState<any | null>(null);
 
-  const handleMapDblClick = (lnglat: [number, number]) => setHome(lnglat);
-  const handlePointClick = (lnglat: [number, number], title: string) =>
-    setStops((s) => [...s, { title, coord: lnglat }]);
+  const dataUrl = useMemo(
+    () => `${BASE_PATH}/data/retailers.geojson`,
+    []
+  );
+
+  const resetMap = () => {
+    setHome(null);
+    setStops([]);
+    setRoute(null);
+  };
 
   return (
-    <div id="app-root">
+    <div className="min-h-screen w-full bg-[#0b1021] text-white">
       {/* Header */}
-      <header className="header">
-        <div className="flex items-center gap-3">
-          <Image
-            className="logo"
-            src={`${BASE_PATH}/certis-logo.png`}
-            width={180}
-            height={40}
-            alt="Certis Biologicals"
-            priority
-            unoptimized
-          />
-        </div>
-
-        {/* Reset Map (far right) */}
-        <a
-          href={`${BASE_PATH}/?v=now`}
-          className="rounded-lg border border-zinc-700 bg-zinc-900/50 px-3 py-1.5 text-sm hover:bg-zinc-800"
+      <header className="flex items-center justify-between px-5 py-3">
+        <img
+          src={`${BASE_PATH}/certis-logo.png`}
+          alt="Certis Biologicals"
+          className="h-10 w-auto"
+        />
+        <button
+          className="text-indigo-300 hover:text-indigo-200 underline underline-offset-4"
+          onClick={resetMap}
         >
           Reset Map
-        </a>
+        </button>
       </header>
 
-      {/* Two-column layout */}
-      <div className="flex">
-        {/* Left rail */}
-        <aside className="left-rail">
-          <h1 className="text-2xl font-semibold mb-3">Certis AgRoute Planner</h1>
+      {/* Body: 2-column */}
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4 px-5 pb-6">
+        {/* Left column – controls (kept short here) */}
+        <aside className="rounded-xl bg-[#0f172a] p-4 space-y-4">
+          <h2 className="text-xl font-semibold">Map Options</h2>
 
-          <div className="left-card">
-            <div className="mb-3 text-sm text-zinc-300">
-              Filter retailers and plan optimized trips. Double-click map to set{' '}
-              <span className="font-semibold">Home</span>. Click a point to{' '}
-              <span className="font-semibold">add stop</span>.
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <label className="text-xs text-zinc-400">Basemap</label>
-              <select
-                value={basemap}
-                onChange={(e) => setBasemap(e.target.value as any)}
-                className="col-span-1 rounded-lg border border-zinc-700 bg-zinc-900/70 px-2 py-1 text-sm"
+          <div>
+            <div className="text-sm mb-1 opacity-80">Basemap</div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBasemap('hybrid')}
+                className={`px-3 py-1 rounded ${basemap === 'hybrid' ? 'bg-indigo-600' : 'bg-slate-700'}`}
               >
-                <option value="hybrid">Hybrid</option>
-                <option value="streets">Streets</option>
-              </select>
-
-              <label className="text-xs text-zinc-400">Markers</label>
-              <select
-                value={markerStyle}
-                onChange={(e) => setMarkerStyle(e.target.value as any)}
-                className="col-span-1 rounded-lg border border-zinc-700 bg-zinc-900/70 px-2 py-1 text-sm"
+                Hybrid
+              </button>
+              <button
+                onClick={() => setBasemap('streets')}
+                className={`px-3 py-1 rounded ${basemap === 'streets' ? 'bg-indigo-600' : 'bg-slate-700'}`}
               >
-                <option value="dots">Colored dots</option>
-                <option value="logos">Retailer logos</option>
-              </select>
+                Streets
+              </button>
             </div>
           </div>
 
-          {/* Your trip planner / filters remain inside the map component you already have */}
-          <div className="text-xs text-zinc-500">
-            Token detected: {MAPBOX_TOKEN ? 'yes' : 'no'}
-            <br />
-            Data path: {dataUrl}
+          <div>
+            <div className="text-sm mb-1 opacity-80">Markers</div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMarkerStyle('dots')}
+                className={`px-3 py-1 rounded ${markerStyle === 'dots' ? 'bg-indigo-600' : 'bg-slate-700'}`}
+              >
+                Colored dots
+              </button>
+              <button
+                onClick={() => setMarkerStyle('logos')}
+                className={`px-3 py-1 rounded ${markerStyle === 'logos' ? 'bg-indigo-600' : 'bg-slate-700'}`}
+              >
+                Logos
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-700/40">
+            <p className="text-sm opacity-80">Tip: Double-click the map to set <span className="font-semibold">Home</span>. Click a point to add a <span className="font-semibold">stop</span>.</p>
           </div>
         </aside>
 
-        {/* Map area */}
-        <main className="main-map">
-          <div className="map-wrap">
-            <div className="map-box">
-              <CertisMap
-                basePath={BASE_PATH}
-                token={MAPBOX_TOKEN}
-                basemap={basemap}
-                markerStyle={markerStyle}
-                // CertisMap fetches the FeatureCollection from dataUrl internally, or
-                // if yours expects inline data, you can modify CertisMap accordingly.
-                data={{ type: 'FeatureCollection', features: [] } as any}
-                bbox={[-125, 24, -66, 50]}
-                home={(home || undefined) as any}
-                stops={stops as any}
-                routeGeoJSON={undefined}
-                onMapDblClick={handleMapDblClick as any}
-                onPointClick={handlePointClick as any}
-              />
-            </div>
-          </div>
+        {/* Right – the map itself */}
+        <main className="rounded-xl overflow-hidden min-h-[70vh] lg:min-h-[78vh]">
+          <CertisMap
+            basePath={BASE_PATH}
+            token={MAPBOX_TOKEN}
+            basemap={basemap}
+            markerStyle={markerStyle}
+            dataUrl={dataUrl}
+            bbox={DEFAULT_BBOX}
+            home={home}
+            stops={stops}
+            routeGeoJSON={route || undefined}
+            onMapDblClick={(lnglat) => setHome(lnglat)}
+            onPointClick={(lnglat, title) =>
+              setStops((prev) => prev.concat({ title, coords: lnglat }))
+            }
+            globe={false}
+          />
         </main>
       </div>
     </div>
