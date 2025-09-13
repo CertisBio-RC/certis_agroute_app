@@ -1,277 +1,353 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import mapboxgl, { Map } from "mapbox-gl";
+import { useEffect, useMemo, useRef } from "react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 
-type LngLat = [number, number];
+type Basemap = "hybrid" | "Hybrid" | "streets" | "Streets";
 
-type GJPoint = { type: "Point"; coordinates: LngLat };
-type GJFeature = {
-  type: "Feature";
-  geometry: GJPoint | null;
-  properties: {
-    Retailer: string;
-    Name: string;
-    Category: string;
-    State: string;
-    Address?: string;
-    City?: string;
-    Zip?: string;
-  };
-};
-type GJFC = { type: "FeatureCollection"; features: GJFeature[] };
-
-// Accept a readonly tuple to avoid TS readonly vs mutable issues
-type BBox = Readonly<[number, number, number, number]>;
-
-export type CertisMapProps = {
+type CertisMapProps = {
+  /** e.g. "/certis_agroute_app" for Pages, "" locally */
+  basePath: string;
+  /** Mapbox public token */
   token: string;
-  basemap: "Hybrid" | "Streets";
-  markerStyle: "Colored dots" | "Logos";
-  data: GJFC;          // already filtered by the page
-  bbox: BBox;          // readonly is OK; we convert to Mapbox bounds internally
+
+  /** Basemap toggle from UI */
+  basemap: Basemap;
+
+  /**
+   * GeoJSON FeatureCollection<Point>
+   * Required properties used: Retailer, Name, Category, Address, City, State, Zip
+   * Optional: Logo (filename) — if present, shown in popup
+   */
+  data: GeoJSON.FeatureCollection<GeoJSON.Point>;
+
+  /** Optional [minX, minY, maxX, maxY] to fit the view */
+  bbox?: readonly [number, number, number, number];
+
+  /** Called when the user double-clicks on the map (to set Home, etc.) */
+  onMapDblClick?: (lnglat: [number, number]) => void;
+
+  /** Called when a point is clicked (to add a stop, etc.) */
+  onPointClick?: (lnglat: [number, number], title: string) => void;
 };
 
-const MAP_STYLES: Record<CertisMapProps["basemap"], string> = {
-  Hybrid: "mapbox://styles/mapbox/satellite-streets-v12",
-  Streets: "mapbox://styles/mapbox/streets-v12",
-};
+function slugify(s: string) {
+  return (s || "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
-const CAT_COLOR: Record<string, string> = {
-  Kingpin: "#ff4d60",
-  Agronomy: "#38bdf8",
-  "Office/Service": "#4ade80",
-  Warehouse: "#f59e0b",
-};
+function popupHTML(props: any, basePath: string) {
+  const retailer = props?.Retailer ?? "";
+  const name = props?.Name ?? "";
+  const category = props?.Category ?? "";
+  const addr = [props?.Address, props?.City, props?.State, props?.Zip]
+    .filter(Boolean)
+    .join(", ");
 
-function colorFor(cat: string) {
-  return CAT_COLOR[cat] ?? "#94a3b8";
+  // Use explicit props.Logo when present; otherwise try /logos/<retailer-slug>.png
+  const explicit = props?.Logo ? String(props.Logo) : "";
+  const guess = `${basePath}/logos/${slugify(retailer)}.png`;
+  const src = explicit ? `${basePath}/logos/${explicit}` : guess;
+
+  // The onerror hides the <img> if the file is missing
+  const logoTag = `<img class="c-popup-logo" src="${src}" alt="" onerror="this.style.display='none'">`;
+
+  return `
+    <div class="c-popup">
+      <div class="c-popup__head">
+        ${logoTag}
+        <div class="c-popup__titles">
+          <div class="c-popup__retailer">${retailer || ""}</div>
+          <div class="c-popup__name">${name || ""}</div>
+        </div>
+      </div>
+      <div class="c-popup__meta">
+        <div class="c-popup__cat">${category || ""}</div>
+        <div class="c-popup__addr">${addr || ""}</div>
+      </div>
+    </div>
+  `;
 }
 
 export default function CertisMap({
+  basePath,
   token,
   basemap,
-  markerStyle,
   data,
   bbox,
+  onMapDblClick,
+  onPointClick,
 }: CertisMapProps) {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<Map | null>(null);
-  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const mapEl = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
 
+  // Touch detection: no hover on touch devices
+  const isTouch = useMemo(
+    () => typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0),
+    []
+  );
+
+  // Split data into “kingpins” (Category === "Kingpin") and “others”
+  const kingpinFC = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => {
+    const feats = (data?.features ?? []).filter(
+      (f) => (f?.properties as any)?.Category === "Kingpin"
+    );
+    return { type: "FeatureCollection", features: feats as any };
+  }, [data]);
+
+  const othersFC = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => {
+    const feats = (data?.features ?? []).filter(
+      (f) => (f?.properties as any)?.Category !== "Kingpin"
+    );
+    return { type: "FeatureCollection", features: feats as any };
+  }, [data]);
+
+  // Style choice
+  const styleURL =
+    basemap.toLowerCase() === "streets"
+      ? "mapbox://styles/mapbox/streets-v12"
+      : "mapbox://styles/mapbox/satellite-streets-v12";
+
+  // Init / style changes
   useEffect(() => {
-    if (!hostRef.current) return;
-
+    if (!mapEl.current) return;
     mapboxgl.accessToken = token;
 
-    const map = new mapboxgl.Map({
-      container: hostRef.current,
-      style: MAP_STYLES[basemap],
-      center: [-96.8, 39.8],
-      zoom: 3.5,
-      attributionControl: false,
-      projection: "mercator",
-      fadeDuration: 0,
-    });
-    mapRef.current = map;
-
-    map.addControl(new mapboxgl.AttributionControl({ compact: true }));
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "bottom-right");
-
-    map.on("load", () => {
-      // Fit once on load
-      if (bbox) {
-        const [w, s, e, n] = bbox;
-        const bounds: mapboxgl.LngLatBoundsLike = [
-          [w, s],
-          [e, n],
-        ];
-        map.fitBounds(bounds, { padding: 40, duration: 0 });
-      }
-
-      const clustered = markerStyle !== "Logos";
-
-      map.addSource("retailers", {
-        type: "geojson",
-        data,
-        cluster: clustered,
-        clusterMaxZoom: 6,
-        clusterRadius: 45,
+    // Create once
+    if (!mapRef.current) {
+      mapRef.current = new mapboxgl.Map({
+        container: mapEl.current,
+        style: styleURL,
+        center: [-96.5, 41.5],
+        zoom: 4,
+        hash: true,
       });
 
-      // Clusters (dots only)
-      if (clustered) {
-        map.addLayer({
-          id: "clusters",
-          type: "circle",
-          source: "retailers",
-          filter: ["has", "point_count"],
-          paint: {
-            "circle-color": "#60a5fa",
-            "circle-opacity": 0.85,
-            "circle-radius": [
-              "step",
-              ["get", "point_count"],
-              18,
-              25,
-              24,
-              75,
-              32,
-              150,
-              40,
-            ],
-            "circle-stroke-color": "#0b1220",
-            "circle-stroke-width": 2,
-          },
-        });
+      // basic nav
+      mapRef.current.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
 
-        map.addLayer({
-          id: "cluster-count",
-          type: "symbol",
-          source: "retailers",
-          filter: ["has", "point_count"],
-          layout: {
-            "text-field": ["get", "point_count_abbreviated"],
-            "text-size": 12,
-            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-          },
-          paint: { "text-color": "#0b1220" },
-        });
+      // dbl-click => set Home
+      mapRef.current.on("dblclick", (e) => {
+        onMapDblClick?.([e.lngLat.lng, e.lngLat.lat]);
+      });
+    } else {
+      // Switch basemap if needed
+      const m = mapRef.current;
+      if ((m as any).getStyle()?.sprite?.indexOf(styleURL) === -1) {
+        m.setStyle(styleURL);
       }
+    }
 
-      // Unclustered dots (ALWAYS an expression; never boolean)
+    return () => {
+      // Don't auto-destroy between re-renders; keeps map stable
+    };
+  }, [styleURL, token, onMapDblClick]);
+
+  // Data layers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const onStyle = () => {
+      // SOURCES
+      if (map.getSource("others")) map.removeSource("others");
+      if (map.getSource("kingpins")) map.removeSource("kingpins");
+
+      map.addSource("others", {
+        type: "geojson",
+        data: othersFC,
+        cluster: true,
+        clusterRadius: 48,
+        clusterProperties: {},
+      });
+
+      // non-clustered kingpins so they always show
+      map.addSource("kingpins", { type: "geojson", data: kingpinFC });
+
+      // LAYERS — clusters for others
+      if (map.getLayer("clusters")) map.removeLayer("clusters");
+      map.addLayer({
+        id: "clusters",
+        type: "circle",
+        source: "others",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": "#65a9ff",
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["get", "point_count"],
+            2, 16,
+            40, 28,
+            200, 36,
+          ],
+          "circle-stroke-color": "#0b1016",
+          "circle-stroke-width": 2,
+        },
+      });
+
+      if (map.getLayer("cluster-count")) map.removeLayer("cluster-count");
+      map.addLayer({
+        id: "cluster-count",
+        type: "symbol",
+        source: "others",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count"],
+          "text-size": 12,
+          "text-font": ["DIN Pro Medium", "Arial Unicode MS Bold"],
+        },
+        paint: { "text-color": "#ffffff" },
+      });
+
+      // unclustered others (colored dots)
+      if (map.getLayer("unclustered-dots")) map.removeLayer("unclustered-dots");
       map.addLayer({
         id: "unclustered-dots",
         type: "circle",
-        source: "retailers",
-        filter: clustered ? ["!", ["has", "point_count"]] : ["all"],
+        source: "others",
+        filter: ["!", ["has", "point_count"]],
         paint: {
-          "circle-radius": [
-            "case",
-            ["==", ["get", "Category"], "Kingpin"],
-            10,
-            6,
-          ],
           "circle-color": [
-            "case",
-            ["==", ["get", "Category"], "Kingpin"],
-            colorFor("Kingpin"),
-            [
-              "match",
-              ["get", "Category"],
-              ["Agronomy"],
-              colorFor("Agronomy"),
-              ["Office/Service"],
-              colorFor("Office/Service"),
-              ["Warehouse"],
-              colorFor("Warehouse"),
-              "#94a3b8",
-            ],
+            "match",
+            ["get", "Category"],
+            // tweak colors to your liking
+            "Agronomy", "#42c1ff",
+            "Office/Service", "#92a2b5",
+            "Distribution", "#6ee7a4",
+            "#66b3ff" // default
           ],
-          "circle-stroke-color": "#0b1220",
-          "circle-stroke-width": [
-            "case",
-            ["==", ["get", "Category"], "Kingpin"],
-            2.5,
-            1.75,
+          "circle-radius": [
+            "interpolate", ["linear"], ["zoom"],
+            4, 4,
+            8, 6,
+            12, 8
           ],
+          "circle-stroke-color": "#0b1016",
+          "circle-stroke-width": 2,
         },
       });
 
-      // Always-on-top kingpins
+      // KINGPINS — bright red with yellow ring, always on top
+      if (map.getLayer("kingpin-circles")) map.removeLayer("kingpin-circles");
       map.addLayer({
         id: "kingpin-circles",
         type: "circle",
-        source: "retailers",
-        filter: ["==", ["get", "Category"], "Kingpin"],
+        source: "kingpins",
         paint: {
-          "circle-radius": 12,
-          "circle-color": colorFor("Kingpin"),
-          "circle-opacity": 0.9,
-          "circle-stroke-color": "#000",
-          "circle-stroke-width": 2.5,
+          "circle-color": "#ff3355",              // bright red
+          "circle-stroke-color": "#ffd84d",       // yellow ring
+          "circle-stroke-width": 3,
+          "circle-radius": [
+            "interpolate", ["linear"], ["zoom"],
+            3, 7,
+            6, 10,
+            10, 12,
+            14, 14
+          ]
         },
       });
 
-      // Logos (simple text stand-in)
-      if (markerStyle === "Logos") {
-        map.addLayer({
-          id: "retailer-logos",
-          type: "symbol",
-          source: "retailers",
-          layout: {
-            "text-field": [
-              "coalesce",
-              ["slice", ["get", "Retailer"], 0, 4],
-              "•",
-            ],
-            "text-size": [
-              "case",
-              ["==", ["get", "Category"], "Kingpin"],
-              20,
-              14,
-            ],
-            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-            "text-allow-overlap": false,
-          },
-          paint: {
-            "text-color": "#e5e7eb",
-            "text-halo-color": "#0b1220",
-            "text-halo-width": 1.5,
-          },
-        });
-      }
-
-      // Hover popups on dots/kingpins/logos
-      popupRef.current = new mapboxgl.Popup({
+      // ---------- POPUPS ----------
+      const hoverPopup = new mapboxgl.Popup({
         closeButton: false,
         closeOnClick: false,
-        offset: 12,
+        offset: 16,
       });
+      let hoverVisible = false;
 
-      const hoverLayers = ["unclustered-dots", "kingpin-circles"];
-      if (markerStyle === "Logos") hoverLayers.push("retailer-logos");
+      const showHover = (e: any) => {
+        if (isTouch) return; // no hover on touch
+        const f = e.features?.[0];
+        if (!f) return;
+        const [lng, lat] = (f.geometry as any).coordinates;
+        hoverPopup
+          .setLngLat([lng, lat])
+          .setHTML(popupHTML(f.properties, basePath))
+          .addTo(map);
+        hoverVisible = true;
+      };
 
-      const onMove = (e: mapboxgl.MapMouseEvent) => {
-        const f = map.queryRenderedFeatures(e.point, { layers: hoverLayers })[0] as any;
-        if (!f) {
-          map.getCanvas().style.cursor = "";
-          popupRef.current!.remove();
-          return;
+      const hideHover = () => {
+        if (!isTouch && hoverVisible) {
+          hoverPopup.remove();
+          hoverVisible = false;
         }
-        map.getCanvas().style.cursor = "pointer";
-        const p = f.properties || {};
-        const html = `
-          <div style="font-weight:700;margin-bottom:4px">${p.Retailer ?? ""}</div>
-          <div>${p.Name ?? ""}</div>
-          <div style="opacity:.8">${p.Category ?? ""}</div>
-          <div style="opacity:.8">${[p.Address, p.City, p.Zip].filter(Boolean).join(", ")}</div>
-        `;
-        const coords: LngLat =
-          f.geometry?.type === "Point"
-            ? (f.geometry.coordinates as LngLat)
-            : (e.lngLat.toArray() as LngLat);
-        popupRef.current!.setLngLat(coords).setHTML(html).addTo(map);
       };
 
-      const onLeave = () => {
-        map.getCanvas().style.cursor = "";
-        popupRef.current!.remove();
+      const clickSticky = (e: any) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        const [lng, lat] = (f.geometry as any).coordinates;
+        // Sticky popup for both desktop and mobile
+        new mapboxgl.Popup({ closeButton: true, offset: 16 })
+          .setLngLat([lng, lat])
+          .setHTML(popupHTML(f.properties, basePath))
+          .addTo(map);
+        const title = [f.properties?.Retailer, f.properties?.Name].filter(Boolean).join(" — ");
+        onPointClick?.([lng, lat], title);
       };
 
-      hoverLayers.forEach((id) => {
-        map.on("mousemove", id, onMove);
-        map.on("mouseleave", id, onLeave);
+      const hoverTargets = ["unclustered-dots", "kingpin-circles"];
+      hoverTargets.forEach((layer) => {
+        map.on("mousemove", layer, showHover);
+        map.on("mouseleave", layer, hideHover);
+        map.on("click", layer, clickSticky);
+        map.on("touchstart", layer, clickSticky);
       });
-    });
+
+      // Fit bounds if provided
+      if (bbox && Number.isFinite(bbox[0])) {
+        map.fitBounds(bbox, { padding: 40, duration: 350 });
+      }
+    };
+
+    // Style might still be loading
+    if (map.isStyleLoaded()) {
+      onStyle();
+    } else {
+      map.once("styledata", onStyle);
+    }
 
     return () => {
-      popupRef.current?.remove();
-      popupRef.current = null;
-      mapRef.current?.remove();
-      mapRef.current = null;
+      const m = mapRef.current;
+      if (!m) return;
+      // remove handlers to prevent duplicates when style changes
+      const layers = ["unclustered-dots", "kingpin-circles"];
+      layers.forEach((layer) => {
+        if (m.getLayer(layer)) {
+          m.off("mousemove", layer, () => {});
+          m.off("mouseleave", layer, () => {});
+          m.off("click", layer, () => {});
+          m.off("touchstart", layer, () => {});
+        }
+      });
     };
-  }, [token, basemap, markerStyle, data, bbox]);
+  }, [othersFC, kingpinFC, bbox, basePath, isTouch, onPointClick]);
 
-  return <div ref={hostRef} className="h-full w-full" />;
+  return (
+    <div
+      ref={mapEl}
+      style={{ width: "100%", height: "100%", minHeight: "480px" }}
+      aria-label="Retailers map"
+    />
+  );
 }
+
+/* --- Minimal CSS to style popup (scoped via class names) ---
+   Put this in app/globals.css if you want the exact look:
+
+.c-popup { font: 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#e8eaee; }
+.c-popup__head { display:flex; gap:10px; align-items:center; margin-bottom:6px; }
+.c-popup-logo { width:46px; height:auto; border-radius:6px; border:1px solid rgba(255,255,255,.15); background:#0b1016; padding:4px; }
+.c-popup__titles { display:flex; flex-direction:column; gap:2px; }
+.c-popup__retailer { font-weight:600; }
+.c-popup__name { color:#cbd3dc; }
+.c-popup__meta { margin-top:4px; }
+.c-popup__cat { font-size:12px; color:#96a1ad; }
+.c-popup__addr { margin-top:2px; font-size:12px; color:#cbd3dc; }
+*/
