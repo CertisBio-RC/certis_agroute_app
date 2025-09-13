@@ -1,479 +1,438 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import mapboxgl, { Map as MbMap } from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import { useEffect, useMemo, useState } from "react";
+import CertisMap from "@/components/CertisMap";
+import type { CertisMapProps } from "@/components/CertisMap";
 
-type Feature = {
-  type: "Feature";
-  geometry: { type: string; coordinates?: [number, number] } | null;
-  properties: Record<string, any>;
+type FC = GeoJSON.FeatureCollection<GeoJSON.Geometry, any>;
+type Feature = GeoJSON.Feature<GeoJSON.Geometry, any>;
+
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const MAPBOX_TOKEN =
+  process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
+  process.env.MAPBOX_PUBLIC_TOKEN ||
+  "";
+
+const K = {
+  retailer: ["__retailerName", "Retailer", "retailer", "RETAILER"],
+  name:     ["Name", "name", "NAME"],
+  cat:      ["Category", "category", "CATEGORY"],
+  state:    ["State", "state", "STATE"],
+  addr:     ["Address", "address", "ADDRESS"],
+  city:     ["City", "city", "CITY"],
+  zip:      ["Zip", "zip", "ZIP"],
 };
-type FC = { type: "FeatureCollection"; features: Feature[] };
+
+function getProp(f: any, names: string[], fallback = ""): string {
+  for (const n of names) if (f?.properties?.[n] != null) return String(f.properties[n]);
+  return fallback;
+}
+const toLngLat = (f: Feature | null): [number, number] | null => {
+  const c: any = (f?.geometry as any)?.coordinates;
+  return Array.isArray(c) && c.length === 2 && isFinite(c[0]) && isFinite(c[1]) ? [c[0], c[1]] : null;
+};
+const bboxOf = (fc: FC | null): [number, number, number, number] | null => {
+  if (!fc) return null;
+  let minX= Infinity, minY= Infinity, maxX= -Infinity, maxY= -Infinity, any=false;
+  for (const f of fc.features) {
+    const c = toLngLat(f);
+    if (!c) continue;
+    any=true;
+    minX=Math.min(minX,c[0]); minY=Math.min(minY,c[1]);
+    maxX=Math.max(maxX,c[0]); maxY=Math.max(maxY,c[1]);
+  }
+  return any ? [minX,minY,maxX,maxY] : null;
+};
 
 type Stop = { coord: [number, number]; title?: string };
 
-type MapProps = {
-  basePath: string;            // "/certis_agroute_app" or ""
-  token?: string;              // NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN (optional)
-  basemap: "hybrid" | "streets";
-  markerStyle: "dots" | "logos";
-  data: FC;
-  bbox: [number, number, number, number] | null;
-  home: [number, number] | null;
-  stops: Stop[];
-  routeGeoJSON: any | null;
-  onMapDblClick?: (lnglat: [number, number]) => void;
-  onPointClick?: (lnglat: [number, number], title: string) => void;
-};
-
-const isLngLat = (c: any): c is [number, number] =>
-  Array.isArray(c) && c.length === 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]);
-
-const RETAILER_KEYS = ["__retailerName", "Retailer", "retailer", "RETAILER"];
-const NAME_KEYS     = ["Name", "name", "NAME"];
-const CAT_KEYS      = ["Category", "category", "CATEGORY"];
-const STATE_KEYS    = ["State", "state", "STATE"];
-const ADDR_KEYS     = ["Address", "address", "ADDRESS"];
-const CITY_KEYS     = ["City", "city", "CITY"];
-const ZIP_KEYS      = ["Zip", "zip", "ZIP"];
-
-const gp = (obj: any, keys: string[], fallback = ""): string => {
-  for (const k of keys) if (obj && obj[k] != null) return String(obj[k]);
-  return fallback;
-};
-
-const CAT_COLOR: Record<string, string> = {
-  Kingpin:         "#ff2d55",
-  Agronomy:        "#22c55e",
-  "Office/Service":"#f59e0b",
-  Specialty:       "#a855f7",
-  Warehouse:       "#06b6d4",
-};
-
-function retailerNameToCandidates(r: string): string[] {
-  const raw = r.trim();
-  const collapsed = raw.replace(/\s+/g, " ");
-  const noSpaces = collapsed.replace(/\s+/g, "");
-  const safe = collapsed.replace(/[^\w\- ]+/g, "");
-  const dashed = collapsed.replace(/\s+/g, "-");
-  const withLogo = `${collapsed} Logo`;
-  return [...new Set([collapsed, withLogo, safe, dashed, noSpaces].filter(Boolean))];
+function chunkByCount<T>(arr: T[], max: number): T[][] {
+  const out: T[][] = [];
+  for (let i=0; i<arr.length; i+=max) out.push(arr.slice(i,i+max));
+  return out;
 }
-
-async function fetchScaledBitmap(url: string, maxPx = 64): Promise<ImageBitmap> {
-  const r = await fetch(url, { cache: "force-cache" });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const blob = await r.blob();
-  const bmp = await createImageBitmap(blob);
-
-  const k = Math.min(maxPx / bmp.width, maxPx / bmp.height, 1);
-  const w = Math.max(1, Math.round(bmp.width * k));
-  const h = Math.max(1, Math.round(bmp.height * k));
-
-  if (typeof OffscreenCanvas !== "undefined") {
-    const oc = new OffscreenCanvas(maxPx, maxPx);
-    const ctx = oc.getContext("2d")!;
-    ctx.clearRect(0, 0, maxPx, maxPx);
-    ctx.drawImage(bmp, Math.floor((maxPx - w) / 2), Math.floor((maxPx - h) / 2), w, h);
-    // @ts-ignore
-    return oc.transferToImageBitmap ? oc.transferToImageBitmap() : await createImageBitmap(oc as any);
-  } else {
-    const c = document.createElement("canvas");
-    c.width = maxPx; c.height = maxPx;
-    const ctx = c.getContext("2d")!;
-    ctx.clearRect(0, 0, maxPx, maxPx);
-    ctx.drawImage(bmp, Math.floor((maxPx - w) / 2), Math.floor((maxPx - h) / 2), w, h);
-    return await createImageBitmap(c);
+function chunkByDuration(sec: number[], maxSec = 36000): number[][] {
+  const groups: number[][] = [];
+  let cur: number[] = []; let sum = 0;
+  for (let i=0;i<sec.length;i++){
+    if (sum + sec[i] > maxSec && cur.length) { groups.push(cur); cur=[]; sum=0; }
+    cur.push(i); sum += sec[i];
   }
+  if (cur.length) groups.push(cur);
+  return groups;
 }
 
-function makeDot(color: string): ImageData {
-  const size = 24;
-  let ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
-  let canvas: any;
-  if (typeof OffscreenCanvas !== "undefined") {
-    canvas = new OffscreenCanvas(size, size);
-    ctx = canvas.getContext("2d");
-  } else {
-    canvas = document.createElement("canvas");
-    canvas.width = size; canvas.height = size;
-    ctx = canvas.getContext("2d");
-  }
-  if (!ctx) return new ImageData(1, 1);
-  ctx.clearRect(0, 0, size, size);
-  // @ts-ignore
-  ctx.beginPath(); ctx.arc(size/2, size/2, size/2-1, 0, Math.PI*2);
-  // @ts-ignore
-  ctx.fillStyle = color; ctx.fill();
-  // @ts-ignore
-  return ctx.getImageData(0, 0, size, size);
+function buildGoogleLink(origin: [number,number], ordered: [number,number][], roundtrip: boolean) {
+  const pts = [...ordered];
+  const dest = roundtrip ? origin : pts.pop() || origin;
+  const wps  = pts;
+  const url = new URL("https://www.google.com/maps/dir/");
+  url.searchParams.set("api","1");
+  url.searchParams.set("origin", `${origin[1]},${origin[0]}`);
+  url.searchParams.set("destination", `${dest[1]},${dest[0]}`);
+  if (wps.length) url.searchParams.set("waypoints", wps.map(p=>`${p[1]},${p[0]}`).join("|"));
+  url.searchParams.set("travelmode","driving");
+  return url.toString();
+}
+function buildAppleLink(origin: [number,number], ordered: [number,number][], roundtrip: boolean) {
+  const pts = [...ordered];
+  const dest = roundtrip ? origin : pts.pop() || origin;
+  const base = new URL("https://maps.apple.com/");
+  base.searchParams.set("saddr", `${origin[1]},${origin[0]}`);
+  base.searchParams.set(
+    "daddr",
+    [dest, ...pts.map(p=>({lat:p[1],lng:p[0]}))]
+      .map((p,i)=> (i===0?`${(p as any).lat},${(p as any).lng}`:`to:${(p as any).lat},${(p as any).lng}`))
+      .join(" ")
+  );
+  base.searchParams.set("dirflg","d");
+  return base.toString();
+}
+function buildWazeLink(dest: [number,number]) {
+  const u = new URL("https://waze.com/ul");
+  u.searchParams.set("ll", `${dest[1]},${dest[0]}`); u.searchParams.set("navigate","yes");
+  return u.toString();
 }
 
-export default function Map({
-  basePath,
-  token,
-  basemap,
-  markerStyle,
-  data,
-  bbox,
-  home,
-  stops,
-  routeGeoJSON,
-  onMapDblClick,
-  onPointClick,
-}: MapProps) {
-  const mapRef = useRef<MbMap | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const loadedLogos = useRef<Set<string>>(new Set());
+export default function Page() {
+  // data
+  const [data, setData] = useState<FC>({ type:"FeatureCollection", features:[] });
+  const [filtered, setFiltered] = useState<FC>({ type:"FeatureCollection", features:[] });
 
-  const retailersInData = useMemo(() => {
-    const s = new Set<string>();
-    for (const f of data.features) {
-      const r = gp(f.properties, RETAILER_KEYS).trim();
-      if (r) s.add(r);
-    }
-    return [...s];
-  }, [data]);
+  // filters
+  const [states, setStates] = useState<string[]>([]);
+  const [retailers, setRetailers] = useState<string[]>([]);
+  const [cats, setCats] = useState<string[]>([]);
 
-  // init
+  const [selStates, setSelStates] = useState<Set<string>>(new Set());
+  const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
+  const [selCats, setSelCats] = useState<Set<string>>(new Set());
+
+  // map options
+  const [basemap, setBasemap] = useState<CertisMapProps["basemap"]>("hybrid");
+  const [markerStyle, setMarkerStyle] = useState<CertisMapProps["markerStyle"]>("dots");
+
+  // trip planning
+  const [home, setHome] = useState<[number,number] | null>(null);
+  const [homeInput, setHomeInput] = useState("");
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [roundtrip, setRoundtrip] = useState(true);
+
+  const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
+  const [optOrder, setOptOrder] = useState<[number,number][]>([]);
+  const [optDurations, setOptDurations] = useState<number[]>([]);
+
+  // load data
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-
-    if (token) mapboxgl.accessToken = token;
-
-    const m = new mapboxgl.Map({
-      container: containerRef.current,
-      style: token
-        ? (basemap === "hybrid"
-            ? "mapbox://styles/mapbox/satellite-streets-v12"
-            : "mapbox://styles/mapbox/streets-v12")
-        : {
-            version: 8,
-            sources: {
-              "osm-tiles": {
-                type: "raster",
-                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-                tileSize: 256,
-                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              }
-            },
-            layers: [{ id: "osm-tiles", type: "raster", source: "osm-tiles" }],
-          } as any,
-      center: [-97.2, 40.8],
-      zoom: 4,
-      cooperativeGestures: true,
-      attributionControl: true,
-      pitchWithRotate: false,
-      dragRotate: false,
-    });
-
-    if (token) {
-      try { m.addControl(new (mapboxgl as any).ProjectionControl({ default: "mercator" }), "top-right"); } catch {}
-    }
-    m.doubleClickZoom.disable();
-
-    m.on("load", () => {
-      // MAIN clustered source for “regular” points (NOT kingpins)
-      if (!m.getSource("retailers")) {
-        m.addSource("retailers", {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-          cluster: true,
-          clusterMaxZoom: 7,    // fade out clusters sooner
-          clusterRadius: 50,
-        });
+    (async () => {
+      const url = `${BASE_PATH}/data/retailers.geojson`;
+      const r = await fetch(url, { cache:"no-store" });
+      const fc: FC = await r.json();
+      for (const f of fc.features) {
+        if (!f.properties.__retailerName) f.properties.__retailerName = getProp(f, K.retailer);
       }
+      setData(fc);
 
-      // A separate NON-clustered source ONLY for kingpins (so they’re always visible)
-      if (!m.getSource("kingpins")) {
-        m.addSource("kingpins", {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-        });
+      const st = new Set<string>(), re = new Set<string>(), ca = new Set<string>();
+      for (const f of fc.features) {
+        const s = getProp(f, K.state).trim();     if (s) st.add(s);
+        const rr= getProp(f, K.retailer).trim();  if (rr) re.add(rr);
+        const c = getProp(f, K.cat).trim();       if (c) ca.add(c);
       }
-
-      // clusters (visible only up to zoom 7)
-      if (!m.getLayer("clusters")) {
-        m.addLayer({
-          id: "clusters",
-          type: "circle",
-          source: "retailers",
-          filter: ["all", ["has", "point_count"], ["<=", ["zoom"], 7]],
-          paint: {
-            "circle-color": [
-              "step",
-              ["get", "point_count"],
-              "#60a5fa", 10, "#3b82f6", 30, "#1d4ed8",
-            ],
-            "circle-radius": [
-              "step",
-              ["get", "point_count"],
-              16, 10, 22, 30, 28,
-            ],
-            "circle-stroke-color": "#0f172a",
-            "circle-stroke-width": 1.5,
-          },
-        });
-      }
-      if (!m.getLayer("cluster-count")) {
-        m.addLayer({
-          id: "cluster-count",
-          type: "symbol",
-          source: "retailers",
-          filter: ["all", ["has", "point_count"], ["<=", ["zoom"], 7]],
-          layout: {
-            "text-field": ["get", "point_count_abbreviated"],
-            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-            "text-size": 12,
-          },
-          paint: { "text-color": "#ffffff" },
-        });
-      }
-
-      // non-kingpin unclustered dots
-      if (!m.getLayer("unclustered")) {
-        m.addLayer({
-          id: "unclustered",
-          type: "circle",
-          source: "retailers",
-          filter: ["all", ["!", ["has", "point_count"]]],
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4, 10, 6, 14, 8],
-            "circle-stroke-width": 1,
-            "circle-stroke-color": "#0f172a",
-            "circle-color": [
-              "match",
-              ["get", "Category"],
-              "Agronomy",        CAT_COLOR["Agronomy"],
-              "Office/Service",  CAT_COLOR["Office/Service"],
-              "Specialty",       CAT_COLOR["Specialty"],
-              "Warehouse",       CAT_COLOR["Warehouse"],
-              /* default */       "#3b82f6"
-            ],
-          },
-        }, "clusters");
-      }
-
-      // kingpins: ring/halo + solid circle — non-clustered and ALWAYS visible
-      if (!m.getLayer("kingpin-ring")) {
-        m.addLayer({
-          id: "kingpin-ring",
-          type: "circle",
-          source: "kingpins",
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 7, 10, 11, 14, 14],
-            "circle-color": "rgba(255,45,85,0.22)",
-            "circle-stroke-color": "#ff2d55",
-            "circle-stroke-width": 2,
-          },
-        });
-      }
-      if (!m.getLayer("kingpin-points")) {
-        m.addLayer({
-          id: "kingpin-points",
-          type: "circle",
-          source: "kingpins",
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 6.5, 10, 10, 14, 14],
-            "circle-color": CAT_COLOR["Kingpin"],
-            "circle-stroke-color": "#ffffff",
-            "circle-stroke-width": 2,
-          },
-        });
-      }
-
-      // logos (non-kingpin) — optional view
-      if (!m.getLayer("retailer-logos")) {
-        m.addLayer({
-          id: "retailer-logos",
-          type: "symbol",
-          source: "retailers",
-          filter: ["!", ["has", "point_count"]],
-          layout: {
-            "icon-image": ["get", "__iconId"],
-            "icon-size": ["interpolate", ["linear"], ["zoom"], 4, 0.35, 10, 0.45, 14, 0.55],
-            "icon-allow-overlap": true,
-            "icon-optional": true,
-          },
-          paint: {
-            "icon-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.95, 16, 0.85, 19, 0.70],
-          },
-        });
-        try { m.moveLayer("kingpin-points"); } catch {}
-      }
-
-      // trip overlays
-      if (!m.getSource("home-pt")) {
-        m.addSource("home-pt", { type: "geojson", data: { type: "FeatureCollection", features: [] }});
-      }
-      if (!m.getLayer("home-pt")) {
-        m.addLayer({
-          id: "home-pt", type: "circle", source: "home-pt",
-          paint: { "circle-radius": 7, "circle-color": "#22c55e", "circle-stroke-color": "#052e16", "circle-stroke-width": 2 }
-        });
-      }
-
-      if (!m.getSource("stops-pt")) {
-        m.addSource("stops-pt", { type: "geojson", data: { type: "FeatureCollection", features: [] }});
-      }
-      if (!m.getLayer("stops-pt")) {
-        m.addLayer({
-          id: "stops-pt", type: "circle", source: "stops-pt",
-          paint: { "circle-radius": 6, "circle-color": "#eab308", "circle-stroke-color": "#713f12", "circle-stroke-width": 2 }
-        });
-      }
-
-      if (!m.getSource("route")) {
-        m.addSource("route", { type: "geojson", data: { type: "FeatureCollection", features: [] }});
-      }
-      if (!m.getLayer("route")) {
-        m.addLayer({
-          id: "route", type: "line", source: "route",
-          paint: { "line-color": "#22c55e", "line-width": 4, "line-opacity": 0.9 }
-        });
-      }
-
-      // robust hover & click
-      const hitLayers = ["unclustered", "retailer-logos", "kingpin-points"];
-
-      const hidePopup = () => popupRef.current?.remove();
-
-      m.on("mousemove", (e) => {
-        const feats = m.queryRenderedFeatures(e.point, { layers: hitLayers });
-        if (!feats.length) {
-          m.getCanvas().style.cursor = "";
-          hidePopup();
-          return;
-        }
-        m.getCanvas().style.cursor = "pointer";
-        const f: any = feats[0];
-        const p = f.properties || {};
-        const html = `
-          <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto; font-size:12px">
-            <div style="font-weight:700; margin-bottom:4px">${gp(p, RETAILER_KEYS) || "Retailer"}</div>
-            ${gp(p, NAME_KEYS) ? `<div>${gp(p, NAME_KEYS)}</div>` : ""}
-            ${gp(p, CAT_KEYS) ? `<div><b>${gp(p, CAT_KEYS)}</b></div>` : ""}
-            ${[gp(p, ADDR_KEYS), gp(p, CITY_KEYS), gp(p, ZIP_KEYS)].filter(Boolean).join(", ")}
-          </div>`;
-        if (!popupRef.current) popupRef.current = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, offset: 10 });
-        popupRef.current.setLngLat(e.lngLat).setHTML(html).addTo(m);
-      });
-
-      m.on("click", (e) => {
-        const feats = m.queryRenderedFeatures(e.point, { layers: hitLayers });
-        if (!feats.length) return;
-        hidePopup();
-        const f: any = feats[0];
-        const c: any = f?.geometry?.coordinates;
-        if (isLngLat(c)) {
-          const title = gp(f.properties || {}, NAME_KEYS) || gp(f.properties || {}, RETAILER_KEYS);
-          onPointClick?.([c[0], c[1]], title);
-        }
-      });
-
-      m.on("click", "clusters", (e) => {
-        const features = m.queryRenderedFeatures(e.point, { layers: ["clusters"] });
-        const clusterId = features[0].properties?.cluster_id;
-        const source: any = m.getSource("retailers");
-        source.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
-          if (err) return;
-          m.easeTo({ center: (features[0].geometry as any).coordinates, zoom });
-        });
-      });
-
-      m.on("dblclick", (e) => onMapDblClick?.([e.lngLat.lng, e.lngLat.lat]));
-
-      mapRef.current = m;
-    });
-
-    return () => { mapRef.current?.remove(); mapRef.current = null; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      setStates([...st].sort());
+      setRetailers([...re].sort());
+      setCats([...ca].sort());
+    })();
   }, []);
 
-  // switch dots vs logos; kingpins unaffected (always visible)
+  // apply filters
   useEffect(() => {
-    const m = mapRef.current; if (!m) return;
-    const setVis = (id: string, v: "visible" | "none") => { if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", v); };
-    const dotsOn = markerStyle === "dots";
-    setVis("unclustered",    dotsOn ? "visible" : "none");
-    setVis("retailer-logos", dotsOn ? "none"    : "visible");
-    setVis("kingpin-ring",   "visible");
-    setVis("kingpin-points", "visible");
-  }, [markerStyle]);
+    const match = (f: Feature) => {
+      const s = getProp(f, K.state);
+      const r = getProp(f, K.retailer);
+      const c = getProp(f, K.cat);
+      const okS = !selStates.size || selStates.has(s);
+      const okR = !selRetailers.size || selRetailers.has(r);
+      const okC = !selCats.size || selCats.has(c);
+      return okS && okR && okC && !!(f.geometry as any)?.coordinates;
+    };
+    setFiltered({ type:"FeatureCollection", features: data.features.filter(match) });
+  }, [data, selStates, selRetailers, selCats]);
 
-  // feed data + preload logos + separate kingpins source; fit bounds
-  useEffect(() => {
-    const m = mapRef.current; if (!m) return;
-    const src = m.getSource("retailers") as mapboxgl.GeoJSONSource; if (!src) return;
-    const kingSrc = m.getSource("kingpins") as mapboxgl.GeoJSONSource;
+  const fcBbox = useMemo(() => bboxOf(filtered), [filtered]);
 
-    const nonKing: Feature[] = [];
-    const king: Feature[] = [];
+  // actions
+  const resetAll = () => {
+    setSelStates(new Set()); setSelRetailers(new Set()); setSelCats(new Set());
+    setHome(null); setHomeInput(""); setStops([]); setRouteGeoJSON(null); setOptOrder([]); setOptDurations([]);
+  };
+  const toggle = (s: Set<string>, v: string) => {
+    const n = new Set(s);
+    if (n.has(v)) n.delete(v); else n.add(v);
+    return n;
+  };
 
-    for (const f of data.features) {
-      const cat = gp(f.properties, CAT_KEYS);
-      const r = gp(f.properties, RETAILER_KEYS).trim();
-      const iconId = r ? `logo-${r.toLowerCase().replace(/\s+/g, "_")}` : "";
-      const ff: Feature = { type: "Feature", geometry: f.geometry, properties: { ...f.properties, __iconId: iconId } };
-      if (cat === "Kingpin") king.push(ff); else nonKing.push(ff);
+  const onPointClick = (lnglat: [number,number], title: string) =>
+    setStops((prev) => [...prev, { coord: lnglat, title }]);
+
+  const geocodeHome = async () => {
+    const q = homeInput.trim();
+    if (!q || !MAPBOX_TOKEN) return;
+    try {
+      const u = new URL("https://api.mapbox.com/geocoding/v5/mapbox.places/"+encodeURIComponent(q)+".json");
+      u.searchParams.set("access_token", MAPBOX_TOKEN); u.searchParams.set("limit","1");
+      const r = await fetch(u.toString()); const j = await r.json();
+      const c = j?.features?.[0]?.center;
+      if (Array.isArray(c) && c.length===2) setHome([c[0], c[1]]);
+    } catch {}
+  };
+
+  const optimize = async () => {
+    if (!MAPBOX_TOKEN || !home || stops.length===0) return;
+    const coords = [home, ...stops.map(s=>s.coord), ...(roundtrip ? [home] : [])];
+    const u = new URL("https://api.mapbox.com/optimized-trips/v1/mapbox/driving/"+coords.map(c=>c.join(",")).join(";"));
+    u.searchParams.set("source","first");
+    u.searchParams.set("destination", roundtrip ? "last" : "last");
+    u.searchParams.set("roundtrip", roundtrip ? "true" : "false");
+    u.searchParams.set("geometries","geojson");
+    u.searchParams.set("overview","full");
+    u.searchParams.set("access_token", MAPBOX_TOKEN);
+
+    const r = await fetch(u.toString()); const j = await r.json();
+    const trip = j?.trips?.[0]; if (!trip) return;
+
+    setRouteGeoJSON(trip.geometry);
+
+    const wpIdx = j.waypoints?.map((w:any)=>w.waypoint_index);
+    const ordered: [number,number][] = [];
+    for (const idx of wpIdx) {
+      const c = coords[idx]; if (c) ordered.push([c[0], c[1]]);
     }
-
-    src.setData({ type: "FeatureCollection", features: nonKing } as any);
-    kingSrc?.setData({ type: "FeatureCollection", features: king } as any);
-
-    if (bbox && isFinite(bbox[0])) {
-      try { m.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 60, duration: 600 }); } catch {}
+    if (roundtrip && ordered.length && ordered[0][0]===ordered[ordered.length-1][0] && ordered[0][1]===ordered[ordered.length-1][1]) {
+      ordered.pop();
     }
+    const legsDur: number[] = (trip.legs || []).map((l:any)=> Number(l.duration||0));
+    setOptDurations(legsDur);
+    setOptOrder(ordered.slice(1)); // remove initial home
+  };
 
-    (async () => {
-      for (const r of retailersInData) {
-        const id = `logo-${r.toLowerCase().replace(/\s+/g, "_")}`;
-        if (loadedLogos.current.has(id)) continue;
+  const googleLinksCombined = useMemo(() => {
+    if (!home || optOrder.length===0) return [];
+    const MAX_WPS = 23;
+    const chunks = chunkByCount(optOrder, MAX_WPS);
+    return chunks.map((chunk, i) => ({ i, url: buildGoogleLink(home, chunk, roundtrip) }));
+  }, [home, optOrder, roundtrip]);
 
-        const bases = retailerNameToCandidates(r);
-        const candidates: string[] = [];
-        for (const b of bases) {
-          const enc = encodeURIComponent(b);
-          candidates.push(`${basePath}/icons/${enc}.png`, `${basePath}/icons/${enc}.jpg`, `${basePath}/icons/${enc}.jpeg`);
-          candidates.push(`${basePath}/icons/${b}.png`,   `${basePath}/icons/${b}.jpg`,   `${basePath}/icons/${b}.jpeg`);
-        }
-        let added = false;
-        for (const url of candidates) {
-          try {
-            const scaled = await fetchScaledBitmap(url, 64);
-            if (!m.hasImage(id)) m.addImage(id, scaled, { pixelRatio: 1 });
-            loadedLogos.current.add(id); added = true; break;
-          } catch {}
-        }
-        if (!added && !m.hasImage(id)) {
-          m.addImage(id, makeDot("#3b82f6")); loadedLogos.current.add(id);
-        }
-      }
-    })();
-  }, [data, bbox, retailersInData, basePath]);
+  const googleLinksDurationChunks = useMemo(() => {
+    if (!home || optOrder.length===0 || optDurations.length===0) return [];
+    const groups = chunkByDuration(optDurations, 36000);
+    const out: {i:number, url:string}[] = [];
+    let cursor = 0;
+    for (let g=0; g<groups.length; g++) {
+      const count = groups[g].length;
+      const slice = optOrder.slice(cursor, cursor+count);
+      out.push({ i:g, url: buildGoogleLink(home!, slice, roundtrip) });
+      cursor += count;
+    }
+    return out;
+  }, [home, optOrder, optDurations, roundtrip]);
 
-  // overlays
-  useEffect(() => {
-    const m = mapRef.current; if (!m) return;
+  return (
+    <div className="min-h-screen w-full flex bg-zinc-900 text-zinc-100">
+      {/* LEFT COLUMN */}
+      <div className="w-[380px] max-w-[380px] flex flex-col border-r border-zinc-800">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+          <div className="flex items-center gap-3">
+            <img src={`${BASE_PATH}/certis-logo.png`} alt="Certis" className="h-9 w-auto" />
+            <span className="text-xs text-zinc-400">
+              Filter retailers and plan optimized trips. Double-click map to set <b>Home</b>. Click a point to <b>add stop</b>.
+            </span>
+          </div>
+          <button
+            onClick={() => resetAll()}
+            className="ml-3 inline-flex items-center rounded-lg bg-zinc-700 hover:bg-zinc-600 px-3 py-1.5 text-sm font-semibold shadow"
+            title="Clear filters, home, stops and route"
+          >
+            Reset Map
+          </button>
+        </div>
 
-    const homeSrc = m.getSource("home-pt")  as mapboxgl.GeoJSONSource;
-    const stopsSrc = m.getSource("stops-pt") as mapboxgl.GeoJSONSource;
-    const routeSrc = m.getSource("route")    as mapboxgl.GeoJSONSource;
+        {/* STATES */}
+        <div className="p-4">
+          <div className="rounded-xl bg-zinc-800/60 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">States</h3>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-zinc-400">{`${selStates.size} of ${states.length}`}</span>
+                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
+                  onClick={() => setSelStates(new Set(states))}>All</button>
+                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
+                  onClick={() => setSelStates(new Set())}>None</button>
+              </div>
+            </div>
+            <div className="h-44 overflow-auto space-y-2 pr-1">
+              {states.map(s => (
+                <label key={s} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${selStates.has(s) ? "border-emerald-500/60 bg-emerald-500/10" : "border-zinc-700/60 bg-zinc-900/40"}`}>
+                  <input type="checkbox" checked={selStates.has(s)} onChange={() => setSelStates(prev => toggle(prev, s))} />
+                  <span>{s}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
 
-    homeSrc?.setData({
-      type: "FeatureCollection",
-      features: home ? [{ type: "Feature", geometry: { type: "Point", coordinates: home }, properties: {} }] : [],
-    } as any);
+        {/* RETAILERS */}
+        <div className="px-4">
+          <div className="rounded-xl bg-zinc-800/60 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">Retailers</h3>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-zinc-400">{`${selRetailers.size} of ${retailers.length}`}</span>
+                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
+                  onClick={() => setSelRetailers(new Set(retailers))}>All</button>
+                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
+                  onClick={() => setSelRetailers(new Set())}>None</button>
+              </div>
+            </div>
+            <div className="h-52 overflow-auto space-y-2 pr-1">
+              {retailers.map(r => (
+                <label key={r} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${selRetailers.has(r) ? "border-emerald-500/60 bg-emerald-500/10" : "border-zinc-700/60 bg-zinc-900/40"}`}>
+                  <input type="checkbox" checked={selRetailers.has(r)} onChange={() => setSelRetailers(prev => toggle(prev, r))} />
+                  <span className="truncate">{r}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
 
-    stopsSrc?.setData({
-      type: "FeatureCollection",
-      features: (stops || []).map(s => ({ type: "Feature", geometry: { type: "Point", coordinates: s.coord }, properties: {} })),
-    } as any);
+        {/* CATEGORIES */}
+        <div className="p-4 pt-4">
+          <div className="rounded-xl bg-zinc-800/60 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">Categories</h3>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-zinc-400">{`${selCats.size} of ${cats.length}`}</span>
+                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
+                  onClick={() => setSelCats(new Set(cats))}>All</button>
+                <button className="px-2 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600"
+                  onClick={() => setSelCats(new Set())}>None</button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {cats.map(c => (
+                <label key={c} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${selCats.has(c) ? "border-emerald-500/60 bg-emerald-500/10" : "border-zinc-700/60 bg-zinc-900/40"}`}>
+                  <input type="checkbox" checked={selCats.has(c)} onChange={() => setSelCats(prev => toggle(prev, c))} />
+                  <span>{c}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
 
-    routeSrc?.setData(routeGeoJSON || { type: "FeatureCollection", features: [] });
-  }, [home, stops, routeGeoJSON]);
+        {/* MAP OPTIONS */}
+        <div className="px-4 pt-2">
+          <div className="rounded-xl bg-zinc-800/60 p-4 space-y-3">
+            <h3 className="font-semibold">Map Options</h3>
+            <label className="block text-sm text-zinc-300">Basemap</label>
+            <select className="w-full rounded bg-zinc-900 border border-zinc-700 px-3 py-2"
+              value={basemap} onChange={(e)=>setBasemap(e.target.value as CertisMapProps["basemap"])}>
+              <option value="hybrid">Hybrid</option>
+              <option value="streets">Streets</option>
+            </select>
 
-  return <div style={{height:"100%",width:"100%"}}><div ref={containerRef} style={{height:"100%",width:"100%"}} /></div>;
+            <label className="block pt-2 text-sm text-zinc-300">Markers</label>
+            <select className="w-full rounded bg-zinc-900 border border-zinc-700 px-3 py-2"
+              value={markerStyle} onChange={(e)=>setMarkerStyle(e.target.value as CertisMapProps["markerStyle"])}>
+              <option value="dots">Colored dots</option>
+              <option value="logos">Retailer logos</option>
+            </select>
+          </div>
+        </div>
+
+        {/* TRIP PLANNER */}
+        <div className="p-4">
+          <div className="rounded-xl bg-zinc-800/60 p-4 space-y-3">
+            <h3 className="font-semibold">Trip Planner</h3>
+
+            <div className="flex gap-2">
+              <input
+                className="flex-1 rounded bg-zinc-900 border border-zinc-700 px-3 py-2"
+                placeholder="ZIP or address (e.g., 50638)"
+                value={homeInput}
+                onChange={(e)=>setHomeInput(e.target.value)}
+              />
+              <button onClick={geocodeHome} className="px-3 rounded bg-emerald-600 hover:bg-emerald-500 font-semibold">Set</button>
+            </div>
+
+            <div className="text-xs text-zinc-400">
+              {home ? `Home: ${home[1].toFixed(5)}, ${home[0].toFixed(5)}` : "Double-click the map to set Home"}
+            </div>
+
+            <div className="mt-2 space-y-2">
+              <div className="text-sm font-semibold mb-1">Stops (click map points to add)</div>
+              {stops.map((s, i) => (
+                <div key={i} className="flex items-center justify-between rounded border border-zinc-700 bg-zinc-900 px-3 py-2">
+                  <span className="truncate">{i+1}. {s.title || `${s.coord[1].toFixed(4)}, ${s.coord[0].toFixed(4)}`}</span>
+                  <button className="ml-3 text-sm px-2 py-1 rounded bg-rose-600 hover:bg-rose-500"
+                    onClick={()=>setStops(prev => prev.filter((_,idx)=>idx!==i))}>Remove</button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <input id="rt" type="checkbox" checked={roundtrip} onChange={(e)=>setRoundtrip(e.target.checked)} />
+              <label htmlFor="rt">Roundtrip</label>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button className="flex-1 rounded bg-sky-600 hover:bg-sky-500 font-semibold px-3 py-2"
+                onClick={optimize}>Optimize Trip</button>
+              <button className="px-3 rounded bg-zinc-700 hover:bg-zinc-600"
+                onClick={()=>{ setStops([]); setRouteGeoJSON(null); setOptOrder([]); setOptDurations([]); }}>Clear Trip</button>
+            </div>
+
+            {(home && optOrder.length>0) && (
+              <div className="pt-3 space-y-1 text-sm">
+                <div className="font-semibold">Open in maps (combined into chunks)</div>
+                {googleLinksCombined.map(g => (
+                  <div key={g.i} className="flex gap-3">
+                    <a className="underline" href={g.url} target="_blank">Google #{g.i+1}</a>
+                    <a className="underline" href={buildAppleLink(home!, optOrder.slice(g.i*23,(g.i+1)*23), roundtrip)} target="_blank">Apple</a>
+                    <a className="underline" href={buildWazeLink(optOrder[Math.min(optOrder.length-1, (g.i+1)*23-1)]!)} target="_blank">Waze</a>
+                  </div>
+                ))}
+                {googleLinksCombined.length===0 && googleLinksDurationChunks.length>0 && (
+                  <>
+                    <div className="pt-2 text-zinc-400">~10-hour chunks</div>
+                    {googleLinksDurationChunks.map(g => (
+                      <div key={`dur-${g.i}`} className="flex gap-3">
+                        <a className="underline" href={g.url} target="_blank">Google #{g.i+1}</a>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* MAP */}
+      <div className="flex-1">
+        <CertisMap
+          basePath={BASE_PATH}
+          token={MAPBOX_TOKEN}
+          basemap={basemap}
+          markerStyle={markerStyle}
+          data={filtered}
+          bbox={fcBbox}
+          home={home}
+          stops={stops}
+          routeGeoJSON={routeGeoJSON}
+          onMapDblClick={(lnglat)=>setHome(lnglat)}
+          onPointClick={onPointClick}
+        />
+      </div>
+    </div>
+  );
 }
