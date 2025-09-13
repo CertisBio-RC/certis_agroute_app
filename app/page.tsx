@@ -43,12 +43,158 @@ const isLngLat = (c: any): c is [number, number] =>
 const fmtLatLng = ([lng, lat]: [number, number]) =>
   `${lat.toFixed(6)},${lng.toFixed(6)}`;
 
+/* ---------- SMALL UI HELPERS ---------- */
+function Pill({ children }: { children: any }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "2px 8px",
+        borderRadius: 999,
+        background: "#0b1322",
+        border: "1px solid #24324a",
+        fontSize: 11,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function MultiSelect({
+  label,
+  options,
+  selected,
+  setSelected,
+  maxHeight = 160,
+  columns = 1,
+}: {
+  label: string;
+  options: string[];
+  selected: Set<string>;
+  setSelected: (s: Set<string>) => void;
+  maxHeight?: number;
+  columns?: number;
+}) {
+  const toggle = (v: string) => {
+    const n = new Set(selected);
+    if (n.has(v)) n.delete(v);
+    else n.add(v);
+    setSelected(n);
+  };
+  const all = () => setSelected(new Set(options));
+  const none = () => setSelected(new Set());
+
+  return (
+    <div
+      style={{
+        background: "#111827",
+        border: "1px solid #334155",
+        borderRadius: 14,
+        padding: 12,
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
+        <h2 style={{ fontSize: 13, fontWeight: 700 }}>{label}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Pill>
+            {selected.size === 0
+              ? "All"
+              : `${selected.size} of ${options.length}`}
+          </Pill>
+          <button
+            onClick={all}
+            style={{
+              padding: "6px 8px",
+              borderRadius: 8,
+              background: "#0ea5e9",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+            title="Select all"
+          >
+            All
+          </button>
+          <button
+            onClick={none}
+            style={{
+              padding: "6px 8px",
+              borderRadius: 8,
+              background: "#334155",
+              color: "#e5e5e5",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+            title="Clear"
+          >
+            None
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${columns}, 1fr)`,
+          gap: 6,
+          maxHeight,
+          overflow: "auto",
+          paddingRight: 4,
+        }}
+      >
+        {options.map((opt) => {
+          const id = `${label}-${opt}`.replace(/\s+/g, "-");
+          const checked = selected.size === 0 ? false : selected.has(opt);
+          return (
+            <label
+              key={opt}
+              htmlFor={id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 8px",
+                borderRadius: 8,
+                background: checked ? "#0b1322" : "transparent",
+                border: checked ? "1px solid #24324a" : "1px solid transparent",
+                cursor: "pointer",
+                fontSize: 12,
+              }}
+            >
+              <input
+                id={id}
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggle(opt)}
+              />
+              <span>{opt}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- PAGE ---------- */
 export default function Page() {
-  /* Filters / options */
-  const [stateF, setStateF] = useState("All");
-  const [retailerF, setRetailerF] = useState("All");
-  const [categoryF, setCategoryF] = useState("All");
+  /* Multi-select filters: empty = All */
+  const [selStates, setSelStates] = useState<Set<string>>(new Set());
+  const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
+  const [selCategories, setSelCategories] = useState<Set<string>>(new Set());
+
+  /* Map options */
   const [basemap, setBasemap] = useState<"hybrid" | "streets">("hybrid");
   const [markerStyle, setMarkerStyle] = useState<"dots" | "logos">("dots");
 
@@ -88,12 +234,31 @@ export default function Page() {
     };
   }, [dataUrl]);
 
-  /* Normalize + filter */
-  const { fc, states, retailers, categories, bbox, shown, skipped } = useMemo(() => {
-    const out: FC = { type: "FeatureCollection", features: [] };
+  /* Build option lists (from raw, unfiltered) */
+  const optionLists = useMemo(() => {
     const S = new Set<string>(),
       R = new Set<string>(),
       C = new Set<string>();
+    for (const f of raw?.features ?? []) {
+      const st = String(gp(f.properties, SKEYS) ?? "").trim();
+      const rt = String(gp(f.properties, RKEYS) ?? "").trim();
+      const ct = String(gp(f.properties, CKEYS) ?? "").trim();
+      if (st) S.add(st);
+      if (rt) R.add(rt);
+      if (ct) C.add(ct);
+    }
+    const sort = (s: Set<string>) =>
+      Array.from(s).sort((a, b) => a.localeCompare(b));
+    return {
+      states: sort(S),
+      retailers: sort(R),
+      categories: sort(C),
+    };
+  }, [raw]);
+
+  /* Apply filters */
+  const { fc, bbox, shown, skipped } = useMemo(() => {
+    const out: FC = { type: "FeatureCollection", features: [] };
     const bb = { minX: 180, minY: 90, maxX: -180, maxY: -90 };
     let shown = 0,
       skipped = 0;
@@ -103,16 +268,10 @@ export default function Page() {
       const rt = String(gp(f.properties, RKEYS) ?? "").trim();
       const ct = String(gp(f.properties, CKEYS) ?? "").trim();
 
-      if (st) S.add(st);
-      if (rt) R.add(rt);
-      if (ct) C.add(ct);
-
-      const include =
-        (stateF === "All" || st === stateF) &&
-        (retailerF === "All" || rt === retailerF) &&
-        (categoryF === "All" || ct === categoryF);
-
-      if (!include) continue;
+      const inStates = selStates.size === 0 || selStates.has(st);
+      const inRetailers = selRetailers.size === 0 || selRetailers.has(rt);
+      const inCats = selCategories.size === 0 || selCategories.has(ct);
+      if (!(inStates && inRetailers && inCats)) continue;
 
       const c = f.geometry?.coordinates;
       if (!isLngLat(c)) {
@@ -131,20 +290,11 @@ export default function Page() {
       if (c[1] > bb.maxY) bb.maxY = c[1];
     }
 
-    const sorted = (s: Set<string>) => ["All", ...Array.from(s).sort((a, b) => a.localeCompare(b))];
     const bbox =
       out.features.length > 0 ? ([bb.minX, bb.minY, bb.maxX, bb.maxY] as [number, number, number, number]) : null;
 
-    return {
-      fc: out,
-      states: sorted(S),
-      retailers: sorted(R),
-      categories: sorted(C),
-      bbox,
-      shown,
-      skipped,
-    };
-  }, [raw, stateF, retailerF, categoryF]);
+    return { fc: out, bbox, shown, skipped };
+  }, [raw, selStates, selRetailers, selCategories]);
 
   /* Persist/restore trip state */
   useEffect(() => {
@@ -196,7 +346,7 @@ export default function Page() {
     }
   };
 
-  /* Optimize trip with Mapbox Optimization API (v1) */
+  /* Optimize trip (correct v1 endpoint; 12-point limit) */
   const optimizeTrip = async () => {
     setOptError(null);
     setRouteGeoJSON(null);
@@ -219,7 +369,7 @@ export default function Page() {
     const coords: [number, number][] = [home, ...stops.map((s) => s.coord)];
     if (coords.length > 12) {
       setOptError(
-        `Too many points for one optimization request: ${coords.length}. Limit is 12 (Home + 11 stops). Remove a few stops and try again.`
+        `Too many points: ${coords.length}. Limit is 12 (Home + 11 stops). Remove a few stops and try again.`
       );
       return;
     }
@@ -235,14 +385,13 @@ export default function Page() {
         roundtrip: String(roundtrip),
         steps: "false",
       });
-      // Always start at Home (first coord). If not roundtrip, also end at last coord.
       params.set("source", "first");
       if (!roundtrip) params.set("destination", "last");
 
       const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordStr}?${params.toString()}`;
 
       const r = await fetch(url);
-      const rawText = await r.text(); // allow detailed error body
+      const rawText = await r.text();
       let j: any;
       try {
         j = JSON.parse(rawText);
@@ -259,31 +408,19 @@ export default function Page() {
       const trip = j?.trips?.[0];
       if (!trip?.geometry) throw new Error("No trip found.");
 
-      // Determine optimized order of input coordinates
-      // Prefer trip.waypoint_order; fallback to waypoints[].waypoint_index
       let order: number[] | null = Array.isArray(trip.waypoint_order) ? trip.waypoint_order : null;
       if (!order && Array.isArray(j.waypoints)) {
-        const arr = j.waypoints
-          .slice()
-          .sort((a: any, b: any) => (a.waypoint_index ?? 0) - (b.waypoint_index ?? 0));
-        order = arr.map((w: any) => w.trip_index != null ? w.trip_index : w.waypoint_index);
-        // If that still looks odd, map back by 'waypoint_index'
-        if (!order || order.some((x: any) => typeof x !== "number")) {
-          order = j.waypoints.map((w: any) => w.waypoint_index);
-        }
+        order = j.waypoints.map((w: any) => w.waypoint_index);
       }
-      if (!order || !Array.isArray(order) || order.length !== coords.length) {
-        // As a final fallback, use input order (still valid if source=first)
+      if (!order || order.length !== coords.length) {
         order = coords.map((_c, i) => i);
       }
 
       const orderedCoords: [number, number][] = order.map((i: number) => coords[i]);
-      // If roundtrip, ensure last leg returns to start for external links
       if (roundtrip && orderedCoords.length > 1) {
         orderedCoords.push(orderedCoords[0]);
       }
 
-      // Build leg pairs from ordered coordinates
       const legPairs: Array<{ from: [number, number]; to: [number, number] }> = [];
       for (let i = 0; i < orderedCoords.length - 1; i++) {
         legPairs.push({ from: orderedCoords[i], to: orderedCoords[i + 1] });
@@ -341,7 +478,7 @@ export default function Page() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={`${BASE_PATH}/certis-logo.png?v=10`}
+            src={`${BASE_PATH}/certis-logo.png?v=12`}
             alt="Certis"
             width={148}
             height={34}
@@ -358,67 +495,47 @@ export default function Page() {
           stop</b>.
         </p>
 
-        {/* Filters */}
-        <section
-          style={{
-            background: "#111827",
-            border: "1px solid #334155",
-            borderRadius: 14,
-            padding: 12,
-            marginBottom: 14,
-          }}
-        >
-          <h2 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Filters</h2>
+        {/* MULTI-SELECT FILTERS */}
+        <MultiSelect
+          label="States"
+          options={optionLists.states}
+          selected={selStates}
+          setSelected={setSelStates}
+          columns={2}
+          maxHeight={140}
+        />
+        <MultiSelect
+          label="Retailers"
+          options={optionLists.retailers}
+          selected={selRetailers}
+          setSelected={setSelRetailers}
+          columns={1}
+          maxHeight={200}
+        />
+        <MultiSelect
+          label="Categories"
+          options={optionLists.categories}
+          selected={selCategories}
+          setSelected={setSelCategories}
+          columns={1}
+          maxHeight={120}
+        />
 
-          <label style={{ fontSize: 12, opacity: 0.8 }}>State</label>
-          <select
-            style={{ width: "100%", marginTop: 4, marginBottom: 8, background: "#0a0a0a", padding: 8, borderRadius: 8 }}
-            value={stateF}
-            onChange={(e) => setStateF(e.target.value)}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <button
+            style={{ padding: "8px 12px", borderRadius: 8, background: "#0ea5e9", color: "#fff", fontWeight: 600 }}
+            onClick={() => {
+              setSelStates(new Set());
+              setSelRetailers(new Set());
+              setSelCategories(new Set());
+            }}
           >
-            {states.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-
-          <label style={{ fontSize: 12, opacity: 0.8 }}>Retailer</label>
-          <select
-            style={{ width: "100%", marginTop: 4, marginBottom: 8, background: "#0a0a0a", padding: 8, borderRadius: 8 }}
-            value={retailerF}
-            onChange={(e) => setRetailerF(e.target.value)}
-          >
-            {retailers.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-
-          <label style={{ fontSize: 12, opacity: 0.8 }}>Category</label>
-          <select
-            style={{ width: "100%", marginTop: 4, marginBottom: 8, background: "#0a0a0a", padding: 8, borderRadius: 8 }}
-            value={categoryF}
-            onChange={(e) => setCategoryF(e.target.value)}
-          >
-            {categories.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              style={{ padding: "8px 12px", borderRadius: 8, background: "#0ea5e9", color: "#fff", fontWeight: 600 }}
-              onClick={() => {
-                setStateF("All");
-                setRetailerF("All");
-                setCategoryF("All");
-              }}
-            >
-              Clear Filters
-            </button>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>
-              {shown} shown{skipped ? ` (${skipped} skipped: invalid geometry)` : ""}
-            </span>
-          </div>
-        </section>
+            Clear Filters
+          </button>
+          <span style={{ fontSize: 12, opacity: 0.8 }}>
+            {shown} shown{skipped ? ` (${skipped} skipped: invalid geometry)` : ""}
+          </span>
+        </div>
 
         {/* Map options */}
         <section
