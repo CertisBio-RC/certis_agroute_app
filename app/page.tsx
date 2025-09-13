@@ -319,7 +319,7 @@ export default function Page() {
               key={resetKey}
               token={MAPBOX_TOKEN}
               basemap={basemap}
-              markerStyle={markerStyle}
+
               data={filteredFc}
               bbox={filteredBBox}
             />
