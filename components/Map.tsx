@@ -63,18 +63,46 @@ function retailerNameToCandidates(r: string): string[] {
   return [...uniq];
 }
 
-async function loadImageAsBitmap(url: string): Promise<ImageBitmap> {
+/** Fetch image and return an ImageBitmap scaled into a transparent square (max=maxPx). */
+async function fetchScaledBitmap(url: string, maxPx = 64): Promise<ImageBitmap> {
   const r = await fetch(url, { cache: "force-cache" });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const blob = await r.blob();
   const bmp = await createImageBitmap(blob);
-  return bmp;
+
+  const ratio = Math.min(maxPx / bmp.width, maxPx / bmp.height, 1);
+  const w = Math.max(1, Math.round(bmp.width * ratio));
+  const h = Math.max(1, Math.round(bmp.height * ratio));
+
+  // draw centered into a square canvas maxPx x maxPx
+  if (typeof OffscreenCanvas !== "undefined") {
+    const oc = new OffscreenCanvas(maxPx, maxPx);
+    const ctx = oc.getContext("2d")!;
+    ctx.clearRect(0, 0, maxPx, maxPx);
+    const dx = Math.floor((maxPx - w) / 2);
+    const dy = Math.floor((maxPx - h) / 2);
+    ctx.drawImage(bmp, dx, dy, w, h);
+    // OffscreenCanvas → ImageBitmap is zero-copy
+    // @ts-ignore - transferToImageBitmap exists on OffscreenCanvas
+    const scaled = oc.transferToImageBitmap ? oc.transferToImageBitmap() : await createImageBitmap(oc as any);
+    return scaled;
+  } else {
+    const c = document.createElement("canvas");
+    c.width = maxPx;
+    c.height = maxPx;
+    const ctx = c.getContext("2d")!;
+    ctx.clearRect(0, 0, maxPx, maxPx);
+    const dx = Math.floor((maxPx - w) / 2);
+    const dy = Math.floor((maxPx - h) / 2);
+    ctx.drawImage(bmp, dx, dy, w, h);
+    const scaled = await createImageBitmap(c);
+    return scaled;
+  }
 }
 
 /** Create a small colored dot ImageData as a logo fallback. */
 function makeDot(color: string): ImageData {
-  const size = 16;
-  // Use OffscreenCanvas if available; otherwise HTMLCanvasElement
+  const size = 24;
   let ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
   let canvas: any;
   if (typeof OffscreenCanvas !== "undefined") {
@@ -86,10 +114,7 @@ function makeDot(color: string): ImageData {
     canvas.height = size;
     ctx = canvas.getContext("2d");
   }
-  if (!ctx) {
-    // Extremely rare; return a 1x1 transparent pixel
-    return new ImageData(1, 1);
-  }
+  if (!ctx) return new ImageData(1, 1);
   ctx.clearRect(0, 0, size, size);
   (ctx as any).beginPath();
   (ctx as any).arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
@@ -135,12 +160,10 @@ export default function Map({
     const m = new mapboxgl.Map({
       container: containerRef.current,
       style: token
-        ? // token present -> Mapbox styles
-          (basemap === "hybrid"
+        ? (basemap === "hybrid"
             ? "mapbox://styles/mapbox/satellite-streets-v12"
             : "mapbox://styles/mapbox/streets-v12")
-        : // no token -> lightweight raster OSM
-          {
+        : {
             version: 8,
             sources: {
               "osm-tiles": {
@@ -294,33 +317,34 @@ export default function Map({
           source: "retailers",
           filter: ["!", ["has", "point_count"]],
           layout: {
-            "icon-image": ["get", "__iconId"], // image id per feature
+            "icon-image": ["get", "__iconId"], // per-feature image id
+            // These sizes assume logos are pre-scaled to 64×64.
             "icon-size": [
               "interpolate",
               ["linear"],
               ["zoom"],
               4,
-              0.24,
+              0.35, // ~22 px
               10,
-              0.3,
+              0.45, // ~29 px
               14,
-              0.36,
+              0.55, // ~35 px
             ],
             "icon-allow-overlap": true,
-            "icon-optional": true, // don't fail if not loaded yet
+            "icon-optional": true, // ok if not loaded yet
           },
           paint: {
-            // gently fade logos at ultra zoom so they don't overwhelm
+            // fade slightly at ultra zoom so nothing overwhelms the map
             "icon-opacity": [
               "interpolate",
               ["linear"],
               ["zoom"],
               4,
               0.95,
-              15,
+              16,
               0.85,
-              18,
-              0.72,
+              19,
+              0.70,
             ],
           },
         });
@@ -388,7 +412,7 @@ export default function Map({
         });
       }
 
-      // Interactions
+      // Interactions (popups, clicks)
       const showPopup = (e: MapLayerMouseEvent) => {
         const f: any = e.features && e.features[0];
         if (!f) return;
@@ -414,14 +438,10 @@ export default function Map({
         }
         popupRef.current.setLngLat(e.lngLat).setHTML(html).addTo(m);
       };
-      const hidePopup = () => {
-        popupRef.current?.remove();
-      };
+      const hidePopup = () => popupRef.current?.remove();
 
       ["unclustered", "retailer-logos"].forEach((layerId) => {
-        m.on("mouseenter", layerId, () => {
-          m.getCanvas().style.cursor = "pointer";
-        });
+        m.on("mouseenter", layerId, () => (m.getCanvas().style.cursor = "pointer"));
         m.on("mouseleave", layerId, () => {
           m.getCanvas().style.cursor = "";
           hidePopup();
@@ -450,9 +470,7 @@ export default function Map({
       });
 
       // Set Home on double click
-      m.on("dblclick", (e) => {
-        onMapDblClick?.([e.lngLat.lng, e.lngLat.lat]);
-      });
+      m.on("dblclick", (e) => onMapDblClick?.([e.lngLat.lng, e.lngLat.lat]));
 
       mapRef.current = m;
     });
@@ -464,20 +482,18 @@ export default function Map({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** NOTE: Changing Mapbox style at runtime clears layers. If you allow basemap switching,
-      you'll need to re-add sources/layers after setStyle. For now we keep initial style. */
+  /** NOTE: We avoid setStyle at runtime to keep layers intact. */
   useEffect(() => {
-    // intentionally no-op to avoid wiping layers on setStyle
+    // no-op by design
   }, [basemap, token]);
 
-  /** Load data, annotate features with icon ids, feed source, and preload logos. */
+  /** Load data, annotate features with icon ids, feed source, and preload logos (scaled). */
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
     const src = m.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!src) return;
 
-    // attach iconId per feature (stable id per retailer)
     const fc: FC = {
       type: "FeatureCollection",
       features: data.features.map((f) => {
@@ -486,17 +502,14 @@ export default function Map({
         return {
           type: "Feature",
           geometry: f.geometry,
-          properties: {
-            ...f.properties,
-            __iconId: iconId,
-          },
+          properties: { ...f.properties, __iconId: iconId },
         };
       }),
     };
 
     src.setData(fc as any);
 
-    // Fit bounds when new bbox arrives
+    // Fit bounds (if provided)
     if (bbox && isFinite(bbox[0])) {
       try {
         m.fitBounds(
@@ -509,7 +522,7 @@ export default function Map({
       } catch {}
     }
 
-    // Preload unique logos
+    // Preload logos, scaled to 64×64
     const doLoad = async () => {
       for (const r of retailersInData) {
         const id = `logo-${r.toLowerCase().replace(/\s+/g, "_")}`;
@@ -532,8 +545,8 @@ export default function Map({
         let added = false;
         for (const url of candidates) {
           try {
-            const bmp = await loadImageAsBitmap(url);
-            if (!m.hasImage(id)) m.addImage(id, bmp, { pixelRatio: 2 });
+            const scaled = await fetchScaledBitmap(url, 64); // normalize size
+            if (!m.hasImage(id)) m.addImage(id, scaled, { pixelRatio: 1 });
             loadedLogos.current.add(id);
             added = true;
             break;
@@ -552,17 +565,17 @@ export default function Map({
     doLoad();
   }, [data, bbox, retailersInData, basePath, markerStyle]);
 
-  /** Toggle visibility between dots & logos (kingpin ring stays always-on for logos). */
+  /** Toggle visibility between dots & logos (ring shows only with logos). */
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
     const setVis = (id: string, v: "visible" | "none") => {
       if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", v);
     };
-    setVis("unclustered", markerStyle === "dots" ? "visible" : "none");
-    setVis("retailer-logos", markerStyle === "logos" ? "visible" : "none");
-    // Show the red halo only in logos mode (change to always visible if desired)
-    setVis("kingpin-ring", markerStyle === "logos" ? "visible" : "none");
+    const dotsOn = markerStyle === "dots";
+    setVis("unclustered", dotsOn ? "visible" : "none");
+    setVis("retailer-logos", dotsOn ? "none" : "visible");
+    setVis("kingpin-ring", dotsOn ? "none" : "visible");
   }, [markerStyle]);
 
   /** Update Home / stops / route overlays */
@@ -575,13 +588,7 @@ export default function Map({
       homeSrc.setData({
         type: "FeatureCollection",
         features: home
-          ? [
-              {
-                type: "Feature",
-                geometry: { type: "Point", coordinates: home },
-                properties: {},
-              },
-            ]
+          ? [{ type: "Feature", geometry: { type: "Point", coordinates: home }, properties: {} }]
           : [],
       } as any);
     }
@@ -600,9 +607,7 @@ export default function Map({
 
     const routeSrc = m.getSource("route") as mapboxgl.GeoJSONSource;
     if (routeSrc) {
-      routeSrc.setData(
-        routeGeoJSON || { type: "FeatureCollection", features: [] }
-      );
+      routeSrc.setData(routeGeoJSON || { type: "FeatureCollection", features: [] });
     }
   }, [home, stops, routeGeoJSON]);
 
