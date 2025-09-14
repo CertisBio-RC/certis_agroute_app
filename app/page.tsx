@@ -1,331 +1,394 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import CertisMap from "@/components/CertisMap";
+import React, { useEffect, useMemo, useState } from 'react';
+import CertisMap, { Basemap } from '@/components/CertisMap';
 
-type LngLat = [number, number];
+type GJFC = GeoJSON.FeatureCollection<GeoJSON.Point, any>;
 
-type GJPoint = { type: "Point"; coordinates: LngLat };
-type GJFeature = {
-  type: "Feature";
-  geometry: GJPoint | null;
-  properties: {
-    Retailer: string;
-    Name: string;
-    Category: string;
-    State: string;
-    Address?: string;
-    City?: string;
-    Zip?: string;
-  };
-};
-type GJFC = { type: "FeatureCollection"; features: GJFeature[] };
+const MAPBOX_TOKEN =
+  (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string) ||
+  (process.env.MAPBOX_PUBLIC_TOKEN as string) ||
+  '';
 
-// readonly tuple, which the map now happily accepts
-type BBox = Readonly<[number, number, number, number]>;
-
-const BASE_PATH =
-  process.env.NEXT_PUBLIC_BASE_PATH ??
-  (typeof window !== "undefined" && (window as any).__NEXT_ROUTER_BASEPATH__) ??
-  "";
-
-const DATA_URL = `${BASE_PATH}/data/retailers.geojson`;
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-
-function uniqSorted(a: string[]) {
-  return [...new Set(a)].sort((x, y) => x.localeCompare(y));
+/** Detect GH Pages subpath so our data URL works in prod */
+function useBasePath(): string {
+  if (typeof document === 'undefined') return '';
+  const el = document.querySelector('base') as HTMLBaseElement | null;
+  if (el?.href) {
+    try {
+      const u = new URL(el.href);
+      return u.pathname.replace(/\/$/, '');
+    } catch {}
+  }
+  const parts = location.pathname.split('/').filter(Boolean);
+  return parts.length ? `/${parts[0]}` : '';
 }
 
-function fcBBox(fc: GJFC): BBox {
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
+function bboxOf(fc: GJFC): [number, number, number, number] {
+  let minX = 180, minY = 90, maxX = -180, maxY = -90;
   for (const f of fc.features) {
-    const g = f.geometry;
-    if (!g || g.type !== "Point") continue;
-    const [x, y] = g.coordinates;
+    const c = f.geometry?.coordinates;
+    if (!c) continue;
+    const [x, y] = c;
     if (x < minX) minX = x;
     if (y < minY) minY = y;
     if (x > maxX) maxX = x;
     if (y > maxY) maxY = y;
   }
-  if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
-    return [-125, 24, -66.9, 49.5] as const;
+  // fallback to CONUS if empty
+  if (minX > maxX || minY > maxY) return [-125, 24, -66.9, 49.5];
+  return [minX, minY, maxX, maxY];
+}
+
+type Stop = { id: string; name: string; coord: [number, number] };
+
+function haversine(a: [number, number], b: [number, number]) {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371; // km
+  const dLat = toRad(b[1] - a[1]);
+  const dLon = toRad(b[0] - a[0]);
+  const lat1 = toRad(a[1]);
+  const lat2 = toRad(b[1]);
+  const x =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+// simple nearest-neighbor orderer
+function orderStops(home: [number, number], stops: Stop[], roundtrip: boolean) {
+  const remaining = [...stops];
+  const ordered: Stop[] = [];
+  let cur = home;
+  while (remaining.length) {
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = haversine(cur, remaining[i].coord);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    const next = remaining.splice(best, 1)[0];
+    ordered.push(next);
+    cur = next.coord;
   }
-  return [minX, minY, maxX, maxY] as const;
+  const coords: [number, number][] = [home, ...ordered.map(s => s.coord)];
+  if (roundtrip) coords.push(home);
+  return { ordered, coords };
+}
+
+function routeLineFrom(coords: [number, number][]): GeoJSON.FeatureCollection<GeoJSON.LineString> {
+  const lines: GeoJSON.Feature<GeoJSON.LineString>[] = [];
+  for (let i = 0; i < coords.length - 1; i++) {
+    lines.push({
+      type: 'Feature',
+      properties: { i },
+      geometry: { type: 'LineString', coordinates: [coords[i], coords[i + 1]] },
+    });
+  }
+  return { type: 'FeatureCollection', features: lines };
+}
+
+function googleLinkFrom(coords: [number, number][]) {
+  // Google supports origin + destination + up to 23 waypoints
+  // Build one (or more) links chunked accordingly
+  const chunks: string[] = [];
+  const ORIGIN = coords[0];
+  let curStart = 0;
+  while (curStart < coords.length - 1) {
+    const remaining = coords.length - 1 - curStart;
+    const waypointsCap = Math.min(23, Math.max(0, remaining - 1)); // exclude dest
+    const end = curStart + 1 + waypointsCap;
+    const origin = coords[curStart];
+    const dest = coords[end];
+    const ways = coords.slice(curStart + 1, end).map(c => `${c[1]},${c[0]}`).join('|');
+    const url = new URL('https://www.google.com/maps/dir/');
+    url.searchParams.set('api', '1');
+    url.searchParams.set('origin', `${origin[1]},${origin[0]}`);
+    url.searchParams.set('destination', `${dest[1]},${dest[0]}`);
+    url.searchParams.set('travelmode', 'driving');
+    if (ways) url.searchParams.set('waypoints', ways);
+    chunks.push(url.toString());
+    curStart = end;
+  }
+  return chunks;
 }
 
 export default function Page() {
-  // UI state
-  const [basemap, setBasemap] = useState<"Hybrid" | "Streets">("Hybrid");
-  const [markerStyle, setMarkerStyle] = useState<"Colored dots" | "Logos">("Colored dots");
+  const BASE_PATH = useBasePath();
 
-  // Data
-  const [fc, setFc] = useState<GJFC | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const [basemap, setBasemap] = useState<Basemap>('Hybrid');
+  const [markerStyle] = useState<'Colored dots'>('Colored dots'); // logos removed
 
-  // Filters
-  const [selStates, setSelStates] = useState<Set<string>>(new Set());
-  const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
-  const [selTypes, setSelTypes] = useState<Set<string>>(new Set());
+  const [fc, setFc] = useState<GJFC>({ type: 'FeatureCollection', features: [] });
+  const [filtered, setFiltered] = useState<GJFC>(fc);
 
-  // Reset key forces map to re-mount (fit bounds & clear in-map state)
-  const [resetKey, setResetKey] = useState(0);
+  const [states, setStates] = useState<string[]>([]);
+  const [retailers, setRetailers] = useState<string[]>([]);
+  const [cats, setCats] = useState<string[]>([]);
 
-  // Load GeoJSON
+  const [stateSel, setStateSel] = useState<Set<string>>(new Set());
+  const [retSel, setRetSel] = useState<Set<string>>(new Set());
+  const [catSel, setCatSel] = useState<Set<string>>(new Set());
+
+  const [home, setHome] = useState<[number, number] | null>(null);
+  const [homeInput, setHomeInput] = useState('');
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [roundtrip, setRoundtrip] = useState(true);
+  const [route, setRoute] = useState<GeoJSON.FeatureCollection<GeoJSON.LineString> | undefined>(undefined);
+  const [googleLinks, setGoogleLinks] = useState<string[]>([]);
+
+  // Load data once
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        setLoading(true);
-        const r = await fetch(DATA_URL, { cache: "no-store" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const json = (await r.json()) as GJFC;
+    const url = `${BASE_PATH}/data/retailers.geojson`;
+    fetch(url)
+      .then(r => r.json())
+      .then((gj: GJFC) => {
+        setFc(gj);
+        setFiltered(gj);
+        const st = new Set<string>();
+        const re = new Set<string>();
+        const ct = new Set<string>();
+        for (const f of gj.features) {
+          const p = f.properties || {};
+          if (p.State) st.add(p.State);
+          if (p.Retailer) re.add(p.Retailer);
+          if (p.Category) ct.add(p.Category);
+        }
+        setStates([...st].sort());
+        setRetailers([...re].sort());
+        setCats([...ct].sort());
+        setStateSel(new Set(st));
+        setRetSel(new Set(re));
+        setCatSel(new Set(ct));
+      })
+      .catch(console.error);
+  }, [BASE_PATH]);
 
-        if (!alive) return;
+  // Apply filters
+  useEffect(() => {
+    const ff: GJFC = { type: 'FeatureCollection', features: [] };
+    for (const f of fc.features) {
+      const p = f.properties || {};
+      if (stateSel.size && !stateSel.has(p.State)) continue;
+      if (retSel.size && !retSel.has(p.Retailer)) continue;
+      if (catSel.size && !catSel.has(p.Category)) continue;
+      ff.features.push(f);
+    }
+    setFiltered(ff);
+  }, [fc, stateSel, retSel, catSel]);
 
-        const clean: GJFC = {
-          type: "FeatureCollection",
-          features: json.features.filter(
-            (f) =>
-              f.geometry &&
-              f.geometry.type === "Point" &&
-              Array.isArray(f.geometry.coordinates) &&
-              f.geometry.coordinates.length === 2 &&
-              typeof f.geometry.coordinates[0] === "number" &&
-              typeof f.geometry.coordinates[1] === "number"
-          ),
-        };
-        setFc(clean);
+  const filteredBBox = useMemo(() => bboxOf(filtered), [filtered]);
 
-        const states = uniqSorted(clean.features.map((f) => f.properties.State || "").filter(Boolean));
-        const retailers = uniqSorted(clean.features.map((f) => f.properties.Retailer || "").filter(Boolean));
-        const types = uniqSorted(clean.features.map((f) => f.properties.Category || "").filter(Boolean));
+  // Handlers from the map
+  const onMapDblClick = (lnglat: [number, number]) => {
+    setHome(lnglat);
+  };
+  const onPointClick = (lnglat: [number, number], title: string) => {
+    // prevent dup if last added is same spot
+    const id = `${lnglat[0].toFixed(5)},${lnglat[1].toFixed(5)}`;
+    if (stops.some(s => s.id === id)) return;
+    setStops(prev => [...prev, { id, name: title, coord: lnglat }]);
+  };
 
-        setSelStates(new Set(states));
-        setSelRetailers(new Set(retailers));
-        setSelTypes(new Set(types));
-        setErr(null);
-      } catch (e: any) {
-        setErr(`Failed to load data: ${e?.message ?? e}`);
-      } finally {
-        setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  // Lists for checkboxes
-  const statesList = useMemo(
-    () => (fc ? uniqSorted(fc.features.map((f) => f.properties.State || "").filter(Boolean)) : []),
-    [fc]
-  );
-  const retailersList = useMemo(
-    () => (fc ? uniqSorted(fc.features.map((f) => f.properties.Retailer || "").filter(Boolean)) : []),
-    [fc]
-  );
-  const typesList = useMemo(
-    () => (fc ? uniqSorted(fc.features.map((f) => f.properties.Category || "").filter(Boolean)) : []),
-    [fc]
-  );
-
-  // Filtered FeatureCollection
-  const filteredFc = useMemo<GJFC | null>(() => {
-    if (!fc) return null;
-    return {
-      type: "FeatureCollection",
-      features: fc.features.filter((f) => {
-        const p = f.properties;
-        return selStates.has(p.State || "") && selRetailers.has(p.Retailer || "") && selTypes.has(p.Category || "");
-      }),
-    };
-  }, [fc, selStates, selRetailers, selTypes]);
-
-  const filteredBBox: BBox = useMemo(() => {
-    if (!filteredFc) return [-125, 24, -66.9, 49.5] as const;
-    return fcBBox(filteredFc);
-  }, [filteredFc]);
-
-  // helpers
-  function toggle(set: Set<string>, value: string): Set<string> {
-    const next = new Set(set);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    return next;
+  // Geocode or parse the "Home" entry
+  async function setHomeFromInput() {
+    const raw = homeInput.trim();
+    // lat,lng
+    const m = raw.match(/^\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*$/);
+    if (m) {
+      const lat = parseFloat(m[1]);
+      const lng = parseFloat(m[2]);
+      setHome([lng, lat]);
+      return;
+    }
+    if (!MAPBOX_TOKEN) {
+      alert('Add NEXT_PUBLIC_MAPBOX_TOKEN to .env.local to geocode addresses, or enter "lat,lng".');
+      return;
+    }
+    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(raw)}.json`);
+    url.searchParams.set('access_token', MAPBOX_TOKEN);
+    url.searchParams.set('limit', '1');
+    const res = await fetch(url.toString());
+    const gj = await res.json();
+    const f = gj.features?.[0];
+    if (f?.center) {
+      setHome([f.center[0], f.center[1]]);
+    } else {
+      alert('Address not found.');
+    }
   }
-  const allStates = () => setSelStates(new Set(statesList));
-  const noneStates = () => setSelStates(new Set());
-  const allRetailers = () => setSelRetailers(new Set(retailersList));
-  const noneRetailers = () => setSelRetailers(new Set());
-  const allTypes = () => setSelTypes(new Set(typesList));
-  const noneTypes = () => setSelTypes(new Set());
 
-  // Wire the “Reset Map” header button
-  useEffect(() => {
-    const btn = document.getElementById("reset-map-btn");
-    if (!btn) return;
-    const handler = () => {
-      if (statesList.length) allStates();
-      if (retailersList.length) allRetailers();
-      if (typesList.length) allTypes();
-      setBasemap("Hybrid");
-      setMarkerStyle("Colored dots");
-      setResetKey((k) => k + 1);
-    };
-    btn.addEventListener("click", handler);
-    return () => btn.removeEventListener("click", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statesList.length, retailersList.length, typesList.length]);
+  function clearTrip() {
+    setStops([]);
+    setRoute(undefined);
+    setGoogleLinks([]);
+  }
+
+  function optimizeTrip() {
+    if (!home) {
+      alert('Set Home first (double-click map or enter address/ZIP).');
+      return;
+    }
+    if (!stops.length) {
+      alert('Click map points to add stops.');
+      return;
+    }
+    const { coords } = orderStops(home, stops, roundtrip);
+    setRoute(routeLineFrom(coords));
+    setGoogleLinks(googleLinkFrom(coords));
+  }
+
+  const toggleAll = (kind: 'state' | 'ret' | 'cat', on: boolean) => {
+    const setFn = kind === 'state' ? setStateSel : kind === 'ret' ? setRetSel : setCatSel;
+    const src = kind === 'state' ? states : kind === 'ret' ? retailers : cats;
+    setFn(on ? new Set(src) : new Set());
+  };
+
+  /** checkbox builder */
+  const List = ({
+    items,
+    sel,
+    setSel,
+    label,
+  }: {
+    items: string[];
+    sel: Set<string>;
+    setSel: (s: Set<string>) => void;
+    label: string;
+  }) => (
+    <div className="panel">
+      <div className="panel-title">{label} <span className="muted">({items.length})</span></div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <button className="btn ghost" onClick={() => setSel(new Set(items))}>All</button>
+        <button className="btn ghost" onClick={() => setSel(new Set())}>None</button>
+      </div>
+      <div className="checklist">
+        {items.map(v => {
+          const checked = sel.has(v);
+          return (
+            <label key={v} className="row">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => {
+                  const n = new Set(sel);
+                  if (e.target.checked) n.add(v); else n.delete(v);
+                  setSel(n);
+                }}
+              />
+              <span>{v}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="app-grid">
-      {/* LEFT: Sidebar */}
-      <aside className="aside">
-        {/* Map Options */}
-        <section className="panel">
-          <div className="panel-title">Map Options</div>
+    <>
+      {/* Header */}
+      <header className="site-header">
+        <img src={`${useBasePath()}/certis-logo.png`} className="brand-logo" alt="Certis Biologicals" />
+        <nav className="header-nav">
+          <button className="btn ghost" onClick={() => { setStateSel(new Set(states)); setRetSel(new Set(retailers)); setCatSel(new Set(cats)); }}>
+            Reset Filters
+          </button>
+          <button className="btn" onClick={() => { clearTrip(); setHome(null); }}>
+            Reset Map
+          </button>
+        </nav>
+      </header>
 
-          <div className="field">
-            <div className="label">Basemap</div>
-            <select
-              className="select"
-              value={basemap}
-              onChange={(e) => setBasemap(e.target.value === "Streets" ? "Streets" : "Hybrid")}
-            >
-              <option>Hybrid</option>
-              <option>Streets</option>
-            </select>
+      {/* Grid */}
+      <main className="app-grid">
+        {/* Sidebar */}
+        <aside className="aside">
+          <div className="panel">
+            <div className="panel-title">Map Options</div>
+            <div className="field">
+              <div className="label">Basemap</div>
+              <select className="select" value={basemap} onChange={(e) => setBasemap(e.target.value as Basemap)}>
+                <option>Hybrid</option>
+                <option>Streets</option>
+              </select>
+            </div>
+
+            <div className="hint">Double-click the map to set <b>Home</b>. Click a point to add a stop.</div>
           </div>
 
-          <div className="field">
-            <div className="label">Markers</div>
-            <select
-              className="select"
-              value={markerStyle}
-              onChange={(e) => setMarkerStyle(e.target.value === "Logos" ? "Logos" : "Colored dots")}
-            >
-              <option>Colored dots</option>
-              <option>Logos</option>
-            </select>
+          <List items={states} sel={stateSel} setSel={setStateSel} label="States" />
+          <List items={retailers} sel={retSel} setSel={setRetSel} label="Retailers" />
+          <List items={cats} sel={catSel} setSel={setCatSel} label="Location Types" />
+
+          <div className="panel">
+            <div className="panel-title">Trip Planner</div>
+
+            <div className="field">
+              <div className="label">Home (address or <code>lat,lng</code>)</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input className="input" placeholder="e.g., 50638 or 41.5,-97.2" value={homeInput} onChange={(e) => setHomeInput(e.target.value)} />
+                <button className="btn" onClick={setHomeFromInput}>Set</button>
+              </div>
+              <div className="hint">Home: {home ? `${home[1].toFixed(4)}, ${home[0].toFixed(4)}` : 'unset'}</div>
+            </div>
+
+            <div className="field">
+              <div className="label">Stops (click map points to add)</div>
+              <div className="checklist">
+                {stops.map((s, i) => (
+                  <div key={s.id} className="row">
+                    <span>{i + 1}. {s.name}</span>
+                    <button className="btn ghost" onClick={() => setStops(prev => prev.filter(x => x.id !== s.id))}>Remove</button>
+                  </div>
+                ))}
+                {!stops.length && <div className="muted">No stops yet.</div>}
+              </div>
+            </div>
+
+            <div className="field">
+              <label className="row">
+                <input type="checkbox" checked={roundtrip} onChange={(e) => setRoundtrip(e.target.checked)} />
+                <span>Roundtrip</span>
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn" onClick={optimizeTrip}>Optimize Trip</button>
+              <button className="btn ghost" onClick={clearTrip}>Clear Trip</button>
+            </div>
+
+            {!!googleLinks.length && (
+              <div className="field">
+                <div className="label">Open in Google Maps</div>
+                <ol className="link-list">
+                  {googleLinks.map((u, i) => (
+                    <li key={i}><a href={u} target="_blank">Leg {i + 1}</a></li>
+                  ))}
+                </ol>
+                <div className="hint">Google caps directions at 25 points per link; long trips are split into multiple legs automatically.</div>
+              </div>
+            )}
           </div>
+        </aside>
 
-          <p className="hint">
-            Double-click the map to set <strong>Home</strong>. Click a point to add a stop.
-          </p>
-        </section>
-
-        {/* Filters */}
-        <section className="panel">
-          <div className="panel-title">Filters</div>
-
-          {/* States */}
-          <div className="field">
-            <div className="label">
-              States &nbsp;
-              <span style={{ color: "var(--muted)" }}>
-                ({selStates.size} of {statesList.length})
-              </span>
-            </div>
-            <div className="field" style={{ display: "flex", gap: 8 }}>
-              <button className="btn ghost" onClick={allStates} type="button">All</button>
-              <button className="btn ghost" onClick={noneStates} type="button">None</button>
-            </div>
-            <div className="panel" style={{ maxHeight: 160, overflow: "auto" }}>
-              {statesList.map((s) => (
-                <label key={s} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                  <input
-                    type="checkbox"
-                    checked={selStates.has(s)}
-                    onChange={() => setSelStates((cur) => toggle(cur, s))}
-                  />
-                  <span>{s}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Retailers */}
-          <div className="field">
-            <div className="label">
-              Retailers &nbsp;
-              <span style={{ color: "var(--muted)" }}>
-                ({selRetailers.size} of {retailersList.length})
-              </span>
-            </div>
-            <div className="field" style={{ display: "flex", gap: 8 }}>
-              <button className="btn ghost" onClick={allRetailers} type="button">All</button>
-              <button className="btn ghost" onClick={noneRetailers} type="button">None</button>
-            </div>
-            <div className="panel" style={{ maxHeight: 180, overflow: "auto" }}>
-              {retailersList.map((r) => (
-                <label key={r} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                  <input
-                    type="checkbox"
-                    checked={selRetailers.has(r)}
-                    onChange={() => setSelRetailers((cur) => toggle(cur, r))}
-                  />
-                  <span>{r}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Types */}
-          <div className="field">
-            <div className="label">
-              Location Types &nbsp;
-              <span style={{ color: "var(--muted)" }}>
-                ({selTypes.size} of {typesList.length})
-              </span>
-            </div>
-            <div className="field" style={{ display: "flex", gap: 8 }}>
-              <button className="btn ghost" onClick={allTypes} type="button">All</button>
-              <button className="btn ghost" onClick={noneTypes} type="button">None</button>
-            </div>
-            <div className="panel" style={{ maxHeight: 140, overflow: "auto" }}>
-              {typesList.map((t) => (
-                <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                  <input
-                    type="checkbox"
-                    checked={selTypes.has(t)}
-                    onChange={() => setSelTypes((cur) => toggle(cur, t))}
-                  />
-                  <span>{t}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {err && (
-          <section className="panel" style={{ borderColor: "#7f1d1d", background: "#7f1d1d22" }}>
-            <div className="panel-title">Error</div>
-            <div>{err}</div>
-          </section>
-        )}
-      </aside>
-
-      {/* RIGHT: Map */}
-      <section className="map-shell">
-        <div className="map-card">
-          {loading || !filteredFc ? (
-            <div style={{ padding: 16, color: "var(--muted)" }}>Loading map…</div>
-          ) : (
+        {/* Map column */}
+        <div className="map-shell">
+          {filtered.features.length > 0 && (
             <CertisMap
-              key={resetKey}
               token={MAPBOX_TOKEN}
               basemap={basemap}
-
-              data={filteredFc}
-              bbox={filteredBBox}
+              data={filtered}
+              bbox={[...filteredBBox] as [number, number, number, number]}
+              route={route}
+              onMapDblClick={onMapDblClick}
+              onPointClick={onPointClick}
             />
           )}
         </div>
-      </section>
-    </div>
+      </main>
+    </>
   );
 }
