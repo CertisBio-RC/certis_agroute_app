@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import CertisMap from "@/components/CertisMap";
+import { withBasePath } from "@/utils/paths";
+import * as Route from "@/utils/routing";
 
 // ---- Minimal GeoJSON typings
 type Position = [number, number];
@@ -24,13 +26,8 @@ interface FeatureCollection {
   features: Feature[];
 }
 
-// ---- Trip types
 export type Stop = { name: string; coord: Position };
 
-// Route helpers (new module)
-import * as Route from "@/utils/routing";
-
-// Small helper
 const dedupe = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
 
 function splitKingpins(fc: FeatureCollection): {
@@ -87,7 +84,9 @@ export default function Page() {
     (async () => {
       try {
         const fc =
-          (await tryFetchJson<FeatureCollection>("retailers.geojson")) ?? {
+          (await tryFetchJson<FeatureCollection>(
+            withBasePath("retailers.geojson")
+          )) ?? {
             type: "FeatureCollection",
             features: [],
           };
@@ -132,7 +131,9 @@ export default function Page() {
   // ---- Optional local ZIP index load
   useEffect(() => {
     (async () => {
-      const idx = await tryFetchJson<Record<string, Position>>("zips.min.json");
+      const idx = await tryFetchJson<Record<string, Position>>(
+        withBasePath("zips.min.json")
+      );
       if (idx) setZipIndex(idx);
     })();
   }, []);
@@ -183,7 +184,8 @@ export default function Page() {
   }, []);
 
   const optimize = useCallback(() => {
-    const origin = home || stops[0]?.coord ?? null;
+    // ✅ FIX: add parens / use nullish-only chain (no mixing || with ??)
+    const origin = home ?? stops[0]?.coord ?? null;
     if (!origin || stops.length < 1) {
       setOptimized(stops);
       return;
