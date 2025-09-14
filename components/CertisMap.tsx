@@ -1,13 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
-import mapboxgl, { Map, LngLat } from "mapbox-gl";
+import mapboxgl, { LngLat } from "mapbox-gl";
 import type { FeatureCollection, Feature, Geometry, Position } from "geojson";
 import { withBasePath } from "@/utils/paths";
 
-// -----------------------------
-// Types
-// -----------------------------
 type FC = FeatureCollection<Geometry, Record<string, any>>;
 
 export type CertisMapProps = {
@@ -19,24 +16,16 @@ export type CertisMapProps = {
   home: Position | null;
   /** 'hybrid' = satellite+roads (default), 'street' = streets */
   mapStyle?: "hybrid" | "street";
-  /**
-   * Back-compat: accepts either the new one-arg shape OR the legacy (props, LngLat) shape.
-   * - onPointClick({ name, coord:[lng,lat] })
-   * - onPointClick(properties, new mapboxgl.LngLat(lng, lat))
-   */
-  onPointClick?:
-    | ((p: { name: string; coord: [number, number] }) => void)
-    | ((properties: any, coord: LngLat) => void);
+  /** Legacy two-argument handler: (properties, LngLat) */
+  onPointClick?: (properties: any, coord: LngLat) => void;
 };
 
-// -----------------------------
-// Mapbox configuration
-// -----------------------------
+// ------------------------------------------------------------------
+// Mapbox config
+// ------------------------------------------------------------------
 const TOKEN =
   process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
-  (typeof window !== "undefined"
-    ? (localStorage.getItem("MAPBOX_TOKEN") || "")
-    : "");
+  (typeof window !== "undefined" ? localStorage.getItem("MAPBOX_TOKEN") || "" : "");
 
 const STYLE_URLS = {
   hybrid: "mapbox://styles/mapbox/satellite-streets-v12",
@@ -47,7 +36,6 @@ function styleUrlFor(mode: "hybrid" | "street") {
   return STYLE_URLS[mode] ?? STYLE_URLS.hybrid;
 }
 
-// Safe position coercer for GeoJSON
 function toPosition(x: any): Position | null {
   if (!x) return null;
   if (Array.isArray(x) && x.length >= 2 && typeof x[0] === "number" && typeof x[1] === "number") {
@@ -65,7 +53,6 @@ const CLUSTER_SRC = "retailers";
 const KINGPIN_SRC = "kingpins";
 const HOME_SRC = "home";
 
-// Layer ids
 const L = {
   cluster: "cluster-circles",
   clusterCount: "cluster-count",
@@ -75,9 +62,9 @@ const L = {
   home: "home-point",
 };
 
-// -----------------------------
+// ------------------------------------------------------------------
 // Component
-// -----------------------------
+// ------------------------------------------------------------------
 export default function CertisMap({
   data,
   kingpins,
@@ -86,7 +73,7 @@ export default function CertisMap({
   onPointClick,
 }: CertisMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<Map | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
 
   const currentStyleUrl = useMemo(() => styleUrlFor(mapStyle), [mapStyle]);
@@ -94,10 +81,7 @@ export default function CertisMap({
   // Create map once
   useEffect(() => {
     if (!containerRef.current) return;
-    if (!TOKEN) {
-      // eslint-disable-next-line no-console
-      console.warn("Missing NEXT_PUBLIC_MAPBOX_TOKEN");
-    }
+    if (!TOKEN) console.warn("Missing NEXT_PUBLIC_MAPBOX_TOKEN");
     mapboxgl.accessToken = TOKEN;
 
     const map = new mapboxgl.Map({
@@ -106,17 +90,13 @@ export default function CertisMap({
       center: [-96.7, 40.0],
       zoom: 3.5,
       attributionControl: true,
-      hash: false,
-      // ✅ Hard-lock Mercator on first load
-      projection: { name: "mercator" as any },
+      projection: { name: "mercator" as any }, // ✅ Hard-lock Mercator
       cooperativeGestures: false,
       pitchWithRotate: false,
       dragRotate: false,
     });
-
     mapRef.current = map;
 
-    // Single popup reused for hover
     popupRef.current = new mapboxgl.Popup({
       closeButton: false,
       closeOnClick: false,
@@ -124,7 +104,7 @@ export default function CertisMap({
       className: "certis-popup",
     });
 
-    // CERTIS badge overlay (in-map)
+    // CERTIS badge overlay inside the map card
     const badge = document.createElement("div");
     badge.style.position = "absolute";
     badge.style.top = "10px";
@@ -133,21 +113,19 @@ export default function CertisMap({
     badge.style.pointerEvents = "none";
     badge.innerHTML = `<img alt="CERTIS" src="${withBasePath(
       "/certis-logo.png"
-    )}" style="height:24px; opacity:.95; filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))" />`;
+    )}" style="height:24px;opacity:.95;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))" />`;
     (containerRef.current!.parentElement || containerRef.current!).appendChild(badge);
 
     const enforceMercator = () => {
       try {
         map.setProjection({ name: "mercator" as any });
-      } catch {
-        /* no-op */
-      }
+      } catch {}
     };
 
-    const installSourcesAndLayers = () => {
+    const wireLayers = () => {
       enforceMercator();
 
-      // --- clustered retailers
+      // --- Clustered retailers
       if (!map.getSource(CLUSTER_SRC)) {
         map.addSource(CLUSTER_SRC, {
           type: "geojson",
@@ -220,12 +198,9 @@ export default function CertisMap({
         });
       }
 
-      // --- KINGPINs (non-clustered, above clusters)
+      // --- KINGPINs (non-clustered, always on top of clusters)
       if (!map.getSource(KINGPIN_SRC)) {
-        map.addSource(KINGPIN_SRC, {
-          type: "geojson",
-          data: kingpins,
-        });
+        map.addSource(KINGPIN_SRC, { type: "geojson", data: kingpins });
       } else {
         (map.getSource(KINGPIN_SRC) as mapboxgl.GeoJSONSource).setData(kingpins);
       }
@@ -309,19 +284,17 @@ export default function CertisMap({
         });
       }
 
-      // --- Interactivity wiring
-      const hoverables = [L.unclustered, L.kingpinCore, L.kingpinRing, L.cluster];
-      hoverables.forEach((lid) => {
+      // --- Cursor affordances
+      [L.unclustered, L.kingpinCore, L.kingpinRing, L.cluster].forEach((lid) => {
         if (!map.getLayer(lid)) return;
         map.on("mouseenter", lid, () => (map.getCanvas().style.cursor = "pointer"));
         map.on("mouseleave", lid, () => (map.getCanvas().style.cursor = ""));
       });
 
-      // hover popup for unclustered + kingpins
+      // --- Hover popup (unclustered + kingpins)
       const showPopup = (e: any) => {
         const f: Feature<Geometry, any> | undefined = e?.features?.[0];
-        if (!f || !f.geometry || (f.geometry as any).type !== "Point") return;
-
+        if (!f || (f.geometry as any).type !== "Point") return;
         const coord = (f.geometry as any).coordinates as Position;
         const props = f.properties || {};
         const retailer =
@@ -331,7 +304,6 @@ export default function CertisMap({
         const category = props.category ?? props.Category ?? "";
         const suppliers = props.suppliers ?? props.Suppliers ?? "";
 
-        // popup logo (best-effort)
         const slug = String(retailer)
           .toLowerCase()
           .replace(/&/g, "and")
@@ -352,11 +324,7 @@ export default function CertisMap({
               : ""
           }
         `;
-
-        popupRef.current!
-          .setLngLat(coord as any)
-          .setHTML(html)
-          .addTo(map);
+        popupRef.current!.setLngLat(coord as any).setHTML(html).addTo(map);
       };
 
       map.on("mousemove", L.unclustered, showPopup);
@@ -366,61 +334,42 @@ export default function CertisMap({
       map.on("mouseleave", L.kingpinCore, () => popupRef.current?.remove());
       map.on("mouseleave", L.kingpinRing, () => popupRef.current?.remove());
 
-      // click to add stop — **back-compat call**
-      const invokeOnPointClick = (properties: any, coord: Position) => {
-        if (!onPointClick) return;
-        const arity = (onPointClick as any).length;
-        if (arity >= 2) {
-          // legacy: (props, LngLat)
-          (onPointClick as (p: any, ll: LngLat) => void)(properties, new mapboxgl.LngLat(coord[0], coord[1]));
-        } else {
-          // new shape: ({ name, coord })
-          const retailer =
-            properties?.retailer ??
-            properties?.Retailer ??
-            properties?.name ??
-            properties?.Name ??
-            "Location";
-          (onPointClick as (p: { name: string; coord: [number, number] }) => void)({
-            name: String(retailer),
-            coord: [coord[0], coord[1]],
-          });
-        }
-      };
-
+      // --- Click to add stop (legacy two-arg call)
       const clickToAdd = (e: any) => {
         const f: Feature<Geometry, any> | undefined = e?.features?.[0];
-        if (!f || !f.geometry || (f.geometry as any).type !== "Point") return;
+        if (!f || (f.geometry as any).type !== "Point") return;
         const coord = (f.geometry as any).coordinates as Position;
         const props = f.properties || {};
-        invokeOnPointClick(props, coord);
+        onPointClick?.(props, new mapboxgl.LngLat(coord[0], coord[1]));
       };
       map.on("click", L.unclustered, clickToAdd);
       map.on("click", L.kingpinCore, clickToAdd);
       map.on("click", L.kingpinRing, clickToAdd);
 
-      // zoom into clusters on click
+      // --- Expand clusters on click (✅ no mapboxgl.Cluster cast)
       map.on("click", L.cluster, (e: any) => {
         const feat = e?.features?.[0];
         if (!feat) return;
         const clusterId = feat.properties?.cluster_id;
-        const source = map.getSource(CLUSTER_SRC) as mapboxgl.Cluster;
-        if (!source || clusterId == null) return;
-        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+        const src = map.getSource(CLUSTER_SRC) as mapboxgl.GeoJSONSource | undefined;
+        const getZoom = (src as any)?.getClusterExpansionZoom as
+          | ((id: number, cb: (err: any, zoom: number) => void) => void)
+          | undefined;
+
+        if (!src || clusterId == null || typeof getZoom !== "function") return;
+        getZoom.call(src, clusterId, (err, zoom) => {
           if (err) return;
-          const coord = (feat.geometry as any).coordinates as Position;
-          map.easeTo({ center: coord as any, zoom });
+          const c = (feat.geometry as any).coordinates as Position;
+          map.easeTo({ center: c as any, zoom });
         });
       });
     };
 
-    // Initial style load
     map.once("style.load", () => {
-      installSourcesAndLayers();
+      wireLayers();
       map.resize();
     });
 
-    // keep map sized
     const onResize = () => map.resize();
     window.addEventListener("resize", onResize);
 
@@ -431,9 +380,9 @@ export default function CertisMap({
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // create map once
+  }, []); // mount once
 
-  // React to data / kingpins / home updates
+  // Live data updates
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
@@ -460,19 +409,18 @@ export default function CertisMap({
     }
   }, [data, kingpins, home]);
 
-  // React to style changes (Hybrid / Street), re-attach layers, and re-enforce Mercator
+  // Style toggle (Hybrid/Street): setStyle then reattach sources/layers & re-enforce Mercator
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
     const next = styleUrlFor(mapStyle);
     m.setStyle(next, { diff: false });
     m.once("style.load", () => {
-      // Force Mercator again
       try {
         m.setProjection({ name: "mercator" as any });
       } catch {}
 
-      // Recreate sources/layers with latest props
+      // Recreate sources/layers with current props
       if (!m.getSource(CLUSTER_SRC)) {
         m.addSource(CLUSTER_SRC, {
           type: "geojson",
@@ -550,6 +498,7 @@ export default function CertisMap({
       } else {
         (m.getSource(KINGPIN_SRC) as mapboxgl.GeoJSONSource).setData(kingpins);
       }
+
       if (!m.getLayer(L.kingpinCore)) {
         m.addLayer(
           {
@@ -613,29 +562,15 @@ export default function CertisMap({
             : [],
         });
       }
-      if (!m.getLayer(L.home)) {
-        m.addLayer({
-          id: L.home,
-          type: "circle",
-          source: HOME_SRC,
-          paint: {
-            "circle-color": "#ff9f1a",
-            "circle-radius": 6,
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "#2b1700",
-          },
-        });
-      }
 
       // cursors
-      const hoverables = [L.unclustered, L.kingpinCore, L.kingpinRing, L.cluster];
-      hoverables.forEach((lid) => {
+      [L.unclustered, L.kingpinCore, L.kingpinRing, L.cluster].forEach((lid) => {
         if (!m.getLayer(lid)) return;
         m.on("mouseenter", lid, () => (m.getCanvas().style.cursor = "pointer"));
         m.on("mouseleave", lid, () => (m.getCanvas().style.cursor = ""));
       });
 
-      // rewire hover popup
+      // hover popup
       const showPopup = (e: any) => {
         const f: Feature<Geometry, any> | undefined = e?.features?.[0];
         if (!f || (f.geometry as any).type !== "Point") return;
@@ -675,48 +610,33 @@ export default function CertisMap({
       m.on("mouseleave", L.kingpinCore, () => popupRef.current?.remove());
       m.on("mouseleave", L.kingpinRing, () => popupRef.current?.remove());
 
-      // click to add stop — **back-compat call**
-      const invokeOnPointClick = (properties: any, coord: Position) => {
-        if (!onPointClick) return;
-        const arity = (onPointClick as any).length;
-        if (arity >= 2) {
-          (onPointClick as (p: any, ll: LngLat) => void)(properties, new mapboxgl.LngLat(coord[0], coord[1]));
-        } else {
-          const retailer =
-            properties?.retailer ??
-            properties?.Retailer ??
-            properties?.name ??
-            properties?.Name ??
-            "Location";
-          (onPointClick as (p: { name: string; coord: [number, number] }) => void)({
-            name: String(retailer),
-            coord: [coord[0], coord[1]],
-          });
-        }
-      };
-
+      // click to add stop
       const clickToAdd = (e: any) => {
         const f: Feature<Geometry, any> | undefined = e?.features?.[0];
         if (!f || (f.geometry as any).type !== "Point") return;
         const coord = (f.geometry as any).coordinates as Position;
         const props = f.properties || {};
-        invokeOnPointClick(props, coord);
+        onPointClick?.(props, new mapboxgl.LngLat(coord[0], coord[1]));
       };
       m.on("click", L.unclustered, clickToAdd);
       m.on("click", L.kingpinCore, clickToAdd);
       m.on("click", L.kingpinRing, clickToAdd);
 
-      // expand clusters on click
+      // expand clusters
       m.on("click", L.cluster, (e: any) => {
         const feat = e?.features?.[0];
         if (!feat) return;
         const clusterId = feat.properties?.cluster_id;
-        const source = m.getSource(CLUSTER_SRC) as mapboxgl.Cluster;
-        if (!source || clusterId == null) return;
-        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+        const src = m.getSource(CLUSTER_SRC) as mapboxgl.GeoJSONSource | undefined;
+        const getZoom = (src as any)?.getClusterExpansionZoom as
+          | ((id: number, cb: (err: any, zoom: number) => void) => void)
+          | undefined;
+
+        if (!src || clusterId == null || typeof getZoom !== "function") return;
+        getZoom.call(src, clusterId, (err, zoom) => {
           if (err) return;
-          const coord = (feat.geometry as any).coordinates as Position;
-          m.easeTo({ center: coord as any, zoom });
+          const c = (feat.geometry as any).coordinates as Position;
+          m.easeTo({ center: c as any, zoom });
         });
       });
 
