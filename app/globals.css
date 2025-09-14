@@ -1,77 +1,57 @@
-/* Minimal, steady styles without yellow text everywhere */
-:root {
-  --bg: #0b1220;
-  --card: #0e172a;
-  --muted: #94a3b8;
-  --text: #e5e7eb;
-  --chip: #111827;
-  --chip-border: #334155;
-  --chip-checked: #0b1220;
-  --chip-ring: #475569;
-  --primary: #eab308; /* used for primary button only */
+/* Simple chips & check grid (keeps your current palette) */
+.chip {
+  background: #122131;
+  border: 1px solid #1f2c38;
+  color: #e5e7eb;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
 }
-
-html, body, #__next { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-
-.pane-grid {
-  display: grid;
-  grid-template-columns: 340px 1fr;
-  height: 100vh;
+.chip-on {
+  background: #2a3a4e;
+  border-color: #3a4b61;
 }
-
-.sidebar {
-  padding: 16px 14px 18px 14px;
-  border-right: 1px solid #1f2937;
-  overflow-y: auto;
-}
-
-.map-area { height: 100vh; }
-.card { height: 100%; }
-
-.h1 { font-size: 26px; font-weight: 800; letter-spacing: .3px; margin: 0 0 10px 2px; color: var(--text); }
-.h2 { font-size: 16px; font-weight: 700; margin: 12px 0 8px; color: var(--text); }
-
-.input {
-  background: #0f172a; color: var(--text);
-  border: 1px solid #243244; outline: none; border-radius: 8px;
-  padding: 8px 10px; min-width: 140px;
-}
-.input::placeholder { color: #6b7280; }
-
-.btn {
-  border: 1px solid #2a3a4c; background: #0f172a; color: var(--text);
-  border-radius: 8px; padding: 6px 10px; cursor: pointer;
-}
-.btn:hover { border-color: #3b4c60; }
-.btn-primary {
-  background: var(--primary); border-color: #d4a106; color: #0b1220;
+.chip.action {
+  background: #f6c32f;
+  color: #0b1620;
+  border-color: #f6c32f;
 }
 
 .checkbox-grid {
-  display: grid; gap: 8px;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
-.checkbox-grid.stack { grid-template-columns: 1fr; } /* one per row */
-
-.check {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 6px 8px; border-radius: 10px;
-  border: 1px solid var(--chip-border);
-  background: var(--chip);
-}
-.check input[type="checkbox"],
-.check input[type="radio"] {
-  width: 16px; height: 16px; accent-color: #60a5fa; cursor: pointer;
-}
-.check label { cursor: pointer; color: var(--text); }
-
-.debug-pill {
-  padding: 2px 8px; border: 1px dashed #334155; border-radius: 999px;
-  color: var(--muted); font-size: 11px;
+.checkbox-grid.stack {
+  grid-template-columns: 1fr; /* one per row */
 }
 
-/* scrollbar subtle */
-.sidebar::-webkit-scrollbar { width: 10px; }
-.sidebar::-webkit-scrollbar-thumb { background: #122033; border-radius: 999px; }
-.sidebar::-webkit-scrollbar-track { background: transparent; }
+.row-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #0f1c28;
+  border: 1px solid #1f2c38;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.row-check > input[type="checkbox"] {
+  accent-color: #f6c32f;
+}
+
+/* Links */
+.link {
+  color: #9ad0ff;
+  text-decoration: underline;
+}
+
+/* --- Popup cosmetics & retailer logo --- */
+.popup { font-size: 12px; line-height: 1.25; }
+.popup-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.popup-title { font-weight: 600; }
+.popup-sub { opacity: .85; margin-bottom: 2px; }
+.popup-tag { display: inline-block; padding: 2px 6px; border-radius: 9999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); margin-bottom: 2px; }
+.popup-supplier { opacity: .9; margin-bottom: 2px; }
+.popup-addr { opacity: .85; }
+.retailer-logo { height: 18px; width: auto; border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,.25); }

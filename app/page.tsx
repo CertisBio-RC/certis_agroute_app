@@ -1,430 +1,497 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import CertisMap from "@/components/CertisMap";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import type { Feature, FeatureCollection, GeoJsonProperties } from "geojson";
 import { withBasePath } from "@/utils/paths";
 import * as Route from "@/utils/routing";
 
-type Position = [number, number];
-interface FeatureProperties { [key: string]: any }
-interface Feature { type: "Feature"; properties: FeatureProperties; geometry: { type: "Point"; coordinates: Position } }
-interface FeatureCollection { type: "FeatureCollection"; features: Feature[] }
-export type Stop = { name: string; coord: Position };
+type LngLat = [number, number];
 
-/* ---------------- helpers ---------------- */
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-function getProp(p: FeatureProperties, candidates: string[]): string {
-  if (!p) return "";
-  for (const k of Object.keys(p)) {
-    for (const c of candidates) if (k.toLowerCase() === c.toLowerCase()) return String(p[k] ?? "");
-  }
-  const m: Record<string, any> = {};
-  for (const [k, v] of Object.entries(p)) m[norm(k)] = v;
-  for (const c of candidates) { const nk = norm(c); if (m[nk] != null) return String(m[nk] ?? ""); }
-  return "";
-}
-const retailerKeys = ["Retailer","Dealer","Retailer Name","Retail"];
-const cityKeys     = ["City","Town"];
-const stateKeys    = ["State","ST","Province"];
-const typeKeysBase = ["Type","Location Type","LocationType","location_type","LocType","Loc_Type","Facility Type","Category","Location Category","Site Type"];
-const supplierKeys = ["Supplier","Suppliers","Supplier(s)","Supplier 1","Supplier1","Supplier A"];
+const CertisMap = dynamic(() => import("@/components/CertisMap"), { ssr: false });
 
-const getRetailer = (p: FeatureProperties) => getProp(p, retailerKeys);
-const getCity     = (p: FeatureProperties) => getProp(p, cityKeys);
-const getState    = (p: FeatureProperties) => getProp(p, stateKeys);
-
-function inferTypeKey(features: Feature[]): string | null {
-  if (!features.length) return null;
-  const exclude = new Set([...retailerKeys, ...cityKeys, ...stateKeys, ...supplierKeys, "KINGPIN","Kingpin","IsKingpin","Key Account"]);
-  const counts: Record<string, Set<string>> = {};
-  for (const f of features) {
-    const p = f.properties || {};
-    for (const [k, v] of Object.entries(p)) {
-      if (exclude.has(k)) continue;
-      const val = String(v ?? "").trim();
-      if (!counts[k]) counts[k] = new Set();
-      if (val) counts[k].add(val);
-    }
-  }
-  let best: { key: string; size: number } | null = null;
-  for (const [k, set] of Object.entries(counts)) {
-    const size = set.size;
-    if (size > 0 && size <= 50) { if (!best || size < best.size) best = { key: k, size }; }
-  }
-  return best?.key ?? null;
-}
-function getTypeWithFallback(p: FeatureProperties, fallbackKey: string | null): string {
-  const v = getProp(p, typeKeysBase);
-  if (v) return v;
-  if (fallbackKey) {
-    const exact = Object.keys(p).find((k) => k.toLowerCase() === fallbackKey.toLowerCase());
-    if (exact) return String(p[exact] ?? "");
-    const nk = norm(fallbackKey);
-    const map: Record<string, any> = {};
-    for (const [k, val] of Object.entries(p)) map[norm(k)] = val;
-    if (map[nk] != null) return String(map[nk] ?? "");
-  }
-  return "";
+/** Narrow utility to ensure a literal FeatureCollection type */
+function toFC(features: Feature[]): FeatureCollection {
+  return { type: "FeatureCollection", features };
 }
 
-/** Robust KINGPIN detector */
-const isKingpin = (p: FeatureProperties) => {
-  const flagRaw = getProp(p, ["KINGPIN","Kingpin","IsKingpin","Key Account","IsKey","KeyAccount"]);
-  const s = String(flagRaw || "").trim().toLowerCase();
-  if (s === "true" || s === "yes" || s === "y" || s === "1") return true;
-  for (const v of Object.values(p)) {
-    const vs = String(v ?? "").trim().toLowerCase();
-    if (vs === "kingpin" || vs === "key account" || vs === "keyaccount") return true;
+/** Split the dataset into { main, kingpins } */
+function splitKingpins(fc: FeatureCollection) {
+  const main: Feature[] = [];
+  const kp: Feature[] = [];
+  for (const f of fc.features) {
+    const p = (f.properties || {}) as any;
+    const isKp =
+      String(p.type || p.Type || "").toLowerCase() === "kingpin" ||
+      p.kingpin === true ||
+      String(p.KINGPIN || "").toLowerCase() === "true";
+    (isKp ? kp : main).push(f);
   }
-  return false;
-};
-
-const dedupe = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
-const toFC = (features: Feature[]): FeatureCollection =>
-  ({ type: "FeatureCollection", features } as const);
-function splitKingpins(fc: FeatureCollection): { main: FeatureCollection; kingpins: FeatureCollection } {
-  const main: Feature[] = [], kp: Feature[] = [];
-  for (const f of fc.features) (isKingpin(f.properties || {}) ? kp : main).push(f);
   return { main: toFC(main), kingpins: toFC(kp) };
 }
 
-/* Suppliers parsing (supports comma, slash, ampersand, bullets, “and”) */
-function parseSuppliers(raw: string): string[] {
-  if (!raw) return [];
-  const r = raw
-    .replace(/\sand\s/gi, ",")
-    .replace(/[\/|•;]+/g, ",")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return r;
-}
-function suppliersOf(p: FeatureProperties): string[] {
-  const raw = getProp(p, supplierKeys);
-  return parseSuppliers(raw);
+function getProp(p: GeoJsonProperties, keys: string[], fallback = ""): string {
+  for (const k of keys) {
+    const v = (p?.[k] as any) ?? "";
+    if (v !== undefined && v !== null && `${v}`.trim() !== "") return `${v}`;
+  }
+  return fallback;
 }
 
-/* ---------------- data fetch ---------------- */
-async function tryFetchJson<T>(path: string): Promise<T | null> {
-  try { const res = await fetch(path, { cache: "force-cache" }); if (!res.ok) return null; return (await res.json()) as T; }
-  catch { return null; }
-}
-async function fetchFirst<T>(candidates: string[]): Promise<T | null> {
-  for (const p of candidates) { const j = await tryFetchJson<T>(p); if (j) return j; }
-  return null;
-}
-
-/* ---------------- tiny UI blocks ---------------- */
-function CheckboxGroup(props: {
-  items: string[];
-  selected: Set<string>;
-  title?: string;
-  onToggle: (v: string) => void;
-  onAll: () => void;
-  onNone: () => void;
-  stack?: boolean;              // <- when true, one item per row
-}) {
-  const { items, selected, title, onToggle, onAll, onNone, stack } = props;
-  return (
-    <section className="mb-5">
-      {title ? <h2 className="h2 mb-2">{title}</h2> : null}
-      <div className="mb-2 flex gap-2" style={{ display: "flex", gap: 8 }}>
-        <button className="btn" onClick={onAll}>All</button>
-        <button className="btn" onClick={onNone}>None</button>
-      </div>
-      <div className={`checkbox-grid${stack ? " stack" : ""}`}>
-        {items.map((v) => (
-          <div className="check" key={v || "_"}>
-            <input
-              id={`${title || "group"}-${v || "_"}`}
-              type="checkbox"
-              checked={selected.has(v)}
-              onChange={() => onToggle(v)}
-            />
-            <label htmlFor={`${title || "group"}-${v || "_"}`}>{v || "—"}</label>
-          </div>
-        ))}
-      </div>
-    </section>
+function uniqueSorted(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b)
   );
 }
 
-/* ---------------- page ---------------- */
-export default function Page() {
-  // data
-  const [mainFc, setMainFc] = useState<FeatureCollection | null>(null);
-  const [kingpinFc, setKingpinFc] = useState<FeatureCollection | null>(null);
-  const [dataError, setDataError] = useState<string | null>(null);
+type Stop = { name: string; coord: LngLat };
 
-  // filters
-  const [inferredTypeKey, setInferredTypeKey] = useState<string | null>(null);
+export default function Page() {
+  const [rawMain, setRawMain] = useState<FeatureCollection>({ type: "FeatureCollection", features: [] });
+  const [rawKingpins, setRawKingpins] = useState<FeatureCollection>({ type: "FeatureCollection", features: [] });
+
+  const [inferredTypeKey, setInferredTypeKey] = useState<string>("type");
+
+  // Filters
   const [states, setStates] = useState<string[]>([]);
   const [retailers, setRetailers] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
+
   const [selStates, setSelStates] = useState<Set<string>>(new Set());
   const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
   const [selTypes, setSelTypes] = useState<Set<string>>(new Set());
   const [selSuppliers, setSelSuppliers] = useState<Set<string>>(new Set());
 
-  // home (ZIP)
-  const [zipInput, setZipInput] = useState("");
-  const [home, setHome] = useState<Position | null>(null);
-  const [homeErr, setHomeErr] = useState<string | null>(null);
-  const [zipIndex, setZipIndex] = useState<Record<string, Position> | null>(null);
+  // Map style
+  const [mapStyle, setMapStyle] = useState<"hybrid" | "street">("hybrid");
 
-  // trip
+  // Home (ZIP) + trip
+  const zipRef = useRef<HTMLInputElement>(null);
+  const [home, setHome] = useState<LngLat | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [optimized, setOptimized] = useState<Stop[]>([]);
   const [roundTrip, setRoundTrip] = useState<boolean>(false);
 
-  // map style
-  const [styleId, setStyleId] = useState<"satellite-streets-v12" | "streets-v12">("satellite-streets-v12");
-
-  // load dataset
+  // Load retailers dataset and derive kingpins
   useEffect(() => {
     (async () => {
-      const fc =
-        (await fetchFirst<FeatureCollection>([
-          withBasePath("retailers.geojson"),
-          withBasePath("data/retailers.geojson"),
-        ])) ?? toFC([]);
-      if (!fc.features?.length) setDataError("No features found in retailers.geojson");
-      const { main, kingpins } = splitKingpins(fc);
-      setInferredTypeKey(inferTypeKey(main.features));
-      setMainFc(main);
-      setKingpinFc(kingpins);
-    })();
-  }, []);
-
-  // hydrate filter domains
-  useEffect(() => {
-    if (!mainFc) return;
-    const s = dedupe(mainFc.features.map((f) => getState(f.properties || {})));
-    const r = dedupe(mainFc.features.map((f) => getRetailer(f.properties || {})));
-    let t = dedupe(mainFc.features.map((f) => getTypeWithFallback(f.properties || {}, inferredTypeKey)));
-    t = t.filter((v) => String(v || "").trim().toLowerCase() !== "kingpin"); // never expose as a user filter
-
-    const sup = dedupe(mainFc.features.flatMap((f) => suppliersOf(f.properties || {})));
-
-    setStates(s); setRetailers(r); setTypes(t); setSuppliers(sup);
-    setSelStates(new Set(s)); setSelRetailers(new Set(r)); setSelTypes(new Set(t)); setSelSuppliers(new Set(sup));
-  }, [mainFc, inferredTypeKey]);
-
-  // filtered features
-  const filteredFc: FeatureCollection | null = useMemo(() => {
-    if (!mainFc) return null;
-    const out: Feature[] = [];
-    const allSup = selSuppliers.size === suppliers.length; // “all selected” short-circuit
-    for (const f of mainFc.features) {
-      const p = f.properties || {};
-      if (!selStates.has(getState(p))) continue;
-      if (!selRetailers.has(getRetailer(p))) continue;
-      if (!selTypes.has(getTypeWithFallback(p, inferredTypeKey))) continue;
-
-      if (!allSup) {
-        const sup = suppliersOf(p);
-        if (!sup.some((x) => selSuppliers.has(x))) continue;
+      const url = withBasePath("/data/retailers.geojson");
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.warn("Failed to load retailers.geojson");
+        return;
       }
-      out.push(f);
-    }
-    return toFC(out);
-  }, [mainFc, selStates, selRetailers, selTypes, selSuppliers, suppliers.length, inferredTypeKey]);
+      const fc = (await res.json()) as FeatureCollection;
+      const { main, kingpins } = splitKingpins(fc);
+      setRawMain(main);
+      setRawKingpins(kingpins);
 
-  // local ZIP index
-  useEffect(() => {
-    (async () => {
-      const idx = await fetchFirst<Record<string, Position>>([
-        withBasePath("zips.min.json"),
-        withBasePath("data/zips.min.json"),
-      ]);
-      if (idx) setZipIndex(idx);
+      // Infer the "Type" key (type, Type, category, etc.)
+      const first = (main.features[0]?.properties || {}) as any;
+      const candidateKeys = ["type", "Type", "category", "Category", "Location Type", "LocationType"];
+      const hit = candidateKeys.find((k) => first?.[k] !== undefined) || "type";
+      setInferredTypeKey(hit);
+
+      // Hydrate filter lists
+      const st = uniqueSorted(
+        main.features.map((f) => getProp(f.properties, ["state", "State"]))
+      );
+      const re = uniqueSorted(
+        main.features.map((f) => getProp(f.properties, ["retailer", "Retailer"]))
+      );
+      const ty = uniqueSorted(
+        main.features.map((f) => getProp(f.properties, [hit]))
+      );
+
+      // Suppliers may be comma-, slash-, or "and" separated
+      const sup = uniqueSorted(
+        main.features
+          .map((f) =>
+            getProp(f.properties, ["Supplier", "Suppliers", "Supplier(s)"], "")
+          )
+          .flatMap((s) =>
+            s
+              ? `${s}`
+                  .replace(/\sand\s/gi, ",")
+                  .replace(/\//g, ",")
+                  .split(",")
+                  .map((x) => x.trim())
+              : []
+          )
+      );
+
+      setStates(st);
+      setRetailers(re);
+      setTypes(ty);
+      setSuppliers(sup);
+
+      setSelStates(new Set(st));
+      setSelRetailers(new Set(re));
+      setSelTypes(new Set(ty));
+      setSelSuppliers(new Set(sup));
     })();
   }, []);
 
-  const geocodeZip = useCallback(async (zip: string): Promise<Position | null> => {
-    const z = zip.trim(); if (!z) return null;
-    if (zipIndex && zipIndex[z]) return zipIndex[z];
-    const token = (typeof window !== "undefined" ? (window as any).MAPBOX_TOKEN : undefined) || process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN;
-    if (token) {
-      try {
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(z)}.json?types=postcode&limit=1&access_token=${token}`;
-        const res = await fetch(url); const j = await res.json(); const c = j?.features?.[0]?.center;
-        if (Array.isArray(c) && c.length === 2) return [c[0], c[1]] as Position;
-      } catch {}
-    }
-    return null;
-  }, [zipIndex]);
+  // Filtered features (main dataset only). Kingpins pass through separately.
+  const filteredMain = useMemo<FeatureCollection>(() => {
+    if (!rawMain.features.length) return rawMain;
+    const ff = rawMain.features.filter((f) => {
+      const p = f.properties || {};
+      const s = getProp(p, ["state", "State"]);
+      const r = getProp(p, ["retailer", "Retailer"]);
+      const t = getProp(p, [inferredTypeKey]);
+      const supplierRaw = getProp(p, ["Supplier", "Suppliers", "Supplier(s)"]);
+      // Any supplier match (OR) – if no suppliers in selection we skip the filter (all)
+      const supplierTokens = `${supplierRaw}`
+        .replace(/\sand\s/gi, ",")
+        .replace(/\//g, ",")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
 
-  const setHomeFromZip = useCallback(async () => {
-    setHomeErr(null);
-    const pos = await geocodeZip(zipInput);
-    if (pos) setHome(pos); else setHomeErr("ZIP not found (try a 5-digit US ZIP)");
-  }, [zipInput, geocodeZip]);
+      const stateOk = selStates.size === 0 || selStates.has(s);
+      const retailerOk = selRetailers.size === 0 || selRetailers.has(r);
+      const typeOk = selTypes.size === 0 || selTypes.has(t);
+      const supplierOk =
+        selSuppliers.size === 0 ||
+        supplierTokens.some((tok) => selSuppliers.has(tok));
 
-  // trip actions
-  const addStop = useCallback((feat: Feature) => {
-    const p = feat.properties || {};
-    const retailer = getRetailer(p);
-    const city = getCity(p);
-    const state = getState(p);
-    const name = [retailer, city, state].filter(Boolean).join(" · ");
-    const coord = feat.geometry.coordinates as Position;
-    setStops((prev) => [...prev, { name, coord }]);
+      return stateOk && retailerOk && typeOk && supplierOk;
+    });
+    return toFC(ff);
+  }, [rawMain, selStates, selRetailers, selTypes, selSuppliers, inferredTypeKey]);
+
+  const addStop = useCallback(
+    (p: GeoJsonProperties, coord: LngLat) => {
+      const retailer = getProp(p, ["retailer", "Retailer"], "Stop");
+      const city = getProp(p, ["city", "City"]);
+      const state = getProp(p, ["state", "State"]);
+      const name = [retailer, city, state].filter(Boolean).join(" · ");
+      setStops((prev) => [...prev, { name, coord }]);
+      setOptimized((prev) => [...prev, { name, coord }]); // until optimize is run
+    },
+    []
+  );
+
+  const clearTrip = useCallback(() => {
+    setStops([]);
+    setOptimized([]);
   }, []);
-  const clearStops = useCallback(() => { setStops([]); setOptimized([]); }, []);
-  const optimize = useCallback(() => {
-    const origin = home ?? (stops[0]?.coord ?? null);
-    if (!origin || stops.length < 1) { setOptimized(stops); return; }
-    const ordered = Route.nearestNeighbor(stops, origin);
-    const improved = Route.twoOpt(ordered, origin);
-    setOptimized(improved);
-  }, [stops, home]);
 
-  // share links (roundTrip aware)
+  // Simple nearest neighbor + return toggle (kept from your previous utility)
+  const optimize = useCallback(() => {
+    if (stops.length === 0) {
+      setOptimized([]);
+      return;
+    }
+    // nearest neighbor from home if present else first stop
+    const origin = home ?? stops[0].coord;
+    const remaining = stops.slice();
+    const ordered: Stop[] = [];
+    let current = origin;
+
+    const dist = (a: LngLat, b: LngLat) => {
+      const dx = a[0] - b[0];
+      const dy = a[1] - b[1];
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    while (remaining.length) {
+      let bestIdx = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < remaining.length; i++) {
+        const d = dist(current, remaining[i].coord);
+        if (d < bestD) {
+          bestD = d;
+          bestIdx = i;
+        }
+      }
+      const [next] = remaining.splice(bestIdx, 1);
+      ordered.push(next);
+      current = next.coord;
+    }
+
+    if (roundTrip && home) {
+      // just append a pseudo-stop back to origin for preview lists
+      ordered.push({ name: "Return to start", coord: home });
+    }
+    setOptimized(ordered);
+  }, [stops, home, roundTrip]);
+
+  // Zip → home (Mapbox geocoding if token present; otherwise ignore gracefully)
+  const setZip = useCallback(async () => {
+    const raw = zipRef.current?.value?.trim();
+    if (!raw) return;
+    try {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+      if (!token) return;
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+        raw
+      )}.json?types=postcode&limit=1&access_token=${token}`;
+      const res = await fetch(url);
+      const j = await res.json();
+      const center = j?.features?.[0]?.center;
+      if (Array.isArray(center) && center.length === 2) {
+        setHome([center[0], center[1]]);
+      }
+    } catch (e) {
+      console.warn("ZIP geocode failed", e);
+    }
+  }, []);
+
+  // Link builders
   const googleHref = useMemo(() => {
     if (optimized.length === 0) return "";
-    const origin = home ? `${home[1]},${home[0]}` : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
-    return Route.buildGoogleMapsLink(origin, optimized.map((s) => s.coord), { roundTrip });
+    const origin =
+      home != null ? `${home[1]},${home[0]}` : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
+    return Route.buildGoogleMapsLink(origin, optimized.map((s) => s.coord), {
+      roundTrip,
+    });
   }, [optimized, home, roundTrip]);
+
   const appleHref = useMemo(() => {
     if (optimized.length === 0) return "";
-    const origin = home ? `${home[1]},${home[0]}` : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
-    return Route.buildAppleMapsLink(origin, optimized.map((s) => s.coord), { roundTrip });
+    const origin =
+      home != null ? `${home[1]},${home[0]}` : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
+    return Route.buildAppleMapsLink(origin, optimized.map((s) => s.coord), {
+      roundTrip,
+    });
   }, [optimized, home, roundTrip]);
+
   const wazeHref = useMemo(() => {
     if (optimized.length === 0) return "";
-    const origin = home ? `${home[1]},${home[0]}` : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
-    return Route.buildWazeLink(origin, optimized.map((s) => s.coord), { roundTrip });
+    const origin =
+      home != null ? `${home[1]},${home[0]}` : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
+    return Route.buildWazeLink(origin, optimized.map((s) => s.coord), {
+      roundTrip,
+    });
   }, [optimized, home, roundTrip]);
 
-  // helpers for set state
-  const toggleSel = (set: React.Dispatch<React.SetStateAction<Set<string>>>, v: string) =>
-    set((prev) => { const next = new Set(prev); next.has(v) ? next.delete(v) : next.add(v); return next; });
-  const setAll  = (set: React.Dispatch<React.SetStateAction<Set<string>>>, values: string[]) => set(new Set(values));
-  const setNone = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => set(new Set());
+  // UI helpers
+  const toggleAll = (list: string[], setter: (s: Set<string>) => void, on: boolean) => {
+    setter(on ? new Set(list) : new Set());
+  };
+  const toggleOne = (val: string, set: Set<string>, setter: (s: Set<string>) => void) => {
+    const next = new Set(set);
+    if (next.has(val)) next.delete(val);
+    else next.add(val);
+    setter(next);
+  };
 
   return (
-    <div className="pane-grid">
-      {/* SIDEBAR */}
-      <aside className="sidebar">
-        <h1 className="h1">Certis AgRoute Planner</h1>
-
-        {dataError ? (
-          <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm">{dataError}</div>
-        ) : null}
-
-        <section className="mb-5">
-          <h2 className="h2 mb-2">Home (ZIP)</h2>
-          <div className="flex gap-2" style={{ display: "flex", gap: 8 }}>
-            <input className="input" value={zipInput} onChange={(e) => setZipInput(e.target.value)} placeholder="e.g. 50309" inputMode="numeric" />
-            <button className="btn btn-primary" onClick={setHomeFromZip}>Set</button>
-          </div>
-          {homeErr ? <div className="mt-2 text-xs" style={{ color:"#fca5a5" }}>ZIP not found (try a 5-digit US ZIP)</div> : null}
-          {home ? <div className="mt-2 text-xs" style={{ color:"#9ca3af" }}>Home set at {home[1].toFixed(4)}, {home[0].toFixed(4)}</div> : null}
-        </section>
-
-        <CheckboxGroup
-          title={`States (${selStates.size} / ${states.length})`}
-          items={states}
-          selected={selStates}
-          onToggle={(v) => toggleSel(setSelStates, v)}
-          onAll={() => setAll(setSelStates, states)}
-          onNone={() => setNone(setSelStates)}
-        />
-
-        {/* Retailers one per row */}
-        <CheckboxGroup
-          title={`Retailers (${selRetailers.size} / ${retailers.length})`}
-          items={retailers}
-          selected={selRetailers}
-          onToggle={(v) => toggleSel(setSelRetailers, v)}
-          onAll={() => setAll(setSelRetailers, retailers)}
-          onNone={() => setNone(setSelRetailers)}
-          stack
-        />
-
-        <div className="mb-1" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-          <h2 className="h2">Location Types ({selTypes.size} / {types.length})</h2>
-          <span className="debug-pill" title="Type field in use">field: {inferredTypeKey ?? "Type"}</span>
+    <div
+      className="pane-grid"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "360px 1fr",
+        gap: 0,
+        height: "100vh",
+        width: "100vw",
+        overflow: "hidden",
+      }}
+    >
+      {/* Sidebar */}
+      <aside
+        style={{
+          background: "var(--sidebar-bg, #0b1620)",
+          color: "var(--sidebar-fg, #e5e7eb)",
+          padding: "14px 14px 8px",
+          overflow: "auto",
+        }}
+      >
+        {/* Brand above ZIP */}
+        <div className="flex items-center gap-2 mb-3">
+          <img
+            src={withBasePath("/certis-logo.png")}
+            alt="Certis"
+            className="h-7 w-auto pointer-events-none select-none"
+            loading="eager"
+            style={{ height: 28 }}
+          />
+          <span className="sr-only">Certis</span>
         </div>
-        <CheckboxGroup
-          items={types}
-          selected={selTypes}
-          onToggle={(v) => toggleSel(setSelTypes, v)}
-          onAll={() => setAll(setSelTypes, types)}
-          onNone={() => setNone(setSelTypes)}
-        />
 
-        {/* NEW: Suppliers */}
-        <CheckboxGroup
-          title={`Suppliers (${selSuppliers.size} / ${suppliers.length})`}
-          items={suppliers}
-          selected={selSuppliers}
-          onToggle={(v) => toggleSel(setSelSuppliers, v)}
-          onAll={() => setAll(setSelSuppliers, suppliers)}
-          onNone={() => setNone(setSelSuppliers)}
-        />
+        <h1 className="text-xl font-semibold mb-2">Certis AgRoute Planner</h1>
 
-        <section className="mb-5">
-          <h2 className="h2 mb-2">Map Style</h2>
-          <div className="checkbox-grid">
-            <div className="check">
-              <input id="style-hybrid" type="radio" name="style" checked={styleId==="satellite-streets-v12"} onChange={()=>setStyleId("satellite-streets-v12")} />
-              <label htmlFor="style-hybrid">Hybrid</label>
-            </div>
-            <div className="check">
-              <input id="style-street" type="radio" name="style" checked={styleId==="streets-v12"} onChange={()=>setStyleId("streets-v12")} />
-              <label htmlFor="style-street">Street</label>
-            </div>
+        {/* Home (ZIP) */}
+        <div className="mb-4">
+          <div className="text-sm font-semibold mb-1">Home (ZIP)</div>
+          <div className="flex gap-2">
+            <input
+              ref={zipRef}
+              placeholder="e.g. 50309"
+              className="px-2 py-1 rounded bg-[#0f1c28] border border-[#1f2c38] text-sm"
+              style={{ width: 140 }}
+            />
+            <button
+              onClick={setZip}
+              className="px-3 py-1 rounded bg-[#f6c32f] text-black text-sm font-semibold"
+              title="Set home from ZIP"
+            >
+              Set
+            </button>
+          </div>
+        </div>
+
+        {/* States */}
+        <section className="mb-3">
+          <div className="text-sm font-semibold mb-2">
+            States ({selStates.size} / {states.length})
+          </div>
+          <div className="flex gap-2 mb-2">
+            <button onClick={() => toggleAll(states, setSelStates, true)} className="chip">All</button>
+            <button onClick={() => toggleAll(states, setSelStates, false)} className="chip">None</button>
+          </div>
+          <div className="checkbox-grid stack">
+            {states.map((s) => (
+              <label key={s} className="row-check">
+                <input
+                  type="checkbox"
+                  checked={selStates.has(s)}
+                  onChange={() => toggleOne(s, selStates, setSelStates)}
+                />
+                <span>{s}</span>
+              </label>
+            ))}
           </div>
         </section>
 
-        <section className="mb-5">
-          <h2 className="h2 mb-2">Trip Builder</h2>
-          <div className="mb-2" style={{ fontSize: 13 }}>
-            {stops.length === 0 ? <span style={{ color:"#94a3b8" }}>Hover to preview; click a point to add…</span> :
-              stops.map((s, i) => <span key={`${s.name}-${i}`}>{i+1}. {s.name}{i<stops.length-1?" · ":""}</span>)
-            }
+        {/* Retailers (one per row) */}
+        <section className="mb-3">
+          <div className="text-sm font-semibold mb-2">
+            Retailers ({selRetailers.size} / {retailers.length})
           </div>
-          <div className="mb-2 check" style={{ width:"fit-content" }}>
-            <input id="roundtrip" type="checkbox" checked={roundTrip} onChange={()=>setRoundTrip(v=>!v)} />
-            <label htmlFor="roundtrip">Return to start (round trip)</label>
+          <div className="flex gap-2 mb-2">
+            <button onClick={() => toggleAll(retailers, setSelRetailers, true)} className="chip">All</button>
+            <button onClick={() => toggleAll(retailers, setSelRetailers, false)} className="chip">None</button>
           </div>
-          <div className="flex gap-2" style={{ display:"flex", gap:8 }}>
-            <button className="btn btn-primary" onClick={optimize}>Optimize</button>
-            <button className="btn" onClick={clearStops}>Clear</button>
+          <div className="checkbox-grid stack">
+            {retailers.map((r) => (
+              <label key={r} className="row-check">
+                <input
+                  type="checkbox"
+                  checked={selRetailers.has(r)}
+                  onChange={() => toggleOne(r, selRetailers, setSelRetailers)}
+                />
+                <span>{r}</span>
+              </label>
+            ))}
           </div>
-          {optimized.length > 0 ? (
-            <div className="mt-3" style={{ display:"flex", flexDirection:"column", gap:6, fontSize:14 }}>
-              <a target="_blank" rel="noreferrer" href={googleHref}>Open in Google Maps</a>
-              <a target="_blank" rel="noreferrer" href={appleHref}>Open in Apple Maps</a>
-              <a target="_blank" rel="noreferrer" href={wazeHref}>Open in Waze</a>
-            </div>
-          ) : null}
-          <div className="mt-3" style={{ fontSize:11, color:"#9ca3af" }}>
+        </section>
+
+        {/* Location Types */}
+        <section className="mb-3">
+          <div className="text-sm font-semibold mb-2">
+            Location Types ({selTypes.size} / {types.length})
+          </div>
+          <div className="flex gap-2 mb-2">
+            <button onClick={() => toggleAll(types, setSelTypes, true)} className="chip">All</button>
+            <button onClick={() => toggleAll(types, setSelTypes, false)} className="chip">None</button>
+          </div>
+          <div className="checkbox-grid">
+            {types.map((t) => (
+              <label key={t} className="row-check">
+                <input
+                  type="checkbox"
+                  checked={selTypes.has(t)}
+                  onChange={() => toggleOne(t, selTypes, setSelTypes)}
+                />
+                <span>{t}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        {/* Suppliers */}
+        <section className="mb-4">
+          <div className="text-sm font-semibold mb-2">
+            Suppliers ({selSuppliers.size} / {suppliers.length})
+          </div>
+          <div className="flex gap-2 mb-2">
+            <button onClick={() => toggleAll(suppliers, setSelSuppliers, true)} className="chip">All</button>
+            <button onClick={() => toggleAll(suppliers, setSelSuppliers, false)} className="chip">None</button>
+          </div>
+          <div className="checkbox-grid">
+            {suppliers.map((s) => (
+              <label key={s} className="row-check">
+                <input
+                  type="checkbox"
+                  checked={selSuppliers.has(s)}
+                  onChange={() => toggleOne(s, selSuppliers, setSelSuppliers)}
+                />
+                <span>{s}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        {/* Map style */}
+        <section className="mb-4">
+          <div className="text-sm font-semibold mb-2">Map Style</div>
+          <div className="flex gap-2">
+            <button
+              className={`chip ${mapStyle === "hybrid" ? "chip-on" : ""}`}
+              onClick={() => setMapStyle("hybrid")}
+            >
+              Hybrid
+            </button>
+            <button
+              className={`chip ${mapStyle === "street" ? "chip-on" : ""}`}
+              onClick={() => setMapStyle("street")}
+            >
+              Street
+            </button>
+          </div>
+        </section>
+
+        {/* Trip */}
+        <section className="mb-2">
+          <div className="text-sm font-semibold mb-2">Trip Builder</div>
+          <div className="text-xs opacity-80 mb-2">Hover to preview, click a point to add to Trip.</div>
+          {stops.length > 0 && (
+            <ol className="text-xs mb-2 list-decimal pl-4">
+              {stops.map((s, i) => (
+                <li key={i} className="mb-0.5">{s.name}</li>
+              ))}
+            </ol>
+          )}
+          <div className="flex items-center gap-2 mb-2">
+            <button onClick={optimize} className="chip action">Optimize</button>
+            <button onClick={clearTrip} className="chip">Clear</button>
+          </div>
+          <label className="inline-flex items-center gap-2 text-xs mb-2">
+            <input type="checkbox" checked={roundTrip} onChange={() => setRoundTrip((v) => !v)} />
+            <span>Return to start (round trip)</span>
+          </label>
+
+          <div className="links text-xs flex flex-col gap-1">
+            {googleHref && (
+              <a className="link" href={googleHref} target="_blank" rel="noreferrer">Open in Google Maps</a>
+            )}
+            {appleHref && (
+              <a className="link" href={appleHref} target="_blank" rel="noreferrer">Open in Apple Maps</a>
+            )}
+            {wazeHref && (
+              <a className="link" href={wazeHref} target="_blank" rel="noreferrer">Open in Waze</a>
+            )}
+          </div>
+
+          <div className="text-[11px] opacity-70 mt-2">
             KINGPINs are always visible (separate source) and unaffected by filters.
           </div>
         </section>
       </aside>
 
-      {/* MAP */}
-      <main className="map-area">
-        <div className="card">
-          {filteredFc && kingpinFc ? (
-            <CertisMap
-              data={filteredFc as any}
-              kingpins={kingpinFc as any}
-              home={home as any}
-              onPointClick={addStop as any}
-              styleId={styleId}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-zinc-400" style={{ height:"100%", display:"flex", alignItems:"center", justifyContent:"center", color:"#9ca3af" }}>
-              Loading map…
-            </div>
-          )}
-        </div>
+      {/* Map */}
+      <main style={{ position: "relative" }}>
+        <CertisMap
+          data={filteredMain}
+          kingpins={rawKingpins}
+          home={home}
+          onPointClick={addStop}
+          mapStyle={mapStyle}
+        />
       </main>
     </div>
   );
