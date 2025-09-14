@@ -5,21 +5,32 @@ import mapboxgl, {
   Map,
   MapLayerMouseEvent,
   MapLayerTouchEvent,
-  LngLatLike,
 } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import type { FeatureCollection, Feature, GeoJsonProperties } from "geojson";
+import type { FeatureCollection, GeoJsonProperties } from "geojson";
 import { withBasePath } from "@/utils/paths";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-type LngLat = [number, number];
+// Accept anything, return strict GeoJSON Position or null
+type Position = [number, number];
+const toPosition = (v: any): Position | null => {
+  // mapboxgl.LngLat instance
+  if (v && typeof v === "object" && typeof v.lng === "number" && typeof v.lat === "number") {
+    return [v.lng, v.lat];
+  }
+  // [lng, lat] array-like
+  if (Array.isArray(v) && v.length >= 2 && isFinite(v[0]) && isFinite(v[1])) {
+    return [Number(v[0]), Number(v[1])];
+  }
+  return null;
+};
 
 export type CertisMapProps = {
   data: FeatureCollection;
   kingpins: FeatureCollection;
-  home: LngLat | null;
-  onPointClick: (props: GeoJsonProperties, coord: LngLat) => void;
+  home: any; // can be LngLatLike; we coerce to Position
+  onPointClick: (props: GeoJsonProperties, coord: Position) => void;
   mapStyle: "hybrid" | "street";
 };
 
@@ -31,17 +42,14 @@ const slugify = (s: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
-// For rare retailer name → filename mismatches, list here:
-// "Dataset Retailer Name": "actual-file-name-without-extension"
 const LOGO_OVERRIDES: Record<string, string> = {
-  // "CHS West Central": "chs-west-central",
+  // add mismatches here if needed
 };
 
 function logoImgHtml(retailer: string) {
   if (!retailer) return "";
   const baseName = LOGO_OVERRIDES[retailer] ?? slugify(retailer);
   const src = withBasePath(`/icons/${baseName}.png`);
-  // hide <img> if file missing to avoid broken-icon
   return `<img class="retailer-logo" src="${src}" alt="" onerror="this.style.display='none'"/>`;
 }
 
@@ -51,7 +59,8 @@ function popupHtml(props: Record<string, any>) {
   const state: string = props.state ?? props.State ?? "";
   const type: string = props.type ?? props.Type ?? "";
   const address: string = props.address ?? props.Address ?? "";
-  const supplier: string = props.Supplier ?? props.Suppliers ?? props["Supplier(s)"] ?? "";
+  const supplier: string =
+    props.Supplier ?? props.Suppliers ?? props["Supplier(s)"] ?? "";
 
   const logo = logoImgHtml(retailer);
 
@@ -88,11 +97,13 @@ export default function CertisMap({
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const brandRef = useRef<HTMLDivElement | null>(null);
 
-  const styleUri = useMemo(() => {
-    return mapStyle === "hybrid"
-      ? "mapbox://styles/mapbox/satellite-streets-v12"
-      : "mapbox://styles/mapbox/streets-v12";
-  }, [mapStyle]);
+  const styleUri = useMemo(
+    () =>
+      mapStyle === "hybrid"
+        ? "mapbox://styles/mapbox/satellite-streets-v12"
+        : "mapbox://styles/mapbox/streets-v12",
+    [mapStyle]
+  );
 
   // Create map once
   useEffect(() => {
@@ -107,15 +118,11 @@ export default function CertisMap({
       pitchWithRotate: false,
     });
 
-    // full size + resize guards
     const resize = () => m.resize();
     m.on("load", resize);
     window.addEventListener("resize", resize);
 
-    // Cursor feedback
-    m.getCanvas().style.cursor = "default";
-
-    // Brand badge (using certis-logo.png)
+    // Brand badge (in-map)
     const brand = document.createElement("div");
     brand.style.position = "absolute";
     brand.style.left = "8px";
@@ -142,17 +149,16 @@ export default function CertisMap({
       m.remove();
       mapRef.current = null;
     };
-  }, []); // run once
+  }, []); // once
 
-  // Re-apply style if toggled
+  // Toggle style
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
-    // Changing style triggers style.load later
     m.setStyle(styleUri);
   }, [styleUri]);
 
-  // When style finishes loading, (re-)add sources & layers
+  // Attach sources/layers after each style load
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
@@ -188,32 +194,35 @@ export default function CertisMap({
         if (!m.getSource("home")) {
           m.addSource("home", {
             type: "geojson",
-            data: {
-              type: "FeatureCollection",
-              features: [],
-            },
+            data: { type: "FeatureCollection", features: [] },
             generateId: true,
           });
         }
+        const homePos = toPosition(home);
         (m.getSource("home") as mapboxgl.GeoJSONSource).setData({
           type: "FeatureCollection",
-          features: home
+          features: homePos
             ? [
                 {
                   type: "Feature",
                   properties: {},
-                  geometry: { type: "Point", coordinates: home as LngLatLike },
+                  geometry: { type: "Point", coordinates: homePos }, // ✅ strict Position
                 },
               ]
             : [],
         });
 
-        // LAYERS — remove if they already exist (style changed)
-        [clusterLayerId, clusterCountId, unclusterLayerId, kingpinHaloLayerId, kingpinLayerId, homeLayerId].forEach(
-          (id) => {
-            if (m.getLayer(id)) m.removeLayer(id);
-          }
-        );
+        // Remove old layers before re-adding
+        [
+          clusterLayerId,
+          clusterCountId,
+          unclusterLayerId,
+          kingpinHaloLayerId,
+          kingpinLayerId,
+          homeLayerId,
+        ].forEach((id) => {
+          if (m.getLayer(id)) m.removeLayer(id);
+        });
 
         // Clusters
         m.addLayer({
@@ -235,7 +244,6 @@ export default function CertisMap({
               26,
             ],
             "circle-opacity": 0.95,
-            "circle-stroke-width": 0,
           },
         });
 
@@ -245,13 +253,8 @@ export default function CertisMap({
           type: "symbol",
           source: "retailers",
           filter: ["has", "point_count"],
-          layout: {
-            "text-field": ["to-string", ["get", "point_count"]],
-            "text-size": 12,
-          },
-          paint: {
-            "text-color": "#0b1620",
-          },
+          layout: { "text-field": ["to-string", ["get", "point_count"]], "text-size": 12 },
+          paint: { "text-color": "#0b1620" },
         });
 
         // Unclustered points
@@ -268,7 +271,7 @@ export default function CertisMap({
           },
         });
 
-        // KINGPIN halo (under ring)
+        // KINGPIN halo
         m.addLayer({
           id: kingpinHaloLayerId,
           type: "circle",
@@ -280,16 +283,16 @@ export default function CertisMap({
           },
         });
 
-        // KINGPIN inner point (red) with yellow ring (stroke)
+        // KINGPIN point (red fill + yellow ring)
         m.addLayer({
           id: kingpinLayerId,
           type: "circle",
           source: "kingpins",
           paint: {
-            "circle-color": "#ef4444", // red fill
+            "circle-color": "#ef4444",
             "circle-radius": 5,
             "circle-stroke-width": 3,
-            "circle-stroke-color": "#eab308", // yellow ring
+            "circle-stroke-color": "#eab308",
           },
         });
 
@@ -306,7 +309,7 @@ export default function CertisMap({
           },
         });
 
-        // Hover popups for unclustered + kingpins
+        // Hover popups (unclustered + kingpin)
         const popup =
           popupRef.current ??
           new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
@@ -316,11 +319,9 @@ export default function CertisMap({
           const f = e.features && e.features[0];
           if (!f) return;
           const p = (f.properties || {}) as Record<string, any>;
-          const coord = (f.geometry as any)?.coordinates as [number, number];
+          const coord = (f.geometry as any)?.coordinates as Position | undefined;
           if (!coord) return;
-
           const html = popupHtml(p);
-          // change cursor
           mapRef.current?.getCanvas().style.setProperty("cursor", "pointer");
           popup.setLngLat(coord).setHTML(html).addTo(mapRef.current!);
         };
@@ -330,26 +331,24 @@ export default function CertisMap({
           popup.remove();
         };
 
-        // Unclustered hover
         m.on("mousemove", unclusterLayerId, showHover);
         m.on("mouseleave", unclusterLayerId, hideHover);
-        // Kingpin hover
         m.on("mousemove", kingpinLayerId, showHover);
         m.on("mouseleave", kingpinLayerId, hideHover);
 
-        // Click to add stop
+        // Click adds stop
         const clickAdd = (e: MapLayerMouseEvent) => {
           const f = e.features && e.features[0];
           if (!f) return;
           const p = (f.properties || {}) as Record<string, any>;
-          const coord = (f.geometry as any)?.coordinates as [number, number];
+          const coord = (f.geometry as any)?.coordinates as Position | undefined;
           if (!coord) return;
           onPointClick(p, coord);
         };
         m.on("click", unclusterLayerId, clickAdd);
         m.on("click", kingpinLayerId, clickAdd);
 
-        // Cluster click to zoom
+        // Zoom into clusters
         m.on("click", clusterLayerId, (e) => {
           const features = m.queryRenderedFeatures(e.point, { layers: [clusterLayerId] });
           const clusterId = features[0]?.properties?.cluster_id as number;
@@ -364,46 +363,46 @@ export default function CertisMap({
       }
     };
 
-    // Ensure re-attach each style load
     m.once("style.load", onStyleLoad);
     m.on("style.load", onStyleLoad);
-
     return () => {
       m.off("style.load", onStyleLoad);
     };
   }, [data, kingpins, home, onPointClick]);
 
-  // Live data updates without full re-style
+  // Live updates (no restyle required)
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
+
     const s = m.getSource("retailers") as mapboxgl.GeoJSONSource | undefined;
     if (s) s.setData(data);
+
     const k = m.getSource("kingpins") as mapboxgl.GeoJSONSource | undefined;
     if (k) k.setData(kingpins);
+
     const h = m.getSource("home") as mapboxgl.GeoJSONSource | undefined;
-    if (h)
+    if (h) {
+      const homePos = toPosition(home);
       h.setData({
         type: "FeatureCollection",
-        features: home
+        features: homePos
           ? [
               {
                 type: "Feature",
                 properties: {},
-                geometry: { type: "Point", coordinates: home as LngLatLike },
+                geometry: { type: "Point", coordinates: homePos }, // ✅ strict Position
               },
             ]
           : [],
       });
+    }
   }, [data, kingpins, home]);
 
   return (
     <div
       ref={containerRef}
-      style={{
-        position: "absolute",
-        inset: 0,
-      }}
+      style={{ position: "absolute", inset: 0 }}
     />
   );
 }
