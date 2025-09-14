@@ -12,23 +12,31 @@ interface Feature { type: "Feature"; properties: FeatureProperties; geometry: { 
 interface FeatureCollection { type: "FeatureCollection"; features: Feature[] }
 export type Stop = { name: string; coord: Position };
 
-/* ---------- Property helpers ---------- */
+/* ---------- helpers for props/keys ---------- */
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 function getProp(p: FeatureProperties, candidates: string[]): string {
   if (!p) return "";
-  for (const k of Object.keys(p)) for (const c of candidates) if (k.toLowerCase() === c.toLowerCase()) return String(p[k] ?? "");
-  const m: Record<string, any> = {}; for (const [k, v] of Object.entries(p)) m[norm(k)] = v;
+  for (const k of Object.keys(p)) {
+    for (const c of candidates) if (k.toLowerCase() === c.toLowerCase()) return String(p[k] ?? "");
+  }
+  const m: Record<string, any> = {};
+  for (const [k, v] of Object.entries(p)) m[norm(k)] = v;
   for (const c of candidates) { const nk = norm(c); if (m[nk] != null) return String(m[nk] ?? ""); }
   return "";
 }
-const retailerKeys = ["Retailer","Dealer","Retailer Name","Retail"];
-const cityKeys = ["City","Town"];
-const stateKeys = ["State","ST","Province"];
-const typeKeysBase = ["Type","Location Type","LocationType","location_type","LocType","Loc_Type","Facility Type","Category","Location Category","Site Type"];
-const getRetailer = (p: FeatureProperties) => getProp(p, retailerKeys);
-const getCity = (p: FeatureProperties) => getProp(p, cityKeys);
-const getState = (p: FeatureProperties) => getProp(p, stateKeys);
 
+const retailerKeys = ["Retailer","Dealer","Retailer Name","Retail"];
+const cityKeys     = ["City","Town"];
+const stateKeys    = ["State","ST","Province"];
+const typeKeysBase = [
+  "Type","Location Type","LocationType","location_type","LocType","Loc_Type","Facility Type","Category","Location Category","Site Type"
+];
+
+const getRetailer = (p: FeatureProperties) => getProp(p, retailerKeys);
+const getCity     = (p: FeatureProperties) => getProp(p, cityKeys);
+const getState    = (p: FeatureProperties) => getProp(p, stateKeys);
+
+/* ---------- infer a compact "type" key if missing ---------- */
 function inferTypeKey(features: Feature[]): string | null {
   if (!features.length) return null;
   const exclude = new Set([...retailerKeys, ...cityKeys, ...stateKeys, "KINGPIN","Kingpin","IsKingpin","Key Account"]);
@@ -45,7 +53,7 @@ function inferTypeKey(features: Feature[]): string | null {
   let best: { key: string; size: number } | null = null;
   for (const [k, set] of Object.entries(counts)) {
     const size = set.size;
-    if (size > 0 && size <= 50) if (!best || size < best.size) best = { key: k, size };
+    if (size > 0 && size <= 50) { if (!best || size < best.size) best = { key: k, size }; }
   }
   return best?.key ?? null;
 }
@@ -55,8 +63,10 @@ function getTypeWithFallback(p: FeatureProperties, fallbackKey: string | null): 
   if (fallbackKey) {
     const exact = Object.keys(p).find((k) => k.toLowerCase() === fallbackKey.toLowerCase());
     if (exact) return String(p[exact] ?? "");
-    const map: Record<string, any> = {}; for (const [k, val] of Object.entries(p)) map[norm(k)] = val;
-    const nk = norm(fallbackKey); if (map[nk] != null) return String(map[nk] ?? "");
+    const nk = norm(fallbackKey);
+    const map: Record<string, any> = {};
+    for (const [k, val] of Object.entries(p)) map[norm(k)] = val;
+    if (map[nk] != null) return String(map[nk] ?? "");
   }
   return "";
 }
@@ -67,12 +77,18 @@ const isKingpin = (p: FeatureProperties) => {
   return s === "true" || s === "yes" || s === "y" || s === "1";
 };
 const dedupe = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
-function splitKingpins(fc: FeatureCollection) {
+
+/* ---------- ensure literal "FeatureCollection" type ---------- */
+const toFC = (features: Feature[]): FeatureCollection =>
+  ({ type: "FeatureCollection", features } as const);
+
+function splitKingpins(fc: FeatureCollection): { main: FeatureCollection; kingpins: FeatureCollection } {
   const main: Feature[] = [], kp: Feature[] = [];
   for (const f of fc.features) (isKingpin(f.properties || {}) ? kp : main).push(f);
-  return { main: { type: "FeatureCollection", features: main }, kingpins: { type: "FeatureCollection", features: kp } };
+  return { main: toFC(main), kingpins: toFC(kp) };
 }
 
+/* ---------- fetch helpers ---------- */
 async function tryFetchJson<T>(path: string): Promise<T | null> {
   try { const res = await fetch(path, { cache: "force-cache" }); if (!res.ok) return null; return (await res.json()) as T; }
   catch { return null; }
@@ -117,11 +133,12 @@ export default function Page() {
         (await fetchFirst<FeatureCollection>([
           withBasePath("retailers.geojson"),
           withBasePath("data/retailers.geojson"),
-        ])) ?? { type: "FeatureCollection", features: [] };
+        ])) ?? toFC([]);
       if (!fc.features?.length) setDataError("No features found in retailers.geojson");
       const { main, kingpins } = splitKingpins(fc);
       setInferredTypeKey(inferTypeKey(main.features));
-      setMainFc(main); setKingpinFc(kingpins);
+      setMainFc(main);
+      setKingpinFc(kingpins);
     })();
   }, []);
 
@@ -146,7 +163,7 @@ export default function Page() {
       if (!selTypes.has(getTypeWithFallback(p, inferredTypeKey))) continue;
       out.push(f);
     }
-    return { type: "FeatureCollection", features: out };
+    return toFC(out);
   }, [mainFc, selStates, selRetailers, selTypes, inferredTypeKey]);
 
   // local ZIP index
@@ -263,13 +280,30 @@ export default function Page() {
             <button className="btn" onClick={() => setAll(setSelRetailers, retailers)}>All</button>
             <button className="btn" onClick={() => setNone(setSelRetailers)}>None</button>
           </div>
+          <div className="chips max-h-48 overflow-y-auto pr-1">
+            {retailers.map((r) => (
+              <button key={r || "_"} className={`chip ${selRetailers.has(r) ? "chip-active" : ""}`} onClick={() => toggleSel(setSelRetailers, r)}>
+                {r || "—"}
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="mb-5">
-          <h2 className="h2 mb-2">Location Types ({selTypes.size} / {types.length})</h2>
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="h2">Location Types ({selTypes.size} / {types.length})</h2>
+            <span className="debug-pill" title="Type field in use">field: {inferredTypeKey ?? "Type"}</span>
+          </div>
           <div className="mb-2 flex gap-2 text-xs">
             <button className="btn" onClick={() => setAll(setSelTypes, types)}>All</button>
             <button className="btn" onClick={() => setNone(setSelTypes)}>None</button>
+          </div>
+          <div className="chips">
+            {types.map((t) => (
+              <button key={t || "_"} className={`chip ${selTypes.has(t) ? "chip-active" : ""}`} onClick={() => toggleSel(setSelTypes, t)}>
+                {t || "—"}
+              </button>
+            ))}
           </div>
         </section>
 
