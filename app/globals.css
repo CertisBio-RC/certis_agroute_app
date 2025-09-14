@@ -1,226 +1,122 @@
-/* app/globals.css */
-
-/* -------- Theme -------- */
-:root {
-  --bg: #0a0c10;
-  --panel: #12151c;
-  --card: #161a22;
-  --text: #e8eaee;
-  --muted: #9aa3b1;
-  --border: #2a3140;
-  --accent: #0ec5a5;
-  --chip: #1a2030;
-  --chip-border: #2c3344;
+/* ------- Theme ------- */
+:root{
+  --bg:#0a0c10;
+  --panel:#12151c;
+  --card:#161a22;
+  --text:#e8eaee;
+  --muted:#97a1ad;
+  --border:#2a3140;
 }
 
 *,
 *::before,
-*::after {
-  box-sizing: border-box;
+*::after{ box-sizing:border-box }
+
+html, body { height:100% }
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 }
 
-html,
-body {
-  height: 100%;
+/* ------- Grid Layout ------- */
+.app-grid{
+  display:grid;
+  grid-template-columns:360px 1fr;
+  gap:16px;
+  padding:16px 16px 24px;
+  align-items:start;
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
-    Apple Color Emoji, Segoe UI Emoji;
-}
-
-a {
-  color: #9ecbff;
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-}
-
-img {
-  display: block;
-  max-width: 100%;
-}
-
-/* -------- Header -------- */
-.site-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0));
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  backdrop-filter: blur(6px);
-}
-.brand-logo {
-  height: 46px;
-  width: auto;
-}
-
-/* -------- Controls bar (under header) -------- */
-.controls-bar {
-  position: sticky;
-  top: 66px;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(12, 14, 18, 0.8);
-  border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(6px);
-  gap: 12px;
-  padding: 10px 16px;
-}
-.controls-left,
-.controls-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* -------- Grid Layout -------- */
-.app-grid {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 16px;
-  padding: 16px 20px 20px;
-  align-items: start;
-}
-
-.aside {
-  position: sticky;
-  top: 114px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  height: calc(100vh - 130px);
-  overflow: auto;
-  scrollbar-gutter: stable both-edges;
+.aside{
+  position:sticky; top:12px;
+  display:flex; flex-direction:column; gap:16px;
+  height:calc(100vh - 24px);
+  overflow:auto;
+  padding-right:2px;
 }
 
 /* Panels */
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px;
+.panel{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px;
 }
-.panel-title {
-  font-weight: 600;
-  letter-spacing: .2px;
-  margin-bottom: 10px;
-  font-size: 15px;
+.panel-title{
+  font-weight:600; letter-spacing:.2px;
+  margin-bottom:10px; font-size:15px;
 }
 
-/* Fields / Inputs */
-.field + .field { margin-top: 14px; }
-.label {
-  margin-bottom: 6px;
-  font-size: 12.5px;
-  color: var(--muted);
+/* Controls */
+.label{ margin:10px 0 6px; font-size:12.5px; color:var(--muted) }
+.select, .input, .btn{
+  width:100%; border-radius:10px; border:1px solid var(--border);
+  background:var(--card); color:var(--text);
+  padding:10px 12px; font-size:14px;
+}
+.select{ appearance:none }
+.btn{ cursor:pointer; transition:border-color .15s, background .15s }
+.btn:hover{ border-color:#3a4354 }
+.btn.ghost{ width:auto; background:transparent }
+
+.hint{ margin-top:8px; font-size:12.5px; color:var(--muted) }
+
+.home-row{ display:flex; gap:8px }
+.row{ display:flex; gap:8px; margin-top:8px }
+
+.stop-row{
+  display:flex; justify-content:space-between; align-items:center;
+  gap:8px; padding:6px 8px; border:1px solid var(--border); border-radius:10px; margin-top:6px;
+  background:var(--card);
 }
 
-.select,
-.input,
-.btn {
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--text);
-  padding: 10px 12px;
-  font-size: 14px;
-}
-.select { width: 220px; }
-.btn { cursor: pointer; }
-.btn.ghost {
-  background: rgba(255,255,255,0.04);
-  border-color: var(--border);
+/* Chips + checklists */
+.chip-row{ display:flex; gap:8px; margin-bottom:8px }
+.chip{ padding:6px 10px; border-radius:999px; background:#0f1724; border:1px solid var(--border); color:var(--text); cursor:pointer }
+.checklist{ display:grid; grid-template-columns:1fr; gap:6px; max-height:200px; overflow:auto; padding-right:4px }
+.checkrow{ display:flex; align-items:center; gap:8px }
+.checkrow input{ accent-color:#39d6b2 }
+
+/* Map container */
+.map-shell{ min-height:calc(100vh - 40px) }
+.map-card{
+  height:calc(100vh - 40px);
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  overflow:hidden;
+  position:relative;
 }
 
-/* Chips */
-.chip-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+/* Brand overlay inside map frame */
+.map-brand{
+  position:absolute; left:10px; top:10px; z-index:2;
+  padding:6px 8px; border-radius:10px;
+  background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.06);
+  backdrop-filter: blur(6px);
 }
-.chip {
-  border: 1px solid var(--chip-border);
-  background: var(--chip);
-  color: var(--text);
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.chip:hover { filter: brightness(1.08); }
+.map-brand img{ height:46px; width:auto; display:block }
 
-/* Checklists */
-.checklist {
-  max-height: 240px;
-  overflow: auto;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px;
-  background: var(--card);
+/* Popup theme */
+.certis-popup .mapboxgl-popup-content{
+  background:#0f1624; color:#e8eaee; border:1px solid #2a3140; border-radius:10px; padding:10px 12px;
 }
-.checklist-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
+.certis-popup .mapboxgl-popup-tip{ border-top-color:#0f1624 !important }
+.popup-title{ font-weight:600; margin-bottom:4px }
+.popup-sub{ color:#9aa6b2; font-size:12.5px }
+.popup-logo{ max-width:180px; margin:6px 0; display:block }
+.kp-badge{
+  display:inline-block; margin-left:6px; padding:2px 6px; border-radius:999px; font-size:11px;
+  color:#0b1220; background:#ffd54f; font-weight:700;
 }
 
-/* -------- Map -------- */
-.map-shell {
-  min-height: calc(100vh - 160px);
-}
-.map-card {
-  height: calc(100vh - 160px);
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
-}
-
-/* -------- Popups -------- */
-.popup {
-  color: #e9edf4;
-  max-width: 280px;
-}
-.popup-title {
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-.popup-sub { color: #aeb8c7; font-size: 12.5px; margin-bottom: 6px; }
-.popup-body { color: #cfd6e1; font-size: 13px; }
-.pill {
-  display: inline-block;
-  padding: 2px 6px;
-  font-size: 11px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.06);
-}
-.pill-warn {
-  background: rgba(255, 221, 87, 0.14);
-  border-color: rgba(255, 221, 87, 0.5);
-  color: #ffdd57;
-}
-
-/* -------- Responsive -------- */
-@media (max-width: 1120px) {
-  .app-grid { grid-template-columns: 1fr; }
-  .aside { position: static; height: auto; }
-  .map-card { height: 60vh; }
+/* Responsive */
+@media (max-width:1080px){
+  .app-grid{ grid-template-columns:1fr }
+  .aside{ position:static; height:auto; overflow:visible }
+  .map-card{ height:60vh }
 }

@@ -1,354 +1,288 @@
-// app/page.tsx
-"use client";
+'use client';
 
-import React, { useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
+import React, { useEffect, useMemo, useState } from 'react';
+import CertisMap from '@/components/CertisMap';
+import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
 
-type GJPoint = GeoJSON.Point;
-type GJFeature = GeoJSON.Feature<GJPoint, any>;
-type GJFC = GeoJSON.FeatureCollection<GJPoint, any>;
+type GJFC = FeatureCollection<Geometry, any>;
+type Basemap = 'Hybrid' | 'Streets';
 
-// Lazy-load the map (client-only)
-const CertisMap = dynamic(() => import("@/components/CertisMap"), { ssr: false });
+const DATA_URL = '/certis_agroute_app/data/retailers.geojson';
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
-const USA_BBOX: [number, number, number, number] = [-125, 24, -66.9, 49.5];
+type Stop = { title: string; coord: [number, number] };
 
-const MAPBOX_TOKEN =
-  process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.MAPBOX_TOKEN || "";
+const US_BBOX: [number, number, number, number] = [-125, 24, -66.9, 49.5];
 
-function getProp(p: any, name: string) {
-  if (!p) return undefined;
-  if (p[name] != null) return p[name];
-  const k = Object.keys(p).find((k) => k.toLowerCase() === name.toLowerCase());
-  return k ? p[k] : undefined;
-}
-
-function isKingpin(p: any) {
-  const v =
-    getProp(p, "kingpin") ??
-    getProp(p, "Kingpin") ??
-    getProp(p, "isKingpin") ??
-    getProp(p, "LocationType") ??
-    getProp(p, "Type") ??
-    getProp(p, "Category");
-  if (typeof v === "boolean") return v;
-  if (typeof v === "string") return /king\s*pin/i.test(v) || /kingpin/i.test(v);
-  return false;
-}
-
-function toBBox(fc: GJFC | null): [number, number, number, number] {
-  if (!fc || !fc.features.length) return [...USA_BBOX] as [number, number, number, number];
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
+function bboxOf(fc: GJFC | null): [number, number, number, number] {
+  if (!fc || !fc.features?.length) return US_BBOX;
+  let minX = 180, minY = 90, maxX = -180, maxY = -90;
   for (const f of fc.features) {
-    const pt = f.geometry?.coordinates;
-    if (!Array.isArray(pt)) continue;
-    const [x, y] = pt as [number, number];
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
+    if (f.geometry?.type === 'Point') {
+      const [x, y] = (f.geometry as Point).coordinates as [number, number];
+      minX = Math.min(minX, x); minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+    }
   }
-  if (!isFinite(minX)) return [...USA_BBOX] as [number, number, number, number];
-  // pad a bit
-  const padX = Math.max(0.2, (maxX - minX) * 0.08);
-  const padY = Math.max(0.2, (maxY - minY) * 0.08);
-  return [minX - padX, minY - padY, maxX + padX, maxY + padY];
+  return [minX, minY, maxX, maxY];
+}
+
+function haversine(a: [number, number], b: [number, number]) {
+  const R = 6371;
+  const [lon1, lat1] = a, [lon2, lat2] = b;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function nearestNeighbor(home: [number, number], pts: Stop[]): Stop[] {
+  const remaining = [...pts];
+  const ordered: Stop[] = [];
+  let cur = home;
+  while (remaining.length) {
+    let best = 0;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = haversine(cur, remaining[i].coord);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    const next = remaining.splice(best, 1)[0];
+    ordered.push(next);
+    cur = next.coord;
+  }
+  return ordered;
+}
+
+function googleLink(home: [number, number], path: Stop[]) {
+  // Google Maps supports up to 25 waypoints (including origin + destination)
+  const coords = path.map(p => `${p.coord[1]},${p.coord[0]}`);
+  const origin = `${home[1]},${home[0]}`;
+  const destination = coords.length ? coords[coords.length - 1] : origin;
+  const waypoints = coords.slice(0, Math.max(0, 23)).join('|');
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving&waypoints=${encodeURIComponent(waypoints)}`;
 }
 
 export default function Page() {
-  const [basemap, setBasemap] = useState<"Hybrid" | "Streets">("Hybrid");
+  const [basemap, setBasemap] = useState<Basemap>('Hybrid');
+  const [raw, setRaw] = useState<GJFC | null>(null);
 
-  // Raw data
-  const [fc, setFc] = useState<GJFC | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Filters
+  const [states, setStates] = useState<string[]>([]);
+  const [retailers, setRetailers] = useState<string[]>([]);
+  const [types, setTypes] = useState<string[]>([]);
 
-  // Filters (sets of selected keys)
-  const [stateSet, setStateSet] = useState<Set<string>>(new Set());
-  const [retailerSet, setRetailerSet] = useState<Set<string>>(new Set());
-  const [typeSet, setTypeSet] = useState<Set<string>>(new Set());
+  const [stateSel, setStateSel] = useState<Set<string>>(new Set());
+  const [retailerSel, setRetailerSel] = useState<Set<string>>(new Set());
+  const [typeSel, setTypeSel] = useState<Set<string>>(new Set());
 
-  // Load GeoJSON
+  const [homeText, setHomeText] = useState('');
+  const [home, setHome] = useState<[number, number] | null>(null);
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [routeUrl, setRouteUrl] = useState<string | null>(null);
+
   useEffect(() => {
-    let aborted = false;
+    (async () => {
+      const r = await fetch(DATA_URL);
+      const fc = (await r.json()) as GJFC;
+      setRaw(fc);
 
-    const load = async () => {
-      setLoading(true);
-      try {
-        const base =
-          process.env.NEXT_PUBLIC_BASE_PATH ||
-          process.env.NEXT_PUBLIC_ASSET_PREFIX ||
-          "";
-        // Adjust path if your data is elsewhere
-        const url = `${base}/data/retailers.geojson`;
-        const res = await fetch(url, { cache: "no-store" });
-        const json = (await res.json()) as GJFC;
-        if (aborted) return;
-
-        setFc(json);
-
-        // initialize filter sets to "all selected"
-        const ss = new Set<string>();
-        const rs = new Set<string>();
-        const ts = new Set<string>();
-
-        json.features.forEach((f) => {
-          const p = f.properties || {};
-          const st = getProp(p, "State");
-          if (st) ss.add(String(st));
-          const r = getProp(p, "Retailer") ?? getProp(p, "Company");
-          if (r) rs.add(String(r));
-          const t =
-            getProp(p, "LocationType") ??
-            getProp(p, "Category") ??
-            getProp(p, "Type");
-          if (t) ts.add(String(t));
-        });
-        setStateSet(ss);
-        setRetailerSet(rs);
-        setTypeSet(ts);
-      } catch (e) {
-        console.error("Failed to load GeoJSON", e);
-      } finally {
-        if (!aborted) setLoading(false);
+      // seed filter lists
+      const s = new Set<string>(), rset = new Set<string>(), t = new Set<string>();
+      for (const f of fc.features) {
+        const p: any = f.properties || {};
+        if (p.State) s.add(p.State);
+        if (p.Retailer) rset.add(p.Retailer);
+        if (p.Type) t.add(p.Type);
       }
-    };
+      const sArr = Array.from(s).sort();
+      const rArr = Array.from(rset).sort();
+      const tArr = Array.from(t).sort();
+      setStates(sArr);
+      setRetailers(rArr);
+      setTypes(tArr);
 
-    load();
-    return () => {
-      aborted = true;
-    };
+      // default selections: all
+      setStateSel(new Set(sArr));
+      setRetailerSel(new Set(rArr));
+      setTypeSel(new Set(tArr));
+    })();
   }, []);
 
-  const allStates = useMemo(() => {
-    if (!fc) return [];
-    const s = new Set<string>();
-    fc.features.forEach((f) => {
-      const st = getProp(f.properties, "State");
-      if (st) s.add(String(st));
+  const filtered = useMemo(() => {
+    if (!raw) return null;
+    const feats = raw.features.filter(f => {
+      const p: any = f.properties || {};
+      return stateSel.has(p.State) && retailerSel.has(p.Retailer) && typeSel.has(p.Type);
     });
-    return Array.from(s).sort();
-  }, [fc]);
+    return { type: 'FeatureCollection', features: feats } as GJFC;
+  }, [raw, stateSel, retailerSel, typeSel]);
 
-  const allRetailers = useMemo(() => {
-    if (!fc) return [];
-    const s = new Set<string>();
-    fc.features.forEach((f) => {
-      const r = getProp(f.properties, "Retailer") ?? getProp(f.properties, "Company");
-      if (r) s.add(String(r));
+  const fcBbox = useMemo(() => bboxOf(filtered || raw), [filtered, raw]);
+
+  const toggleFrom = (set: React.Dispatch<React.SetStateAction<Set<string>>>, v: string) => {
+    set(prev => {
+      const next = new Set(prev);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return next;
     });
-    return Array.from(s).sort();
-  }, [fc]);
-
-  const allTypes = useMemo(() => {
-    if (!fc) return [];
-    const s = new Set<string>();
-    fc.features.forEach((f) => {
-      const t =
-        getProp(f.properties, "LocationType") ??
-        getProp(f.properties, "Category") ??
-        getProp(f.properties, "Type");
-      if (t) s.add(String(t));
-    });
-    return Array.from(s).sort();
-  }, [fc]);
-
-  // Apply filters
-  const filtered = useMemo<GJFC | null>(() => {
-    if (!fc) return null;
-    const feats = fc.features.filter((f) => {
-      const p = f.properties || {};
-      const st = String(getProp(p, "State") ?? "");
-      const r = String(
-        getProp(p, "Retailer") ?? getProp(p, "Company") ?? ""
-      );
-      const t = String(
-        getProp(p, "LocationType") ?? getProp(p, "Category") ?? getProp(p, "Type") ?? ""
-      );
-      const okState = stateSet.size ? stateSet.has(st) : true;
-      const okRetailer = retailerSet.size ? retailerSet.has(r) : true;
-      const okType = typeSet.size ? typeSet.has(t) : true;
-      return okState && okRetailer && okType;
-    });
-    return { type: "FeatureCollection", features: feats } as GJFC;
-  }, [fc, stateSet, retailerSet, typeSet]);
-
-  const filteredBBox = useMemo<[number, number, number, number]>(() => {
-    return toBBox(filtered);
-  }, [filtered]);
-
-  // Reset all filters
-  const resetFilters = () => {
-    if (!fc) return;
-    const ss = new Set<string>(allStates);
-    const rs = new Set<string>(allRetailers);
-    const ts = new Set<string>(allTypes);
-    setStateSet(ss);
-    setRetailerSet(rs);
-    setTypeSet(ts);
   };
 
-  const clearFilters = () => {
-    setStateSet(new Set());
-    setRetailerSet(new Set());
-    setTypeSet(new Set());
+  // Map click -> add stop
+  const handleAddStop = (coord: [number, number], title: string) => {
+    setStops(prev => [...prev, { coord, title }]);
   };
 
-  // Reset map (reload to base)
-  const resetMap = () => {
-    // Simple: reload page; or you can clear hash and local states if needed
-    window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || "") + "/";
+  // Home geocode
+  const geocodeHome = async () => {
+    if (!homeText.trim()) return;
+    try {
+      const q = encodeURIComponent(homeText.trim());
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${q}.json?limit=1&access_token=${MAPBOX_TOKEN}`;
+      const r = await fetch(url);
+      const j = await r.json();
+      const c = j?.features?.[0]?.center as [number, number] | undefined;
+      if (c) setHome(c);
+    } catch {}
+  };
+
+  const optimize = () => {
+    if (!home || stops.length === 0) {
+      setRouteUrl(null);
+      return;
+    }
+    const ordered = nearestNeighbor(home, stops);
+    setRouteUrl(googleLink(home, ordered));
+  };
+
+  const clearTrip = () => {
+    setStops([]);
+    setRouteUrl(null);
   };
 
   return (
-    <main>
-      {/* Sticky controls bar */}
-      <div className="controls-bar">
-        <div className="controls-left">
-          <div className="field">
-            <div className="label">Basemap</div>
-            <select
-              className="select"
-              value={basemap}
-              onChange={(e) => setBasemap(e.target.value as "Hybrid" | "Streets")}
-            >
-              <option>Hybrid</option>
-              <option>Streets</option>
-            </select>
+    <main className="app-grid">
+      {/* Left column */}
+      <aside className="aside">
+        <section className="panel">
+          <div className="panel-title">Basemap</div>
+          <select
+            className="select"
+            value={basemap}
+            onChange={e => setBasemap(e.target.value as Basemap)}
+          >
+            <option>Hybrid</option>
+            <option>Streets</option>
+          </select>
+          <div className="hint">Double-click the map to set <b>Home</b>. Click a point to add a stop.</div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-title">Filters</div>
+
+          <div className="label">States ({states.length})</div>
+          <div className="chip-row">
+            <button className="chip" onClick={() => setStateSel(new Set(states))}>All</button>
+            <button className="chip" onClick={() => setStateSel(new Set())}>None</button>
           </div>
-        </div>
-        <div className="controls-right">
-          <button className="btn ghost" onClick={resetFilters}>
-            Reset Filters
-          </button>
-          <button className="btn ghost" onClick={resetMap}>
-            Reset Map
-          </button>
-        </div>
-      </div>
+          <div className="checklist">
+            {states.map(s => (
+              <label key={s} className="checkrow">
+                <input type="checkbox" checked={stateSel.has(s)} onChange={() => toggleFrom(setStateSel, s)} />
+                <span>{s}</span>
+              </label>
+            ))}
+          </div>
 
-      <div className="app-grid">
-        {/* Sidebar */}
-        <aside className="aside">
-          {/* Filters */}
-          <section className="panel">
-            <div className="panel-title">Filters</div>
+          <div className="label">Retailers ({retailers.length})</div>
+          <div className="chip-row">
+            <button className="chip" onClick={() => setRetailerSel(new Set(retailers))}>All</button>
+            <button className="chip" onClick={() => setRetailerSel(new Set())}>None</button>
+          </div>
+          <div className="checklist">
+            {retailers.map(r => (
+              <label key={r} className="checkrow">
+                <input type="checkbox" checked={retailerSel.has(r)} onChange={() => toggleFrom(setRetailerSel, r)} />
+                <span>{r}</span>
+              </label>
+            ))}
+          </div>
 
-            {/* States */}
-            <div className="field">
-              <div className="label">States ({allStates.length})</div>
-              <div className="chip-row">
-                <button className="chip" onClick={() => setStateSet(new Set(allStates))}>
-                  All
-                </button>
-                <button className="chip" onClick={() => setStateSet(new Set())}>
-                  None
-                </button>
+          <div className="label">Location Types ({types.length})</div>
+          <div className="chip-row">
+            <button className="chip" onClick={() => setTypeSel(new Set(types))}>All</button>
+            <button className="chip" onClick={() => setTypeSel(new Set())}>None</button>
+          </div>
+          <div className="checklist">
+            {types.map(t => (
+              <label key={t} className="checkrow">
+                <input type="checkbox" checked={typeSel.has(t)} onChange={() => toggleFrom(setTypeSel, t)} />
+                <span>{t}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-title">Trip Planner</div>
+          <div className="field">
+            <div className="label">Home (ZIP or address)</div>
+            <div className="home-row">
+              <input
+                className="input"
+                placeholder="e.g., 50638"
+                value={homeText}
+                onChange={e => setHomeText(e.target.value)}
+              />
+              <button className="btn" onClick={geocodeHome}>Set</button>
+            </div>
+            <div className="hint">{home ? `Home: ${home[1].toFixed(5)}, ${home[0].toFixed(5)}` : 'Home not set.'}</div>
+          </div>
+
+          <div className="field">
+            <div className="label">Stops ({stops.length})</div>
+            {stops.length === 0 && <div className="hint">Click map points to add stops.</div>}
+            {stops.map((s, i) => (
+              <div key={`${s.title}-${i}`} className="stop-row">
+                <span>{i + 1}. {s.title}</span>
+                <button className="btn ghost" onClick={() => setStops(prev => prev.filter((_, idx) => idx !== i))}>Remove</button>
               </div>
-              <div className="checklist">
-                {allStates.map((st) => {
-                  const checked = stateSet.has(st);
-                  return (
-                    <label key={st} className="checklist-item">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          const next = new Set(stateSet);
-                          if (e.target.checked) next.add(st);
-                          else next.delete(st);
-                          setStateSet(next);
-                        }}
-                      />
-                      <span>{st}</span>
-                    </label>
-                  );
-                })}
+            ))}
+          </div>
+
+          <div className="row">
+            <button className="btn" onClick={optimize} disabled={!home || stops.length === 0}>Optimize Trip</button>
+            <button className="btn ghost" onClick={clearTrip}>Clear Trip</button>
+          </div>
+
+          {routeUrl && (
+            <div className="field">
+              <div className="panel-title">Route Links</div>
+              <div className="link-list">
+                <a target="_blank" rel="noreferrer" href={routeUrl}>Open in Google Maps</a>
               </div>
             </div>
-
-            {/* Retailers */}
-            <div className="field">
-              <div className="label">Retailers ({allRetailers.length})</div>
-              <div className="chip-row">
-                <button className="chip" onClick={() => setRetailerSet(new Set(allRetailers))}>
-                  All
-                </button>
-                <button className="chip" onClick={() => setRetailerSet(new Set())}>
-                  None
-                </button>
-              </div>
-              <div className="checklist">
-                {allRetailers.map((r) => {
-                  const checked = retailerSet.has(r);
-                  return (
-                    <label key={r} className="checklist-item">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          const next = new Set(retailerSet);
-                          if (e.target.checked) next.add(r);
-                          else next.delete(r);
-                          setRetailerSet(next);
-                        }}
-                      />
-                      <span>{r}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Location Types */}
-            <div className="field">
-              <div className="label">Location Types ({allTypes.length})</div>
-              <div className="chip-row">
-                <button className="chip" onClick={() => setTypeSet(new Set(allTypes))}>
-                  All
-                </button>
-                <button className="chip" onClick={() => setTypeSet(new Set())}>
-                  None
-                </button>
-              </div>
-              <div className="checklist">
-                {allTypes.map((t) => {
-                  const checked = typeSet.has(t);
-                  return (
-                    <label key={t} className="checklist-item">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          const next = new Set(typeSet);
-                          if (e.target.checked) next.add(t);
-                          else next.delete(t);
-                          setTypeSet(next);
-                        }}
-                      />
-                      <span>{t}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        </aside>
-
-        {/* Map */}
-        <div className="map-shell">
-          {!loading && filtered && (
-            <CertisMap
-              token={MAPBOX_TOKEN}
-              basemap={basemap}
-              data={filtered}
-              bbox={filteredBBox}
-            />
           )}
-        </div>
-      </div>
+        </section>
+      </aside>
+
+      {/* Right column (map) */}
+      <section className="panel map-shell">
+        {filtered && (
+          <CertisMap
+            token={MAPBOX_TOKEN}
+            basemap={basemap}
+            data={filtered}
+            bbox={fcBbox}
+            home={home}
+            onPointClick={handleAddStop}
+          />
+        )}
+      </section>
     </main>
   );
 }
