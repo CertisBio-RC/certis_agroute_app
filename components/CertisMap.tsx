@@ -1,637 +1,420 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
-import mapboxgl, { LngLat } from "mapbox-gl";
-import type { FeatureCollection, Feature, Geometry, Position } from "geojson";
-import { withBasePath } from "@/utils/paths";
+import mapboxgl, { GeoJSONSource, LngLat, Map as MbMap } from "mapbox-gl";
 
-type FC = FeatureCollection<Geometry, Record<string, any>>;
+type Position = [number, number];
 
 export type CertisMapProps = {
-  data: FC;                 // clustered retailers
-  kingpins: FC;             // non-clustered KINGPINs
-  home: Position | null;    // [lng, lat] or null
-  mapStyle?: "hybrid" | "street";
-  onPointClick?: (properties: any, coord: LngLat) => void; // legacy two-arg handler
+  /** Filtered, non-kingpin features */
+  data: GeoJSON.FeatureCollection<GeoJSON.Geometry, any>;
+  /** Kingpin features only (unfiltered) */
+  kingpins: GeoJSON.FeatureCollection<GeoJSON.Geometry, any>;
+  /** Optional home point [lng, lat] */
+  home?: Position | null;
+  /** Hover/see popup on move; click adds a stop */
+  onPointClick: (props: any, coord: LngLat) => void;
+  /** "hybrid" | "street" */
+  mapStyle: "hybrid" | "street";
 };
 
-// ------------------------------------------------------------------
-// Mapbox config
-// ------------------------------------------------------------------
-const TOKEN =
-  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
-  (typeof window !== "undefined" ? localStorage.getItem("MAPBOX_TOKEN") || "" : "");
+const STYLE_HYBRID =
+  "mapbox://styles/mapbox/satellite-streets-v12"; // default
+const STYLE_STREET = "mapbox://styles/mapbox/streets-v12";
 
-const STYLE_URLS = {
-  hybrid: "mapbox://styles/mapbox/satellite-streets-v12",
-  street: "mapbox://styles/mapbox/streets-v12",
-} as const;
+const styleUrlFor = (style: "hybrid" | "street") =>
+  style === "street" ? STYLE_STREET : STYLE_HYBRID;
 
-const styleUrlFor = (mode: "hybrid" | "street") => STYLE_URLS[mode] ?? STYLE_URLS.hybrid;
+const ROOT_ID = "certis-map-root";
+const MAIN_SRC = "main-src";
+const CLUSTER_SRC = "main-clusters";
+const MAIN_POINTS = "main-points";
+const MAIN_CLUSTER_CIRCLES = "main-cluster-circles";
+const MAIN_CLUSTER_COUNT = "main-cluster-count";
+const KING_SRC = "king-src";
+const KING_LAYER = "king-layer";
+const HOME_SRC = "home-src";
+const HOME_LAYER = "home-layer";
 
-const CLUSTER_SRC = "retailers";
-const KINGPIN_SRC = "kingpins";
-const HOME_SRC = "home";
-
-const L = {
-  cluster: "cluster-circles",
-  clusterCount: "cluster-count",
-  unclustered: "unclustered-point",
-  kingpinCore: "kingpin-core",
-  kingpinRing: "kingpin-ring",
-  home: "home-point",
+// ---- Category colors (keep in sync with page.tsx legend colors)
+export const CATEGORY_COLOR = (raw: string | undefined): string => {
+  const key = (raw || "").toLowerCase();
+  if (key.includes("kingpin")) return "#EF4444"; // handled separately
+  if (key.includes("agronomy/grain")) return "#60A5FA"; // blue
+  if (key.includes("agronomy")) return "#2DD4BF"; // teal
+  if (key.includes("office") || key.includes("service")) return "#A78BFA"; // purple
+  if (key.includes("grain")) return "#F59E0B"; // amber
+  if (key.includes("distribution")) return "#F472B6"; // pink
+  return "#22C55E"; // default green
 };
 
-function toPosition(x: any): Position | null {
-  if (!x) return null;
-  if (Array.isArray(x) && x.length >= 2 && typeof x[0] === "number" && typeof x[1] === "number") {
-    return [x[0], x[1]];
-  }
-  if (typeof x === "object" && "lng" in x && "lat" in x) {
-    const lng = Number((x as any).lng);
-    const lat = Number((x as any).lat);
-    if (Number.isFinite(lng) && Number.isFinite(lat)) return [lng, lat] as Position;
-  }
-  return null;
+const CATEGORY_MATCH_EXPR: mapboxgl.Expression =
+  [
+    "match",
+    ["downcase", ["coalesce", ["get", "category"], ""]],
+    "agronomy/grain", "#60A5FA",
+    "agronomy", "#2DD4BF",
+    "office/service", "#A78BFA",
+    "grain", "#F59E0B",
+    "distribution", "#F472B6",
+    /* other */ "#22C55E",
+  ] as any;
+
+function toFC(
+  fc: GeoJSON.FeatureCollection<GeoJSON.Geometry, any>
+): GeoJSON.FeatureCollection<GeoJSON.Geometry, any> {
+  // defensive literal cast for TS
+  return JSON.parse(JSON.stringify(fc));
 }
 
-// ------------------------------------------------------------------
-// Component
-// ------------------------------------------------------------------
+function asPosition(p?: Position | null): Position | null {
+  if (!p) return null;
+  const [lng, lat] = p;
+  return [lng, lat];
+}
+
+const useOnce = (fn: () => void) => {
+  const did = useRef(false);
+  useEffect(() => {
+    if (!did.current) {
+      did.current = true;
+      fn();
+    }
+  }, [fn]);
+};
+
 export default function CertisMap({
   data,
   kingpins,
   home,
-  mapStyle = "hybrid",
   onPointClick,
+  mapStyle,
 }: CertisMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapRef = useRef<MbMap | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const currentStyleUrl = useMemo(() => styleUrlFor(mapStyle), [mapStyle]);
 
-  // Create map once
-  useEffect(() => {
-    if (!containerRef.current) return;
-    if (!TOKEN) console.warn("Missing NEXT_PUBLIC_MAPBOX_TOKEN");
-    mapboxgl.accessToken = TOKEN;
+  const styleUrl = useMemo(() => styleUrlFor(mapStyle), [mapStyle]);
 
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      style: currentStyleUrl,
-      center: [-96.7, 40.0],
-      zoom: 3.5,
+  // --- init map once
+  useOnce(() => {
+    // Mapbox token expected in window.__MAPBOX_TOKEN__ or from public/mapbox-token
+    // (you already have this wired in your project)
+    const token = (process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+      (globalThis as any).__MAPBOX_TOKEN__) as string | undefined;
+    if (token) mapboxgl.accessToken = token;
+
+    const m = new mapboxgl.Map({
+      container: containerRef.current!,
+      style: styleUrlFor("hybrid"),
+      center: [-94.0, 41.5],
+      zoom: 4.1,
       attributionControl: true,
-      projection: { name: "mercator" as any }, // ✅ hard-lock Mercator
       cooperativeGestures: false,
-      pitchWithRotate: false,
       dragRotate: false,
+      touchPitch: false,
     });
-    mapRef.current = map;
+    mapRef.current = m;
 
-    popupRef.current = new mapboxgl.Popup({
-      closeButton: false,
-      closeOnClick: false,
-      maxWidth: "340px",
-      className: "certis-popup",
-    });
-
-    // CERTIS badge overlay inside the map card
-    const badge = document.createElement("div");
-    badge.style.position = "absolute";
-    badge.style.top = "10px";
-    badge.style.left = "10px";
-    badge.style.zIndex = "2";
-    badge.style.pointerEvents = "none";
-    badge.innerHTML = `<img alt="CERTIS" src="${withBasePath(
-      "/certis-logo.png"
-    )}" style="height:24px;opacity:.95;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))" />`;
-    (containerRef.current!.parentElement || containerRef.current!).appendChild(badge);
-
-    const wireEverything = () => {
-      // projection can reset after style change — enforce again
+    // lock Mercator, always
+    m.once("load", () => {
       try {
-        map.setProjection({ name: "mercator" as any });
+        (m as any).setProjection({ name: "mercator" });
       } catch {}
-
-      // --- Clustered retailers
-      if (!map.getSource(CLUSTER_SRC)) {
-        map.addSource(CLUSTER_SRC, {
-          type: "geojson",
-          data,
-          cluster: true,
-          clusterMaxZoom: 14,
-          clusterRadius: 45,
-        });
-      } else {
-        (map.getSource(CLUSTER_SRC) as mapboxgl.GeoJSONSource).setData(data);
-      }
-
-      if (!map.getLayer(L.cluster)) {
-        map.addLayer({
-          id: L.cluster,
-          type: "circle",
-          source: CLUSTER_SRC,
-          filter: ["has", "point_count"],
-          paint: {
-            "circle-color": "#26dac3",
-            "circle-opacity": 0.88,
-            "circle-radius": [
-              "step",
-              ["get", "point_count"],
-              16,
-              10,
-              20,
-              25,
-              26,
-              34,
-              51,
-              42,
-              101,
-              50,
-            ],
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "#0c7a6c",
-            "circle-stroke-opacity": 0.9,
-          },
-        });
-      }
-
-      if (!map.getLayer(L.clusterCount)) {
-        map.addLayer({
-          id: L.clusterCount,
-          type: "symbol",
-          source: CLUSTER_SRC,
-          filter: ["has", "point_count"],
-          layout: {
-            "text-field": ["get", "point_count_abbreviated"],
-            "text-size": 12,
-            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-          },
-          paint: { "text-color": "#0b1e24" },
-        });
-      }
-
-      if (!map.getLayer(L.unclustered)) {
-        map.addLayer({
-          id: L.unclustered,
-          type: "circle",
-          source: CLUSTER_SRC,
-          filter: ["!", ["has", "point_count"]],
-          paint: {
-            "circle-color": "#2cd4ff",
-            "circle-radius": 5,
-            "circle-stroke-width": 1.5,
-            "circle-stroke-color": "#003c61",
-          },
-        });
-      }
-
-      // --- KINGPINs (non-clustered, on top of clusters)
-      if (!map.getSource(KINGPIN_SRC)) {
-        map.addSource(KINGPIN_SRC, { type: "geojson", data: kingpins });
-      } else {
-        (map.getSource(KINGPIN_SRC) as mapboxgl.GeoJSONSource).setData(kingpins);
-      }
-
-      if (!map.getLayer(L.kingpinCore)) {
-        map.addLayer(
-          {
-            id: L.kingpinCore,
-            type: "circle",
-            source: KINGPIN_SRC,
-            paint: {
-              "circle-color": "#e02020",
-              "circle-opacity": 1,
-              "circle-radius": 5.5,
-            },
-          },
-          L.cluster
-        );
-      }
-      if (!map.getLayer(L.kingpinRing)) {
-        map.addLayer(
-          {
-            id: L.kingpinRing,
-            type: "circle",
-            source: KINGPIN_SRC,
-            paint: {
-              "circle-color": "transparent",
-              "circle-stroke-color": "#ffd600",
-              "circle-stroke-width": 2,
-              "circle-radius": 7.5,
-            },
-          },
-          L.kingpinCore
-        );
-      }
-
-      // --- Home
-      const homePos = toPosition(home);
-      const homeFC: FC = {
-        type: "FeatureCollection",
-        features: homePos
-          ? [
-              {
-                type: "Feature",
-                properties: {},
-                geometry: { type: "Point", coordinates: homePos },
-              },
-            ]
-          : [],
-      };
-
-      if (!map.getSource(HOME_SRC)) {
-        map.addSource(HOME_SRC, { type: "geojson", data: homeFC });
-      } else {
-        (map.getSource(HOME_SRC) as mapboxgl.GeoJSONSource).setData(homeFC);
-      }
-
-      if (!map.getLayer(L.home)) {
-        map.addLayer({
-          id: L.home,
-          type: "circle",
-          source: HOME_SRC,
-          paint: {
-            "circle-color": "#ff9f1a",
-            "circle-radius": 6,
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "#2b1700",
-          },
-        });
-      }
-
-      // --- Cursor affordances
-      [L.unclustered, L.kingpinCore, L.kingpinRing, L.cluster].forEach((lid) => {
-        if (!map.getLayer(lid)) return;
-        map.on("mouseenter", lid, () => (map.getCanvas().style.cursor = "pointer"));
-        map.on("mouseleave", lid, () => (map.getCanvas().style.cursor = ""));
-      });
-
-      // --- Hover popup (unclustered + kingpins)
-      const showPopup = (e: any) => {
-        const f: Feature<Geometry, any> | undefined = e?.features?.[0];
-        if (!f || (f.geometry as any).type !== "Point") return;
-        const coord = (f.geometry as any).coordinates as Position;
-        const props = f.properties || {};
-        const retailer =
-          props.retailer ?? props.Retailer ?? props.name ?? props.Name ?? "Location";
-        const city = props.city ?? props.City ?? "";
-        const state = props.state ?? props.State ?? "";
-        const category = props.category ?? props.Category ?? "";
-        const suppliers = props.suppliers ?? props.Suppliers ?? "";
-
-        const slug = String(retailer)
-          .toLowerCase()
-          .replace(/&/g, "and")
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/(^-|-$)/g, "");
-        const iconUrl = withBasePath(`/icons/${slug}.png`);
-
-        const html = `
-          <div style="display:flex;align-items:center;gap:8px">
-            <img src="${iconUrl}" onerror="this.style.display='none'" alt="" style="height:22px;max-width:80px" />
-            <div style="font-weight:700">${retailer}</div>
-          </div>
-          <div style="opacity:.85">${city}${city && state ? ", " : ""}${state}</div>
-          ${category ? `<div style="margin-top:4px;opacity:.75">${category}</div>` : ""}
-          ${
-            suppliers
-              ? `<div style="margin-top:4px;font-size:12px;opacity:.7">Suppliers: ${suppliers}</div>`
-              : ""
-          }
-        `;
-        popupRef.current!.setLngLat(coord as any).setHTML(html).addTo(map);
-      };
-
-      map.on("mousemove", L.unclustered, showPopup);
-      map.on("mousemove", L.kingpinCore, showPopup);
-      map.on("mousemove", L.kingpinRing, showPopup);
-      map.on("mouseleave", L.unclustered, () => popupRef.current?.remove());
-      map.on("mouseleave", L.kingpinCore, () => popupRef.current?.remove());
-      map.on("mouseleave", L.kingpinRing, () => popupRef.current?.remove());
-
-      // --- Click to add stop (legacy two-arg call)
-      const clickToAdd = (e: any) => {
-        const f: Feature<Geometry, any> | undefined = e?.features?.[0];
-        if (!f || (f.geometry as any).type !== "Point") return;
-        const coord = (f.geometry as any).coordinates as Position;
-        const props = f.properties || {};
-        onPointClick?.(props, new mapboxgl.LngLat(coord[0], coord[1]));
-      };
-      map.on("click", L.unclustered, clickToAdd);
-      map.on("click", L.kingpinCore, clickToAdd);
-      map.on("click", L.kingpinRing, clickToAdd);
-
-      // --- Expand clusters on click (call via GeoJSONSource, no mapboxgl.Cluster type)
-      map.on("click", L.cluster, (e: any) => {
-        const feat = e?.features?.[0];
-        if (!feat) return;
-        const clusterId = feat.properties?.cluster_id;
-        const src = map.getSource(CLUSTER_SRC) as mapboxgl.GeoJSONSource | undefined;
-        const getZoom = (src as any)?.getClusterExpansionZoom as
-          | ((id: number, cb: (err: any, zoom: number) => void) => void)
-          | undefined;
-
-        if (!src || clusterId == null || typeof getZoom !== "function") return;
-        getZoom.call(src, clusterId, (err, zoom) => {
-          if (err) return;
-          const c = (feat.geometry as any).coordinates as Position;
-          map.easeTo({ center: c as any, zoom });
-        });
-      });
-    };
-
-    map.once("style.load", () => {
-      wireEverything();
-      map.resize();
+      wireLayersAndEvents();
+      refreshData();
     });
 
-    const onResize = () => map.resize();
+    // resize guards
+    const onResize = () => m.resize();
     window.addEventListener("resize", onResize);
 
     return () => {
       window.removeEventListener("resize", onResize);
-      popupRef.current?.remove();
-      map.remove();
-      mapRef.current = null;
+      m.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // mount once
+  });
 
-  // Live data updates
-  useEffect(() => {
-    const m = mapRef.current;
-    if (!m || !m.isStyleLoaded()) return;
-
-    if (m.getSource(CLUSTER_SRC)) {
-      (m.getSource(CLUSTER_SRC) as mapboxgl.GeoJSONSource).setData(data);
-    }
-    if (m.getSource(KINGPIN_SRC)) {
-      (m.getSource(KINGPIN_SRC) as mapboxgl.GeoJSONSource).setData(kingpins);
-    }
-    if (m.getSource(HOME_SRC)) {
-      const homePos = toPosition(home);
-      (m.getSource(HOME_SRC) as mapboxgl.GeoJSONSource).setData({
-        type: "FeatureCollection",
-        features: homePos
-          ? [
-              {
-                type: "Feature",
-                properties: {},
-                geometry: { type: "Point", coordinates: homePos },
-              },
-            ]
-          : [],
-      });
-    }
-  }, [data, kingpins, home]);
-
-  // Style toggle: setStyle(next) WITHOUT options; re-attach on style.load; re-enforce Mercator
+  // --- reapply style switch while keeping all layers/sources
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
-    const next = styleUrlFor(mapStyle);
-    m.setStyle(next); // ← removed `{ diff:false }` to satisfy SetStyleOptions typing in v3
+    if ((m.getStyle().sprite || "").includes(styleUrl)) return;
+    m.setStyle(styleUrl); // options caused TS friction; default is fine
+
     m.once("style.load", () => {
       try {
-        m.setProjection({ name: "mercator" as any });
+        (m as any).setProjection({ name: "mercator" });
       } catch {}
+      wireLayersAndEvents();
+      refreshData();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [styleUrl]);
 
-      // Recreate sources/layers using current props
-      if (!m.getSource(CLUSTER_SRC)) {
-        m.addSource(CLUSTER_SRC, {
-          type: "geojson",
-          data,
-          cluster: true,
-          clusterMaxZoom: 14,
-          clusterRadius: 45,
-        });
-      } else {
-        (m.getSource(CLUSTER_SRC) as mapboxgl.GeoJSONSource).setData(data);
-      }
+  // --- when props data/home change, refresh sources
+  useEffect(() => {
+    refreshData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, kingpins, home]);
 
-      if (!m.getLayer(L.cluster)) {
-        m.addLayer({
-          id: L.cluster,
-          type: "circle",
-          source: CLUSTER_SRC,
-          filter: ["has", "point_count"],
-          paint: {
-            "circle-color": "#26dac3",
-            "circle-opacity": 0.88,
-            "circle-radius": [
-              "step",
-              ["get", "point_count"],
-              16,
-              10,
-              20,
-              25,
-              26,
-              34,
-              51,
-              42,
-              101,
-              50,
-            ],
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "#0c7a6c",
-            "circle-stroke-opacity": 0.9,
-          },
-        });
-      }
+  // ---------- helpers
 
-      if (!m.getLayer(L.clusterCount)) {
-        m.addLayer({
-          id: L.clusterCount,
-          type: "symbol",
-          source: CLUSTER_SRC,
-          filter: ["has", "point_count"],
-          layout: {
-            "text-field": ["get", "point_count_abbreviated"],
-            "text-size": 12,
-            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-          },
-          paint: { "text-color": "#0b1e24" },
-        });
-      }
+  function ensureSource(id: string, def: mapboxgl.AnySourceData) {
+    const m = mapRef.current!;
+    if (!m.getSource(id)) m.addSource(id, def);
+  }
 
-      if (!m.getLayer(L.unclustered)) {
-        m.addLayer({
-          id: L.unclustered,
-          type: "circle",
-          source: CLUSTER_SRC,
-          filter: ["!", ["has", "point_count"]],
-          paint: {
-            "circle-color": "#2cd4ff",
-            "circle-radius": 5,
-            "circle-stroke-width": 1.5,
-            "circle-stroke-color": "#003c61",
-          },
-        });
-      }
+  function ensureLayer(def: mapboxgl.AnyLayer) {
+    const m = mapRef.current!;
+    if (!m.getLayer(def.id)) m.addLayer(def);
+  }
 
-      if (!m.getSource(KINGPIN_SRC)) {
-        m.addSource(KINGPIN_SRC, { type: "geojson", data: kingpins });
-      } else {
-        (m.getSource(KINGPIN_SRC) as mapboxgl.GeoJSONSource).setData(kingpins);
-      }
+  function wireLayersAndEvents() {
+    const m = mapRef.current!;
+    // SOURCES
+    ensureSource(MAIN_SRC, {
+      type: "geojson",
+      data: toFC({ type: "FeatureCollection", features: [] }),
+      cluster: true,
+      clusterMaxZoom: 12,
+      clusterRadius: 60,
+    });
+    ensureSource(KING_SRC, {
+      type: "geojson",
+      data: toFC({ type: "FeatureCollection", features: [] }),
+    });
+    ensureSource(HOME_SRC, {
+      type: "geojson",
+      data: toFC({ type: "FeatureCollection", features: [] }),
+    });
 
-      if (!m.getLayer(L.kingpinCore)) {
-        m.addLayer(
-          {
-            id: L.kingpinCore,
-            type: "circle",
-            source: KINGPIN_SRC,
-            paint: {
-              "circle-color": "#e02020",
-              "circle-opacity": 1,
-              "circle-radius": 5.5,
-            },
-          },
-          L.cluster
-        );
-      }
-      if (!m.getLayer(L.kingpinRing)) {
-        m.addLayer(
-          {
-            id: L.kingpinRing,
-            type: "circle",
-            source: KINGPIN_SRC,
-            paint: {
-              "circle-color": "transparent",
-              "circle-stroke-color": "#ffd600",
-              "circle-stroke-width": 2,
-              "circle-radius": 7.5,
-            },
-          },
-          L.kingpinCore
-        );
-      }
+    // LAYERS: clusters and unclustered points
+    ensureLayer({
+      id: MAIN_CLUSTER_CIRCLES,
+      type: "circle",
+      source: MAIN_SRC,
+      filter: ["has", "point_count"],
+      paint: {
+        "circle-color": "#22C55E",
+        "circle-stroke-color": "#083344",
+        "circle-stroke-width": 2,
+        "circle-radius": [
+          "step",
+          ["get", "point_count"],
+          16,
+          25,
+          22,
+          50,
+          28,
+          100,
+          34,
+        ],
+      },
+    });
 
-      const homePos = toPosition(home);
-      if (!m.getSource(HOME_SRC)) {
-        m.addSource(HOME_SRC, {
-          type: "geojson",
-          data: {
-            type: "FeatureCollection",
-            features: homePos
-              ? [
-                  {
-                    type: "Feature",
-                    properties: {},
-                    geometry: { type: "Point", coordinates: homePos },
-                  },
-                ]
-              : [],
-          },
-        });
-      } else {
-        (m.getSource(HOME_SRC) as mapboxgl.GeoJSONSource).setData({
+    ensureLayer({
+      id: MAIN_CLUSTER_COUNT,
+      type: "symbol",
+      source: MAIN_SRC,
+      filter: ["has", "point_count"],
+      layout: {
+        "text-field": ["get", "point_count_abbreviated"],
+        "text-size": 12,
+      },
+      paint: {
+        "text-color": "#083344",
+      },
+    });
+
+    ensureLayer({
+      id: MAIN_POINTS,
+      type: "circle",
+      source: MAIN_SRC,
+      filter: ["!", ["has", "point_count"]],
+      paint: {
+        "circle-color": CATEGORY_MATCH_EXPR,
+        "circle-radius": 7,
+        "circle-stroke-color": "#0B1220",
+        "circle-stroke-width": 2,
+      },
+    });
+
+    // KINGPINS sit above clusters & points
+    ensureLayer({
+      id: KING_LAYER,
+      type: "circle",
+      source: KING_SRC,
+      paint: {
+        "circle-color": "#EF4444", // red
+        "circle-radius": 8,
+        "circle-stroke-color": "#FDE047", // yellow ring
+        "circle-stroke-width": 3,
+      },
+    });
+
+    // HOME (small white dot with blue ring)
+    ensureLayer({
+      id: HOME_LAYER,
+      type: "circle",
+      source: HOME_SRC,
+      paint: {
+        "circle-color": "#FFFFFF",
+        "circle-radius": 5,
+        "circle-stroke-color": "#3B82F6",
+        "circle-stroke-width": 3,
+      },
+    });
+
+    // ---------------- interactions
+
+    // cursor change
+    const hoverables = [MAIN_POINTS, KING_LAYER];
+    hoverables.forEach((lid) => {
+      m.on("mouseenter", lid, () => (m.getCanvas().style.cursor = "pointer"));
+      m.on("mouseleave", lid, () => (m.getCanvas().style.cursor = ""));
+    });
+
+    // hover popup
+    popupRef.current?.remove();
+    popupRef.current = new mapboxgl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: [0, -12],
+    });
+
+    const showPopup = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+      const feats = m.queryRenderedFeatures(e.point, {
+        layers: [KING_LAYER, MAIN_POINTS],
+      });
+      if (!feats.length) {
+        popupRef.current?.remove();
+        return;
+      }
+      const f = feats[0];
+      const p = f.properties || {};
+      const coord = (f.geometry as any).coordinates as Position;
+      const lngLat = new LngLat(coord[0], coord[1]);
+
+      const name = p.name || p.Name || p.retailer || "Location";
+      const addr =
+        p.address ||
+        p.Address ||
+        [p.city, p.state, p.zip].filter(Boolean).join(", ") ||
+        "";
+      const category = p.category || p.Category || "";
+      const retailer = p.retailer || p.Retailer || "";
+      const slug =
+        (retailer as string)
+          .toLowerCase()
+          .replace(/&/g, "and")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "";
+      const logoUrl = slug ? `/icons/${slug}.png` : "";
+
+      const html = `
+        <div style="min-width:220px;display:flex;gap:.5rem;align-items:flex-start">
+          ${
+            logoUrl
+              ? `<img src="${logoUrl}" alt="${retailer}" style="width:34px;height:34px;object-fit:contain;flex:0 0 auto;border-radius:.25rem;background:#fff;padding:2px;border:1px solid #11182720;" />`
+              : ""
+          }
+          <div style="line-height:1.2">
+            <div style="font-weight:600;margin-bottom:2px">${name}</div>
+            <div style="font-size:.82rem;opacity:.8">${addr}</div>
+            <div style="font-size:.8rem;margin-top:.4rem">
+              <span style="display:inline-block;width:.6rem;height:.6rem;border-radius:50%;background:${CATEGORY_COLOR(
+                category
+              )};margin-right:.4rem;vertical-align:middle"></span>
+              ${category || "Location"}
+            </div>
+          </div>
+        </div>
+      `;
+      popupRef.current!.setLngLat(lngLat).setHTML(html).addTo(m);
+    };
+
+    m.on("mousemove", showPopup);
+    m.on("mouseleave", MAIN_POINTS, () => popupRef.current?.remove());
+    m.on("mouseleave", KING_LAYER, () => popupRef.current?.remove());
+
+    // click to add a stop
+    const onClick = (
+      e: mapboxgl.MapMouseEvent & mapboxgl.EventData,
+      lid: string
+    ) => {
+      const feats = m.queryRenderedFeatures(e.point, { layers: [lid] });
+      if (!feats.length) return;
+      const f = feats[0];
+      const coord = (f.geometry as any).coordinates as Position;
+      onPointClick(f.properties || {}, new LngLat(coord[0], coord[1]));
+    };
+    m.on("click", MAIN_POINTS, (e) => onClick(e, MAIN_POINTS));
+    m.on("click", KING_LAYER, (e) => onClick(e, KING_LAYER));
+
+    // click to expand cluster
+    m.on("click", MAIN_CLUSTER_CIRCLES, (e) => {
+      const features = m.queryRenderedFeatures(e.point, {
+        layers: [MAIN_CLUSTER_CIRCLES],
+      });
+      const clusterId = features[0]?.properties?.cluster_id;
+      const src = m.getSource(MAIN_SRC) as GeoJSONSource | undefined;
+      if (!src || clusterId == null) return;
+      src.getClusterExpansionZoom(clusterId, (err, zoom) => {
+        if (err) return;
+        const coords = (features[0].geometry as any).coordinates as Position;
+        m.easeTo({ center: coords, zoom });
+      });
+    });
+  }
+
+  function refreshData() {
+    const m = mapRef.current;
+    if (!m) return;
+
+    // main points
+    const main = m.getSource(MAIN_SRC) as GeoJSONSource | undefined;
+    if (main) {
+      main.setData(toFC(data));
+    }
+
+    // kingpins (always visible)
+    const ksrc = m.getSource(KING_SRC) as GeoJSONSource | undefined;
+    if (ksrc) {
+      ksrc.setData(toFC(kingpins));
+    }
+
+    // home
+    const hsrc = m.getSource(HOME_SRC) as GeoJSONSource | undefined;
+    if (hsrc) {
+      const pos = asPosition(home);
+      hsrc.setData(
+        toFC({
           type: "FeatureCollection",
-          features: homePos
+          features: pos
             ? [
                 {
                   type: "Feature",
                   properties: {},
-                  geometry: { type: "Point", coordinates: homePos },
+                  geometry: { type: "Point", coordinates: pos },
                 },
               ]
             : [],
-        });
-      }
-
-      // cursors
-      [L.unclustered, L.kingpinCore, L.kingpinRing, L.cluster].forEach((lid) => {
-        if (!m.getLayer(lid)) return;
-        m.on("mouseenter", lid, () => (m.getCanvas().style.cursor = "pointer"));
-        m.on("mouseleave", lid, () => (m.getCanvas().style.cursor = ""));
-      });
-
-      // hover popup
-      const showPopup = (e: any) => {
-        const f: Feature<Geometry, any> | undefined = e?.features?.[0];
-        if (!f || (f.geometry as any).type !== "Point") return;
-        const coord = (f.geometry as any).coordinates as Position;
-        const props = f.properties || {};
-        const retailer =
-          props.retailer ?? props.Retailer ?? props.name ?? props.Name ?? "Location";
-        const city = props.city ?? props.City ?? "";
-        const state = props.state ?? props.State ?? "";
-        const category = props.category ?? props.Category ?? "";
-        const suppliers = props.suppliers ?? props.Suppliers ?? "";
-        const slug = String(retailer)
-          .toLowerCase()
-          .replace(/&/g, "and")
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/(^-|-$)/g, "");
-        const iconUrl = withBasePath(`/icons/${slug}.png`);
-        const html = `
-          <div style="display:flex;align-items:center;gap:8px">
-            <img src="${iconUrl}" onerror="this.style.display='none'" alt="" style="height:22px;max-width:80px" />
-            <div style="font-weight:700">${retailer}</div>
-          </div>
-          <div style="opacity:.85">${city}${city && state ? ", " : ""}${state}</div>
-          ${category ? `<div style="margin-top:4px;opacity:.75">${category}</div>` : ""}
-          ${
-            suppliers
-              ? `<div style="margin-top:4px;font-size:12px;opacity:.7">Suppliers: ${suppliers}</div>`
-              : ""
-          }
-        `;
-        popupRef.current!.setLngLat(coord as any).setHTML(html).addTo(m);
-      };
-      m.on("mousemove", L.unclustered, showPopup);
-      m.on("mousemove", L.kingpinCore, showPopup);
-      m.on("mousemove", L.kingpinRing, showPopup);
-      m.on("mouseleave", L.unclustered, () => popupRef.current?.remove());
-      m.on("mouseleave", L.kingpinCore, () => popupRef.current?.remove());
-      m.on("mouseleave", L.kingpinRing, () => popupRef.current?.remove());
-
-      // click to add stop
-      const clickToAdd = (e: any) => {
-        const f: Feature<Geometry, any> | undefined = e?.features?.[0];
-        if (!f || (f.geometry as any).type !== "Point") return;
-        const coord = (f.geometry as any).coordinates as Position;
-        const props = f.properties || {};
-        onPointClick?.(props, new mapboxgl.LngLat(coord[0], coord[1]));
-      };
-      m.on("click", L.unclustered, clickToAdd);
-      m.on("click", L.kingpinCore, clickToAdd);
-      m.on("click", L.kingpinRing, clickToAdd);
-
-      // expand clusters
-      m.on("click", L.cluster, (e: any) => {
-        const feat = e?.features?.[0];
-        if (!feat) return;
-        const clusterId = feat.properties?.cluster_id;
-        const src = m.getSource(CLUSTER_SRC) as mapboxgl.GeoJSONSource | undefined;
-        const getZoom = (src as any)?.getClusterExpansionZoom as
-          | ((id: number, cb: (err: any, zoom: number) => void) => void)
-          | undefined;
-
-        if (!src || clusterId == null || typeof getZoom !== "function") return;
-        getZoom.call(src, clusterId, (err, zoom) => {
-          if (err) return;
-          const c = (feat.geometry as any).coordinates as Position;
-          m.easeTo({ center: c as any, zoom });
-        });
-      });
-
-      m.resize();
-    });
-  }, [mapStyle, data, kingpins, home, onPointClick]);
+        })
+      );
+    }
+  }
 
   return (
     <div
+      id={ROOT_ID}
       ref={containerRef}
       style={{
         width: "100%",
-        height: "100%",
-        minHeight: "600px",
-        position: "relative",
-        borderRadius: 8,
+        height: "72vh",
+        borderRadius: "12px",
         overflow: "hidden",
+        boxShadow: "0 0 0 1px #00000040, 0 10px 30px #00000030",
       }}
     />
   );
