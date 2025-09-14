@@ -4,30 +4,19 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Certis AgRoute Planner",
-  description: "Filter retailers and plan optimized trips.",
+  description:
+    "Filter retailers and plan optimized trips. Double-click map to set Home. Click a point to add a stop.",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // NOTE: This is a Server Component; no client JS here.
-  // Only one header is rendered from this file to avoid duplication.
+  // No header logo here. The Certis mark is rendered INSIDE the map frame
+  // (components/CertisMap.tsx) so it always works with GitHub Pages basePath
+  // and never interferes with map interactions.
   return (
     <html lang="en">
-      <body>
-        <header className="site-header">
-          <div className="brand">
-            <img
-              className="brand-logo"
-              // Put your correct logo path in /public (e.g., /logo-certis.png)
-              src="/logo-certis.png"
-              alt="Certis Biologicals"
-            />
-          </div>
-          {/* "Reset Map" lives on the page (client) so it can actually reset state */}
-        </header>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
