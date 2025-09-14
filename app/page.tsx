@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { Feature, FeatureCollection, Geometry, Position } from "geojson";
+import type mapboxgl from "mapbox-gl";
 import CertisMap from "@/components/CertisMap";
 import * as Route from "@/utils/routing";
 import { withBasePath } from "@/utils/paths";
@@ -82,6 +83,14 @@ async function fetchFirst(paths: string[]): Promise<FC | null> {
         return json as FC;
       }
     } catch {}
+  }
+  return null;
+}
+
+/** Safely coerce a GeoJSON Position to a 2-tuple when it has at least [lng,lat]. */
+function toTuple2(pos: Position | null | undefined): [number, number] | null {
+  if (Array.isArray(pos) && pos.length >= 2 && Number.isFinite(pos[0]) && Number.isFinite(pos[1])) {
+    return [Number(pos[0]), Number(pos[1])];
   }
   return null;
 }
@@ -285,7 +294,7 @@ export default function Page() {
     }
 
     // seed origin: home if set, otherwise first stop
-    const origin: [number, number] | null = home ?? pts[0]?.coord ?? null;
+    const origin: [number, number] | null = toTuple2(home) ?? pts[0]?.coord ?? null;
     if (!origin) {
       setOptimized(pts);
       return;
@@ -323,12 +332,12 @@ export default function Page() {
       let improved = true;
       const pathDist = (list: Stop[]) => {
         let d = 0;
-        let prev = origin;
+        let prev: [number, number] = origin!;
         for (const s of list) {
-          d += dist(prev!, s.coord);
+          d += dist(prev, s.coord);
           prev = s.coord;
         }
-        if (roundTrip && origin) d += dist(prev!, origin);
+        if (roundTrip && origin) d += dist(prev, origin);
         return d;
       };
 
@@ -358,19 +367,25 @@ export default function Page() {
   // Links
   const googleHref = useMemo(() => {
     if (optimized.length === 0) return "";
-    const origin = home ? `${home[1]},${home[0]}` : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
+    const origin = toTuple2(home)
+      ? `${toTuple2(home)![1]},${toTuple2(home)![0]}`
+      : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
     return Route.buildGoogleMapsLink(origin, optimized.map((s) => s.coord), { roundTrip });
   }, [optimized, home, roundTrip]);
 
   const appleHref = useMemo(() => {
     if (optimized.length === 0) return "";
-    const origin = home ? `${home[1]},${home[0]}` : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
+    const origin = toTuple2(home)
+      ? `${toTuple2(home)![1]},${toTuple2(home)![0]}`
+      : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
     return Route.buildAppleMapsLink(origin, optimized.map((s) => s.coord), { roundTrip });
   }, [optimized, home, roundTrip]);
 
   const wazeHref = useMemo(() => {
     if (optimized.length === 0) return "";
-    const origin = home ? `${home[1]},${home[0]}` : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
+    const origin = toTuple2(home)
+      ? `${toTuple2(home)![1]},${toTuple2(home)![0]}`
+      : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
     return Route.buildWazeLink(origin, optimized.map((s) => s.coord), { roundTrip });
   }, [optimized, home, roundTrip]);
 
