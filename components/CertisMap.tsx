@@ -10,7 +10,7 @@ export type Basemap = "Hybrid" | "Streets";
 export type CertisMapProps = {
   token: string;
   basemap: Basemap;
-  data: GJFC;                                   // filtered feature collection (points only)
+  data: GJFC;                                   // filtered FeatureCollection (points only)
   bbox: [number, number, number, number];       // fit target when home is not set
   home?: [number, number];                      // lng,lat
   onPointClick?: (lnglat: [number, number], title: string) => void;
@@ -34,8 +34,10 @@ function prop(p: any, keys: string[], fallback = ""): string {
 }
 
 function isKingpinProps(p: any): boolean {
-  const v1 = String(prop(p, ["Kingpin", "KINGPIN", "kingpin", "Type", "Location Type"], "")).trim();
-  const lc = v1.toLowerCase();
+  const raw = String(
+    prop(p, ["Kingpin", "KINGPIN", "kingpin", "Type", "Location Type"], "")
+  ).trim();
+  const lc = raw.toLowerCase();
   return lc === "true" || lc === "yes" || lc === "1" || lc === "kingpin";
 }
 
@@ -46,31 +48,32 @@ export default function CertisMap(props: CertisMapProps) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
 
-  // Split data into two FCs: all points (for cluster) and kingpins only (non-cluster layer)
+  // Split data: all points for clustering, and kingpins (non-clustered)
   const fcAll = useMemo<GJFC>(() => {
     const feats = (data.features || []).filter(isPoint);
     return { type: "FeatureCollection", features: feats };
   }, [data]);
 
   const fcKingpins = useMemo<GJFC>(() => {
-    const feats = (data.features || []).filter(isPoint).filter((f) => isKingpinProps(f.properties));
+    const feats = (data.features || [])
+      .filter(isPoint)
+      .filter((f) => isKingpinProps(f.properties));
     return { type: "FeatureCollection", features: feats };
   }, [data]);
 
-  // Ensure token
+  // Token
   useEffect(() => {
-    if (!token) return;
-    mapboxgl.accessToken = token;
+    if (token) mapboxgl.accessToken = token;
   }, [token]);
 
-  // Create the map (once)
+  // Create the map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: STYLE_FOR[basemap],
-      center: [-97, 39], // fly to bbox/home later
+      center: [-97, 39],
       zoom: 3.5,
       attributionControl: false,
     });
@@ -79,15 +82,17 @@ export default function CertisMap(props: CertisMapProps) {
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
 
     mapRef.current = map;
-    popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnMove: true, maxWidth: "320px" });
+    popupRef.current = new mapboxgl.Popup({
+      closeButton: false,
+      closeOnMove: true,
+      maxWidth: "320px",
+    });
 
-    // When the first style is ready, add our sources/layers.
     map.once("style.load", () => {
-      addAllSourcesAndLayers(map, fcAll, fcKingpins);
+      addAllSourcesAndLayers(map, fcAll, fcKingpins, onPointClick);
       initialView(map, home, bbox);
     });
 
-    // Cleanup
     return () => {
       popupRef.current?.remove();
       map.remove();
@@ -96,49 +101,41 @@ export default function CertisMap(props: CertisMapProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // React to basemap changes by replacing style, then re-adding sources/layers.
+  // Basemap changes ⇒ swap style then re-add layers/sources
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const styleUrl = STYLE_FOR[basemap];
-    if (map.getStyle()?.sprite?.includes(styleUrl)) return; // already on this style (cheap guard)
-    map.setStyle(styleUrl);
+    map.setStyle(STYLE_FOR[basemap]);
     map.once("style.load", () => {
-      addAllSourcesAndLayers(map, fcAll, fcKingpins);
-      // re-center after style swap
+      addAllSourcesAndLayers(map, fcAll, fcKingpins, onPointClick);
       initialView(map, home, bbox);
     });
-  }, [basemap, fcAll, fcKingpins, bbox, home]);
+  }, [basemap, fcAll, fcKingpins, onPointClick, home, bbox]);
 
-  // Update data in place when FCs change and style is already present
+  // Data changes (after style exists)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const r = map.getSource("retailers") as mapboxgl.GeoJSONSource | undefined;
-    if (r) r.setData(fcAll);
     const k = map.getSource("kingpins") as mapboxgl.GeoJSONSource | undefined;
+    if (r) r.setData(fcAll);
     if (k) k.setData(fcKingpins);
   }, [fcAll, fcKingpins]);
 
-  // Keep home marker in sync
+  // Home marker sync (create if missing)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    // create/update simple geojson for home
+    if (!map || !map.isStyleLoaded()) return;
+
     const srcId = "home";
     let src = map.getSource(srcId) as mapboxgl.GeoJSONSource | undefined;
+    const fc: GJFC =
+      home
+        ? { type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Point", coordinates: home }, properties: {} }] }
+        : { type: "FeatureCollection", features: [] };
+
     if (!src) {
-      map.addSource(srcId, {
-        type: "geojson",
-        data: home
-          ? {
-              type: "FeatureCollection",
-              features: [
-                { type: "Feature", geometry: { type: "Point", coordinates: home }, properties: {} },
-              ],
-            }
-          : { type: "FeatureCollection", features: [] },
-      });
+      map.addSource(srcId, { type: "geojson", data: fc });
       map.addLayer({
         id: "home-circle",
         type: "circle",
@@ -151,46 +148,45 @@ export default function CertisMap(props: CertisMapProps) {
         },
       });
     } else {
-      src.setData(
-        home
-          ? {
-              type: "FeatureCollection",
-              features: [
-                { type: "Feature", geometry: { type: "Point", coordinates: home }, properties: {} },
-              ],
-            }
-          : { type: "FeatureCollection", features: [] }
-      );
+      src.setData(fc);
     }
   }, [home]);
 
-  // Fit when bbox/home changes (only after style is ready)
+  // Re-fit when bbox/home changes (after style ready)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    if (!map.isStyleLoaded()) return;
+    if (!map || !map.isStyleLoaded()) return;
     fitToView(map, home, bbox);
   }, [home, bbox]);
 
-  return <div ref={containerRef} style={{ width: "100%", height: "calc(100vh - 160px)", borderRadius: 14, overflow: "hidden" }} />;
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: "calc(100vh - 160px)",
+        borderRadius: 14,
+        overflow: "hidden",
+      }}
+    />
+  );
 }
 
-/* ---------------- helpers for map wiring ---------------- */
+/* ---------------- helpers ---------------- */
 
 function addAllSourcesAndLayers(
   map: mapboxgl.Map,
   fcAll: GJFC,
-  fcKingpins: GJFC
+  fcKingpins: GJFC,
+  onPointClick?: (lnglat: [number, number], title: string) => void
 ) {
-  // Remove if exist (style swaps)
-  safeRemoveLayer(map, "cluster-count");
-  safeRemoveLayer(map, "clusters");
-  safeRemoveLayer(map, "unclustered-dots");
-  safeRemoveLayer(map, "kingpin-circles");
-  safeRemoveSource(map, "retailers");
-  safeRemoveSource(map, "kingpins");
+  // Remove old (on style swap)
+  ["cluster-count", "clusters", "unclustered-dots", "kingpin-circles", "home-circle"].forEach((l) =>
+    safeRemoveLayer(map, l)
+  );
+  ["retailers", "kingpins", "home"].forEach((s) => safeRemoveSource(map, s));
 
-  // Clustered source for ALL points
+  // All points (clustered)
   map.addSource("retailers", {
     type: "geojson",
     data: fcAll,
@@ -200,25 +196,20 @@ function addAllSourcesAndLayers(
     generateId: true,
   });
 
-  // NON-cluster source for kingpins only (always visible)
+  // Kingpins (non-clustered)
   map.addSource("kingpins", {
     type: "geojson",
     data: fcKingpins,
     generateId: true,
   });
 
-  // Cluster bubbles
   map.addLayer({
     id: "clusters",
     type: "circle",
     source: "retailers",
     filter: ["has", "point_count"],
     paint: {
-      "circle-radius": [
-        "step",
-        ["get", "point_count"],
-        18, 10, 26, 25, 34, 50, 42,
-      ],
+      "circle-radius": ["step", ["get", "point_count"], 18, 10, 26, 25, 34, 50, 42],
       "circle-color": "#5aa6ff",
       "circle-stroke-color": "#1a2742",
       "circle-stroke-width": 2,
@@ -226,7 +217,6 @@ function addAllSourcesAndLayers(
     },
   });
 
-  // Cluster labels
   map.addLayer({
     id: "cluster-count",
     type: "symbol",
@@ -240,8 +230,6 @@ function addAllSourcesAndLayers(
     paint: { "text-color": "#0b1220" },
   });
 
-  // Unclustered dots (non-kingpins only). We render them by drawing from the cluster source
-  // and excluding features that are clusters.
   map.addLayer({
     id: "unclustered-dots",
     type: "circle",
@@ -256,30 +244,32 @@ function addAllSourcesAndLayers(
         "agronomy/grain", "#2fd08c",
         "agronomy", "#2fd08c",
         "grain", "#ffcc66",
-        /* other */ "#5dcad6",
+        /* default */ "#5dcad6",
       ],
       "circle-stroke-color": "#0b1220",
       "circle-stroke-width": 2,
     },
   });
 
-  // Kingpins (from a separate non-clustered source)
   map.addLayer({
     id: "kingpin-circles",
     type: "circle",
     source: "kingpins",
     paint: {
       "circle-radius": 7,
-      "circle-color": "#ff3b30",          // bright red
-      "circle-stroke-color": "#ffd400",   // yellow ring
+      "circle-color": "#ff3b30",        // red
+      "circle-stroke-color": "#ffd400", // yellow ring
       "circle-stroke-width": 3,
     },
   });
 
-  hookInteractivity(map);
+  hookInteractivity(map, onPointClick);
 }
 
-function hookInteractivity(map: mapboxgl.Map) {
+function hookInteractivity(
+  map: mapboxgl.Map,
+  onPointClick?: (lnglat: [number, number], title: string) => void
+) {
   const hoverTargets = ["unclustered-dots", "kingpin-circles"];
   const popup = new mapboxgl.Popup({ closeButton: false, closeOnMove: true, maxWidth: "320px" });
 
@@ -289,11 +279,9 @@ function hookInteractivity(map: mapboxgl.Map) {
     const city = prop(p, ["City"], "");
     const st = prop(p, ["State", "ST"], "");
     const kp = isKingpinProps(p);
-    const title = kp ? `${retailer}<span style="color:#ffd400;margin-left:6px">KINGPIN</span>` : retailer;
-
-    // optional logo in popup if you ever add logos again:
-    // const logo = prop(p, ["logo_url","logo"], "");
-    // const img = logo ? `<img src="${logo}" style="max-width:120px;display:block;margin-bottom:6px" />` : "";
+    const title = kp
+      ? `${retailer}<span style="color:#ffd400;margin-left:6px">KINGPIN</span>`
+      : retailer;
 
     return `
       <div class="popup">
@@ -303,7 +291,8 @@ function hookInteractivity(map: mapboxgl.Map) {
     `;
   }
 
-  const showPopup = (ev: mapboxgl.MapLayerMouseEvent) => {
+  // Accept both mouse and touch layer events
+  const showPopup = (ev: mapboxgl.MapLayerMouseEvent | mapboxgl.MapLayerTouchEvent) => {
     const f = ev.features && (ev.features[0] as Feature | undefined);
     if (!f || f.geometry?.type !== "Point") {
       popup.remove();
@@ -323,7 +312,7 @@ function hookInteractivity(map: mapboxgl.Map) {
   hoverTargets.forEach((id) => {
     map.on("mousemove", id, showPopup);
     map.on("mouseleave", id, hidePopup);
-    map.on("touchstart", id, (e) => showPopup(e as mapboxgl.MapLayerMouseEvent));
+    map.on("touchstart", id, showPopup); // no cast needed with union type
   });
 
   // Clicking a cluster zooms in
@@ -340,7 +329,7 @@ function hookInteractivity(map: mapboxgl.Map) {
     });
   });
 
-  // Clicking a point calls back to the page to add a stop
+  // Click a point → add stop (both callback + DOM event)
   const clickTargets = ["unclustered-dots", "kingpin-circles"];
   clickTargets.forEach((id) => {
     map.on("click", id, (e) => {
@@ -350,19 +339,26 @@ function hookInteractivity(map: mapboxgl.Map) {
       const coord = pt.geometry.coordinates as [number, number];
       const p = (pt.properties || {}) as any;
       const name = prop(p, ["Retailer", "Retailer Name", "Name"], "Stop");
-      // Attach a DOM CustomEvent so the parent can listen if desired.
+
+      // Direct callback if provided:
+      onPointClick?.(coord, name);
+
+      // Also dispatch a DOM custom event for any external listener:
       const ce = new CustomEvent("certis:point-click", { detail: { coord, name } });
       map.getContainer().dispatchEvent(ce);
     });
   });
 
-  // Keep pointer for clusters as well
+  // Cursor for clusters
   map.on("mouseenter", "clusters", () => (map.getCanvas().style.cursor = "pointer"));
   map.on("mouseleave", "clusters", () => (map.getCanvas().style.cursor = ""));
 }
 
-function initialView(map: mapboxgl.Map, home: [number, number] | undefined, bbox: [number, number, number, number]) {
-  // After first load: center either on home or bbox
+function initialView(
+  map: mapboxgl.Map,
+  home: [number, number] | undefined,
+  bbox: [number, number, number, number]
+) {
   if (home) {
     map.jumpTo({ center: home, zoom: 10 });
   } else {
@@ -370,7 +366,11 @@ function initialView(map: mapboxgl.Map, home: [number, number] | undefined, bbox
   }
 }
 
-function fitToView(map: mapboxgl.Map, home: [number, number] | undefined, bbox: [number, number, number, number]) {
+function fitToView(
+  map: mapboxgl.Map,
+  home: [number, number] | undefined,
+  bbox: [number, number, number, number]
+) {
   if (home) {
     map.easeTo({ center: home, zoom: 10 });
   } else if (Array.isArray(bbox) && bbox.length === 4) {
@@ -381,7 +381,6 @@ function fitToView(map: mapboxgl.Map, home: [number, number] | undefined, bbox: 
 function safeRemoveLayer(map: mapboxgl.Map, id: string) {
   if (map.getLayer(id)) map.removeLayer(id);
 }
-
 function safeRemoveSource(map: mapboxgl.Map, id: string) {
   if (map.getSource(id)) map.removeSource(id);
 }
