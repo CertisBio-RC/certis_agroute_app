@@ -1,59 +1,74 @@
-'use client';
+"use client";
 
-import React, { useEffect, useMemo, useRef } from 'react';
-import mapboxgl, { Map as MBMap, LngLatLike } from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import { useEffect, useMemo, useRef } from "react";
+import mapboxgl, { Map } from "mapbox-gl";
 
-export type Basemap = 'Hybrid' | 'Streets';
+/** Adjust if your dataset uses different property names */
+export type RetailerProps = {
+  id?: string | number;
+  name?: string;
+  Retailer?: string;
+  retailer?: string;
+  Category?: string;
+  category?: string;
+  Type?: string;
+  type?: string;
+  Address?: string;
+  address?: string;
+  City?: string;
+  city?: string;
+  State?: string;
+  state?: string;
+  ZIP?: string | number;
+  zip?: string | number;
+  Kingpin?: string | boolean;
+  kingpin?: boolean;
+  logoUrl?: string;
+};
 
-type GJFC = GeoJSON.FeatureCollection<GeoJSON.Point, any>;
+type GJPoint = GeoJSON.Feature<GeoJSON.Point, RetailerProps>;
+type GJFC = GeoJSON.FeatureCollection<GeoJSON.Point, RetailerProps>;
 
 export type CertisMapProps = {
   token: string;
-  basemap: Basemap;
+  basemap: "Hybrid" | "Streets";
   data: GJFC;
-  /** [minX, minY, maxX, maxY] */
   bbox: [number, number, number, number];
-  /** Optional route line (one or more segments) */
-  route?: GeoJSON.FeatureCollection<GeoJSON.LineString>;
-  /** Double-click anywhere on the map to set Home */
-  onMapDblClick?: (lnglat: [number, number]) => void;
-  /** Click a point to add as a stop */
-  onPointClick?: (lnglat: [number, number], title: string) => void;
+  onPointClick?: (lngLat: [number, number], title: string, feature: GJPoint) => void;
 };
 
-const styleFor = (basemap: Basemap) =>
-  basemap === 'Hybrid'
-    ? 'mapbox://styles/mapbox/satellite-streets-v12'
-    : 'mapbox://styles/mapbox/streets-v12';
+mapboxgl.accessToken = ""; // we’ll set it per-instance to be explicit
 
-function popupHTML(p: any, basePath: string) {
-  const title = [p.Retailer, p.Name].filter(Boolean).join(' — ') || p.title || 'Location';
-  const lines: string[] = [];
-  if (p.Category) lines.push(`<div class="k-meta">${p.Category}</div>`);
-  const adr = [p.Address, p.City, p.State, p.Zip].filter(Boolean).join(', ');
-  if (adr) lines.push(`<div>${adr}</div>`);
-  let logo = '';
-  const logoProp = p.logo || p.Logo || p.logo_url || p.logoUrl;
-  if (logoProp) {
-    const src = String(logoProp).startsWith('http')
-      ? logoProp
-      : `${basePath}/logos/${logoProp}`;
-    logo = `<img class="k-logo" src="${src}" alt="" />`;
-  }
-  return `
-    <div class="k-pop">
-      ${logo}
-      <div class="k-title">${title}</div>
-      ${lines.join('')}
-    </div>
-  `;
+const STYLE_STREETS = "mapbox://styles/mapbox/streets-v12";
+const STYLE_HYBRID = "mapbox://styles/mapbox/satellite-streets-v12";
+
+const KINGPIN_FILL = "#ff2d2d";
+const KINGPIN_STROKE = "#ffd500";
+
+function coerceKingpinBoolean(p: RetailerProps): boolean {
+  if (typeof p.kingpin === "boolean") return p.kingpin;
+  if (typeof p.Kingpin === "boolean") return p.Kingpin;
+  const raw = String(p.Kingpin ?? "").trim().toLowerCase();
+  return ["y", "yes", "true", "1"].includes(raw);
 }
 
-function asLngLat(coord: any): [number, number] {
-  // GeoJSON order is [lng, lat]
-  if (Array.isArray(coord) && coord.length >= 2) return [coord[0], coord[1]];
-  return [0, 0];
+function featureTitle(p: RetailerProps): string {
+  const retailer = p.retailer ?? p.Retailer ?? "";
+  const name = p.name ?? "";
+  const cat = p.category ?? p.Category ?? "";
+  if (retailer && name) return `${retailer} — ${name}`;
+  if (name) return name;
+  if (retailer) return retailer;
+  return "Location";
+}
+
+function featureAddress(p: RetailerProps): string {
+  const a = p.address ?? p.Address ?? "";
+  const c = p.city ?? p.City ?? "";
+  const s = p.state ?? p.State ?? "";
+  const z = p.zip ?? p.ZIP ?? "";
+  const parts = [a, [c, s].filter(Boolean).join(", "), z].filter(Boolean);
+  return parts.join("<br>");
 }
 
 export default function CertisMap({
@@ -61,244 +76,226 @@ export default function CertisMap({
   basemap,
   data,
   bbox,
-  route,
-  onMapDblClick,
   onPointClick,
 }: CertisMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<MBMap | null>(null);
+  const mapRef = useRef<Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
 
-  // Compute a stable basePath from <base> or location pathname (works on GH Pages subpath)
-  const basePath = useMemo(() => {
-    const el = document.querySelector('base') as HTMLBaseElement | null;
-    if (el?.href) {
-      try {
-        const u = new URL(el.href);
-        return u.pathname.replace(/\/$/, '');
-      } catch {}
-    }
-    const parts = location.pathname.split('/').filter(Boolean);
-    // e.g. /certis_agroute_app/ -> /certis_agroute_app
-    return parts.length ? `/${parts[0]}` : '';
-  }, []);
+  // clone + enrich data so we can filter kingpins quickly
+  const enriched = useMemo<GJFC>(() => {
+    return {
+      type: "FeatureCollection",
+      features: (data?.features ?? []).map((f) => ({
+        ...f,
+        properties: {
+          ...f.properties,
+          kingpin: coerceKingpinBoolean(f.properties ?? {}),
+        },
+      })),
+    };
+  }, [data]);
 
-  // build (or rebuild) the map when the style changes
+  // initialize map once
   useEffect(() => {
+    if (!containerRef.current) return;
+    if (mapRef.current) return;
+
     mapboxgl.accessToken = token;
 
     const map = new mapboxgl.Map({
-      container: containerRef.current as HTMLDivElement,
-      style: styleFor(basemap),
-      center: [-97.5, 41.5],
-      zoom: 3.2,
-      attributionControl: false,
-      projection: 'mercator',
+      container: containerRef.current,
+      style: basemap === "Hybrid" ? STYLE_HYBRID : STYLE_STREETS,
+      cooperativeGestures: false, // allow normal wheel zoom
+      dragRotate: false,
+      attributionControl: true,
     });
+
     mapRef.current = map;
 
-    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left');
+    // Make wheel zoom act like normal map (no CTRL needed)
+    map.scrollZoom.enable();
+    map.boxZoom.enable();
+    map.touchZoomRotate.enable();
 
-    const setupSourcesAndLayers = () => {
-      if (!map.getSource('retailers')) {
-        map.addSource('retailers', {
-          type: 'geojson',
-          data,
+    map.on("load", () => {
+      // Fit to bbox once on first load (unless URL hash present)
+      if (!location.hash) {
+        try {
+          map.fitBounds(bbox, { padding: 28, duration: 0 });
+        } catch {}
+      }
+
+      // Source
+      if (!map.getSource("retailers")) {
+        map.addSource("retailers", {
+          type: "geojson",
+          data: enriched,
           cluster: true,
-          clusterMaxZoom: 9,
-          clusterRadius: 42,
+          clusterRadius: 55,
+          clusterMaxZoom: 12,
+          generateId: true,
         });
-      } else {
-        (map.getSource('retailers') as mapboxgl.GeoJSONSource).setData(data);
       }
 
-      // cluster circles
-      if (!map.getLayer('clusters')) {
+      // Clusters
+      if (!map.getLayer("clusters")) {
         map.addLayer({
-          id: 'clusters',
-          type: 'circle',
-          source: 'retailers',
-          filter: ['has', 'point_count'],
+          id: "clusters",
+          type: "circle",
+          source: "retailers",
+          filter: ["has", "point_count"],
           paint: {
-            'circle-color': '#3B82F6',
-            'circle-opacity': 0.85,
-            'circle-radius': [
-              'step',
-              ['get', 'point_count'],
-              20,
-              25, 26,
-              75, 34,
-              150, 42,
-              350, 50,
+            "circle-color": "#4aa3ff",
+            "circle-radius": [
+              "step",
+              ["get", "point_count"],
+              16,
+              25,
+              22,
+              100,
+              28,
             ],
-            'circle-stroke-color': '#0b1220',
-            'circle-stroke-width': 2,
+            "circle-stroke-color": "#0b1b2b",
+            "circle-stroke-width": 2,
           },
         });
       }
-
-      // cluster count label
-      if (!map.getLayer('cluster-count')) {
+      if (!map.getLayer("cluster-count")) {
         map.addLayer({
-          id: 'cluster-count',
-          type: 'symbol',
-          source: 'retailers',
-          filter: ['has', 'point_count'],
+          id: "cluster-count",
+          type: "symbol",
+          source: "retailers",
+          filter: ["has", "point_count"],
           layout: {
-            'text-field': ['get', 'point_count'],
-            'text-size': 12,
-            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            "text-field": ["get", "point_count_abbreviated"],
+            "text-size": 12,
+            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
           },
           paint: {
-            'text-color': '#ffffff',
+            "text-color": "#fff",
           },
         });
       }
 
-      // Unclustered non-kingpins
-      if (!map.getLayer('unclustered-dots')) {
+      // Kingpins on top (bright red w/ yellow stroke)
+      if (!map.getLayer("unclustered-kingpins")) {
         map.addLayer({
-          id: 'unclustered-dots',
-          type: 'circle',
-          source: 'retailers',
-          filter: [
-            'all',
-            ['!', ['has', 'point_count']],
-            ['!', ['any',
-              ['==', ['get', 'Category'], 'Kingpin'],
-              ['==', ['get', 'Type'], 'Kingpin'],
-            ]],
-          ],
+          id: "unclustered-kingpins",
+          type: "circle",
+          source: "retailers",
+          filter: ["all", ["!has", "point_count"], ["==", ["get", "kingpin"], true]],
           paint: {
-            'circle-color': [
-              'match',
-              ['get', 'Category'],
-              'Agronomy', '#60A5FA',
-              'Distribution', '#34D399',
-              'Grain', '#FBBF24',
-              'Office/Service', '#A78BFA',
-              /* default */ '#93C5FD',
+            "circle-color": KINGPIN_FILL,
+            "circle-radius": 10,
+            "circle-stroke-color": KINGPIN_STROKE,
+            "circle-stroke-width": 3,
+          },
+        });
+      }
+
+      // Regular (non-kingpin) points
+      if (!map.getLayer("unclustered-dots")) {
+        map.addLayer({
+          id: "unclustered-dots",
+          type: "circle",
+          source: "retailers",
+          filter: ["all", ["!has", "point_count"], ["!=", ["get", "kingpin"], true]],
+          paint: {
+            "circle-color": [
+              "match",
+              ["downcase", ["to-string", ["coalesce", ["get", "category"], ["get", "Category"], ""]]],
+              "agronomy",
+              "#1dd1a1",
+              "distribution",
+              "#feca57",
+              "grain",
+              "#54a0ff",
+              "office/service",
+              "#9b59b6",
+              /* default */ "#48dbfb",
             ],
-            'circle-opacity': 0.9,
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 4, 8, 6, 12, 8],
-            'circle-stroke-color': '#0b1220',
-            'circle-stroke-width': 2,
+            "circle-radius": 6,
+            "circle-stroke-color": "#0b1b2b",
+            "circle-stroke-width": 2,
           },
         });
       }
 
-      // Kingpins emphasized (red fill + yellow stroke, always above)
-      if (!map.getLayer('kingpin-circles')) {
-        map.addLayer({
-          id: 'kingpin-circles',
-          type: 'circle',
-          source: 'retailers',
-          filter: ['all', ['!', ['has', 'point_count']], ['any',
-            ['==', ['get', 'Category'], 'Kingpin'],
-            ['==', ['get', 'Type'], 'Kingpin'],
-          ]],
-          paint: {
-            'circle-color': '#FF2D55',       // bright red
-            'circle-opacity': 0.95,
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 6, 8, 10, 12, 14],
-            'circle-stroke-color': '#FFD60A', // yellow border
-            'circle-stroke-width': 3,
-          },
+      // click clusters to zoom in
+      map.on("click", "clusters", (e: any) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+        const clusterId = features[0]?.properties?.cluster_id;
+        const src: any = map.getSource("retailers");
+        if (!src || clusterId == null) return;
+        src.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
+          if (err) return;
+          map.easeTo({ center: features[0].geometry.coordinates as any, zoom });
         });
-      }
+      });
 
-      // Route line (optional)
-      if (route && !map.getSource('route')) {
-        map.addSource('route', { type: 'geojson', data: route });
-        map.addLayer({
-          id: 'route-line',
-          type: 'line',
-          source: 'route',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: {
-            'line-color': '#22c55e',
-            'line-width': 4,
-            'line-opacity': 0.8,
-          },
-        });
-      } else if (route && map.getSource('route')) {
-        (map.getSource('route') as mapboxgl.GeoJSONSource).setData(route);
-      } else if (!route && map.getSource('route')) {
-        map.removeLayer('route-line');
-        map.removeSource('route');
-      }
-    };
+      const openPopup = (f: any, lngLat: mapboxgl.LngLatLike) => {
+        const p: RetailerProps = f.properties || {};
+        const title = featureTitle(p);
+        const addr = featureAddress(p);
+        const cat = p.category ?? p.Category ?? "";
+        const retailer = p.retailer ?? p.Retailer ?? "";
+        const logo = p.logoUrl ? `<img class="popup-logo" src="${p.logoUrl}" alt="" />` : "";
 
-    map.on('load', () => {
-      setupSourcesAndLayers();
+        const html = `
+          <div class="pop-card">
+            ${logo}
+            <div class="pop-title">${title}</div>
+            ${retailer ? `<div class="pop-sub">${retailer}${cat ? " • " + cat : ""}</div>` : cat ? `<div class="pop-sub">${cat}</div>` : ""}
+            ${addr ? `<div class="pop-addr">${addr}</div>` : ""}
+            <div class="pop-hint">Click to add as stop</div>
+          </div>`;
 
-      // fit bbox once on load
-      if (bbox) {
-        map.fitBounds(bbox as any, { padding: 28, duration: 0 });
-      }
-    });
+        if (!popupRef.current) {
+          popupRef.current = new mapboxgl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            anchor: "top",
+            offset: 18,
+          });
+        }
+        popupRef.current.setLngLat(lngLat).setHTML(html).addTo(map);
+      };
 
-    // hover/touch popup
-    const hoverTargets = ['kingpin-circles', 'unclustered-dots'];
-    const ensurePopup = () => {
-      if (!popupRef.current) {
-        popupRef.current = new mapboxgl.Popup({
-          closeButton: false,
-          closeOnMove: true,
-          offset: 12,
-        });
-      }
-      return popupRef.current!;
-    };
+      const hoverTargets = ["unclustered-kingpins", "unclustered-dots"];
+      map.on("mousemove", (e) => {
+        const feat = map.queryRenderedFeatures(e.point, { layers: hoverTargets })[0] as any;
+        if (feat) {
+          map.getCanvas().style.cursor = "pointer";
+          openPopup(feat, e.lngLat);
+        } else {
+          map.getCanvas().style.cursor = "";
+          popupRef.current?.remove();
+        }
+      });
+      map.on("mouseleave", "unclustered-dots", () => popupRef.current?.remove());
+      map.on("mouseleave", "unclustered-kingpins", () => popupRef.current?.remove());
 
-    const onMove = (e: any) => {
-      const f = map.queryRenderedFeatures(e.point, { layers: hoverTargets })[0];
-      if (!f) {
-        map.getCanvas().style.cursor = '';
-        if (popupRef.current) popupRef.current.remove();
-        return;
-      }
-      map.getCanvas().style.cursor = 'pointer';
-      const p = f.properties || {};
-      const html = popupHTML(p, basePath);
-      ensurePopup().setLngLat(e.lngLat).setHTML(html).addTo(map);
-    };
+      // Click/tap a point => bubble up
+      const clickPoint = (e: any) => {
+        const feat: GJPoint | undefined = e.features?.[0];
+        if (!feat) return;
+        const p = feat.properties || {};
+        const title = featureTitle(p);
+        onPointClick?.(feat.geometry.coordinates as [number, number], title, feat);
+      };
+      map.on("click", "unclustered-kingpins", clickPoint);
+      map.on("click", "unclustered-dots", clickPoint);
 
-    const onLeave = () => {
-      map.getCanvas().style.cursor = '';
-      if (popupRef.current) popupRef.current.remove();
-    };
-
-    map.on('mousemove', onMove);
-    map.on('mouseleave', 'unclustered-dots', onLeave);
-    map.on('mouseleave', 'kingpin-circles', onLeave);
-
-    // tap-to-open popup (mobile)
-    map.on('click', (e) => {
-      const f = map.queryRenderedFeatures(e.point, { layers: hoverTargets })[0];
-      if (!f) return;
-      const p = f.properties || {};
-      const html = popupHTML(p, basePath);
-      ensurePopup().setLngLat(e.lngLat).setHTML(html).addTo(map);
-
-      // click adds a stop
-      const title = [p.Retailer, p.Name].filter(Boolean).join(' — ') || p.title || 'Stop';
-      const ll = asLngLat((f.geometry as any).coordinates);
-      onPointClick?.(ll, title);
-    });
-
-    // dblclick sets home
-    map.on('dblclick', (e) => {
-      onMapDblClick?.([e.lngLat.lng, e.lngLat.lat]);
-    });
-
-    // If style changes (basemap toggle), rebuild layers
-    map.on('styledata', () => {
-      if (!map.isStyleLoaded()) return;
-      // sources/layers might have been wiped by setStyle; ensure they exist
-      if (!map.getSource('retailers')) {
-        setupSourcesAndLayers();
-      }
+      // Mobile: tap shows popup where hover would be
+      const tapPoint = (e: any) => {
+        const feat = e.features?.[0];
+        if (!feat) return;
+        openPopup(feat, e.lngLat);
+      };
+      map.on("click", "clusters", () => popupRef.current?.remove());
+      map.on("click", "unclustered-kingpins", tapPoint);
+      map.on("click", "unclustered-dots", tapPoint);
     });
 
     return () => {
@@ -306,39 +303,116 @@ export default function CertisMap({
       map.remove();
       mapRef.current = null;
     };
-  }, [token, basemap, basePath]); // rebuild on basemap change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // update data / route / bbox without a full rebuild
+  // swap basemap style (keeps source/layers; we’ll re-add after style load)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const src = map.getSource('retailers') as mapboxgl.GeoJSONSource | undefined;
-    if (src) src.setData(data);
+    const targetStyle = basemap === "Hybrid" ? STYLE_HYBRID : STYLE_STREETS;
 
-    if (bbox) {
-      // stay roughly in place if current view already intersects bbox; otherwise fit
-      const b = bbox as any;
-      map.fitBounds(b, { padding: 28, duration: 0 });
-    }
+    const doSwap = async () => {
+      if (map.getStyle()?.sprite?.startsWith(targetStyle)) return;
+      map.setStyle(targetStyle);
+      map.once("styledata", () => {
+        // re-add the source/layers after style change
+        if (!map.getSource("retailers")) {
+          map.addSource("retailers", {
+            type: "geojson",
+            data: enriched,
+            cluster: true,
+            clusterRadius: 55,
+            clusterMaxZoom: 12,
+            generateId: true,
+          });
+        }
+        const ensure = (id: string) => map.getLayer(id) && map.removeLayer(id);
+        ["clusters", "cluster-count", "unclustered-kingpins", "unclustered-dots"].forEach(ensure);
 
-    if (route) {
-      if (!map.getSource('route')) {
-        map.addSource('route', { type: 'geojson', data: route });
         map.addLayer({
-          id: 'route-line',
-          type: 'line',
-          source: 'route',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#22c55e', 'line-width': 4, 'line-opacity': 0.8 },
+          id: "clusters",
+          type: "circle",
+          source: "retailers",
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": "#4aa3ff",
+            "circle-radius": ["step", ["get", "point_count"], 16, 25, 22, 100, 28],
+            "circle-stroke-color": "#0b1b2b",
+            "circle-stroke-width": 2,
+          },
         });
-      } else {
-        (map.getSource('route') as mapboxgl.GeoJSONSource).setData(route);
-      }
-    } else if (map.getSource('route')) {
-      map.removeLayer('route-line');
-      map.removeSource('route');
+        map.addLayer({
+          id: "cluster-count",
+          type: "symbol",
+          source: "retailers",
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": ["get", "point_count_abbreviated"],
+            "text-size": 12,
+            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+          },
+          paint: { "text-color": "#fff" },
+        });
+        map.addLayer({
+          id: "unclustered-kingpins",
+          type: "circle",
+          source: "retailers",
+          filter: ["all", ["!has", "point_count"], ["==", ["get", "kingpin"], true]],
+          paint: {
+            "circle-color": KINGPIN_FILL,
+            "circle-radius": 10,
+            "circle-stroke-color": KINGPIN_STROKE,
+            "circle-stroke-width": 3,
+          },
+        });
+        map.addLayer({
+          id: "unclustered-dots",
+          type: "circle",
+          source: "retailers",
+          filter: ["all", ["!has", "point_count"], ["!=", ["get", "kingpin"], true]],
+          paint: {
+            "circle-color": [
+              "match",
+              ["downcase", ["to-string", ["coalesce", ["get", "category"], ["get", "Category"], ""]]],
+              "agronomy",
+              "#1dd1a1",
+              "distribution",
+              "#feca57",
+              "grain",
+              "#54a0ff",
+              "office/service",
+              "#9b59b6",
+              "#48dbfb",
+            ],
+            "circle-radius": 6,
+            "circle-stroke-color": "#0b1b2b",
+            "circle-stroke-width": 2,
+          },
+        });
+      });
+    };
+    doSwap();
+  }, [basemap, enriched]);
+
+  // push fresh data into the source
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const src: any = map.getSource("retailers");
+    if (src && enriched) {
+      src.setData(enriched);
     }
-  }, [data, bbox, route]);
+  }, [enriched]);
+
+  // zoom/fit to bbox on data/filter change (but respect URL hash)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !bbox || location.hash) return;
+    try {
+      map.fitBounds(bbox, { padding: 28, duration: 250 });
+    } catch {}
+  }, [bbox]);
 
   return <div ref={containerRef} className="map-card" />;
 }
