@@ -2,14 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---- App chrome ---- */
+/* ---------- Base ---------- */
 @layer base {
   html, body { @apply h-full; }
+  body { @apply bg-zinc-950 text-zinc-100 antialiased; }
 }
 
-/* ---- Reusable components ---- */
+/* ---------- Components ---------- */
 @layer components {
-  .pane-grid { @apply grid h-[100dvh] w-full grid-cols-[340px_1fr] lg:grid-cols-[320px_1fr]; }
+  /* The key fix: set grid-template-columns via plain CSS, not @apply arbitrary values */
+  .pane-grid {
+    @apply grid h-[100dvh] w-full;
+    grid-template-columns: 340px 1fr;
+  }
+  @screen lg {
+    .pane-grid { grid-template-columns: 320px 1fr; }
+  }
+  @media (max-width: 1024px) {
+    .pane-grid { grid-template-columns: 1fr; }
+  }
+
   .sidebar { @apply border-r border-white/10 p-4 overflow-y-auto; }
   .map-area { @apply min-w-0 p-4; }
   .card { @apply h-full rounded-2xl border border-white/10 bg-zinc-900 overflow-hidden; }
@@ -24,9 +36,11 @@
   .chips { @apply flex flex-wrap gap-2; }
   .chip { @apply inline-flex items-center rounded-full border border-amber-300/50 bg-amber-400/10 px-2.5 py-1 text-xs hover:bg-amber-400/20; }
   .chip-active { @apply border-amber-300/90 bg-amber-400/20; }
+
+  .debug-pill { @apply inline-flex items-center rounded-full border border-white/15 bg-zinc-800/70 px-2 py-0.5 text-[11px] text-zinc-300; }
 }
 
-/* ---- Mapbox polish ---- */
+/* ---------- Mapbox polish ---------- */
 .mapboxgl-canvas { outline: none !important; }
 .mapboxgl-popup-content {
   -webkit-font-smoothing: antialiased;
@@ -34,7 +48,7 @@
   @apply bg-zinc-900 text-zinc-100 border border-white/10 rounded-xl;
 }
 
-/* ---- Scrollbar ---- */
+/* ---------- Scrollbars ---------- */
 *::-webkit-scrollbar { height: 10px; width: 10px; }
 *::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 999px; }
 *::-webkit-scrollbar-track { background: transparent; }
