@@ -1,438 +1,480 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { Feature, FeatureCollection as GJFC, GeoJsonProperties, Point } from "geojson";
-import CertisMap, { Basemap } from "@/components/CertisMap";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import CertisMap from "@/components/CertisMap";
 
-// ---------- ENV ----------
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-
-// If you keep your data somewhere else, adjust this list (first one that loads wins)
-const DATA_CANDIDATES = [
-  "/data/retailers.geojson",
-  "/retailers.geojson",
-  "/data/retailers.json",
-  "/retailers.json",
-];
-
-// Lower 48 default bbox (mutable, not readonly)
-const DEFAULT_BBOX: [number, number, number, number] = [-125, 24, -66.9, 49.5];
-
-// ---------- Types ----------
-type Stop = { title: string; coord: [number, number] };
-
-type PTF = Feature<Point, GeoJsonProperties>;
-
-// ---------- Helpers ----------
-function isPointFeature(f: Feature): f is PTF {
-  return f.geometry?.type === "Point";
+// ---- Minimal GeoJSON typings
+type Position = [number, number];
+interface FeatureProperties {
+  Retailer?: string;
+  City?: string;
+  State?: string;
+  Type?: string; // Location Type
+  KINGPIN?: boolean;
+  [key: string]: any;
+}
+interface Feature {
+  type: "Feature";
+  id?: string | number;
+  properties: FeatureProperties;
+  geometry: { type: "Point"; coordinates: Position };
+}
+interface FeatureCollection {
+  type: "FeatureCollection";
+  features: Feature[];
 }
 
-function bboxOf(fc: GJFC): [number, number, number, number] {
-  const nums: number[] = [];
-  for (const f of fc.features) {
-    if (!isPointFeature(f)) continue;
-    const [x, y] = f.geometry.coordinates as [number, number];
-    nums.push(x, y);
+// ---- Trip types
+export type Stop = { name: string; coord: Position };
+
+// Route helpers (new module)
+import * as Route from "@/utils/routing";
+
+// Small helper
+const dedupe = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
+
+function splitKingpins(fc: FeatureCollection): {
+  main: FeatureCollection;
+  kingpins: FeatureCollection;
+} {
+  const main: Feature[] = [];
+  const kp: Feature[] = [];
+  for (const f of fc.features) (f.properties?.KINGPIN ? kp : main).push(f);
+  return {
+    main: { type: "FeatureCollection", features: main },
+    kingpins: { type: "FeatureCollection", features: kp },
+  };
+}
+
+// Try to fetch a local JSON file that may or may not exist (e.g., zips.min.json)
+async function tryFetchJson<T = any>(path: string): Promise<T | null> {
+  try {
+    const res = await fetch(path, { cache: "force-cache" });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
   }
-  if (nums.length < 2) return [...DEFAULT_BBOX];
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (let i = 0; i < nums.length; i += 2) {
-    const x = nums[i], y = nums[i + 1];
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-  }
-  // Pad slightly
-  const padX = (maxX - minX) * 0.05 || 0.5;
-  const padY = (maxY - minY) * 0.05 || 0.5;
-  return [minX - padX, minY - padY, maxX + padX, maxY + padY];
 }
 
-function uniqueSorted<T>(arr: T[]) {
-  return Array.from(new Set(arr)).sort((a, b) => (String(a)).localeCompare(String(b)));
-}
-
-function getProp(p: Record<string, any>, keys: string[], fallback = "") {
-  for (const k of keys) {
-    const v = p[k];
-    if (v != null && v !== "") return v;
-  }
-  return fallback;
-}
-
-async function geocodeZip(zip: string): Promise<[number, number] | null> {
-  const z = zip.trim();
-  if (!z) return null;
-  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-    z
-  )}.json?country=US&types=postcode&limit=1&access_token=${MAPBOX_TOKEN}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const json = await res.json();
-  const feat = json?.features?.[0];
-  const center = feat?.center;
-  if (Array.isArray(center) && center.length === 2) return [center[0], center[1]];
-  return null;
-}
-
-function nearestNeighbor(origin: [number, number], points: [number, number][]) {
-  const remaining = points.slice();
-  const order: number[] = [];
-  let current = origin;
-  while (remaining.length) {
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < remaining.length; i++) {
-      const [x, y] = remaining[i];
-      const d = (x - current[0]) ** 2 + (y - current[1]) ** 2;
-      if (d < bestDist) {
-        bestDist = d;
-        bestIdx = i;
-      }
-    }
-    const [chosen] = remaining.splice(bestIdx, 1);
-    order.push(points.findIndex((p) => p[0] === chosen[0] && p[1] === chosen[1]));
-    current = chosen;
-  }
-  return order;
-}
-
-function googleDirectionsUrl(
-  home: [number, number],
-  orderedStops: Stop[],
-  roundtrip: boolean
-) {
-  // Google supports an origin, destination, and waypoints in between.
-  if (!orderedStops.length) {
-    return `https://www.google.com/maps/dir/${home[1]},${home[0]}`;
-  }
-  const origin = `${home[1]},${home[0]}`;
-  const coords = orderedStops.map((s) => `${s.coord[1]},${s.coord[0]}`);
-  let destination = coords[coords.length - 1];
-  let waypoints = coords.slice(0, -1);
-  if (roundtrip) {
-    destination = origin;
-    waypoints = coords;
-  }
-  const wp = waypoints.length ? `&waypoints=${encodeURIComponent(waypoints.join("|"))}` : "";
-  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
-    origin
-  )}&destination=${encodeURIComponent(destination)}${wp}`;
-}
-
-// ---------- Page ----------
 export default function Page() {
-  const [basemap, setBasemap] = useState<Basemap>("Hybrid");
+  // ---- Data
+  const [mainFc, setMainFc] = useState<FeatureCollection | null>(null);
+  const [kingpinFc, setKingpinFc] = useState<FeatureCollection | null>(null);
+  const [dataError, setDataError] = useState<string | null>(null);
 
-  const [fc, setFc] = useState<GJFC>({ type: "FeatureCollection", features: [] });
-  const [fcBbox, setFcBbox] = useState<[number, number, number, number]>([...DEFAULT_BBOX]);
-
-  // Filters
+  // ---- Filters (derived lists + selections)
   const [states, setStates] = useState<string[]>([]);
   const [retailers, setRetailers] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
 
-  const [selStates, setSelStates] = useState<Record<string, boolean>>({});
-  const [selRetailers, setSelRetailers] = useState<Record<string, boolean>>({});
-  const [selTypes, setSelTypes] = useState<Record<string, boolean>>({});
+  const [selStates, setSelStates] = useState<Set<string>>(new Set());
+  const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
+  const [selTypes, setSelTypes] = useState<Set<string>>(new Set());
 
-  // Home via ZIP
-  const [zip, setZip] = useState("");
-  const [home, setHome] = useState<[number, number] | null>(null);
+  // ---- Home handling
+  const [zipInput, setZipInput] = useState("");
+  const [home, setHome] = useState<Position | null>(null);
+  const [homeErr, setHomeErr] = useState<string | null>(null);
+  const [zipIndex, setZipIndex] = useState<Record<string, Position> | null>(null);
 
-  // Trip planner
+  // ---- Trip builder
   const [stops, setStops] = useState<Stop[]>([]);
-  const [roundtrip, setRoundtrip] = useState(true);
+  const [optimized, setOptimized] = useState<Stop[]>([]);
 
-  // Load data once
+  // ---- Load dataset(s)
   useEffect(() => {
-    let cancelled = false;
     (async () => {
-      let data: GJFC | null = null;
-      for (const url of DATA_CANDIDATES) {
-        try {
-          const r = await fetch(url, { cache: "no-store" });
-          if (!r.ok) continue;
-          const j = await r.json();
-          if (j && j.type === "FeatureCollection") {
-            data = j;
-            break;
-          }
-        } catch {
-          // keep trying
-        }
-      }
-      if (!data) {
-        // Fallback to empty
-        data = { type: "FeatureCollection", features: [] };
-      }
-      if (!cancelled) {
-        // keep only points
-        const pts = (data.features || []).filter(isPointFeature);
-        const cleaned: GJFC = { type: "FeatureCollection", features: pts };
-        setFc(cleaned);
-        setFcBbox(bboxOf(cleaned));
-
-        // Derive filter domains
-        const s = uniqueSorted(
-          pts.map((f) =>
-            getProp((f.properties || {}) as Record<string, any>, ["State", "ST"], "")
-          ).filter(Boolean)
-        );
-        const r = uniqueSorted(
-          pts.map((f) =>
-            getProp((f.properties || {}) as Record<string, any>, ["Retailer", "Retailer Name"], "")
-          ).filter(Boolean)
-        );
-        const t = uniqueSorted(
-          pts.map((f) =>
-            getProp(
-              (f.properties || {}) as Record<string, any>,
-              ["Type", "Location Type", "location_type"],
-              ""
-            )
-          ).filter(Boolean)
-        );
-        setStates(s);
-        setRetailers(r);
-        setTypes(t);
-
-        // Select all by default
-        setSelStates(Object.fromEntries(s.map((x) => [x, true])));
-        setSelRetailers(Object.fromEntries(r.map((x) => [x, true])));
-        setSelTypes(Object.fromEntries(t.map((x) => [x, true])));
+      try {
+        const fc =
+          (await tryFetchJson<FeatureCollection>("retailers.geojson")) ?? {
+            type: "FeatureCollection",
+            features: [],
+          };
+        if (!fc.features?.length) setDataError("No features found in retailers.geojson");
+        const { main, kingpins } = splitKingpins(fc);
+        setMainFc(main);
+        setKingpinFc(kingpins);
+      } catch (e: any) {
+        setDataError(e?.message || "Failed to load dataset");
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  // Apply filters
-  const filteredFc: GJFC = useMemo(() => {
-    if (!fc.features.length) return fc;
-    const features = (fc.features as PTF[]).filter((f) => {
-      const p = (f.properties || {}) as Record<string, any>;
-      const st = getProp(p, ["State", "ST"], "");
-      const rt = getProp(p, ["Retailer", "Retailer Name"], "");
-      const ty = getProp(p, ["Type", "Location Type", "location_type"], "");
-      return !!selStates[st] && !!selRetailers[rt] && !!selTypes[ty];
-    });
-    return { type: "FeatureCollection", features };
-  }, [fc, selStates, selRetailers, selTypes]);
+  // ---- Build filter domain lists once data is ready
+  useEffect(() => {
+    if (!mainFc) return;
+    const s = dedupe(mainFc.features.map((f) => f.properties?.State || ""));
+    const r = dedupe(mainFc.features.map((f) => f.properties?.Retailer || ""));
+    const t = dedupe(mainFc.features.map((f) => f.properties?.Type || ""));
+    setStates(s);
+    setRetailers(r);
+    setTypes(t);
+    setSelStates(new Set(s)); // default: All
+    setSelRetailers(new Set(r));
+    setSelTypes(new Set(t));
+  }, [mainFc]);
 
-  const filteredBBox: [number, number, number, number] = useMemo(() => {
-    const b = bboxOf(filteredFc);
-    return [b[0], b[1], b[2], b[3]];
-  }, [filteredFc]);
+  // ---- Filtered FeatureCollection (main data only; kingpins separate)
+  const filteredFc: FeatureCollection | null = useMemo(() => {
+    if (!mainFc) return null;
+    const out: Feature[] = [];
+    for (const f of mainFc.features) {
+      const p = f.properties || {};
+      if (!selStates.has(p.State || "")) continue;
+      if (!selRetailers.has(p.Retailer || "")) continue;
+      if (!selTypes.has(p.Type || "")) continue;
+      out.push(f);
+    }
+    return { type: "FeatureCollection", features: out };
+  }, [mainFc, selStates, selRetailers, selTypes]);
 
-  // on map click add stop
-  const onPointClick = (lnglat: [number, number], title: string) => {
-    setStops((prev) => {
-      if (prev.some((s) => s.title === title)) return prev;
-      return [...prev, { title, coord: lnglat }];
-    });
-  };
+  // ---- Optional local ZIP index load
+  useEffect(() => {
+    (async () => {
+      const idx = await tryFetchJson<Record<string, Position>>("zips.min.json");
+      if (idx) setZipIndex(idx);
+    })();
+  }, []);
 
-  const resetFilters = () => {
-    setSelStates(Object.fromEntries(states.map((x) => [x, true])));
-    setSelRetailers(Object.fromEntries(retailers.map((x) => [x, true])));
-    setSelTypes(Object.fromEntries(types.map((x) => [x, true])));
-  };
+  // ---- Geocode ZIP → Position
+  const geocodeZip = useCallback(
+    async (zip: string): Promise<Position | null> => {
+      const z = zip.trim();
+      if (!z) return null;
+      if (zipIndex && zipIndex[z]) return zipIndex[z]; // local
+      const token =
+        (typeof window !== "undefined" ? (window as any).MAPBOX_TOKEN : undefined) ||
+        process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN;
+      if (token) {
+        try {
+          const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+            z
+          )}.json?types=postcode&limit=1&access_token=${token}`;
+          const res = await fetch(url);
+          const j = await res.json();
+          const c = j?.features?.[0]?.center;
+          if (Array.isArray(c) && c.length === 2) return [c[0], c[1]] as Position;
+        } catch {}
+      }
+      return null;
+    },
+    [zipIndex]
+  );
 
-  const resetMap = () => {
-    setBasemap("Hybrid");
-    setHome(null);
-    setZip("");
+  const setHomeFromZip = useCallback(async () => {
+    setHomeErr(null);
+    const pos = await geocodeZip(zipInput);
+    if (pos) setHome(pos);
+    else setHomeErr("ZIP not found (try a 5-digit US ZIP)");
+  }, [zipInput, geocodeZip]);
+
+  // ---- Trip builder actions
+  const addStop = useCallback((feat: Feature) => {
+    const p = feat.properties || {};
+    const name = [p.Retailer, p.City, p.State].filter(Boolean).join(" · ");
+    const coord = feat.geometry.coordinates as Position;
+    setStops((prev) => [...prev, { name, coord }]);
+  }, []);
+
+  const clearStops = useCallback(() => {
     setStops([]);
-  };
+    setOptimized([]);
+  }, []);
 
-  const setAll = (setter: (v: Record<string, boolean>) => void, keys: string[], val: boolean) =>
-    setter(Object.fromEntries(keys.map((k) => [k, val])));
-
-  const optimize = () => {
-    if (!home || stops.length < 2) return;
-    const coords = stops.map((s) => s.coord);
-    const orderIdx = nearestNeighbor(home, coords);
-    const sorted = orderIdx.map((i) => stops[i]);
-    setStops(sorted);
-  };
-
-  const googleHref = home ? googleDirectionsUrl(home, stops, roundtrip) : undefined;
-
-  // ZIP → Home
-  const geocodeAndSetHome = async () => {
-    if (!MAPBOX_TOKEN) {
-      alert("Missing NEXT_PUBLIC_MAPBOX_TOKEN.");
+  const optimize = useCallback(() => {
+    const origin = home || stops[0]?.coord ?? null;
+    if (!origin || stops.length < 1) {
+      setOptimized(stops);
       return;
     }
-    const pt = await geocodeZip(zip);
-    if (!pt) {
-      alert("ZIP not found. Please check and try again.");
-      return;
-    }
-    setHome(pt);
+    const ordered = Route.nearestNeighbor(stops, origin);
+    const improved = Route.twoOpt(ordered, origin);
+    setOptimized(improved);
+  }, [stops, home]);
+
+  // ---- Route links
+  const googleHref = useMemo(() => {
+    if (optimized.length === 0) return "";
+    const origin = home
+      ? `${home[1]},${home[0]}`
+      : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
+    return Route.buildGoogleMapsLink(
+      origin,
+      optimized.map((s) => s.coord)
+    );
+  }, [optimized, home]);
+
+  const appleHref = useMemo(() => {
+    if (optimized.length === 0) return "";
+    const origin = home
+      ? `${home[1]},${home[0]}`
+      : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
+    return Route.buildAppleMapsLink(
+      origin,
+      optimized.map((s) => s.coord)
+    );
+  }, [optimized, home]);
+
+  const wazeHref = useMemo(() => {
+    if (optimized.length === 0) return "";
+    const origin = home
+      ? `${home[1]},${home[0]}`
+      : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
+    return Route.buildWazeLink(
+      origin,
+      optimized.map((s) => s.coord)
+    );
+  }, [optimized, home]);
+
+  // ---- UI helpers for filter chips
+  const toggleSel = (
+    set: React.Dispatch<React.SetStateAction<Set<string>>>,
+    value: string
+  ) => {
+    set((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
   };
+  const setAll = (
+    set: React.Dispatch<React.SetStateAction<Set<string>>>,
+    values: string[]
+  ) => set(new Set(values));
+  const setNone = (set: React.Dispatch<React.SetStateAction<Set<string>>>) =>
+    set(new Set());
 
   return (
-    <main className="app-grid">
+    <div className="flex h-[100dvh] w-full bg-neutral-950 text-neutral-100">
       {/* Sidebar */}
-      <aside className="aside">
-        {/* Brand inside frame (simple img; put correct asset in /public if you want) */}
-        <div className="panel" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <img src="/logo-certis.png" alt="Certis Biologicals" style={{ height: 36 }} />
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <button className="btn ghost" onClick={resetFilters}>Reset Filters</button>
-            <button className="btn ghost" onClick={resetMap}>Reset Map</button>
-          </div>
-        </div>
+      <aside className="w-[360px] shrink-0 border-r border-neutral-800 p-4 overflow-y-auto">
+        <h1 className="text-xl font-semibold mb-3">Certis AgRoute Planner</h1>
 
-        {/* Basemap + ZIP/Home */}
-        <div className="panel">
-          <div className="field">
-            <div className="label">Basemap</div>
-            <select
-              className="select"
-              value={basemap}
-              onChange={(e) => setBasemap(e.target.value as Basemap)}
+        {dataError ? (
+          <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
+            {dataError}
+          </div>
+        ) : null}
+
+        <section className="mb-5">
+          <h2 className="text-base font-semibold mb-2">Home (ZIP)</h2>
+          <div className="flex gap-2">
+            <input
+              value={zipInput}
+              onChange={(e) => setZipInput(e.target.value)}
+              placeholder="e.g. 50309"
+              inputMode="numeric"
+              className="w-full rounded-xl bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400"
+            />
+            <button
+              onClick={setHomeFromZip}
+              className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-medium text-black hover:bg-amber-400"
             >
-              <option>Hybrid</option>
-              <option>Streets</option>
-            </select>
+              Set
+            </button>
           </div>
-
-          <div className="field">
-            <div className="label">Home (ZIP code)</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                className="input"
-                placeholder="e.g., 68102"
-                value={zip}
-                onChange={(e) => setZip(e.target.value)}
-                inputMode="numeric"
-              />
-              <button className="btn" onClick={geocodeAndSetHome}>Set</button>
+          {homeErr ? (
+            <div className="mt-2 text-xs text-red-400">{homeErr}</div>
+          ) : null}
+          {home ? (
+            <div className="mt-2 text-xs text-neutral-400">
+              Home set at {home[1].toFixed(4)}, {home[0].toFixed(4)}
             </div>
-            <div className="hint">
-              Enter a 5-digit ZIP (US). We’ll geocode and center the map.
-            </div>
-          </div>
-        </div>
+          ) : null}
+        </section>
 
         {/* Filters */}
-        <div className="panel">
-          <div className="panel-title">Filters</div>
-
-          <div className="field">
-            <div className="label">States ({states.length})</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <button className="btn ghost" onClick={() => setAll(setSelStates, states, true)}>All</button>
-              <button className="btn ghost" onClick={() => setAll(setSelStates, states, false)}>None</button>
-            </div>
-            <div style={{ maxHeight: 220, overflow: "auto", paddingRight: 6 }}>
-              {states.map((s) => (
-                <label key={s} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!selStates[s]}
-                    onChange={(e) => setSelStates({ ...selStates, [s]: e.target.checked })}
-                  />
-                  <span>{s}</span>
-                </label>
-              ))}
-            </div>
+        <section className="mb-5">
+          <h2 className="text-base font-semibold mb-2">
+            States ({selStates.size} / {states.length})
+          </h2>
+          <div className="mb-2 flex gap-2 text-xs">
+            <button
+              onClick={() => setAll(setSelStates, states)}
+              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
+            >
+              All
+            </button>
+            <button
+              onClick={() => setNone(setSelStates)}
+              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
+            >
+              None
+            </button>
           </div>
-
-          <div className="field">
-            <div className="label">Retailers ({retailers.length})</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <button className="btn ghost" onClick={() => setAll(setSelRetailers, retailers, true)}>All</button>
-              <button className="btn ghost" onClick={() => setAll(setSelRetailers, retailers, false)}>None</button>
-            </div>
-            <div style={{ maxHeight: 240, overflow: "auto", paddingRight: 6 }}>
-              {retailers.map((r) => (
-                <label key={r} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!selRetailers[r]}
-                    onChange={(e) => setSelRetailers({ ...selRetailers, [r]: e.target.checked })}
-                  />
-                  <span>{r}</span>
-                </label>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {states.map((s) => (
+              <button
+                key={s}
+                onClick={() => toggleSel(setSelStates, s)}
+                className={`rounded-full px-3 py-1 text-xs border ${
+                  selStates.has(s)
+                    ? "border-amber-400 bg-amber-500/10"
+                    : "border-neutral-700 bg-neutral-900"
+                }`}
+              >
+                {s || "—"}
+              </button>
+            ))}
           </div>
+        </section>
 
-          <div className="field">
-            <div className="label">Location Types ({types.length})</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <button className="btn ghost" onClick={() => setAll(setSelTypes, types, true)}>All</button>
-              <button className="btn ghost" onClick={() => setAll(setSelTypes, types, false)}>None</button>
-            </div>
-            <div style={{ maxHeight: 200, overflow: "auto", paddingRight: 6 }}>
-              {types.map((t) => (
-                <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!selTypes[t]}
-                    onChange={(e) => setSelTypes({ ...selTypes, [t]: e.target.checked })}
-                  />
-                  <span>{t}</span>
-                </label>
-              ))}
-            </div>
+        <section className="mb-5">
+          <h2 className="text-base font-semibold mb-2">
+            Retailers ({selRetailers.size} / {retailers.length})
+          </h2>
+          <div className="mb-2 flex gap-2 text-xs">
+            <button
+              onClick={() => setAll(setSelRetailers, retailers)}
+              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
+            >
+              All
+            </button>
+            <button
+              onClick={() => setNone(setSelRetailers)}
+              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
+            >
+              None
+            </button>
           </div>
-        </div>
+          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1">
+            {retailers.map((r) => (
+              <button
+                key={r}
+                onClick={() => toggleSel(setSelRetailers, r)}
+                className={`rounded-full px-3 py-1 text-xs border ${
+                  selRetailers.has(r)
+                    ? "border-amber-400 bg-amber-500/10"
+                    : "border-neutral-700 bg-neutral-900"
+                }`}
+              >
+                {r || "—"}
+              </button>
+            ))}
+          </div>
+        </section>
 
-        {/* Trip planner */}
-        <div className="panel">
-          <div className="panel-title">Trip Planner</div>
-          <div className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <input type="checkbox" checked={roundtrip} onChange={(e) => setRoundtrip(e.target.checked)} />
-              Roundtrip
-            </label>
-            <button className="btn ghost" onClick={() => setStops([])}>Clear Trip</button>
-            <button className="btn ghost" disabled={!home || stops.length < 2} onClick={optimize}>
+        <section className="mb-6">
+          <h2 className="text-base font-semibold mb-2">
+            Location Types ({selTypes.size} / {types.length})
+          </h2>
+          <div className="mb-2 flex gap-2 text-xs">
+            <button
+              onClick={() => setAll(setSelTypes, types)}
+              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
+            >
+              All
+            </button>
+            <button
+              onClick={() => setNone(setSelTypes)}
+              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
+            >
+              None
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {types.map((t) => (
+              <button
+                key={t}
+                onClick={() => toggleSel(setSelTypes, t)}
+                className={`rounded-full px-3 py-1 text-xs border ${
+                  selTypes.has(t)
+                    ? "border-amber-400 bg-amber-500/10"
+                    : "border-neutral-700 bg-neutral-900"
+                }`}
+              >
+                {t || "—"}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Trip Builder */}
+        <section className="mb-2">
+          <h2 className="text-base font-semibold mb-2">Trip Builder</h2>
+          <div className="mb-2 flex flex-wrap gap-2">
+            {stops.map((s, i) => (
+              <span
+                key={`${s.name}-${i}`}
+                className="rounded-full border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs"
+              >
+                {i + 1}. {s.name}
+              </span>
+            ))}
+            {stops.length === 0 ? (
+              <span className="text-xs text-neutral-400">
+                Click map points to add stops…
+              </span>
+            ) : null}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={optimize}
+              className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-medium text-black hover:bg-emerald-400"
+            >
               Optimize
             </button>
-            {home && (
-              <a className="btn" href={googleHref} target="_blank" rel="noreferrer">
+            <button
+              onClick={clearStops}
+              className="rounded-xl bg-neutral-800 px-3 py-2 text-sm font-medium hover:bg-neutral-700"
+            >
+              Clear
+            </button>
+          </div>
+          {optimized.length > 0 ? (
+            <div className="mt-3 flex flex-col gap-2 text-sm">
+              <a
+                target="_blank"
+                rel="noreferrer"
+                href={googleHref}
+                className="underline hover:no-underline"
+              >
                 Open in Google Maps
               </a>
-            )}
-          </div>
+              <a
+                target="_blank"
+                rel="noreferrer"
+                href={appleHref}
+                className="underline hover:no-underline"
+              >
+                Open in Apple Maps
+              </a>
+              <a
+                target="_blank"
+                rel="noreferrer"
+                href={wazeHref}
+                className="underline hover:no-underline"
+              >
+                Open in Waze
+              </a>
+            </div>
+          ) : null}
+        </section>
 
-          <div className="hint">Click any map point to add it as a stop.</div>
-
-          <ol style={{ marginTop: 10, paddingLeft: 18 }}>
-            {stops.map((s, i) => (
-              <li key={`${s.title}-${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
-                <button className="btn ghost" onClick={() => setStops(stops.filter((x, idx) => idx !== i))}>
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ol>
-        </div>
+        <footer className="mt-6 text-[11px] text-neutral-500">
+          KINGPINs are always visible (separate source) and unaffected by filters.
+        </footer>
       </aside>
 
-      {/* Map column */}
-      <div>
-        <div className="panel">
-          <CertisMap
-            token={MAPBOX_TOKEN}
-            basemap={basemap}
-            data={filteredFc}
-            bbox={filteredBBox}
-            home={home ?? undefined}
-            onPointClick={onPointClick}
-          />
+      {/* Map area */}
+      <main className="min-w-0 flex-1 p-3">
+        <div className="h-full rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+          {filteredFc && kingpinFc ? (
+            <CertisMap
+              data={filteredFc as any}
+              kingpins={kingpinFc as any}
+              home={home as any}
+              onPointClick={addStop as any}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-neutral-400">
+              Loading map…
+            </div>
+          )}
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
