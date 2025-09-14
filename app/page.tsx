@@ -43,7 +43,7 @@ function splitKingpins(fc: FeatureCollection): {
   };
 }
 
-// Try to fetch a local JSON file that may or may not exist (e.g., zips.min.json)
+// fetch helper
 async function tryFetchJson<T = any>(path: string): Promise<T | null> {
   try {
     const res = await fetch(path, { cache: "force-cache" });
@@ -52,6 +52,15 @@ async function tryFetchJson<T = any>(path: string): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+// attempt multiple candidate paths
+async function fetchFirstAvailable<T = any>(candidates: string[]): Promise<T | null> {
+  for (const p of candidates) {
+    const j = await tryFetchJson<T>(p);
+    if (j) return j;
+  }
+  return null;
 }
 
 export default function Page() {
@@ -84,13 +93,16 @@ export default function Page() {
     (async () => {
       try {
         const fc =
-          (await tryFetchJson<FeatureCollection>(
-            withBasePath("retailers.geojson")
-          )) ?? {
-            type: "FeatureCollection",
-            features: [],
-          };
-        if (!fc.features?.length) setDataError("No features found in retailers.geojson");
+          (await fetchFirstAvailable<FeatureCollection>([
+            withBasePath("retailers.geojson"),
+            withBasePath("data/retailers.geojson"),
+          ])) ??
+          ({ type: "FeatureCollection", features: [] } as FeatureCollection);
+
+        if (!fc.features?.length) {
+          setDataError("No features found in retailers.geojson");
+        }
+
         const { main, kingpins } = splitKingpins(fc);
         setMainFc(main);
         setKingpinFc(kingpins);
@@ -131,9 +143,10 @@ export default function Page() {
   // ---- Optional local ZIP index load
   useEffect(() => {
     (async () => {
-      const idx = await tryFetchJson<Record<string, Position>>(
-        withBasePath("zips.min.json")
-      );
+      const idx = await fetchFirstAvailable<Record<string, Position>>([
+        withBasePath("zips.min.json"),
+        withBasePath("data/zips.min.json"),
+      ]);
       if (idx) setZipIndex(idx);
     })();
   }, []);
@@ -184,8 +197,7 @@ export default function Page() {
   }, []);
 
   const optimize = useCallback(() => {
-    // ✅ FIX: add parens / use nullish-only chain (no mixing || with ??)
-    const origin = home ?? stops[0]?.coord ?? null;
+    const origin = home ?? (stops[0]?.coord ?? null);
     if (!origin || stops.length < 1) {
       setOptimized(stops);
       return;

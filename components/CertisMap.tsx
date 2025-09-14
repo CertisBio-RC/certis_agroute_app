@@ -1,4 +1,3 @@
-// components/CertisMap.tsx
 "use client";
 
 import React, { useEffect, useRef } from "react";
@@ -16,7 +15,7 @@ const MAPBOX_TOKEN =
   process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
   "";
 
-// ---- Minimal GeoJSON typings (to avoid extra deps)
+// ---- Minimal GeoJSON typings
 type Position = [number, number];
 interface FeatureProperties {
   Retailer?: string;
@@ -78,7 +77,8 @@ export default function CertisMap({
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       attributionControl: true,
-      cooperativeGestures: true,
+      // 🔧 Turn OFF cooperativeGestures to remove repeating overlay banners
+      cooperativeGestures: false,
     });
     mapRef.current = map;
 
@@ -105,11 +105,11 @@ export default function CertisMap({
             "circle-color": [
               "step",
               ["get", "point_count"],
-              "#5eead4", // small cluster
+              "#5eead4",
               25,
-              "#34d399", // medium
+              "#34d399",
               100,
-              "#10b981", // large
+              "#10b981",
             ],
             "circle-radius": [
               "step",
@@ -137,9 +137,7 @@ export default function CertisMap({
             "text-field": ["get", "point_count_abbreviated"],
             "text-size": 12,
           },
-          paint: {
-            "text-color": "#0b1220",
-          },
+          paint: { "text-color": "#0b1220" },
         } as any);
       }
 
@@ -161,11 +159,7 @@ export default function CertisMap({
 
       // KINGPIN separate (non-clustered)
       if (kingpins && !map.getSource("kingpins")) {
-        map.addSource("kingpins", {
-          type: "geojson",
-          data: kingpins as any,
-        });
-        // red fill + yellow ring
+        map.addSource("kingpins", { type: "geojson", data: kingpins as any });
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -179,18 +173,14 @@ export default function CertisMap({
         } as any);
       }
 
-      // HOME pin (simple circle, can be restyled)
+      // HOME pin
       if (home && !map.getSource("home")) {
         map.addSource("home", {
           type: "geojson",
           data: {
             type: "FeatureCollection",
             features: [
-              {
-                type: "Feature",
-                properties: {},
-                geometry: { type: "Point", coordinates: home },
-              },
+              { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: home } },
             ],
           },
         });
@@ -230,7 +220,7 @@ export default function CertisMap({
         map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
       });
 
-      // Popups & click-to-add for normal points
+      // Popups & click-to-add for normal/KINGPIN points
       const showPopup = (e: MapLayerMouseEvent | MapLayerTouchEvent, label: string) => {
         if (!e.features?.length) return;
         const f = e.features[0] as any;
@@ -250,7 +240,6 @@ export default function CertisMap({
         }
         popupRef.current.setLngLat(coords as any).setHTML(html).addTo(map);
 
-        // onPointClick (add stop)
         if (onPointClick) {
           const feat: Feature = {
             type: "Feature",
@@ -261,14 +250,9 @@ export default function CertisMap({
         }
       };
 
-      // Click handlers (desktop + touch)
-      map.on("click", "unclustered-point", (e: MapLayerMouseEvent) =>
-        showPopup(e, "Location")
-      );
+      map.on("click", "unclustered-point", (e: MapLayerMouseEvent) => showPopup(e, "Location"));
       if (map.getLayer("kingpins-layer")) {
-        map.on("click", "kingpins-layer", (e: MapLayerMouseEvent) =>
-          showPopup(e, "KINGPIN")
-        );
+        map.on("click", "kingpins-layer", (e: MapLayerMouseEvent) => showPopup(e, "KINGPIN"));
       }
     };
 
@@ -334,7 +318,6 @@ export default function CertisMap({
         } as any);
       }
     } else {
-      // If home cleared, remove source/layer
       if (map.getLayer("home-layer")) map.removeLayer("home-layer");
       if (map.getSource("home")) map.removeSource("home");
     }
