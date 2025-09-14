@@ -38,35 +38,28 @@ export default function CertisMap({
   kingpins = null,
   home = null,
   onPointClick,
-  styleId = "satellite-streets-v12", // default = Hybrid
+  styleId = "satellite-streets-v12", // default Hybrid
 }: CertisMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
 
-  // keep latest props available for reattach after style swaps
-  const dataRef = useRef(data);
-  const kpRef = useRef(kingpins);
-  const homeRef = useRef(home);
-  const styleRef = useRef(styleId);
-  dataRef.current = data;
-  kpRef.current = kingpins;
-  homeRef.current = home;
-  styleRef.current = styleId;
+  // latest props via refs (used when style swaps)
+  const dataRef = useRef(data);   dataRef.current = data;
+  const kpRef   = useRef(kingpins); kpRef.current = kingpins;
+  const homeRef = useRef(home);   homeRef.current = home;
+  const styleRef= useRef(styleId); styleRef.current = styleId;
 
   const [logoMissing, setLogoMissing] = useState(false);
 
-  /** Add/update all sources & layers safely AFTER style.load */
+  // ---- Add/refresh sources & layers AFTER style.load ----
   const addSourcesLayers = () => {
     const map = mapRef.current;
-    if (!map) return;
-    if (!map.isStyleLoaded()) return; // belt & suspenders
-
+    if (!map || !map.isStyleLoaded()) return;
     try {
-      // enforce mercator on every style
       try { map.setProjection({ name: "mercator" } as any); } catch {}
 
-      // -- Retailers (clustered)
+      // retailers (clustered)
       if (!map.getSource("retailers")) {
         map.addSource("retailers", {
           type: "geojson",
@@ -76,7 +69,7 @@ export default function CertisMap({
           clusterRadius: 40,
         });
       } else {
-        (map.getSource("retailers") as GeoJSONSource).setData((dataRef.current ?? { type:"FeatureCollection", features:[] }) as any);
+        (map.getSource("retailers") as GeoJSONSource).setData((dataRef.current ?? { type: "FeatureCollection", features: [] }) as any);
       }
 
       if (!map.getLayer("clusters")) {
@@ -120,7 +113,7 @@ export default function CertisMap({
         } as any);
       }
 
-      // -- KINGPINs (non-clustered, always visible)
+      // kingpins
       if (kpRef.current) {
         if (!map.getSource("kingpins")) {
           map.addSource("kingpins", { type: "geojson", data: kpRef.current as any });
@@ -142,12 +135,9 @@ export default function CertisMap({
         }
       }
 
-      // -- HOME pin
+      // home pin
       if (homeRef.current) {
-        const d = {
-          type: "FeatureCollection",
-          features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: homeRef.current } }],
-        };
+        const d = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: homeRef.current } }] };
         if (!map.getSource("home")) map.addSource("home", { type: "geojson", data: d as any });
         else (map.getSource("home") as GeoJSONSource).setData(d as any);
 
@@ -160,20 +150,12 @@ export default function CertisMap({
           } as any);
         }
       }
-
-      // cursors
-      ["clusters", "unclustered-point", "kingpins-layer"].forEach((id) => {
-        if (!map.hasImage?.(id)) {
-          map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
-          map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
-        }
-      });
     } catch {
-      // If a late event sneaks in before style readiness, swallow and wait for the next 'style.load'
+      // if a style race happens, ignore and wait for the next 'style.load'
     }
   };
 
-  // init map
+  // ---- init map ----
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !MAPBOX_TOKEN) return;
 
@@ -189,9 +171,13 @@ export default function CertisMap({
     });
     mapRef.current = map;
 
-    // initial and subsequent style loads
-    map.on("load", addSourcesLayers);
-    map.on("style.load", addSourcesLayers); // fires after setStyle
+    // initial + subsequent style loads
+    map.on("load", () => { map.resize(); addSourcesLayers(); });
+    map.on("style.load", () => { map.resize(); addSourcesLayers(); });
+
+    // responsive
+    const onWinResize = () => { try { map.resize(); } catch {} };
+    window.addEventListener("resize", onWinResize);
 
     // cluster zoom
     map.on("click", "clusters", (e: MapLayerMouseEvent) => {
@@ -228,75 +214,13 @@ export default function CertisMap({
     map.on("click", "unclustered-point", (e) => showPopup(e, "Location"));
     map.on("click", "kingpins-layer", (e) => showPopup(e, "KINGPIN"));
 
-    return () => { popupRef.current?.remove(); map.remove(); mapRef.current = null; };
+    return () => {
+      window.removeEventListener("resize", onWinResize);
+      popupRef.current?.remove();
+      map.remove();
+      mapRef.current = null;
+    };
   }, [onPointClick]);
 
-  // live data updates (when style already has the source)
-  useEffect(() => {
-    const map = mapRef.current; if (!map) return;
-    const src = map.getSource("retailers") as GeoJSONSource | undefined;
-    if (src) src.setData(data as any);
-  }, [data]);
-
-  // kingpins updates
-  useEffect(() => {
-    const map = mapRef.current; if (!map) return;
-    if (kingpins) {
-      const src = map.getSource("kingpins") as GeoJSONSource | undefined;
-      if (src) src.setData(kingpins as any);
-    } else {
-      if (map.getLayer("kingpins-layer")) map.removeLayer("kingpins-layer");
-      if (map.getSource("kingpins")) map.removeSource("kingpins");
-    }
-  }, [kingpins]);
-
-  // home updates
-  useEffect(() => {
-    const map = mapRef.current; if (!map) return;
-    if (!home) {
-      if (map.getLayer("home-layer")) map.removeLayer("home-layer");
-      if (map.getSource("home")) map.removeSource("home");
-      return;
-    }
-    if (!map.isStyleLoaded()) return; // will be added on next 'style.load'
-    const d = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: home } }] };
-    if (map.getSource("home")) (map.getSource("home") as GeoJSONSource).setData(d as any);
-    else {
-      try {
-        map.addSource("home", { type: "geojson", data: d as any });
-        map.addLayer({
-          id: "home-layer", type: "circle", source: "home",
-          paint: { "circle-color":"#22d3ee","circle-radius":7,"circle-stroke-color":"#0f172a","circle-stroke-width":2 },
-        } as any);
-      } catch { /* defer to next style.load */ }
-    }
-  }, [home]);
-
-  // style changes (Street / Hybrid)
-  useEffect(() => {
-    const map = mapRef.current; if (!map) return;
-    const nextUri = `mapbox://styles/mapbox/${styleId}`;
-    map.setStyle(nextUri);
-    // ensure re-attach happens even if earlier listener is removed during style swap
-    map.once("style.load", addSourcesLayers);
-  }, [styleId]);
-
-  return (
-    <div ref={containerRef} className="relative h-full w-full">
-      {/* in-frame brand (fallback to pill if image missing) */}
-      <div className="pointer-events-none absolute left-3 top-3 z-10">
-        {!logoMissing ? (
-          <img
-            src={withBasePath("logo-certis.png")}
-            alt="Certis"
-            className="h-7 opacity-90 drop-shadow"
-            onError={() => setLogoMissing(true)}
-            loading="eager"
-          />
-        ) : (
-          <div className="rounded bg-black/40 px-2 py-1 text-xs tracking-wide border border-white/20">CERTIS</div>
-        )}
-      </div>
-    </div>
-  );
-}
+  // live updates (sources already present after style.load)
+  useEffect(() => { const m = mapRef.current; if (!m) return; const s = m.getSource("
