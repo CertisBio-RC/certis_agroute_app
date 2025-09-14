@@ -8,16 +8,11 @@ import { withBasePath } from "@/utils/paths";
 type FC = FeatureCollection<Geometry, Record<string, any>>;
 
 export type CertisMapProps = {
-  /** Filtered retailer features (clustered source) */
-  data: FC;
-  /** KINGPIN features (always visible, non-clustered) */
-  kingpins: FC;
-  /** Home (lng,lat) or null */
-  home: Position | null;
-  /** 'hybrid' = satellite+roads (default), 'street' = streets */
+  data: FC;                 // clustered retailers
+  kingpins: FC;             // non-clustered KINGPINs
+  home: Position | null;    // [lng, lat] or null
   mapStyle?: "hybrid" | "street";
-  /** Legacy two-argument handler: (properties, LngLat) */
-  onPointClick?: (properties: any, coord: LngLat) => void;
+  onPointClick?: (properties: any, coord: LngLat) => void; // legacy two-arg handler
 };
 
 // ------------------------------------------------------------------
@@ -32,22 +27,7 @@ const STYLE_URLS = {
   street: "mapbox://styles/mapbox/streets-v12",
 } as const;
 
-function styleUrlFor(mode: "hybrid" | "street") {
-  return STYLE_URLS[mode] ?? STYLE_URLS.hybrid;
-}
-
-function toPosition(x: any): Position | null {
-  if (!x) return null;
-  if (Array.isArray(x) && x.length >= 2 && typeof x[0] === "number" && typeof x[1] === "number") {
-    return [x[0], x[1]];
-  }
-  if (typeof x === "object" && "lng" in x && "lat" in x) {
-    const lng = Number((x as any).lng);
-    const lat = Number((x as any).lat);
-    if (Number.isFinite(lng) && Number.isFinite(lat)) return [lng, lat] as Position;
-  }
-  return null;
-}
+const styleUrlFor = (mode: "hybrid" | "street") => STYLE_URLS[mode] ?? STYLE_URLS.hybrid;
 
 const CLUSTER_SRC = "retailers";
 const KINGPIN_SRC = "kingpins";
@@ -62,6 +42,19 @@ const L = {
   home: "home-point",
 };
 
+function toPosition(x: any): Position | null {
+  if (!x) return null;
+  if (Array.isArray(x) && x.length >= 2 && typeof x[0] === "number" && typeof x[1] === "number") {
+    return [x[0], x[1]];
+  }
+  if (typeof x === "object" && "lng" in x && "lat" in x) {
+    const lng = Number((x as any).lng);
+    const lat = Number((x as any).lat);
+    if (Number.isFinite(lng) && Number.isFinite(lat)) return [lng, lat] as Position;
+  }
+  return null;
+}
+
 // ------------------------------------------------------------------
 // Component
 // ------------------------------------------------------------------
@@ -75,7 +68,6 @@ export default function CertisMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-
   const currentStyleUrl = useMemo(() => styleUrlFor(mapStyle), [mapStyle]);
 
   // Create map once
@@ -90,7 +82,7 @@ export default function CertisMap({
       center: [-96.7, 40.0],
       zoom: 3.5,
       attributionControl: true,
-      projection: { name: "mercator" as any }, // ✅ Hard-lock Mercator
+      projection: { name: "mercator" as any }, // ✅ hard-lock Mercator
       cooperativeGestures: false,
       pitchWithRotate: false,
       dragRotate: false,
@@ -116,14 +108,11 @@ export default function CertisMap({
     )}" style="height:24px;opacity:.95;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))" />`;
     (containerRef.current!.parentElement || containerRef.current!).appendChild(badge);
 
-    const enforceMercator = () => {
+    const wireEverything = () => {
+      // projection can reset after style change — enforce again
       try {
         map.setProjection({ name: "mercator" as any });
       } catch {}
-    };
-
-    const wireLayers = () => {
-      enforceMercator();
 
       // --- Clustered retailers
       if (!map.getSource(CLUSTER_SRC)) {
@@ -198,7 +187,7 @@ export default function CertisMap({
         });
       }
 
-      // --- KINGPINs (non-clustered, always on top of clusters)
+      // --- KINGPINs (non-clustered, on top of clusters)
       if (!map.getSource(KINGPIN_SRC)) {
         map.addSource(KINGPIN_SRC, { type: "geojson", data: kingpins });
       } else {
@@ -239,35 +228,23 @@ export default function CertisMap({
 
       // --- Home
       const homePos = toPosition(home);
+      const homeFC: FC = {
+        type: "FeatureCollection",
+        features: homePos
+          ? [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: { type: "Point", coordinates: homePos },
+              },
+            ]
+          : [],
+      };
+
       if (!map.getSource(HOME_SRC)) {
-        map.addSource(HOME_SRC, {
-          type: "geojson",
-          data: {
-            type: "FeatureCollection",
-            features: homePos
-              ? [
-                  {
-                    type: "Feature",
-                    properties: {},
-                    geometry: { type: "Point", coordinates: homePos },
-                  },
-                ]
-              : [],
-          },
-        });
+        map.addSource(HOME_SRC, { type: "geojson", data: homeFC });
       } else {
-        (map.getSource(HOME_SRC) as mapboxgl.GeoJSONSource).setData({
-          type: "FeatureCollection",
-          features: homePos
-            ? [
-                {
-                  type: "Feature",
-                  properties: {},
-                  geometry: { type: "Point", coordinates: homePos },
-                },
-              ]
-            : [],
-        });
+        (map.getSource(HOME_SRC) as mapboxgl.GeoJSONSource).setData(homeFC);
       }
 
       if (!map.getLayer(L.home)) {
@@ -346,7 +323,7 @@ export default function CertisMap({
       map.on("click", L.kingpinCore, clickToAdd);
       map.on("click", L.kingpinRing, clickToAdd);
 
-      // --- Expand clusters on click (✅ no mapboxgl.Cluster cast)
+      // --- Expand clusters on click (call via GeoJSONSource, no mapboxgl.Cluster type)
       map.on("click", L.cluster, (e: any) => {
         const feat = e?.features?.[0];
         if (!feat) return;
@@ -366,7 +343,7 @@ export default function CertisMap({
     };
 
     map.once("style.load", () => {
-      wireLayers();
+      wireEverything();
       map.resize();
     });
 
@@ -386,6 +363,7 @@ export default function CertisMap({
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !m.isStyleLoaded()) return;
+
     if (m.getSource(CLUSTER_SRC)) {
       (m.getSource(CLUSTER_SRC) as mapboxgl.GeoJSONSource).setData(data);
     }
@@ -409,18 +387,18 @@ export default function CertisMap({
     }
   }, [data, kingpins, home]);
 
-  // Style toggle (Hybrid/Street): setStyle then reattach sources/layers & re-enforce Mercator
+  // Style toggle: setStyle(next) WITHOUT options; re-attach on style.load; re-enforce Mercator
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
     const next = styleUrlFor(mapStyle);
-    m.setStyle(next, { diff: false });
+    m.setStyle(next); // ← removed `{ diff:false }` to satisfy SetStyleOptions typing in v3
     m.once("style.load", () => {
       try {
         m.setProjection({ name: "mercator" as any });
       } catch {}
 
-      // Recreate sources/layers with current props
+      // Recreate sources/layers using current props
       if (!m.getSource(CLUSTER_SRC)) {
         m.addSource(CLUSTER_SRC, {
           type: "geojson",
