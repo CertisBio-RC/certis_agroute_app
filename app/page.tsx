@@ -47,21 +47,10 @@ function splitKingpins(fc: FC): { main: FC; kingpins: FC } {
 }
 
 function inferKeysFromFirst(features: Feature<Geometry, any>[]) {
-  // try to detect common keys (case-insensitive variants)
   const sample = (features.find((f) => f.properties) || { properties: {} }).properties || {};
   const has = (k: string) => Object.prototype.hasOwnProperty.call(sample, k);
-  const stateKey = has("state")
-    ? "state"
-    : has("State")
-    ? "State"
-    : has("STATE")
-    ? "STATE"
-    : "state";
-  const retailerKey = has("retailer")
-    ? "retailer"
-    : has("Retailer")
-    ? "Retailer"
-    : "retailer";
+  const stateKey = has("state") ? "state" : has("State") ? "State" : has("STATE") ? "STATE" : "state";
+  const retailerKey = has("retailer") ? "retailer" : has("Retailer") ? "Retailer" : "retailer";
   const typeKey = has("type") ? "type" : has("Type") ? "Type" : "type";
   const suppliersKey = has("Supplier(s)")
     ? "Supplier(s)"
@@ -96,7 +85,7 @@ function toTuple2(pos: Position | null | undefined): [number, number] | null {
 }
 
 // ------------------------------
-// Page
+// Page (no props)
 // ------------------------------
 export default function Page() {
   // data
@@ -132,9 +121,7 @@ export default function Page() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [optimized, setOptimized] = useState<Stop[]>([]);
 
-  // ------------------------------
-  // Load dataset (robust path fallback)
-  // ------------------------------
+  // Load dataset
   useEffect(() => {
     (async () => {
       const candidates = [
@@ -176,7 +163,6 @@ export default function Page() {
         if (r) retailers.add(r);
         if (t) types.add(t);
         if (sup) {
-          // suppliers may be semi-colon or comma separated
           sup
             .split(/[;,]/g)
             .map((x) => x.trim())
@@ -204,9 +190,7 @@ export default function Page() {
     })();
   }, []);
 
-  // ------------------------------
   // Filtering
-  // ------------------------------
   const filteredFc: FC = useMemo(() => {
     if (!rawMain) return toFC([]);
     const { stateKey, retailerKey, typeKey, suppliersKey } = keys;
@@ -229,7 +213,6 @@ export default function Page() {
       if (!selTypes.has(t)) return false;
       if (selSuppliers.size > 0) {
         if (supList.length === 0) return false;
-        // at least one supplier selected must be present
         let ok = false;
         for (const su of supList) if (selSuppliers.has(su)) { ok = true; break; }
         if (!ok) return false;
@@ -240,9 +223,7 @@ export default function Page() {
     return toFC(rawMain.features.filter(keep));
   }, [rawMain, keys, selStates, selRetailers, selTypes, selSuppliers]);
 
-  // ------------------------------
   // ZIP -> home geocode (Mapbox)
-  // ------------------------------
   const geocodeZip = useCallback(async () => {
     const z = zip.trim();
     if (!z) return;
@@ -270,12 +251,9 @@ export default function Page() {
     }
   }, [zip]);
 
-  // ------------------------------
   // Trip building & optimization
-  // ------------------------------
   const addStop = useCallback((props: any, coord: mapboxgl.LngLat) => {
-    const name =
-      props?.retailer ?? props?.Retailer ?? props?.name ?? props?.Name ?? "Location";
+    const name = props?.retailer ?? props?.Retailer ?? props?.name ?? props?.Name ?? "Location";
     const stop: Stop = { name: String(name), coord: [coord.lng, coord.lat] };
     setStops((prev) => [...prev, stop]);
   }, []);
@@ -285,7 +263,6 @@ export default function Page() {
     setOptimized([]);
   }, []);
 
-  // Nearest-neighbor + 2-opt (fast, decent)
   const optimize = useCallback(() => {
     const pts = [...stops];
     if (pts.length <= 2) {
@@ -306,7 +283,7 @@ export default function Page() {
       return Math.hypot(dx, dy);
     };
 
-    // nearest neighbor order starting at origin
+    // nearest neighbor
     const remaining = pts.slice();
     const ordered: Stop[] = [];
     let current = origin;
@@ -389,9 +366,7 @@ export default function Page() {
     return Route.buildWazeLink(origin, optimized.map((s) => s.coord), { roundTrip });
   }, [optimized, home, roundTrip]);
 
-  // ------------------------------
   // UI helpers
-  // ------------------------------
   const toggleInSet = (val: string, set: Set<string>, setState: (s: Set<string>) => void) => {
     const next = new Set(set);
     if (next.has(val)) next.delete(val);
@@ -399,9 +374,7 @@ export default function Page() {
     setState(next);
   };
 
-  // ------------------------------
   // Render
-  // ------------------------------
   return (
     <main
       style={{
@@ -416,14 +389,7 @@ export default function Page() {
       }}
     >
       {/* Sidebar */}
-      <aside
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          minHeight: 0,
-        }}
-      >
+      <aside style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
         {/* CERTIS logo above ZIP */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <img
@@ -489,19 +455,11 @@ export default function Page() {
           <div style={{ fontWeight: 700 }}>Map Style</div>
           <div style={{ display: "flex", gap: 8 }}>
             <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input
-                type="radio"
-                checked={mapStyle === "hybrid"}
-                onChange={() => setMapStyle("hybrid")}
-              />
+              <input type="radio" checked={mapStyle === "hybrid"} onChange={() => setMapStyle("hybrid")} />
               Hybrid
             </label>
             <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input
-                type="radio"
-                checked={mapStyle === "street"}
-                onChange={() => setMapStyle("street")}
-              />
+              <input type="radio" checked={mapStyle === "street"} onChange={() => setMapStyle("street")} />
               Street
             </label>
           </div>
@@ -512,59 +470,37 @@ export default function Page() {
           <div style={{ display: "grid", gap: 6 }}>
             {allStates.map((s) => (
               <label key={s} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={selStates.has(s)}
-                  onChange={() => toggleInSet(s, selStates, setSelStates)}
-                />
+                <input type="checkbox" checked={selStates.has(s)} onChange={() => toggleInSet(s, selStates, setSelStates)} />
                 <span>{s}</span>
               </label>
             ))}
           </div>
 
-          <div style={{ fontWeight: 700, marginTop: 8 }}>
-            Retailers ({selRetailers.size}/{allRetailers.length})
-          </div>
+          <div style={{ fontWeight: 700, marginTop: 8 }}>Retailers ({selRetailers.size}/{allRetailers.length})</div>
           <div style={{ display: "grid", gap: 6 }}>
             {allRetailers.map((r) => (
               <label key={r} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={selRetailers.has(r)}
-                  onChange={() => toggleInSet(r, selRetailers, setSelRetailers)}
-                />
+                <input type="checkbox" checked={selRetailers.has(r)} onChange={() => toggleInSet(r, selRetailers, setSelRetailers)} />
                 <span>{r}</span>
               </label>
             ))}
           </div>
 
-          <div style={{ fontWeight: 700, marginTop: 8 }}>
-            Location Types ({selTypes.size}/{allTypes.length})
-          </div>
+          <div style={{ fontWeight: 700, marginTop: 8 }}>Location Types ({selTypes.size}/{allTypes.length})</div>
           <div style={{ display: "grid", gap: 6 }}>
             {allTypes.map((t) => (
               <label key={t} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={selTypes.has(t)}
-                  onChange={() => toggleInSet(t, selTypes, setSelTypes)}
-                />
+                <input type="checkbox" checked={selTypes.has(t)} onChange={() => toggleInSet(t, selTypes, setSelTypes)} />
                 <span>{t}</span>
               </label>
             ))}
           </div>
 
-          <div style={{ fontWeight: 700, marginTop: 8 }}>
-            Suppliers ({selSuppliers.size}/{allSuppliers.length})
-          </div>
+          <div style={{ fontWeight: 700, marginTop: 8 }}>Suppliers ({selSuppliers.size}/{allSuppliers.length})</div>
           <div style={{ display: "grid", gap: 6 }}>
             {allSuppliers.map((sp) => (
               <label key={sp} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={selSuppliers.has(sp)}
-                  onChange={() => toggleInSet(sp, selSuppliers, setSelSuppliers)}
-                />
+                <input type="checkbox" checked={selSuppliers.has(sp)} onChange={() => toggleInSet(sp, selSuppliers, setSelSuppliers)} />
                 <span>{sp}</span>
               </label>
             ))}
@@ -613,11 +549,7 @@ export default function Page() {
               Clear
             </button>
             <label style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
-              <input
-                type="checkbox"
-                checked={roundTrip}
-                onChange={(e) => setRoundTrip(e.target.checked)}
-              />
+              <input type="checkbox" checked={roundTrip} onChange={(e) => setRoundTrip(e.target.checked)} />
               Round trip
             </label>
           </div>
@@ -708,8 +640,7 @@ export default function Page() {
             data={filteredFc}
             kingpins={rawKingpins}
             home={home}
-            // legacy two-arg signature — matches CertisMap
-            onPointClick={addStop as any}
+            onPointClick={addStop as any} // legacy (props, LngLat)
             mapStyle={mapStyle}
           />
         </div>
