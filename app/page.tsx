@@ -12,7 +12,7 @@ interface Feature { type: "Feature"; properties: FeatureProperties; geometry: { 
 interface FeatureCollection { type: "FeatureCollection"; features: Feature[] }
 export type Stop = { name: string; coord: Position };
 
-/* ---------- helpers for props/keys ---------- */
+/* ------ small helpers ------ */
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 function getProp(p: FeatureProperties, candidates: string[]): string {
   if (!p) return "";
@@ -24,19 +24,19 @@ function getProp(p: FeatureProperties, candidates: string[]): string {
   for (const c of candidates) { const nk = norm(c); if (m[nk] != null) return String(m[nk] ?? ""); }
   return "";
 }
-
 const retailerKeys = ["Retailer","Dealer","Retailer Name","Retail"];
 const cityKeys     = ["City","Town"];
 const stateKeys    = ["State","ST","Province"];
-const typeKeysBase = [
-  "Type","Location Type","LocationType","location_type","LocType","Loc_Type","Facility Type","Category","Location Category","Site Type"
-];
+const typeKeysBase = ["Type","Location Type","LocationType","location_type","LocType","Loc_Type","Facility Type","Category","Location Category","Site Type"];
+
+const addressKeys  = ["Address","Address1","Address 1","Street","Street1","Addr1"];
+const zipKeys      = ["ZIP","Zip","Postal","PostalCode","Postcode"];
+const phoneKeys    = ["Phone","Telephone","Tel","Phone #"];
 
 const getRetailer = (p: FeatureProperties) => getProp(p, retailerKeys);
 const getCity     = (p: FeatureProperties) => getProp(p, cityKeys);
 const getState    = (p: FeatureProperties) => getProp(p, stateKeys);
 
-/* ---------- infer a compact "type" key if missing ---------- */
 function inferTypeKey(features: Feature[]): string | null {
   if (!features.length) return null;
   const exclude = new Set([...retailerKeys, ...cityKeys, ...stateKeys, "KINGPIN","Kingpin","IsKingpin","Key Account"]);
@@ -77,8 +77,6 @@ const isKingpin = (p: FeatureProperties) => {
   return s === "true" || s === "yes" || s === "y" || s === "1";
 };
 const dedupe = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
-
-/* ---------- ensure literal "FeatureCollection" type ---------- */
 const toFC = (features: Feature[]): FeatureCollection =>
   ({ type: "FeatureCollection", features } as const);
 
@@ -88,7 +86,7 @@ function splitKingpins(fc: FeatureCollection): { main: FeatureCollection; kingpi
   return { main: toFC(main), kingpins: toFC(kp) };
 }
 
-/* ---------- fetch helpers ---------- */
+/* ------ data fetch helpers ------ */
 async function tryFetchJson<T>(path: string): Promise<T | null> {
   try { const res = await fetch(path, { cache: "force-cache" }); if (!res.ok) return null; return (await res.json()) as T; }
   catch { return null; }
@@ -96,6 +94,40 @@ async function tryFetchJson<T>(path: string): Promise<T | null> {
 async function fetchFirst<T>(candidates: string[]): Promise<T | null> {
   for (const p of candidates) { const j = await tryFetchJson<T>(p); if (j) return j; }
   return null;
+}
+
+/* ------ tiny UI building block: checkbox group ------ */
+function CheckboxGroup(props: {
+  items: string[];
+  selected: Set<string>;
+  title: string;
+  onToggle: (v: string) => void;
+  onAll: () => void;
+  onNone: () => void;
+}) {
+  const { items, selected, title, onToggle, onAll, onNone } = props;
+  return (
+    <section className="mb-5">
+      <h2 className="h2 mb-2">{title}</h2>
+      <div className="mb-2 flex gap-2 text-xs">
+        <button className="btn" onClick={onAll}>All</button>
+        <button className="btn" onClick={onNone}>None</button>
+      </div>
+      <div className="checkbox-grid">
+        {items.map((v) => (
+          <div className="check" key={v || "_"}>
+            <input
+              id={`${title}-${v || "_"}`}
+              type="checkbox"
+              checked={selected.has(v)}
+              onChange={() => onToggle(v)}
+            />
+            <label htmlFor={`${title}-${v || "_"}`}>{v || "—"}</label>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export default function Page() {
@@ -200,7 +232,10 @@ export default function Page() {
   // trip actions
   const addStop = useCallback((feat: Feature) => {
     const p = feat.properties || {};
-    const name = [getRetailer(p), getCity(p), getState(p)].filter(Boolean).join(" · ");
+    const retailer = getRetailer(p);
+    const city = getCity(p);
+    const state = getState(p);
+    const name = [retailer, city, state].filter(Boolean).join(" · ");
     const coord = feat.geometry.coordinates as Position;
     setStops((prev) => [...prev, { name, coord }]);
   }, []);
@@ -230,20 +265,17 @@ export default function Page() {
     return Route.buildWazeLink(origin, optimized.map((s) => s.coord));
   }, [optimized, home]);
 
-  // helpers
+  // helpers for sets
   const toggleSel = (set: React.Dispatch<React.SetStateAction<Set<string>>>, v: string) =>
     set((prev) => { const next = new Set(prev); next.has(v) ? next.delete(v) : next.add(v); return next; });
   const setAll  = (set: React.Dispatch<React.SetStateAction<Set<string>>>, values: string[]) => set(new Set(values));
   const setNone = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => set(new Set());
 
   return (
-    <div
-      className="pane-grid"
-      style={{ display: "grid", gridTemplateColumns: "340px 1fr", height: "100dvh", width: "100%" }}
-    >
+    <div className="pane-grid">
       {/* SIDEBAR */}
-      <aside className="sidebar" style={{ height: "100dvh" }}>
-        <h1 className="h1 mb-3">Certis AgRoute Planner</h1>
+      <aside className="sidebar">
+        <h1 className="h1">Certis AgRoute Planner</h1>
 
         {dataError ? (
           <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm">{dataError}</div>
@@ -251,106 +283,86 @@ export default function Page() {
 
         <section className="mb-5">
           <h2 className="h2 mb-2">Home (ZIP)</h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2" style={{ display: "flex", gap: 8 }}>
             <input className="input" value={zipInput} onChange={(e) => setZipInput(e.target.value)} placeholder="e.g. 50309" inputMode="numeric" />
             <button className="btn btn-primary" onClick={setHomeFromZip}>Set</button>
           </div>
-          {homeErr ? <div className="mt-2 text-xs text-red-400">{homeErr}</div> : null}
-          {home ? <div className="mt-2 text-xs text-zinc-400">Home set at {home[1].toFixed(4)}, {home[0].toFixed(4)}</div> : null}
+          {homeErr ? <div className="mt-2 text-xs" style={{ color:"#fca5a5" }}>{homeErr}</div> : null}
+          {home ? <div className="mt-2 text-xs" style={{ color:"#9ca3af" }}>Home set at {home[1].toFixed(4)}, {home[0].toFixed(4)}</div> : null}
         </section>
 
-        <section className="mb-5">
-          <h2 className="h2 mb-2">States ({selStates.size} / {states.length})</h2>
-          <div className="mb-2 flex gap-2 text-xs">
-            <button className="btn" onClick={() => setAll(setSelStates, states)}>All</button>
-            <button className="btn" onClick={() => setNone(setSelStates)}>None</button>
-          </div>
-          <div className="chips">
-            {states.map((s) => (
-              <button key={s || "_"} className={`chip ${selStates.has(s) ? "chip-active" : ""}`} onClick={() => toggleSel(setSelStates, s)}>
-                {s || "—"}
-              </button>
-            ))}
-          </div>
-        </section>
+        <CheckboxGroup
+          title={`States (${selStates.size} / ${states.length})`}
+          items={states}
+          selected={selStates}
+          onToggle={(v) => toggleSel(setSelStates, v)}
+          onAll={() => setAll(setSelStates, states)}
+          onNone={() => setNone(setSelStates)}
+        />
 
-        <section className="mb-5">
-          <h2 className="h2 mb-2">Retailers ({selRetailers.size} / {retailers.length})</h2>
-          <div className="mb-2 flex gap-2 text-xs">
-            <button className="btn" onClick={() => setAll(setSelRetailers, retailers)}>All</button>
-            <button className="btn" onClick={() => setNone(setSelRetailers)}>None</button>
-          </div>
-          <div className="chips max-h-48 overflow-y-auto pr-1">
-            {retailers.map((r) => (
-              <button key={r || "_"} className={`chip ${selRetailers.has(r) ? "chip-active" : ""}`} onClick={() => toggleSel(setSelRetailers, r)}>
-                {r || "—"}
-              </button>
-            ))}
-          </div>
-        </section>
+        <CheckboxGroup
+          title={`Retailers (${selRetailers.size} / ${retailers.length})`}
+          items={retailers}
+          selected={selRetailers}
+          onToggle={(v) => toggleSel(setSelRetailers, v)}
+          onAll={() => setAll(setSelRetailers, retailers)}
+          onNone={() => setNone(setSelRetailers)}
+        />
 
-        <section className="mb-5">
-          <div className="mb-1 flex items-center justify-between">
-            <h2 className="h2">Location Types ({selTypes.size} / {types.length})</h2>
-            <span className="debug-pill" title="Type field in use">field: {inferredTypeKey ?? "Type"}</span>
-          </div>
-          <div className="mb-2 flex gap-2 text-xs">
-            <button className="btn" onClick={() => setAll(setSelTypes, types)}>All</button>
-            <button className="btn" onClick={() => setNone(setSelTypes)}>None</button>
-          </div>
-          <div className="chips">
-            {types.map((t) => (
-              <button key={t || "_"} className={`chip ${selTypes.has(t) ? "chip-active" : ""}`} onClick={() => toggleSel(setSelTypes, t)}>
-                {t || "—"}
-              </button>
-            ))}
-          </div>
-        </section>
+        <div className="mb-1" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+          <h2 className="h2">Location Types ({selTypes.size} / {types.length})</h2>
+          <span className="debug-pill" title="Type field in use">field: {inferredTypeKey ?? "Type"}</span>
+        </div>
+        <CheckboxGroup
+          title={""}
+          items={types}
+          selected={selTypes}
+          onToggle={(v) => toggleSel(setSelTypes, v)}
+          onAll={() => setAll(setSelTypes, types)}
+          onNone={() => setNone(setSelTypes)}
+        />
 
         <section className="mb-5">
           <h2 className="h2 mb-2">Map Style</h2>
-          <div className="chips">
-            <button
-              className={`chip ${styleId === "satellite-streets-v12" ? "chip-active" : ""}`}
-              onClick={() => setStyleId("satellite-streets-v12")}
-              title="Hybrid (satellite with streets)"
-            >
-              Hybrid
-            </button>
-            <button
-              className={`chip ${styleId === "streets-v12" ? "chip-active" : ""}`}
-              onClick={() => setStyleId("streets-v12")}
-              title="Street map"
-            >
-              Street
-            </button>
+          <div className="checkbox-grid">
+            <div className="check">
+              <input id="style-hybrid" type="radio" name="style" checked={styleId==="satellite-streets-v12"} onChange={()=>setStyleId("satellite-streets-v12")} />
+              <label htmlFor="style-hybrid">Hybrid</label>
+            </div>
+            <div className="check">
+              <input id="style-street" type="radio" name="style" checked={styleId==="streets-v12"} onChange={()=>setStyleId("streets-v12")} />
+              <label htmlFor="style-street">Street</label>
+            </div>
           </div>
         </section>
 
-        <section>
+        <section className="mb-5">
           <h2 className="h2 mb-2">Trip Builder</h2>
-          <div className="chips mb-2">
-            {stops.length === 0 ? <span className="text-xs text-zinc-400">Click map points to add stops…</span> : null}
-            {stops.map((s, i) => (<span key={`${s.name}-${i}`} className="chip">{i + 1}. {s.name}</span>))}
+          <div className="mb-2" style={{ fontSize: 13 }}>
+            {stops.length === 0 ? <span style={{ color:"#94a3b8" }}>Click map points to add stops…</span> :
+              stops.map((s, i) => <span key={`${s.name}-${i}`}>{i+1}. {s.name}{i<stops.length-1?" · ":""}</span>)
+            }
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2" style={{ display:"flex", gap:8 }}>
             <button className="btn btn-primary" onClick={optimize}>Optimize</button>
             <button className="btn" onClick={clearStops}>Clear</button>
           </div>
           {optimized.length > 0 ? (
-            <div className="mt-3 flex flex-col gap-2 text-sm">
-              <a className="underline hover:no-underline" target="_blank" rel="noreferrer" href={googleHref}>Open in Google Maps</a>
-              <a className="underline hover:no-underline" target="_blank" rel="noreferrer" href={appleHref}>Open in Apple Maps</a>
-              <a className="underline hover:no-underline" target="_blank" rel="noreferrer" href={wazeHref}>Open in Waze</a>
+            <div className="mt-3" style={{ display:"flex", flexDirection:"column", gap:6, fontSize:14 }}>
+              <a target="_blank" rel="noreferrer" href={googleHref}>Open in Google Maps</a>
+              <a target="_blank" rel="noreferrer" href={appleHref}>Open in Apple Maps</a>
+              <a target="_blank" rel="noreferrer" href={wazeHref}>Open in Waze</a>
             </div>
           ) : null}
-          <div className="mt-3 text-[11px] text-zinc-500">KINGPINs are always visible (separate source) and unaffected by filters.</div>
+          <div className="mt-3" style={{ fontSize:11, color:"#9ca3af" }}>
+            KINGPINs are always visible (separate source) and unaffected by filters.
+          </div>
         </section>
       </aside>
 
       {/* MAP */}
-      <main className="map-area" style={{ height: "100dvh" }}>
-        <div className="card" style={{ height: "100%" }}>
+      <main className="map-area">
+        <div className="card">
           {filteredFc && kingpinFc ? (
             <CertisMap
               data={filteredFc as any}
@@ -360,7 +372,9 @@ export default function Page() {
               styleId={styleId}
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-zinc-400">Loading map…</div>
+            <div className="flex h-full items-center justify-center text-zinc-400" style={{ height:"100%", display:"flex", alignItems:"center", justifyContent:"center", color:"#9ca3af" }}>
+              Loading map…
+            </div>
           )}
         </div>
       </main>

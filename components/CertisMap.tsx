@@ -26,29 +26,38 @@ export interface CertisMapProps {
   kingpins?: FeatureCollection | null; // non-clustered
   home?: Position | null;
   onPointClick?: (f: Feature) => void;
-  /** Mapbox style id (e.g. "satellite-streets-v12" or "streets-v12") */
-  styleId?: string;
+  styleId?: string;                    // e.g. "satellite-streets-v12"
 }
 
 const DEFAULT_CENTER: LngLatLike = [-93.5, 41.9];
 const DEFAULT_ZOOM = 4.3;
+
+/* property helper */
+const norm = (s:string)=>s.toLowerCase().replace(/[^a-z0-9]/g,"");
+function pickProp(p: FeatureProperties, keys: string[]): string {
+  if (!p) return "";
+  for (const k of Object.keys(p)) for (const q of keys) if (k.toLowerCase()===q.toLowerCase()) return String(p[k] ?? "");
+  const m: Record<string, any> = {}; for (const [k,v] of Object.entries(p)) m[norm(k)] = v;
+  for (const q of keys){ const nk=norm(q); if (m[nk]!=null) return String(m[nk] ?? ""); }
+  return "";
+}
 
 export default function CertisMap({
   data,
   kingpins = null,
   home = null,
   onPointClick,
-  styleId = "satellite-streets-v12", // default Hybrid
+  styleId = "satellite-streets-v12",
 }: CertisMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
 
-  // latest props via refs (used when style swaps)
-  const dataRef = useRef(data);   dataRef.current = data;
-  const kpRef   = useRef(kingpins); kpRef.current = kingpins;
-  const homeRef = useRef(home);   homeRef.current = home;
-  const styleRef= useRef(styleId); styleRef.current = styleId;
+  // keep latest props
+  const dataRef = useRef(data); dataRef.current = data;
+  const kpRef = useRef(kingpins); kpRef.current = kingpins;
+  const homeRef = useRef(home); homeRef.current = home;
+  const styleRef = useRef(styleId); styleRef.current = styleId;
 
   const [logoMissing, setLogoMissing] = useState(false);
 
@@ -58,10 +67,9 @@ export default function CertisMap({
     if (!map || !map.isStyleLoaded()) return;
 
     try {
-      // enforce mercator projection
       try { map.setProjection({ name: "mercator" } as any); } catch {}
 
-      // --- Retailers (clustered) ---
+      // retailers (clustered)
       if (!map.getSource("retailers")) {
         map.addSource("retailers", {
           type: "geojson",
@@ -71,9 +79,7 @@ export default function CertisMap({
           clusterRadius: 40,
         });
       } else {
-        (map.getSource("retailers") as GeoJSONSource).setData(
-          (dataRef.current ?? { type: "FeatureCollection", features: [] }) as any
-        );
+        (map.getSource("retailers") as GeoJSONSource).setData((dataRef.current ?? { type:"FeatureCollection", features:[] }) as any);
       }
 
       if (!map.getLayer("clusters")) {
@@ -81,12 +87,12 @@ export default function CertisMap({
           id: "clusters",
           type: "circle",
           source: "retailers",
-          filter: ["has", "point_count"],
+          filter: ["has","point_count"],
           paint: {
-            "circle-color": ["step", ["get", "point_count"], "#5eead4", 25, "#34d399", 100, "#10b981"],
-            "circle-radius": ["step", ["get", "point_count"], 14, 25, 20, 100, 26],
+            "circle-color": ["step", ["get","point_count"], "#5eead4", 25, "#34d399", 100, "#10b981"],
+            "circle-radius": ["step", ["get","point_count"], 14, 25, 20, 100, 26],
             "circle-stroke-color": "#0f172a",
-            "circle-stroke-width": 1.25,
+            "circle-stroke-width": 1.25
           },
         } as any);
       }
@@ -96,7 +102,7 @@ export default function CertisMap({
           id: "cluster-count",
           type: "symbol",
           source: "retailers",
-          filter: ["has", "point_count"],
+          filter: ["has","point_count"],
           layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 11 },
           paint: { "text-color": "#0b1220" },
         } as any);
@@ -107,23 +113,21 @@ export default function CertisMap({
           id: "unclustered-point",
           type: "circle",
           source: "retailers",
-          filter: ["!", ["has", "point_count"]],
+          filter: ["!", ["has","point_count"]],
           paint: {
             "circle-color": "#60a5fa",
             "circle-radius": 5.5,
             "circle-stroke-color": "#0f172a",
-            "circle-stroke-width": 1.25,
+            "circle-stroke-width": 1.25
           },
         } as any);
       }
 
-      // --- KINGPINs (non-clustered) ---
+      // kingpins (non-clustered)
       if (kpRef.current) {
-        if (!map.getSource("kingpins")) {
-          map.addSource("kingpins", { type: "geojson", data: kpRef.current as any });
-        } else {
-          (map.getSource("kingpins") as GeoJSONSource).setData(kpRef.current as any);
-        }
+        if (!map.getSource("kingpins")) map.addSource("kingpins", { type:"geojson", data: kpRef.current as any });
+        else (map.getSource("kingpins") as GeoJSONSource).setData(kpRef.current as any);
+
         if (!map.getLayer("kingpins-layer")) {
           map.addLayer({
             id: "kingpins-layer",
@@ -133,32 +137,34 @@ export default function CertisMap({
               "circle-color": "#ef4444",
               "circle-radius": 8,
               "circle-stroke-color": "#facc15",
-              "circle-stroke-width": 3,
+              "circle-stroke-width": 3
             },
           } as any);
         }
       }
 
-      // --- HOME pin ---
+      // HOME pin
       if (homeRef.current) {
-        const d = {
-          type: "FeatureCollection",
-          features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: homeRef.current } }],
-        };
-        if (!map.getSource("home")) map.addSource("home", { type: "geojson", data: d as any });
+        const d = { type:"FeatureCollection", features:[{ type:"Feature", properties:{}, geometry:{ type:"Point", coordinates: homeRef.current } }] };
+        if (!map.getSource("home")) map.addSource("home", { type:"geojson", data:d as any });
         else (map.getSource("home") as GeoJSONSource).setData(d as any);
 
         if (!map.getLayer("home-layer")) {
           map.addLayer({
-            id: "home-layer",
-            type: "circle",
-            source: "home",
-            paint: { "circle-color": "#22d3ee", "circle-radius": 7, "circle-stroke-color": "#0f172a", "circle-stroke-width": 2 },
+            id:"home-layer", type:"circle", source:"home",
+            paint: { "circle-color":"#22d3ee","circle-radius":7,"circle-stroke-color":"#0f172a","circle-stroke-width":2 },
           } as any);
         }
       }
+
+      // pointer cursor on interactive layers
+      ["clusters","unclustered-point","kingpins-layer"].forEach((id) => {
+        // avoid duplicate listeners across style swaps
+        map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
+        map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
+      });
     } catch {
-      // swallow race; next 'style.load' will retry
+      /* swallow & retry on next style.load */
     }
   };
 
@@ -178,7 +184,6 @@ export default function CertisMap({
     });
     mapRef.current = map;
 
-    // initial + subsequent style loads
     map.on("load", () => { map.resize(); addSourcesLayers(); });
     map.on("style.load", () => { map.resize(); addSourcesLayers(); });
 
@@ -188,14 +193,14 @@ export default function CertisMap({
 
     // cluster zoom
     map.on("click", "clusters", (e: MapLayerMouseEvent) => {
-      const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+      const features = map.queryRenderedFeatures(e.point, { layers:["clusters"] });
       const clusterId = features[0]?.properties?.cluster_id;
       const src = map.getSource("retailers") as GeoJSONSource;
       if (!src || clusterId == null) return;
       src.getClusterExpansionZoom(clusterId, (err, z) => {
         if (err) return;
         const center = (features[0].geometry as any).coordinates as LngLatLike;
-        map.easeTo({ center, zoom: z });
+        map.easeTo({ center, zoom:z });
       });
     });
 
@@ -205,21 +210,37 @@ export default function CertisMap({
       const f = e.features[0] as any;
       const p = (f.properties || {}) as FeatureProperties;
       const coords = (f.geometry?.coordinates ?? []) as Position;
-      const retailer = String(p.Retailer ?? p.Dealer ?? p["Retailer Name"] ?? "Retailer");
-      const city = String(p.City ?? "");
-      const state = String(p.State ?? "");
+
+      const retailer = pickProp(p, ["Retailer","Dealer","Retailer Name","Retail"]);
+      const city = pickProp(p, ["City","Town"]);
+      const state = pickProp(p, ["State","ST","Province"]);
+      const addr = pickProp(p, ["Address","Address1","Address 1","Street","Street1","Addr1"]);
+      const zip = pickProp(p, ["ZIP","Zip","Postal","PostalCode","Postcode"]);
+      const typ = pickProp(p, ["Type","Location Type","LocationType","location_type","LocType","Loc_Type","Facility Type","Category","Location Category","Site Type"]);
+      const isKP = (() => {
+        const raw = pickProp(p, ["KINGPIN","Kingpin","IsKingpin","Key Account"]);
+        const s = String(raw||"").toLowerCase();
+        return s==="true" || s==="yes" || s==="y" || s==="1";
+      })();
+
+      const line1 = retailer || "Location";
+      const line2 = [addr, [city,state].filter(Boolean).join(", "), zip].filter(Boolean).join(" · ");
+      const tag = [isKP ? "KINGPIN" : null, typ || null].filter(Boolean).join(" • ");
+
       const html = `
-        <div style="font:12px/1.4 system-ui,sans-serif;">
-          <div style="font-weight:600;margin-bottom:2px;">${retailer}</div>
-          <div style="opacity:.8;">${[city, state].filter(Boolean).join(", ")}</div>
-          <div style="margin-top:4px;font-size:11px;opacity:.8;">${label}</div>
+        <div style="font-family:Inter,system-ui,Segoe UI,Roboto,Arial; font-size:12px; line-height:1.35; color:#e5e7eb;">
+          <div style="font-weight:700; margin-bottom:2px">${line1}</div>
+          ${line2 ? `<div style="opacity:.9">${line2}</div>` : ``}
+          ${tag ? `<div style="margin-top:6px; font-size:11px; color:#facc15; font-weight:600">${tag}</div>` : ``}
+          <div style="margin-top:6px; font-size:11px; opacity:.8">${label}</div>
         </div>`;
-      if (!popupRef.current) popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
+
+      if (!popupRef.current) popupRef.current = new mapboxgl.Popup({ closeButton:false, closeOnClick:false });
       popupRef.current.setLngLat(coords as any).setHTML(html).addTo(map);
-      onPointClick?.({ type: "Feature", properties: p, geometry: { type: "Point", coordinates: coords } });
+      onPointClick?.({ type:"Feature", properties:p, geometry:{ type:"Point", coordinates:coords } });
     };
-    map.on("click", "unclustered-point", (e) => showPopup(e, "Location"));
-    map.on("click", "kingpins-layer", (e) => showPopup(e, "KINGPIN"));
+    map.on("click","unclustered-point",(e)=>showPopup(e,"Location"));
+    map.on("click","kingpins-layer",(e)=>showPopup(e,"KINGPIN"));
 
     return () => {
       window.removeEventListener("resize", onWinResize);
@@ -230,44 +251,19 @@ export default function CertisMap({
   }, [onPointClick]);
 
   // live updates
+  useEffect(() => { const m = mapRef.current; if (!m) return; const s = m.getSource("retailers") as GeoJSONSource | undefined; if (s) s.setData(data as any); }, [data]);
   useEffect(() => {
     const m = mapRef.current; if (!m) return;
-    const s = m.getSource("retailers") as GeoJSONSource | undefined;
-    if (s) s.setData(data as any);
-  }, [data]);
-
-  useEffect(() => {
-    const m = mapRef.current; if (!m) return;
-    if (kingpins) {
-      const s = m.getSource("kingpins") as GeoJSONSource | undefined;
-      if (s) s.setData(kingpins as any);
-    } else {
-      if (m.getLayer("kingpins-layer")) m.removeLayer("kingpins-layer");
-      if (m.getSource("kingpins")) m.removeSource("kingpins");
-    }
+    if (kingpins) { const s = m.getSource("kingpins") as GeoJSONSource | undefined; if (s) s.setData(kingpins as any); }
+    else { if (m.getLayer("kingpins-layer")) m.removeLayer("kingpins-layer"); if (m.getSource("kingpins")) m.removeSource("kingpins"); }
   }, [kingpins]);
-
   useEffect(() => {
     const m = mapRef.current; if (!m) return;
-    if (!home) {
-      if (m.getLayer("home-layer")) m.removeLayer("home-layer");
-      if (m.getSource("home")) m.removeSource("home");
-      return;
-    }
-    if (!m.isStyleLoaded()) return; // will attach on next style.load
-    const d = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: home } }] };
+    if (!home) { if (m.getLayer("home-layer")) m.removeLayer("home-layer"); if (m.getSource("home")) m.removeSource("home"); return; }
+    if (!m.isStyleLoaded()) return;
+    const d = { type:"FeatureCollection", features:[{ type:"Feature", properties:{}, geometry:{ type:"Point", coordinates: home } }] };
     if (m.getSource("home")) (m.getSource("home") as GeoJSONSource).setData(d as any);
-    else {
-      try {
-        m.addSource("home", { type: "geojson", data: d as any });
-        m.addLayer({
-          id: "home-layer",
-          type: "circle",
-          source: "home",
-          paint: { "circle-color":"#22d3ee","circle-radius":7,"circle-stroke-color":"#0f172a","circle-stroke-width":2 },
-        } as any);
-      } catch {}
-    }
+    else { try { m.addSource("home",{type:"geojson",data:d as any}); m.addLayer({id:"home-layer",type:"circle",source:"home",paint:{"circle-color":"#22d3ee","circle-radius":7,"circle-stroke-color":"#0f172a","circle-stroke-width":2}} as any);} catch {} }
   }, [home]);
 
   // style changes
@@ -279,23 +275,19 @@ export default function CertisMap({
   }, [styleId]);
 
   return (
-    <div
-      ref={containerRef}
-      // explicit sizing so Mapbox has real dimensions at mount
-      style={{ position: "relative", width: "100%", height: "100%" }}
-    >
+    <div ref={containerRef} style={{ position:"relative", width:"100%", height:"100%" }}>
       {/* in-map brand */}
-      <div style={{ position: "absolute", left: 12, top: 12, zIndex: 10, pointerEvents: "none" }}>
+      <div style={{ position:"absolute", left:12, top:12, zIndex:10, pointerEvents:"none" }}>
         {!logoMissing ? (
           <img
             src={withBasePath("logo-certis.png")}
             alt="Certis"
-            style={{ height: 28, opacity: 0.9, filter: "drop-shadow(0 1px 1px rgba(0,0,0,.35))" }}
+            style={{ height:28, opacity:.9, filter:"drop-shadow(0 1px 1px rgba(0,0,0,.35))" }}
             onError={() => setLogoMissing(true)}
             loading="eager"
           />
         ) : (
-          <div style={{ borderRadius: 6, background: "rgba(0,0,0,.4)", padding: "2px 6px", fontSize: 12, letterSpacing: ".04em", border: "1px solid rgba(255,255,255,.2)" }}>
+          <div style={{ borderRadius:6, background:"rgba(0,0,0,.4)", padding:"2px 6px", fontSize:12, letterSpacing:".04em", border:"1px solid rgba(255,255,255,.2)" }}>
             CERTIS
           </div>
         )}

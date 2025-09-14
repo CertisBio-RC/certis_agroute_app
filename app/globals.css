@@ -1,54 +1,114 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* app/globals.css */
 
-/* ---------- Base ---------- */
-@layer base {
-  html, body { @apply h-full; }
-  body { @apply bg-zinc-950 text-zinc-100 antialiased; }
+/* Fonts + theme tokens */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@600;700&display=swap");
+
+:root{
+  --bg:#0b0f19;
+  --card:#0f172a;
+  --ink:#e5e7eb;
+  --muted:#94a3b8;
+  --line:#263244;
+  --accent:#facc15; /* yellow */
+  --accent-ink:#111827;
 }
 
-/* ---------- Components ---------- */
-@layer components {
-  /* The key fix: set grid-template-columns via plain CSS, not @apply arbitrary values */
-  .pane-grid {
-    @apply grid h-[100dvh] w-full;
-    grid-template-columns: 340px 1fr;
-  }
-  @screen lg {
-    .pane-grid { grid-template-columns: 320px 1fr; }
-  }
-  @media (max-width: 1024px) {
-    .pane-grid { grid-template-columns: 1fr; }
-  }
-
-  .sidebar { @apply border-r border-white/10 p-4 overflow-y-auto; }
-  .map-area { @apply min-w-0 p-4; }
-  .card { @apply h-full rounded-2xl border border-white/10 bg-zinc-900 overflow-hidden; }
-
-  .h1 { @apply text-2xl font-bold leading-tight; }
-  .h2 { @apply text-base font-semibold leading-tight; }
-
-  .input { @apply w-full rounded-xl border border-white/15 bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 ring-amber-400; }
-  .btn { @apply inline-flex items-center rounded-xl border border-white/15 bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700; }
-  .btn-primary { @apply border-amber-400 bg-amber-400 text-black hover:bg-amber-300; }
-
-  .chips { @apply flex flex-wrap gap-2; }
-  .chip { @apply inline-flex items-center rounded-full border border-amber-300/50 bg-amber-400/10 px-2.5 py-1 text-xs hover:bg-amber-400/20; }
-  .chip-active { @apply border-amber-300/90 bg-amber-400/20; }
-
-  .debug-pill { @apply inline-flex items-center rounded-full border border-white/15 bg-zinc-800/70 px-2 py-0.5 text-[11px] text-zinc-300; }
+* { box-sizing: border-box; }
+html, body { height:100%; }
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  line-height:1.4;
 }
 
-/* ---------- Mapbox polish ---------- */
-.mapboxgl-canvas { outline: none !important; }
-.mapboxgl-popup-content {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  @apply bg-zinc-900 text-zinc-100 border border-white/10 rounded-xl;
+/* Layout helpers used by page.tsx */
+.pane-grid{
+  display:grid;
+  grid-template-columns:340px 1fr;
+  height:100dvh;
+  width:100%;
+}
+.sidebar{
+  height:100dvh;
+  overflow:auto;
+  padding:16px;
+  border-right:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(13,19,33,.65), rgba(13,19,33,.9));
+}
+.map-area .card{ height:100%; }
+
+.card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:14px;
+  overflow:hidden;
 }
 
-/* ---------- Scrollbars ---------- */
-*::-webkit-scrollbar { height: 10px; width: 10px; }
-*::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 999px; }
-*::-webkit-scrollbar-track { background: transparent; }
+/* Headings — bold yellow */
+.h1{
+  font-family: Rajdhani, Inter, system-ui;
+  font-weight:700;
+  letter-spacing:.4px;
+  font-size:28px;
+  margin:0 0 12px;
+  color:var(--accent);
+}
+.h2{
+  font-family: Rajdhani, Inter, system-ui;
+  font-weight:700;
+  letter-spacing:.3px;
+  font-size:20px;
+  margin:0 0 6px;
+  color:var(--accent);
+}
+
+/* Buttons */
+.btn{
+  appearance:none; cursor:pointer;
+  padding:6px 10px; border-radius:10px;
+  background:#101826; color:var(--ink);
+  border:1px solid var(--line);
+}
+.btn:hover{ filter:brightness(1.08); }
+.btn-primary{
+  background:var(--accent);
+  color:var(--accent-ink);
+  border-color:#d4b413;
+  font-weight:600;
+}
+
+/* Inputs */
+.input{
+  width:160px;
+  background:#0c1322; color:var(--ink);
+  border:1px solid var(--line); border-radius:10px;
+  padding:6px 10px;
+}
+
+/* Checkbox grid for filters */
+.checkbox-grid{
+  display:flex; flex-wrap:wrap; gap:8px;
+}
+.check{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:6px 10px; border-radius:10px;
+  border:1px solid var(--line);
+  background:#101826;
+}
+.check input[type="checkbox"]{
+  width:16px; height:16px; accent-color:var(--accent);
+}
+.check label{ font-size:12px; color:var(--ink); }
+
+/* Tiny helper */
+.debug-pill{
+  font: 11px Inter, system-ui;
+  color:var(--muted);
+  border:1px dashed var(--line);
+  padding:2px 6px;
+  border-radius:999px;
+}
+a{ color:#93c5fd; }
+a:hover{ text-decoration:none; }
