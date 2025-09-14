@@ -1,3 +1,4 @@
+// app/page.tsx
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -29,7 +30,8 @@ const retailerKeys = ["Retailer", "Dealer", "Retailer Name", "Retail"];
 const cityKeys     = ["City", "Town"];
 const stateKeys    = ["State", "ST", "Province"];
 const typeKeysBase = [
-  "Type","Location Type","LocationType","location_type","LocType","Loc_Type","Facility Type","Category","Location Category","Site Type"
+  "Type", "Location Type", "LocationType", "location_type",
+  "LocType", "Loc_Type", "Facility Type", "Category", "Location Category", "Site Type"
 ];
 
 const getRetailer = (p: FeatureProperties) => getProp(p, retailerKeys);
@@ -38,7 +40,7 @@ const getState    = (p: FeatureProperties) => getProp(p, stateKeys);
 
 function inferTypeKey(features: Feature[]): string | null {
   if (!features.length) return null;
-  const exclude = new Set([...retailerKeys, ...cityKeys, ...stateKeys, "KINGPIN","Kingpin","IsKingpin","Key Account"]);
+  const exclude = new Set([...retailerKeys, ...cityKeys, ...stateKeys, "KINGPIN", "Kingpin", "IsKingpin", "Key Account"]);
   const counts: Record<string, Set<string>> = {};
   for (const f of features) {
     const p = f.properties || {};
@@ -74,7 +76,7 @@ function getTypeWithFallback(p: FeatureProperties, fallbackKey: string | null): 
 }
 
 const isKingpin = (p: FeatureProperties): boolean => {
-  const raw = getProp(p, ["KINGPIN","Kingpin","IsKingpin","Key Account"]);
+  const raw = getProp(p, ["KINGPIN", "Kingpin", "IsKingpin", "Key Account"]);
   if (typeof raw === "boolean") return raw;
   const s = String(raw || "").trim().toLowerCase();
   return s === "true" || s === "yes" || s === "y" || s === "1";
@@ -238,15 +240,9 @@ export default function Page() {
   const setNone = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => set(new Set());
 
   return (
-    {/* ✅ FORCE the 2-column grid inline so it cannot collapse */}
     <div
       className="pane-grid"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "340px 1fr",
-        height: "100dvh",
-        width: "100%",
-      }}
+      style={{ display: "grid", gridTemplateColumns: "340px 1fr", height: "100dvh", width: "100%" }}
     >
       {/* SIDEBAR */}
       <aside className="sidebar">
@@ -285,7 +281,7 @@ export default function Page() {
           <h2 className="h2 mb-2">Retailers ({selRetailers.size} / {retailers.length})</h2>
           <div className="mb-2 flex gap-2 text-xs">
             <button className="btn" onClick={() => setAll(setSelRetailers, retailers)}>All</button>
-            <button className="btn" onClick={() => setNone(setSelRetailers, r)}>None</button>
+            <button className="btn" onClick={() => setNone(setSelRetailers)}>None</button>
           </div>
           <div className="chips max-h-48 overflow-y-auto pr-1">
             {retailers.map((r) => (
