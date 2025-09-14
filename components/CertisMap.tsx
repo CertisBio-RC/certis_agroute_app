@@ -52,14 +52,16 @@ export default function CertisMap({
 
   const [logoMissing, setLogoMissing] = useState(false);
 
-  // ---- Add/refresh sources & layers AFTER style.load ----
+  /** Safely (re)add sources & layers AFTER style.load */
   const addSourcesLayers = () => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
+
     try {
+      // enforce mercator projection
       try { map.setProjection({ name: "mercator" } as any); } catch {}
 
-      // retailers (clustered)
+      // --- Retailers (clustered) ---
       if (!map.getSource("retailers")) {
         map.addSource("retailers", {
           type: "geojson",
@@ -69,7 +71,9 @@ export default function CertisMap({
           clusterRadius: 40,
         });
       } else {
-        (map.getSource("retailers") as GeoJSONSource).setData((dataRef.current ?? { type: "FeatureCollection", features: [] }) as any);
+        (map.getSource("retailers") as GeoJSONSource).setData(
+          (dataRef.current ?? { type: "FeatureCollection", features: [] }) as any
+        );
       }
 
       if (!map.getLayer("clusters")) {
@@ -113,7 +117,7 @@ export default function CertisMap({
         } as any);
       }
 
-      // kingpins
+      // --- KINGPINs (non-clustered) ---
       if (kpRef.current) {
         if (!map.getSource("kingpins")) {
           map.addSource("kingpins", { type: "geojson", data: kpRef.current as any });
@@ -135,9 +139,12 @@ export default function CertisMap({
         }
       }
 
-      // home pin
+      // --- HOME pin ---
       if (homeRef.current) {
-        const d = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: homeRef.current } }] };
+        const d = {
+          type: "FeatureCollection",
+          features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: homeRef.current } }],
+        };
         if (!map.getSource("home")) map.addSource("home", { type: "geojson", data: d as any });
         else (map.getSource("home") as GeoJSONSource).setData(d as any);
 
@@ -151,11 +158,11 @@ export default function CertisMap({
         }
       }
     } catch {
-      // if a style race happens, ignore and wait for the next 'style.load'
+      // swallow race; next 'style.load' will retry
     }
   };
 
-  // ---- init map ----
+  // init map
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !MAPBOX_TOKEN) return;
 
@@ -222,5 +229,77 @@ export default function CertisMap({
     };
   }, [onPointClick]);
 
-  // live updates (sources already present after style.load)
-  useEffect(() => { const m = mapRef.current; if (!m) return; const s = m.getSource("
+  // live updates
+  useEffect(() => {
+    const m = mapRef.current; if (!m) return;
+    const s = m.getSource("retailers") as GeoJSONSource | undefined;
+    if (s) s.setData(data as any);
+  }, [data]);
+
+  useEffect(() => {
+    const m = mapRef.current; if (!m) return;
+    if (kingpins) {
+      const s = m.getSource("kingpins") as GeoJSONSource | undefined;
+      if (s) s.setData(kingpins as any);
+    } else {
+      if (m.getLayer("kingpins-layer")) m.removeLayer("kingpins-layer");
+      if (m.getSource("kingpins")) m.removeSource("kingpins");
+    }
+  }, [kingpins]);
+
+  useEffect(() => {
+    const m = mapRef.current; if (!m) return;
+    if (!home) {
+      if (m.getLayer("home-layer")) m.removeLayer("home-layer");
+      if (m.getSource("home")) m.removeSource("home");
+      return;
+    }
+    if (!m.isStyleLoaded()) return; // will attach on next style.load
+    const d = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: home } }] };
+    if (m.getSource("home")) (m.getSource("home") as GeoJSONSource).setData(d as any);
+    else {
+      try {
+        m.addSource("home", { type: "geojson", data: d as any });
+        m.addLayer({
+          id: "home-layer",
+          type: "circle",
+          source: "home",
+          paint: { "circle-color":"#22d3ee","circle-radius":7,"circle-stroke-color":"#0f172a","circle-stroke-width":2 },
+        } as any);
+      } catch {}
+    }
+  }, [home]);
+
+  // style changes
+  useEffect(() => {
+    const map = mapRef.current; if (!map) return;
+    const nextUri = `mapbox://styles/mapbox/${styleId}`;
+    map.setStyle(nextUri);
+    map.once("style.load", () => { map.resize(); addSourcesLayers(); });
+  }, [styleId]);
+
+  return (
+    <div
+      ref={containerRef}
+      // explicit sizing so Mapbox has real dimensions at mount
+      style={{ position: "relative", width: "100%", height: "100%" }}
+    >
+      {/* in-map brand */}
+      <div style={{ position: "absolute", left: 12, top: 12, zIndex: 10, pointerEvents: "none" }}>
+        {!logoMissing ? (
+          <img
+            src={withBasePath("logo-certis.png")}
+            alt="Certis"
+            style={{ height: 28, opacity: 0.9, filter: "drop-shadow(0 1px 1px rgba(0,0,0,.35))" }}
+            onError={() => setLogoMissing(true)}
+            loading="eager"
+          />
+        ) : (
+          <div style={{ borderRadius: 6, background: "rgba(0,0,0,.4)", padding: "2px 6px", fontSize: 12, letterSpacing: ".04em", border: "1px solid rgba(255,255,255,.2)" }}>
+            CERTIS
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
