@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
-import mapboxgl, { Map } from "mapbox-gl";
+import mapboxgl, { Map, LngLat } from "mapbox-gl";
 import type { FeatureCollection, Feature, Geometry, Position } from "geojson";
 import { withBasePath } from "@/utils/paths";
 
@@ -19,8 +19,14 @@ export type CertisMapProps = {
   home: Position | null;
   /** 'hybrid' = satellite+roads (default), 'street' = streets */
   mapStyle?: "hybrid" | "street";
-  /** When user clicks a point (not clusters) */
-  onPointClick?: (p: { name: string; coord: [number, number] }) => void;
+  /**
+   * Back-compat: accepts either the new one-arg shape OR the legacy (props, LngLat) shape.
+   * - onPointClick({ name, coord:[lng,lat] })
+   * - onPointClick(properties, new mapboxgl.LngLat(lng, lat))
+   */
+  onPointClick?:
+    | ((p: { name: string; coord: [number, number] }) => void)
+    | ((properties: any, coord: LngLat) => void);
 };
 
 // -----------------------------
@@ -50,7 +56,7 @@ function toPosition(x: any): Position | null {
   if (typeof x === "object" && "lng" in x && "lat" in x) {
     const lng = Number((x as any).lng);
     const lat = Number((x as any).lat);
-    if (Number.isFinite(lng) && Number.isFinite(lat)) return [lng, lat];
+    if (Number.isFinite(lng) && Number.isFinite(lat)) return [lng, lat] as Position;
   }
   return null;
 }
@@ -97,11 +103,11 @@ export default function CertisMap({
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: currentStyleUrl,
-      center: [-96.7, 40.0], // continental US
+      center: [-96.7, 40.0],
       zoom: 3.5,
       attributionControl: true,
       hash: false,
-      // ✅ Hard-lock Mercator up front
+      // ✅ Hard-lock Mercator on first load
       projection: { name: "mercator" as any },
       cooperativeGestures: false,
       pitchWithRotate: false,
@@ -110,7 +116,7 @@ export default function CertisMap({
 
     mapRef.current = map;
 
-    // Create one popup we reuse for hover
+    // Single popup reused for hover
     popupRef.current = new mapboxgl.Popup({
       closeButton: false,
       closeOnClick: false,
@@ -166,7 +172,7 @@ export default function CertisMap({
             "circle-radius": [
               "step",
               ["get", "point_count"],
-              16, // default
+              16,
               10,
               20,
               25,
@@ -195,9 +201,7 @@ export default function CertisMap({
             "text-size": 12,
             "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
           },
-          paint: {
-            "text-color": "#0b1e24",
-          },
+          paint: { "text-color": "#0b1e24" },
         });
       }
 
@@ -238,7 +242,7 @@ export default function CertisMap({
               "circle-radius": 5.5,
             },
           },
-          L.cluster // place above clusters by inserting after this id
+          L.cluster
         );
       }
       if (!map.getLayer(L.kingpinRing)) {
@@ -306,7 +310,6 @@ export default function CertisMap({
       }
 
       // --- Interactivity wiring
-      // cursors for hoverable layers
       const hoverables = [L.unclustered, L.kingpinCore, L.kingpinRing, L.cluster];
       hoverables.forEach((lid) => {
         if (!map.getLayer(lid)) return;
@@ -363,15 +366,34 @@ export default function CertisMap({
       map.on("mouseleave", L.kingpinCore, () => popupRef.current?.remove());
       map.on("mouseleave", L.kingpinRing, () => popupRef.current?.remove());
 
-      // click to add stop
+      // click to add stop — **back-compat call**
+      const invokeOnPointClick = (properties: any, coord: Position) => {
+        if (!onPointClick) return;
+        const arity = (onPointClick as any).length;
+        if (arity >= 2) {
+          // legacy: (props, LngLat)
+          (onPointClick as (p: any, ll: LngLat) => void)(properties, new mapboxgl.LngLat(coord[0], coord[1]));
+        } else {
+          // new shape: ({ name, coord })
+          const retailer =
+            properties?.retailer ??
+            properties?.Retailer ??
+            properties?.name ??
+            properties?.Name ??
+            "Location";
+          (onPointClick as (p: { name: string; coord: [number, number] }) => void)({
+            name: String(retailer),
+            coord: [coord[0], coord[1]],
+          });
+        }
+      };
+
       const clickToAdd = (e: any) => {
         const f: Feature<Geometry, any> | undefined = e?.features?.[0];
         if (!f || !f.geometry || (f.geometry as any).type !== "Point") return;
         const coord = (f.geometry as any).coordinates as Position;
         const props = f.properties || {};
-        const retailer =
-          props.retailer ?? props.Retailer ?? props.name ?? props.Name ?? "Location";
-        onPointClick?.({ name: retailer, coord: [coord[0], coord[1]] });
+        invokeOnPointClick(props, coord);
       };
       map.on("click", L.unclustered, clickToAdd);
       map.on("click", L.kingpinCore, clickToAdd);
@@ -395,7 +417,6 @@ export default function CertisMap({
     // Initial style load
     map.once("style.load", () => {
       installSourcesAndLayers();
-      // ensure correct size
       map.resize();
     });
 
@@ -444,19 +465,14 @@ export default function CertisMap({
     const m = mapRef.current;
     if (!m) return;
     const next = styleUrlFor(mapStyle);
-    if ((m as any).getStyle()?.sprite?.startsWith(next)) return; // rough duplicate check
-
     m.setStyle(next, { diff: false });
     m.once("style.load", () => {
-      // layers & interactions get reinstalled after a style change
-      // We call the same builder we used at init:
-      // NOTE: we inline the builder to avoid capturing old refs
+      // Force Mercator again
       try {
-        // Force Mercator again
         m.setProjection({ name: "mercator" as any });
       } catch {}
 
-      // Recreate sources & layers with the latest props
+      // Recreate sources/layers with latest props
       if (!m.getSource(CLUSTER_SRC)) {
         m.addSource(CLUSTER_SRC, {
           type: "geojson",
@@ -659,15 +675,32 @@ export default function CertisMap({
       m.on("mouseleave", L.kingpinCore, () => popupRef.current?.remove());
       m.on("mouseleave", L.kingpinRing, () => popupRef.current?.remove());
 
-      // click to add stop
+      // click to add stop — **back-compat call**
+      const invokeOnPointClick = (properties: any, coord: Position) => {
+        if (!onPointClick) return;
+        const arity = (onPointClick as any).length;
+        if (arity >= 2) {
+          (onPointClick as (p: any, ll: LngLat) => void)(properties, new mapboxgl.LngLat(coord[0], coord[1]));
+        } else {
+          const retailer =
+            properties?.retailer ??
+            properties?.Retailer ??
+            properties?.name ??
+            properties?.Name ??
+            "Location";
+          (onPointClick as (p: { name: string; coord: [number, number] }) => void)({
+            name: String(retailer),
+            coord: [coord[0], coord[1]],
+          });
+        }
+      };
+
       const clickToAdd = (e: any) => {
         const f: Feature<Geometry, any> | undefined = e?.features?.[0];
         if (!f || (f.geometry as any).type !== "Point") return;
         const coord = (f.geometry as any).coordinates as Position;
         const props = f.properties || {};
-        const retailer =
-          props.retailer ?? props.Retailer ?? props.name ?? props.Name ?? "Location";
-        onPointClick?.({ name: retailer, coord: [coord[0], coord[1]] });
+        invokeOnPointClick(props, coord);
       };
       m.on("click", L.unclustered, clickToAdd);
       m.on("click", L.kingpinCore, clickToAdd);
