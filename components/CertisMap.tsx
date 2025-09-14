@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import mapboxgl, { Map } from "mapbox-gl";
+import type { Point as GJPointGeom } from "geojson";
 
 /** Adjust if your dataset uses different property names */
 export type RetailerProps = {
@@ -37,7 +38,7 @@ export type CertisMapProps = {
   onPointClick?: (lngLat: [number, number], title: string, feature: GJPoint) => void;
 };
 
-mapboxgl.accessToken = ""; // we’ll set it per-instance to be explicit
+mapboxgl.accessToken = ""; // set per-instance below
 
 const STYLE_STREETS = "mapbox://styles/mapbox/streets-v12";
 const STYLE_HYBRID = "mapbox://styles/mapbox/satellite-streets-v12";
@@ -113,7 +114,7 @@ export default function CertisMap({
 
     mapRef.current = map;
 
-    // Make wheel zoom act like normal map (no CTRL needed)
+    // Normal wheel/touch zoom
     map.scrollZoom.enable();
     map.boxZoom.enable();
     map.touchZoomRotate.enable();
@@ -222,7 +223,7 @@ export default function CertisMap({
         });
       }
 
-      // click clusters to zoom in
+      // click clusters to zoom in (TS-safe center extraction)
       map.on("click", "clusters", (e: any) => {
         const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
         const clusterId = features[0]?.properties?.cluster_id;
@@ -230,7 +231,9 @@ export default function CertisMap({
         if (!src || clusterId == null) return;
         src.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
           if (err) return;
-          map.easeTo({ center: features[0].geometry.coordinates as any, zoom });
+          const center = ((features[0].geometry as GJPointGeom).coordinates ??
+            [e.lngLat.lng, e.lngLat.lat]) as [number, number];
+          map.easeTo({ center, zoom });
         });
       });
 
@@ -276,26 +279,17 @@ export default function CertisMap({
       map.on("mouseleave", "unclustered-dots", () => popupRef.current?.remove());
       map.on("mouseleave", "unclustered-kingpins", () => popupRef.current?.remove());
 
-      // Click/tap a point => bubble up
+      // Click/tap a point => show popup and bubble up to add stop
       const clickPoint = (e: any) => {
         const feat: GJPoint | undefined = e.features?.[0];
         if (!feat) return;
+        openPopup(feat, e.lngLat);
         const p = feat.properties || {};
         const title = featureTitle(p);
         onPointClick?.(feat.geometry.coordinates as [number, number], title, feat);
       };
       map.on("click", "unclustered-kingpins", clickPoint);
       map.on("click", "unclustered-dots", clickPoint);
-
-      // Mobile: tap shows popup where hover would be
-      const tapPoint = (e: any) => {
-        const feat = e.features?.[0];
-        if (!feat) return;
-        openPopup(feat, e.lngLat);
-      };
-      map.on("click", "clusters", () => popupRef.current?.remove());
-      map.on("click", "unclustered-kingpins", tapPoint);
-      map.on("click", "unclustered-dots", tapPoint);
     });
 
     return () => {
@@ -306,7 +300,7 @@ export default function CertisMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // swap basemap style (keeps source/layers; we’ll re-add after style load)
+  // swap basemap style (re-add layers)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -316,7 +310,6 @@ export default function CertisMap({
       if (map.getStyle()?.sprite?.startsWith(targetStyle)) return;
       map.setStyle(targetStyle);
       map.once("styledata", () => {
-        // re-add the source/layers after style change
         if (!map.getSource("retailers")) {
           map.addSource("retailers", {
             type: "geojson",
