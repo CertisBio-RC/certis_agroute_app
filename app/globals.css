@@ -1,122 +1,46 @@
-/* ------- Theme ------- */
-:root{
-  --bg:#0a0c10;
-  --panel:#12151c;
-  --card:#161a22;
-  --text:#e8eaee;
-  --muted:#97a1ad;
-  --border:#2a3140;
+/* app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Theme + layout polish ---- */
+:root { --line: rgba(255,255,255,0.08); }
+html, body, #__next { height: 100%; }
+body { background: #0b0b0c; color: #e7e7ea; }
+
+a { color: #93c5fd; }
+a:hover { text-decoration: none; }
+
+.border-line { border-color: var(--line); }
+.card {
+  border: 1px solid var(--line);
+  background: #121214;
+  border-radius: 16px;
 }
 
-*,
-*::before,
-*::after{ box-sizing:border-box }
+/* Scrollbars (subtle) */
+*::-webkit-scrollbar { height: 10px; width: 10px; }
+*::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 999px; }
+*::-webkit-scrollbar-track { background: transparent; }
 
-html, body { height:100% }
-body{
-  margin:0;
-  background:var(--bg);
-  color:var(--text);
-  -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+/* Mapbox canvas should fill container */
+.mapboxgl-canvas { outline: none !important; }
+
+/* Popups text smoothing */
+.mapboxgl-popup-content {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ------- Grid Layout ------- */
-.app-grid{
-  display:grid;
-  grid-template-columns:360px 1fr;
-  gap:16px;
-  padding:16px 16px 24px;
-  align-items:start;
+/* Optional chip styling (tailwind handles most) */
+.chip {
+  border: 1px solid var(--line);
+  background: #111315;
+  border-radius: 9999px;
+  padding: 4px 10px;
+  font-size: 12px;
 }
-
-.aside{
-  position:sticky; top:12px;
-  display:flex; flex-direction:column; gap:16px;
-  height:calc(100vh - 24px);
-  overflow:auto;
-  padding-right:2px;
-}
-
-/* Panels */
-.panel{
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:14px;
-}
-.panel-title{
-  font-weight:600; letter-spacing:.2px;
-  margin-bottom:10px; font-size:15px;
-}
-
-/* Controls */
-.label{ margin:10px 0 6px; font-size:12.5px; color:var(--muted) }
-.select, .input, .btn{
-  width:100%; border-radius:10px; border:1px solid var(--border);
-  background:var(--card); color:var(--text);
-  padding:10px 12px; font-size:14px;
-}
-.select{ appearance:none }
-.btn{ cursor:pointer; transition:border-color .15s, background .15s }
-.btn:hover{ border-color:#3a4354 }
-.btn.ghost{ width:auto; background:transparent }
-
-.hint{ margin-top:8px; font-size:12.5px; color:var(--muted) }
-
-.home-row{ display:flex; gap:8px }
-.row{ display:flex; gap:8px; margin-top:8px }
-
-.stop-row{
-  display:flex; justify-content:space-between; align-items:center;
-  gap:8px; padding:6px 8px; border:1px solid var(--border); border-radius:10px; margin-top:6px;
-  background:var(--card);
-}
-
-/* Chips + checklists */
-.chip-row{ display:flex; gap:8px; margin-bottom:8px }
-.chip{ padding:6px 10px; border-radius:999px; background:#0f1724; border:1px solid var(--border); color:var(--text); cursor:pointer }
-.checklist{ display:grid; grid-template-columns:1fr; gap:6px; max-height:200px; overflow:auto; padding-right:4px }
-.checkrow{ display:flex; align-items:center; gap:8px }
-.checkrow input{ accent-color:#39d6b2 }
-
-/* Map container */
-.map-shell{ min-height:calc(100vh - 40px) }
-.map-card{
-  height:calc(100vh - 40px);
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:14px;
-  overflow:hidden;
-  position:relative;
-}
-
-/* Brand overlay inside map frame */
-.map-brand{
-  position:absolute; left:10px; top:10px; z-index:2;
-  padding:6px 8px; border-radius:10px;
-  background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.06);
-  backdrop-filter: blur(6px);
-}
-.map-brand img{ height:46px; width:auto; display:block }
-
-/* Popup theme */
-.certis-popup .mapboxgl-popup-content{
-  background:#0f1624; color:#e8eaee; border:1px solid #2a3140; border-radius:10px; padding:10px 12px;
-}
-.certis-popup .mapboxgl-popup-tip{ border-top-color:#0f1624 !important }
-.popup-title{ font-weight:600; margin-bottom:4px }
-.popup-sub{ color:#9aa6b2; font-size:12.5px }
-.popup-logo{ max-width:180px; margin:6px 0; display:block }
-.kp-badge{
-  display:inline-block; margin-left:6px; padding:2px 6px; border-radius:999px; font-size:11px;
-  color:#0b1220; background:#ffd54f; font-weight:700;
-}
-
-/* Responsive */
-@media (max-width:1080px){
-  .app-grid{ grid-template-columns:1fr }
-  .aside{ position:static; height:auto; overflow:visible }
-  .map-card{ height:60vh }
+.chip.active {
+  border-color: #fbbf24;
+  background: rgba(251,191,36,.1);
 }

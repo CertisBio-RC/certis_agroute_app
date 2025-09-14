@@ -1,3 +1,4 @@
+// app/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
@@ -264,7 +265,7 @@ export default function Page() {
     <div className="flex h-[100dvh] w-full bg-neutral-950 text-neutral-100">
       {/* Sidebar */}
       <aside className="w-[360px] shrink-0 border-r border-neutral-800 p-4 overflow-y-auto">
-        <h1 className="text-xl font-semibold mb-3">Certis AgRoute Planner</h1>
+        <h1 className="text-3xl font-semibold mb-4">Certis AgRoute Planner</h1>
 
         {dataError ? (
           <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
@@ -273,7 +274,7 @@ export default function Page() {
         ) : null}
 
         <section className="mb-5">
-          <h2 className="text-base font-semibold mb-2">Home (ZIP)</h2>
+          <h2 className="text-xl font-semibold mb-2">Home (ZIP)</h2>
           <div className="flex gap-2">
             <input
               value={zipInput}
@@ -301,7 +302,7 @@ export default function Page() {
 
         {/* Filters */}
         <section className="mb-5">
-          <h2 className="text-base font-semibold mb-2">
+          <h2 className="text-xl font-semibold mb-2">
             States ({selStates.size} / {states.length})
           </h2>
           <div className="mb-2 flex gap-2 text-xs">
@@ -336,7 +337,7 @@ export default function Page() {
         </section>
 
         <section className="mb-5">
-          <h2 className="text-base font-semibold mb-2">
+          <h2 className="text-xl font-semibold mb-2">
             Retailers ({selRetailers.size} / {retailers.length})
           </h2>
           <div className="mb-2 flex gap-2 text-xs">
@@ -371,7 +372,7 @@ export default function Page() {
         </section>
 
         <section className="mb-6">
-          <h2 className="text-base font-semibold mb-2">
+          <h2 className="text-xl font-semibold mb-2">
             Location Types ({selTypes.size} / {types.length})
           </h2>
           <div className="mb-2 flex gap-2 text-xs">
@@ -407,7 +408,7 @@ export default function Page() {
 
         {/* Trip Builder */}
         <section className="mb-2">
-          <h2 className="text-base font-semibold mb-2">Trip Builder</h2>
+          <h2 className="text-xl font-semibold mb-2">Trip Builder</h2>
           <div className="mb-2 flex flex-wrap gap-2">
             {stops.map((s, i) => (
               <span

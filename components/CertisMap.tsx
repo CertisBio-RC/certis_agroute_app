@@ -1,3 +1,4 @@
+// components/CertisMap.tsx
 "use client";
 
 import React, { useEffect, useRef } from "react";
@@ -8,8 +9,9 @@ import mapboxgl, {
   LngLatLike,
   GeoJSONSource,
 } from "mapbox-gl";
+import { withBasePath } from "@/utils/paths";
 
-// Token can be provided via NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN or window.MAPBOX_TOKEN
+// Token via NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN or window.MAPBOX_TOKEN
 const MAPBOX_TOKEN =
   (typeof window !== "undefined" ? (window as any).MAPBOX_TOKEN : undefined) ||
   process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
@@ -64,11 +66,8 @@ export default function CertisMap({
   // Initialize map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    if (!MAPBOX_TOKEN) return;
 
-    if (!MAPBOX_TOKEN) {
-      // Soft fail; render empty container. Page shows toast elsewhere.
-      return;
-    }
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
     const map = new mapboxgl.Map({
@@ -77,12 +76,15 @@ export default function CertisMap({
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       attributionControl: true,
-      // 🔧 Turn OFF cooperativeGestures to remove repeating overlay banners
-      cooperativeGestures: false,
+      cooperativeGestures: false,        // no overlay banner
+      projection: { name: "mercator" },  // force mercator
     });
     mapRef.current = map;
 
     const onLoad = () => {
+      // Re-assert mercator in case style flips to globe
+      try { map.setProjection({ name: "mercator" } as any); } catch {}
+
       // MAIN clustered source
       if (!map.getSource("retailers")) {
         map.addSource("retailers", {
@@ -126,22 +128,19 @@ export default function CertisMap({
         } as any);
       }
 
-      // Cluster count labels
+      // Cluster labels
       if (!map.getLayer("cluster-count")) {
         map.addLayer({
           id: "cluster-count",
           type: "symbol",
           source: "retailers",
           filter: ["has", "point_count"],
-          layout: {
-            "text-field": ["get", "point_count_abbreviated"],
-            "text-size": 12,
-          },
+          layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12 },
           paint: { "text-color": "#0b1220" },
         } as any);
       }
 
-      // Unclustered (regular) points
+      // Unclustered points
       if (!map.getLayer("unclustered-point")) {
         map.addLayer({
           id: "unclustered-point",
@@ -205,28 +204,26 @@ export default function CertisMap({
         if (!src || clusterId == null) return;
         src.getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err) return;
-          map.easeTo({
-            center: (features[0].geometry as any).coordinates as LngLatLike,
-            zoom,
-          });
+          map.easeTo({ center: (features[0].geometry as any).coordinates as LngLatLike, zoom });
         });
       });
 
-      // Hover cursor for clickable layers
-      const hoverLayers = ["clusters", "unclustered-point", "kingpins-layer"];
-      hoverLayers.forEach((id) => {
+      // Cursor affordances
+      ["clusters", "unclustered-point", "kingpins-layer"].forEach((id) => {
         if (!map.getLayer(id)) return;
         map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
         map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
       });
 
-      // Popups & click-to-add for normal/KINGPIN points
+      // Popups & click-to-add
       const showPopup = (e: MapLayerMouseEvent | MapLayerTouchEvent, label: string) => {
         if (!e.features?.length) return;
         const f = e.features[0] as any;
         const p = (f.properties || {}) as FeatureProperties;
-        const coords = (f.geometry?.coordinates ?? []) as Position;
+        the_popup(p, (f.geometry?.coordinates ?? []) as Position, label);
+      };
 
+      const the_popup = (p: FeatureProperties, coords: Position, label: string) => {
         const html = `
           <div style="font: 12px/1.4 system-ui, sans-serif;">
             <div style="font-weight:600;margin-bottom:2px;">${p.Retailer ?? "Retailer"}</div>
@@ -234,19 +231,17 @@ export default function CertisMap({
             <div style="margin-top:4px;font-size:11px;opacity:.8;">${label}</div>
           </div>
         `;
-
         if (!popupRef.current) {
           popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
         }
         popupRef.current.setLngLat(coords as any).setHTML(html).addTo(map);
 
         if (onPointClick) {
-          const feat: Feature = {
+          onPointClick({
             type: "Feature",
             properties: p,
             geometry: { type: "Point", coordinates: coords },
-          };
-          onPointClick(feat);
+          });
         }
       };
 
@@ -257,6 +252,10 @@ export default function CertisMap({
     };
 
     map.on("load", onLoad);
+    // Re-assert mercator if style ever changes dynamically
+    map.on("styledata", () => {
+      try { map.setProjection({ name: "mercator" } as any); } catch {}
+    });
 
     return () => {
       popupRef.current?.remove();
@@ -297,9 +296,7 @@ export default function CertisMap({
     if (home) {
       const homeData = {
         type: "FeatureCollection",
-        features: [
-          { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: home } },
-        ],
+        features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: home } }],
       };
       if (map.getSource("home")) {
         (map.getSource("home") as GeoJSONSource).setData(homeData as any);
@@ -323,5 +320,17 @@ export default function CertisMap({
     }
   }, [data, kingpins, home]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  return (
+    <div ref={containerRef} className="relative h-full w-full">
+      {/* Brand inside the frame */}
+      <div className="pointer-events-none absolute left-3 top-3 z-10">
+        <img
+          src={withBasePath("logo-certis.png")}
+          alt="Certis"
+          className="h-8 opacity-90"
+          loading="eager"
+        />
+      </div>
+    </div>
+  );
 }
