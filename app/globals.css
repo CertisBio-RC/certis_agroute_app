@@ -1,114 +1,77 @@
-/* app/globals.css */
-
-/* Fonts + theme tokens */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@600;700&display=swap");
-
-:root{
-  --bg:#0b0f19;
-  --card:#0f172a;
-  --ink:#e5e7eb;
-  --muted:#94a3b8;
-  --line:#263244;
-  --accent:#facc15; /* yellow */
-  --accent-ink:#111827;
+/* Minimal, steady styles without yellow text everywhere */
+:root {
+  --bg: #0b1220;
+  --card: #0e172a;
+  --muted: #94a3b8;
+  --text: #e5e7eb;
+  --chip: #111827;
+  --chip-border: #334155;
+  --chip-checked: #0b1220;
+  --chip-ring: #475569;
+  --primary: #eab308; /* used for primary button only */
 }
 
-* { box-sizing: border-box; }
-html, body { height:100%; }
-body{
-  margin:0;
-  background:var(--bg);
-  color:var(--ink);
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
-  line-height:1.4;
+html, body, #__next { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+
+.pane-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  height: 100vh;
 }
 
-/* Layout helpers used by page.tsx */
-.pane-grid{
-  display:grid;
-  grid-template-columns:340px 1fr;
-  height:100dvh;
-  width:100%;
-}
-.sidebar{
-  height:100dvh;
-  overflow:auto;
-  padding:16px;
-  border-right:1px solid var(--line);
-  background:linear-gradient(180deg, rgba(13,19,33,.65), rgba(13,19,33,.9));
-}
-.map-area .card{ height:100%; }
-
-.card{
-  background:var(--card);
-  border:1px solid var(--line);
-  border-radius:14px;
-  overflow:hidden;
+.sidebar {
+  padding: 16px 14px 18px 14px;
+  border-right: 1px solid #1f2937;
+  overflow-y: auto;
 }
 
-/* Headings — bold yellow */
-.h1{
-  font-family: Rajdhani, Inter, system-ui;
-  font-weight:700;
-  letter-spacing:.4px;
-  font-size:28px;
-  margin:0 0 12px;
-  color:var(--accent);
+.map-area { height: 100vh; }
+.card { height: 100%; }
+
+.h1 { font-size: 26px; font-weight: 800; letter-spacing: .3px; margin: 0 0 10px 2px; color: var(--text); }
+.h2 { font-size: 16px; font-weight: 700; margin: 12px 0 8px; color: var(--text); }
+
+.input {
+  background: #0f172a; color: var(--text);
+  border: 1px solid #243244; outline: none; border-radius: 8px;
+  padding: 8px 10px; min-width: 140px;
 }
-.h2{
-  font-family: Rajdhani, Inter, system-ui;
-  font-weight:700;
-  letter-spacing:.3px;
-  font-size:20px;
-  margin:0 0 6px;
-  color:var(--accent);
+.input::placeholder { color: #6b7280; }
+
+.btn {
+  border: 1px solid #2a3a4c; background: #0f172a; color: var(--text);
+  border-radius: 8px; padding: 6px 10px; cursor: pointer;
+}
+.btn:hover { border-color: #3b4c60; }
+.btn-primary {
+  background: var(--primary); border-color: #d4a106; color: #0b1220;
 }
 
-/* Buttons */
-.btn{
-  appearance:none; cursor:pointer;
-  padding:6px 10px; border-radius:10px;
-  background:#101826; color:var(--ink);
-  border:1px solid var(--line);
+.checkbox-grid {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
 }
-.btn:hover{ filter:brightness(1.08); }
-.btn-primary{
-  background:var(--accent);
-  color:var(--accent-ink);
-  border-color:#d4b413;
-  font-weight:600;
+.checkbox-grid.stack { grid-template-columns: 1fr; } /* one per row */
+
+.check {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 10px;
+  border: 1px solid var(--chip-border);
+  background: var(--chip);
+}
+.check input[type="checkbox"],
+.check input[type="radio"] {
+  width: 16px; height: 16px; accent-color: #60a5fa; cursor: pointer;
+}
+.check label { cursor: pointer; color: var(--text); }
+
+.debug-pill {
+  padding: 2px 8px; border: 1px dashed #334155; border-radius: 999px;
+  color: var(--muted); font-size: 11px;
 }
 
-/* Inputs */
-.input{
-  width:160px;
-  background:#0c1322; color:var(--ink);
-  border:1px solid var(--line); border-radius:10px;
-  padding:6px 10px;
-}
-
-/* Checkbox grid for filters */
-.checkbox-grid{
-  display:flex; flex-wrap:wrap; gap:8px;
-}
-.check{
-  display:inline-flex; align-items:center; gap:8px;
-  padding:6px 10px; border-radius:10px;
-  border:1px solid var(--line);
-  background:#101826;
-}
-.check input[type="checkbox"]{
-  width:16px; height:16px; accent-color:var(--accent);
-}
-.check label{ font-size:12px; color:var(--ink); }
-
-/* Tiny helper */
-.debug-pill{
-  font: 11px Inter, system-ui;
-  color:var(--muted);
-  border:1px dashed var(--line);
-  padding:2px 6px;
-  border-radius:999px;
-}
-a{ color:#93c5fd; }
-a:hover{ text-decoration:none; }
+/* scrollbar subtle */
+.sidebar::-webkit-scrollbar { width: 10px; }
+.sidebar::-webkit-scrollbar-thumb { background: #122033; border-radius: 999px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }

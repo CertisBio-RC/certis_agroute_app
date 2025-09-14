@@ -57,7 +57,14 @@ export default function CertisMap({
   const homeRef = useRef(home); homeRef.current = home;
   const styleRef = useRef(styleId); styleRef.current = styleId;
 
-  const [logoMissing, setLogoMissing] = useState(false);
+  // brand overlay tries multiple images, then falls back to inline SVG
+  const logoCandidates = [
+    withBasePath("logo-certis.png"),
+    withBasePath("logo.png"),
+    withBasePath("images/logo-certis.png"),
+  ];
+  const [logoIdx, setLogoIdx] = useState(0);
+  const logoDone = logoIdx >= logoCandidates.length;
 
   const addSourcesLayers = () => {
     const map = mapRef.current;
@@ -120,7 +127,6 @@ export default function CertisMap({
             },
           } as any);
         } else {
-          // ensure layer sits on top of main points/clusters
           try { map.moveLayer("kingpins-layer"); } catch {}
         }
       }
@@ -138,7 +144,7 @@ export default function CertisMap({
         }
       }
 
-      // pointer cursor
+      // cursor affordance
       ["clusters","unclustered-point","kingpins-layer"].forEach((id) => {
         map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
         map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
@@ -165,6 +171,9 @@ export default function CertisMap({
     const onWinResize = () => { try { map.resize(); } catch {} };
     window.addEventListener("resize", onWinResize);
 
+    // ----- POPUPS ON HOVER (mousemove) -----
+    const ensurePopup = () => { if (!popupRef.current) popupRef.current = new mapboxgl.Popup({ closeButton:false, closeOnClick:false }); return popupRef.current; };
+
     const showPopup = (e: MapLayerMouseEvent | MapLayerTouchEvent, label: string) => {
       if (!e.features?.length) return;
       const f = e.features[0] as any;
@@ -177,7 +186,7 @@ export default function CertisMap({
       const addr = pickProp(p, ["Address","Address1","Address 1","Street","Street1","Addr1"]);
       const zip = pickProp(p, ["ZIP","Zip","Postal","PostalCode","Postcode"]);
       const typ = pickProp(p, ["Type","Location Type","LocationType","location_type","LocType","Loc_Type","Facility Type","Category","Location Category","Site Type"]);
-      const kp  = (()=>{ const raw = [p["KINGPIN"],p["Kingpin"],p["IsKingpin"],p["Key Account"]].find((v)=>v!=null); const s=String(raw||"").toLowerCase(); return s==="true"||s==="yes"||s==="y"||s==="1"||String(typ||"").toLowerCase()==="kingpin"; })();
+      const kp  = (()=>{ const vs = String(typ||"").toLowerCase(); return vs==="kingpin"; })();
 
       const line1 = retailer || "Location";
       const line2 = [addr, [city,state].filter(Boolean).join(", "), zip].filter(Boolean).join(" · ");
@@ -187,15 +196,47 @@ export default function CertisMap({
         <div style="font-family:Inter,system-ui,Segoe UI,Roboto,Arial; font-size:12px; line-height:1.35; color:#e5e7eb;">
           <div style="font-weight:700; margin-bottom:2px">${line1}</div>
           ${line2 ? `<div style="opacity:.9">${line2}</div>` : ``}
-          ${tag ? `<div style="margin-top:6px; font-size:11px; color:#facc15; font-weight:600">${tag}</div>` : ``}
-          <div style="margin-top:6px; font-size:11px; opacity:.8">${label}</div>
+          ${tag ? `<div style="margin-top:6px; font-size:11px; color:#f1f5f9; opacity:.9">${tag}</div>` : ``}
+          <div style="margin-top:6px; font-size:11px; opacity:.7">${label}</div>
         </div>`;
-      if (!popupRef.current) popupRef.current = new mapboxgl.Popup({ closeButton:false, closeOnClick:false });
-      popupRef.current.setLngLat(coords as any).setHTML(html).addTo(map);
-      onPointClick?.({ type:"Feature", properties:p, geometry:{ type:"Point", coordinates:coords } });
+
+      ensurePopup().setLngLat(coords as any).setHTML(html).addTo(map);
     };
-    map.on("click","unclustered-point",(e)=>showPopup(e,"Location"));
-    map.on("click","kingpins-layer",(e)=>showPopup(e,"KINGPIN"));
+
+    // hover popups
+    map.on("mousemove","unclustered-point",(e)=>showPopup(e,"Location"));
+    map.on("mouseleave","unclustered-point",()=>popupRef.current?.remove());
+    map.on("mousemove","kingpins-layer",(e)=>showPopup(e,"KINGPIN"));
+    map.on("mouseleave","kingpins-layer",()=>popupRef.current?.remove());
+
+    // click = add stop (no popup logic here)
+    map.on("click","unclustered-point",(e)=>{
+      if (!e.features?.length) return;
+      const f = e.features[0] as any;
+      const p = (f.properties || {}) as FeatureProperties;
+      const coords = (f.geometry?.coordinates ?? []) as Position;
+      onPointClick?.({ type:"Feature", properties:p, geometry:{ type:"Point", coordinates:coords } });
+    });
+    map.on("click","kingpins-layer",(e)=>{
+      if (!e.features?.length) return;
+      const f = e.features[0] as any;
+      const p = (f.properties || {}) as FeatureProperties;
+      const coords = (f.geometry?.coordinates ?? []) as Position;
+      onPointClick?.({ type:"Feature", properties:p, geometry:{ type:"Point", coordinates:coords } });
+    });
+
+    // optional: click clusters to zoom into them
+    map.on("click","clusters", (e) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+      const clusterId = (features[0]?.properties as any)?.cluster_id;
+      const source = map.getSource("retailers") as any;
+      if (clusterId && source?.getClusterExpansionZoom) {
+        source.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
+          if (err) return;
+          map.easeTo({ center: (features[0].geometry as any).coordinates as any, zoom });
+        });
+      }
+    });
 
     return () => { window.removeEventListener("resize", onWinResize); popupRef.current?.remove(); map.remove(); mapRef.current = null; };
   }, [onPointClick]);
@@ -209,20 +250,20 @@ export default function CertisMap({
 
   return (
     <div ref={containerRef} style={{ position:"relative", width:"100%", height:"100%" }}>
-      {/* in-map brand */}
+      {/* in-map brand (non-interactive) */}
       <div style={{ position:"absolute", left:12, top:12, zIndex:10, pointerEvents:"none" }}>
-        {!logoMissing ? (
+        {!logoDone ? (
           <img
-            src={withBasePath("logo-certis.png")}
+            src={logoCandidates[logoIdx]}
             alt="Certis"
-            style={{ height:28, opacity:.9, filter:"drop-shadow(0 1px 1px rgba(0,0,0,.35))" }}
-            onError={() => setLogoMissing(true)}
+            style={{ height:28, opacity:.92, filter:"drop-shadow(0 1px 1px rgba(0,0,0,.35))" }}
+            onError={() => setLogoIdx((i)=>i+1)}
             loading="eager"
           />
         ) : (
           <svg width="90" height="24" viewBox="0 0 90 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="0.5" y="0.5" width="89" height="23" rx="6" fill="rgba(0,0,0,.45)" stroke="rgba(255,255,255,.25)"/>
-            <text x="45" y="16" text-anchor="middle" font-family="Rajdhani, Inter, system-ui" font-weight="700" font-size="13" fill="#facc15" letter-spacing=".08em">CERTIS</text>
+            <text x="45" y="16" textAnchor="middle" fontFamily="Rajdhani, Inter, system-ui" fontWeight="700" fontSize="13" fill="#e5e7eb" letterSpacing=".08em">CERTIS</text>
           </svg>
         )}
       </div>

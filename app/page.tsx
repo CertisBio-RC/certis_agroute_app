@@ -27,9 +27,7 @@ const retailerKeys = ["Retailer","Dealer","Retailer Name","Retail"];
 const cityKeys     = ["City","Town"];
 const stateKeys    = ["State","ST","Province"];
 const typeKeysBase = ["Type","Location Type","LocationType","location_type","LocType","Loc_Type","Facility Type","Category","Location Category","Site Type"];
-const addressKeys  = ["Address","Address1","Address 1","Street","Street1","Addr1"];
-const zipKeys      = ["ZIP","Zip","Postal","PostalCode","Postcode"];
-const phoneKeys    = ["Phone","Telephone","Tel","Phone #"];
+const supplierKeys = ["Supplier","Suppliers","Supplier(s)","Supplier 1","Supplier1","Supplier A"];
 
 const getRetailer = (p: FeatureProperties) => getProp(p, retailerKeys);
 const getCity     = (p: FeatureProperties) => getProp(p, cityKeys);
@@ -37,7 +35,7 @@ const getState    = (p: FeatureProperties) => getProp(p, stateKeys);
 
 function inferTypeKey(features: Feature[]): string | null {
   if (!features.length) return null;
-  const exclude = new Set([...retailerKeys, ...cityKeys, ...stateKeys, "KINGPIN","Kingpin","IsKingpin","Key Account"]);
+  const exclude = new Set([...retailerKeys, ...cityKeys, ...stateKeys, ...supplierKeys, "KINGPIN","Kingpin","IsKingpin","Key Account"]);
   const counts: Record<string, Set<string>> = {};
   for (const f of features) {
     const p = f.properties || {};
@@ -69,10 +67,7 @@ function getTypeWithFallback(p: FeatureProperties, fallbackKey: string | null): 
   return "";
 }
 
-/** Robust KINGPIN detector:
- *  - boolean-ish flags (true/yes/1/Y)
- *  - or any field whose VALUE is exactly "kingpin" / "key account"
- */
+/** Robust KINGPIN detector */
 const isKingpin = (p: FeatureProperties) => {
   const flagRaw = getProp(p, ["KINGPIN","Kingpin","IsKingpin","Key Account","IsKey","KeyAccount"]);
   const s = String(flagRaw || "").trim().toLowerCase();
@@ -93,6 +88,22 @@ function splitKingpins(fc: FeatureCollection): { main: FeatureCollection; kingpi
   return { main: toFC(main), kingpins: toFC(kp) };
 }
 
+/* Suppliers parsing (supports comma, slash, ampersand, bullets, “and”) */
+function parseSuppliers(raw: string): string[] {
+  if (!raw) return [];
+  const r = raw
+    .replace(/\sand\s/gi, ",")
+    .replace(/[\/|•;]+/g, ",")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return r;
+}
+function suppliersOf(p: FeatureProperties): string[] {
+  const raw = getProp(p, supplierKeys);
+  return parseSuppliers(raw);
+}
+
 /* ---------------- data fetch ---------------- */
 async function tryFetchJson<T>(path: string): Promise<T | null> {
   try { const res = await fetch(path, { cache: "force-cache" }); if (!res.ok) return null; return (await res.json()) as T; }
@@ -111,8 +122,9 @@ function CheckboxGroup(props: {
   onToggle: (v: string) => void;
   onAll: () => void;
   onNone: () => void;
+  stack?: boolean;              // <- when true, one item per row
 }) {
-  const { items, selected, title, onToggle, onAll, onNone } = props;
+  const { items, selected, title, onToggle, onAll, onNone, stack } = props;
   return (
     <section className="mb-5">
       {title ? <h2 className="h2 mb-2">{title}</h2> : null}
@@ -120,7 +132,7 @@ function CheckboxGroup(props: {
         <button className="btn" onClick={onAll}>All</button>
         <button className="btn" onClick={onNone}>None</button>
       </div>
-      <div className="checkbox-grid">
+      <div className={`checkbox-grid${stack ? " stack" : ""}`}>
         {items.map((v) => (
           <div className="check" key={v || "_"}>
             <input
@@ -149,9 +161,11 @@ export default function Page() {
   const [states, setStates] = useState<string[]>([]);
   const [retailers, setRetailers] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
   const [selStates, setSelStates] = useState<Set<string>>(new Set());
   const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
   const [selTypes, setSelTypes] = useState<Set<string>>(new Set());
+  const [selSuppliers, setSelSuppliers] = useState<Set<string>>(new Set());
 
   // home (ZIP)
   const [zipInput, setZipInput] = useState("");
@@ -189,25 +203,33 @@ export default function Page() {
     const s = dedupe(mainFc.features.map((f) => getState(f.properties || {})));
     const r = dedupe(mainFc.features.map((f) => getRetailer(f.properties || {})));
     let t = dedupe(mainFc.features.map((f) => getTypeWithFallback(f.properties || {}, inferredTypeKey)));
-    // safety: a stray "Kingpin" value should never appear as a user filter
-    t = t.filter((v) => String(v || "").trim().toLowerCase() !== "kingpin");
-    setStates(s); setRetailers(r); setTypes(t);
-    setSelStates(new Set(s)); setSelRetailers(new Set(r)); setSelTypes(new Set(t));
+    t = t.filter((v) => String(v || "").trim().toLowerCase() !== "kingpin"); // never expose as a user filter
+
+    const sup = dedupe(mainFc.features.flatMap((f) => suppliersOf(f.properties || {})));
+
+    setStates(s); setRetailers(r); setTypes(t); setSuppliers(sup);
+    setSelStates(new Set(s)); setSelRetailers(new Set(r)); setSelTypes(new Set(t)); setSelSuppliers(new Set(sup));
   }, [mainFc, inferredTypeKey]);
 
   // filtered features
   const filteredFc: FeatureCollection | null = useMemo(() => {
     if (!mainFc) return null;
     const out: Feature[] = [];
+    const allSup = selSuppliers.size === suppliers.length; // “all selected” short-circuit
     for (const f of mainFc.features) {
       const p = f.properties || {};
       if (!selStates.has(getState(p))) continue;
       if (!selRetailers.has(getRetailer(p))) continue;
       if (!selTypes.has(getTypeWithFallback(p, inferredTypeKey))) continue;
+
+      if (!allSup) {
+        const sup = suppliersOf(p);
+        if (!sup.some((x) => selSuppliers.has(x))) continue;
+      }
       out.push(f);
     }
     return toFC(out);
-  }, [mainFc, selStates, selRetailers, selTypes, inferredTypeKey]);
+  }, [mainFc, selStates, selRetailers, selTypes, selSuppliers, suppliers.length, inferredTypeKey]);
 
   // local ZIP index
   useEffect(() => {
@@ -311,6 +333,7 @@ export default function Page() {
           onNone={() => setNone(setSelStates)}
         />
 
+        {/* Retailers one per row */}
         <CheckboxGroup
           title={`Retailers (${selRetailers.size} / ${retailers.length})`}
           items={retailers}
@@ -318,6 +341,7 @@ export default function Page() {
           onToggle={(v) => toggleSel(setSelRetailers, v)}
           onAll={() => setAll(setSelRetailers, retailers)}
           onNone={() => setNone(setSelRetailers)}
+          stack
         />
 
         <div className="mb-1" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
@@ -330,6 +354,16 @@ export default function Page() {
           onToggle={(v) => toggleSel(setSelTypes, v)}
           onAll={() => setAll(setSelTypes, types)}
           onNone={() => setNone(setSelTypes)}
+        />
+
+        {/* NEW: Suppliers */}
+        <CheckboxGroup
+          title={`Suppliers (${selSuppliers.size} / ${suppliers.length})`}
+          items={suppliers}
+          selected={selSuppliers}
+          onToggle={(v) => toggleSel(setSelSuppliers, v)}
+          onAll={() => setAll(setSelSuppliers, suppliers)}
+          onNone={() => setNone(setSelSuppliers)}
         />
 
         <section className="mb-5">
@@ -349,7 +383,7 @@ export default function Page() {
         <section className="mb-5">
           <h2 className="h2 mb-2">Trip Builder</h2>
           <div className="mb-2" style={{ fontSize: 13 }}>
-            {stops.length === 0 ? <span style={{ color:"#94a3b8" }}>Click map points to add stops…</span> :
+            {stops.length === 0 ? <span style={{ color:"#94a3b8" }}>Hover to preview; click a point to add…</span> :
               stops.map((s, i) => <span key={`${s.name}-${i}`}>{i+1}. {s.name}{i<stops.length-1?" · ":""}</span>)
             }
           </div>
