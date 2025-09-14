@@ -4,19 +4,15 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Certis AgRoute Planner",
-  description:
-    "Filter retailers and plan optimized trips. Double-click map to set Home. Click a point to add a stop.",
+  description: "Plan retailer routes with filters, home ZIP, and KINGPIN visibility.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  // No header logo here. The Certis mark is rendered INSIDE the map frame
-  // (components/CertisMap.tsx) so it always works with GitHub Pages basePath
-  // and never interferes with map interactions.
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="min-h-screen bg-neutral-950 text-neutral-100 antialiased">
+        {children}
+      </body>
     </html>
   );
 }

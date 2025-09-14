@@ -1,7 +1,7 @@
 // components/CertisMap.tsx
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import mapboxgl, {
   Map as MapboxMap,
   MapLayerMouseEvent,
@@ -11,19 +11,19 @@ import mapboxgl, {
 } from "mapbox-gl";
 import { withBasePath } from "@/utils/paths";
 
-// Token via NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN or window.MAPBOX_TOKEN
 const MAPBOX_TOKEN =
   (typeof window !== "undefined" ? (window as any).MAPBOX_TOKEN : undefined) ||
   process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ||
   "";
 
-// ---- Minimal GeoJSON typings
 type Position = [number, number];
 interface FeatureProperties {
   Retailer?: string;
   City?: string;
   State?: string;
   Type?: string;
+  ["Location Type"]?: string;
+  LocationType?: string;
   KINGPIN?: boolean;
   [key: string]: any;
 }
@@ -38,19 +38,14 @@ interface FeatureCollection {
   features: Feature[];
 }
 
-// ---- Props
 export interface CertisMapProps {
-  /** Main dataset (clustered) */
   data: FeatureCollection;
-  /** Separate KINGPIN dataset (not clustered). Optional. */
   kingpins?: FeatureCollection | null;
-  /** Optional 'home' pin [lng,lat] */
   home?: Position | null;
-  /** Called when a user clicks an individual point (either main or KINGPIN) */
   onPointClick?: (feature: Feature) => void;
 }
 
-const DEFAULT_CENTER: LngLatLike = [-93.5, 41.9]; // Midwest-ish
+const DEFAULT_CENTER: LngLatLike = [-93.5, 41.9];
 const DEFAULT_ZOOM = 4.3;
 
 export default function CertisMap({
@@ -62,11 +57,10 @@ export default function CertisMap({
   const mapRef = useRef<MapboxMap | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const [logoMissing, setLogoMissing] = useState(false);
 
-  // Initialize map once
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    if (!MAPBOX_TOKEN) return;
+    if (!containerRef.current || mapRef.current || !MAPBOX_TOKEN) return;
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
@@ -76,13 +70,12 @@ export default function CertisMap({
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       attributionControl: true,
-      cooperativeGestures: false,        // no overlay banner
-      projection: { name: "mercator" },  // force mercator
+      cooperativeGestures: false,
+      projection: { name: "mercator" }, // ✅ force mercator
     });
     mapRef.current = map;
 
     const onLoad = () => {
-      // Re-assert mercator in case style flips to globe
       try { map.setProjection({ name: "mercator" } as any); } catch {}
 
       // MAIN clustered source
@@ -95,8 +88,6 @@ export default function CertisMap({
           clusterRadius: 40,
         });
       }
-
-      // Cluster circles
       if (!map.getLayer("clusters")) {
         map.addLayer({
           id: "clusters",
@@ -116,31 +107,27 @@ export default function CertisMap({
             "circle-radius": [
               "step",
               ["get", "point_count"],
-              16,
+              14,
               25,
-              22,
+              20,
               100,
-              28,
+              26,
             ],
             "circle-stroke-color": "#0f172a",
-            "circle-stroke-width": 1.5,
+            "circle-stroke-width": 1.25,
           },
         } as any);
       }
-
-      // Cluster labels
       if (!map.getLayer("cluster-count")) {
         map.addLayer({
           id: "cluster-count",
           type: "symbol",
           source: "retailers",
           filter: ["has", "point_count"],
-          layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12 },
+          layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 11 },
           paint: { "text-color": "#0b1220" },
         } as any);
       }
-
-      // Unclustered points
       if (!map.getLayer("unclustered-point")) {
         map.addLayer({
           id: "unclustered-point",
@@ -149,14 +136,14 @@ export default function CertisMap({
           filter: ["!", ["has", "point_count"]],
           paint: {
             "circle-color": "#60a5fa",
-            "circle-radius": 6,
+            "circle-radius": 5.5,
             "circle-stroke-color": "#0f172a",
-            "circle-stroke-width": 1.5,
+            "circle-stroke-width": 1.25,
           },
         } as any);
       }
 
-      // KINGPIN separate (non-clustered)
+      // KINGPIN separate
       if (kingpins && !map.getSource("kingpins")) {
         map.addSource("kingpins", { type: "geojson", data: kingpins as any });
         map.addLayer({
@@ -178,9 +165,7 @@ export default function CertisMap({
           type: "geojson",
           data: {
             type: "FeatureCollection",
-            features: [
-              { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: home } },
-            ],
+            features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: home } }],
           },
         });
         map.addLayer({
@@ -220,10 +205,8 @@ export default function CertisMap({
         if (!e.features?.length) return;
         const f = e.features[0] as any;
         const p = (f.properties || {}) as FeatureProperties;
-        the_popup(p, (f.geometry?.coordinates ?? []) as Position, label);
-      };
+        const coords = (f.geometry?.coordinates ?? []) as Position;
 
-      const the_popup = (p: FeatureProperties, coords: Position, label: string) => {
         const html = `
           <div style="font: 12px/1.4 system-ui, sans-serif;">
             <div style="font-weight:600;margin-bottom:2px;">${p.Retailer ?? "Retailer"}</div>
@@ -252,7 +235,6 @@ export default function CertisMap({
     };
 
     map.on("load", onLoad);
-    // Re-assert mercator if style ever changes dynamically
     map.on("styledata", () => {
       try { map.setProjection({ name: "mercator" } as any); } catch {}
     });
@@ -264,7 +246,7 @@ export default function CertisMap({
     };
   }, [data, kingpins, home, onPointClick]);
 
-  // Update sources when props change (after map ready)
+  // Update sources
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -272,7 +254,6 @@ export default function CertisMap({
     if (map.isStyleLoaded() && map.getSource("retailers")) {
       (map.getSource("retailers") as GeoJSONSource).setData(data as any);
     }
-
     if (kingpins) {
       if (map.getSource("kingpins")) {
         (map.getSource("kingpins") as GeoJSONSource).setData(kingpins as any);
@@ -291,8 +272,6 @@ export default function CertisMap({
         } as any);
       }
     }
-
-    // Update / create home source
     if (home) {
       const homeData = {
         type: "FeatureCollection",
@@ -322,14 +301,21 @@ export default function CertisMap({
 
   return (
     <div ref={containerRef} className="relative h-full w-full">
-      {/* Brand inside the frame */}
-      <div className="pointer-events-none absolute left-3 top-3 z-10">
-        <img
-          src={withBasePath("logo-certis.png")}
-          alt="Certis"
-          className="h-8 opacity-90"
-          loading="eager"
-        />
+      {/* Brand inside the frame (fallback if logo missing) */}
+      <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-2">
+        {!logoMissing ? (
+          <img
+            src={withBasePath("logo-certis.png")}
+            alt="Certis"
+            className="h-7 opacity-90"
+            loading="eager"
+            onError={() => setLogoMissing(true)}
+          />
+        ) : (
+          <div className="brand-fallback px-2 py-1 rounded bg-black/40 border border-white/20">
+            CERTIS
+          </div>
+        )}
       </div>
     </div>
   );

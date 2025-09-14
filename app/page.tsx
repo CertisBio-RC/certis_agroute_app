@@ -6,13 +6,14 @@ import CertisMap from "@/components/CertisMap";
 import { withBasePath } from "@/utils/paths";
 import * as Route from "@/utils/routing";
 
-// ---- Minimal GeoJSON typings
 type Position = [number, number];
 interface FeatureProperties {
   Retailer?: string;
   City?: string;
   State?: string;
-  Type?: string; // Location Type
+  Type?: string;
+  ["Location Type"]?: string;
+  LocationType?: string;
   KINGPIN?: boolean;
   [key: string]: any;
 }
@@ -26,10 +27,11 @@ interface FeatureCollection {
   type: "FeatureCollection";
   features: Feature[];
 }
-
 export type Stop = { name: string; coord: Position };
 
 const dedupe = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
+const getTypeProp = (p: FeatureProperties) =>
+  p.Type ?? p.LocationType ?? p["Location Type"] ?? "";
 
 function splitKingpins(fc: FeatureCollection): {
   main: FeatureCollection;
@@ -44,7 +46,6 @@ function splitKingpins(fc: FeatureCollection): {
   };
 }
 
-// fetch helper
 async function tryFetchJson<T = any>(path: string): Promise<T | null> {
   try {
     const res = await fetch(path, { cache: "force-cache" });
@@ -54,8 +55,6 @@ async function tryFetchJson<T = any>(path: string): Promise<T | null> {
     return null;
   }
 }
-
-// attempt multiple candidate paths
 async function fetchFirstAvailable<T = any>(candidates: string[]): Promise<T | null> {
   for (const p of candidates) {
     const j = await tryFetchJson<T>(p);
@@ -65,12 +64,12 @@ async function fetchFirstAvailable<T = any>(candidates: string[]): Promise<T | n
 }
 
 export default function Page() {
-  // ---- Data
+  // Data
   const [mainFc, setMainFc] = useState<FeatureCollection | null>(null);
   const [kingpinFc, setKingpinFc] = useState<FeatureCollection | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
 
-  // ---- Filters (derived lists + selections)
+  // Filters
   const [states, setStates] = useState<string[]>([]);
   const [retailers, setRetailers] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
@@ -79,17 +78,17 @@ export default function Page() {
   const [selRetailers, setSelRetailers] = useState<Set<string>>(new Set());
   const [selTypes, setSelTypes] = useState<Set<string>>(new Set());
 
-  // ---- Home handling
+  // Home (ZIP)
   const [zipInput, setZipInput] = useState("");
   const [home, setHome] = useState<Position | null>(null);
   const [homeErr, setHomeErr] = useState<string | null>(null);
   const [zipIndex, setZipIndex] = useState<Record<string, Position> | null>(null);
 
-  // ---- Trip builder
+  // Trip
   const [stops, setStops] = useState<Stop[]>([]);
   const [optimized, setOptimized] = useState<Stop[]>([]);
 
-  // ---- Load dataset(s)
+  // Load dataset
   useEffect(() => {
     (async () => {
       try {
@@ -97,12 +96,9 @@ export default function Page() {
           (await fetchFirstAvailable<FeatureCollection>([
             withBasePath("retailers.geojson"),
             withBasePath("data/retailers.geojson"),
-          ])) ??
-          ({ type: "FeatureCollection", features: [] } as FeatureCollection);
+          ])) ?? ({ type: "FeatureCollection", features: [] } as FeatureCollection);
 
-        if (!fc.features?.length) {
-          setDataError("No features found in retailers.geojson");
-        }
+        if (!fc.features?.length) setDataError("No features found in retailers.geojson");
 
         const { main, kingpins } = splitKingpins(fc);
         setMainFc(main);
@@ -113,21 +109,21 @@ export default function Page() {
     })();
   }, []);
 
-  // ---- Build filter domain lists once data is ready
+  // Build filter domains
   useEffect(() => {
     if (!mainFc) return;
     const s = dedupe(mainFc.features.map((f) => f.properties?.State || ""));
     const r = dedupe(mainFc.features.map((f) => f.properties?.Retailer || ""));
-    const t = dedupe(mainFc.features.map((f) => f.properties?.Type || ""));
+    const t = dedupe(mainFc.features.map((f) => getTypeProp(f.properties || {})));
     setStates(s);
     setRetailers(r);
     setTypes(t);
-    setSelStates(new Set(s)); // default: All
+    setSelStates(new Set(s));
     setSelRetailers(new Set(r));
     setSelTypes(new Set(t));
   }, [mainFc]);
 
-  // ---- Filtered FeatureCollection (main data only; kingpins separate)
+  // Filtered FC
   const filteredFc: FeatureCollection | null = useMemo(() => {
     if (!mainFc) return null;
     const out: Feature[] = [];
@@ -135,13 +131,13 @@ export default function Page() {
       const p = f.properties || {};
       if (!selStates.has(p.State || "")) continue;
       if (!selRetailers.has(p.Retailer || "")) continue;
-      if (!selTypes.has(p.Type || "")) continue;
+      if (!selTypes.has(getTypeProp(p))) continue;
       out.push(f);
     }
     return { type: "FeatureCollection", features: out };
   }, [mainFc, selStates, selRetailers, selTypes]);
 
-  // ---- Optional local ZIP index load
+  // ZIP index (optional local)
   useEffect(() => {
     (async () => {
       const idx = await fetchFirstAvailable<Record<string, Position>>([
@@ -152,12 +148,12 @@ export default function Page() {
     })();
   }, []);
 
-  // ---- Geocode ZIP → Position
+  // ZIP geocode
   const geocodeZip = useCallback(
     async (zip: string): Promise<Position | null> => {
       const z = zip.trim();
       if (!z) return null;
-      if (zipIndex && zipIndex[z]) return zipIndex[z]; // local
+      if (zipIndex && zipIndex[z]) return zipIndex[z];
       const token =
         (typeof window !== "undefined" ? (window as any).MAPBOX_TOKEN : undefined) ||
         process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN;
@@ -184,7 +180,7 @@ export default function Page() {
     else setHomeErr("ZIP not found (try a 5-digit US ZIP)");
   }, [zipInput, geocodeZip]);
 
-  // ---- Trip builder actions
+  // Trip actions
   const addStop = useCallback((feat: Feature) => {
     const p = feat.properties || {};
     const name = [p.Retailer, p.City, p.State].filter(Boolean).join(" · ");
@@ -208,16 +204,13 @@ export default function Page() {
     setOptimized(improved);
   }, [stops, home]);
 
-  // ---- Route links
+  // Share links
   const googleHref = useMemo(() => {
     if (optimized.length === 0) return "";
     const origin = home
       ? `${home[1]},${home[0]}`
       : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
-    return Route.buildGoogleMapsLink(
-      origin,
-      optimized.map((s) => s.coord)
-    );
+    return Route.buildGoogleMapsLink(origin, optimized.map((s) => s.coord));
   }, [optimized, home]);
 
   const appleHref = useMemo(() => {
@@ -225,10 +218,7 @@ export default function Page() {
     const origin = home
       ? `${home[1]},${home[0]}`
       : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
-    return Route.buildAppleMapsLink(
-      origin,
-      optimized.map((s) => s.coord)
-    );
+    return Route.buildAppleMapsLink(origin, optimized.map((s) => s.coord));
   }, [optimized, home]);
 
   const wazeHref = useMemo(() => {
@@ -236,17 +226,11 @@ export default function Page() {
     const origin = home
       ? `${home[1]},${home[0]}`
       : `${optimized[0].coord[1]},${optimized[0].coord[0]}`;
-    return Route.buildWazeLink(
-      origin,
-      optimized.map((s) => s.coord)
-    );
+    return Route.buildWazeLink(origin, optimized.map((s) => s.coord));
   }, [optimized, home]);
 
-  // ---- UI helpers for filter chips
-  const toggleSel = (
-    set: React.Dispatch<React.SetStateAction<Set<string>>>,
-    value: string
-  ) => {
+  // UI helpers
+  const toggleSel = (set: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
     set((prev) => {
       const next = new Set(prev);
       if (next.has(value)) next.delete(value);
@@ -254,18 +238,15 @@ export default function Page() {
       return next;
     });
   };
-  const setAll = (
-    set: React.Dispatch<React.SetStateAction<Set<string>>>,
-    values: string[]
-  ) => set(new Set(values));
-  const setNone = (set: React.Dispatch<React.SetStateAction<Set<string>>>) =>
-    set(new Set());
+  const setAll = (set: React.Dispatch<React.SetStateAction<Set<string>>>, values: string[]) =>
+    set(new Set(values));
+  const setNone = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => set(new Set());
 
   return (
-    <div className="flex h-[100dvh] w-full bg-neutral-950 text-neutral-100">
+    <div className="flex h-[100dvh] w-full">
       {/* Sidebar */}
-      <aside className="w-[360px] shrink-0 border-r border-neutral-800 p-4 overflow-y-auto">
-        <h1 className="text-3xl font-semibold mb-4">Certis AgRoute Planner</h1>
+      <aside className="w-[320px] shrink-0 p-4 overflow-y-auto">
+        <h1 className="mb-3">Certis AgRoute Planner</h1>
 
         {dataError ? (
           <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
@@ -274,7 +255,7 @@ export default function Page() {
         ) : null}
 
         <section className="mb-5">
-          <h2 className="text-xl font-semibold mb-2">Home (ZIP)</h2>
+          <h2 className="mb-2">Home (ZIP)</h2>
           <div className="flex gap-2">
             <input
               value={zipInput}
@@ -290,9 +271,7 @@ export default function Page() {
               Set
             </button>
           </div>
-          {homeErr ? (
-            <div className="mt-2 text-xs text-red-400">{homeErr}</div>
-          ) : null}
+          {homeErr ? <div className="mt-2 text-xs text-red-400">{homeErr}</div> : null}
           {home ? (
             <div className="mt-2 text-xs text-neutral-400">
               Home set at {home[1].toFixed(4)}, {home[0].toFixed(4)}
@@ -300,35 +279,18 @@ export default function Page() {
           ) : null}
         </section>
 
-        {/* Filters */}
         <section className="mb-5">
-          <h2 className="text-xl font-semibold mb-2">
-            States ({selStates.size} / {states.length})
-          </h2>
+          <h2 className="mb-2">States ({selStates.size} / {states.length})</h2>
           <div className="mb-2 flex gap-2 text-xs">
-            <button
-              onClick={() => setAll(setSelStates, states)}
-              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
-            >
-              All
-            </button>
-            <button
-              onClick={() => setNone(setSelStates)}
-              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
-            >
-              None
-            </button>
+            <button onClick={() => setAll(setSelStates, states)} className="chip">All</button>
+            <button onClick={() => setNone(setSelStates)} className="chip">None</button>
           </div>
           <div className="flex flex-wrap gap-2">
             {states.map((s) => (
               <button
                 key={s}
                 onClick={() => toggleSel(setSelStates, s)}
-                className={`rounded-full px-3 py-1 text-xs border ${
-                  selStates.has(s)
-                    ? "border-amber-400 bg-amber-500/10"
-                    : "border-neutral-700 bg-neutral-900"
-                }`}
+                className={`chip ${selStates.has(s) ? "active" : ""}`}
               >
                 {s || "—"}
               </button>
@@ -337,33 +299,17 @@ export default function Page() {
         </section>
 
         <section className="mb-5">
-          <h2 className="text-xl font-semibold mb-2">
-            Retailers ({selRetailers.size} / {retailers.length})
-          </h2>
+          <h2 className="mb-2">Retailers ({selRetailers.size} / {retailers.length})</h2>
           <div className="mb-2 flex gap-2 text-xs">
-            <button
-              onClick={() => setAll(setSelRetailers, retailers)}
-              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
-            >
-              All
-            </button>
-            <button
-              onClick={() => setNone(setSelRetailers)}
-              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
-            >
-              None
-            </button>
+            <button onClick={() => setAll(setSelRetailers, retailers)} className="chip">All</button>
+            <button onClick={() => setNone(setSelRetailers)} className="chip">None</button>
           </div>
           <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1">
             {retailers.map((r) => (
               <button
                 key={r}
                 onClick={() => toggleSel(setSelRetailers, r)}
-                className={`rounded-full px-3 py-1 text-xs border ${
-                  selRetailers.has(r)
-                    ? "border-amber-400 bg-amber-500/10"
-                    : "border-neutral-700 bg-neutral-900"
-                }`}
+                className={`chip ${selRetailers.has(r) ? "active" : ""}`}
               >
                 {r || "—"}
               </button>
@@ -372,33 +318,17 @@ export default function Page() {
         </section>
 
         <section className="mb-6">
-          <h2 className="text-xl font-semibold mb-2">
-            Location Types ({selTypes.size} / {types.length})
-          </h2>
+          <h2 className="mb-2">Location Types ({selTypes.size} / {types.length})</h2>
           <div className="mb-2 flex gap-2 text-xs">
-            <button
-              onClick={() => setAll(setSelTypes, types)}
-              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
-            >
-              All
-            </button>
-            <button
-              onClick={() => setNone(setSelTypes)}
-              className="rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800"
-            >
-              None
-            </button>
+            <button onClick={() => setAll(setSelTypes, types)} className="chip">All</button>
+            <button onClick={() => setNone(setSelTypes)} className="chip">None</button>
           </div>
           <div className="flex flex-wrap gap-2">
             {types.map((t) => (
               <button
                 key={t}
                 onClick={() => toggleSel(setSelTypes, t)}
-                className={`rounded-full px-3 py-1 text-xs border ${
-                  selTypes.has(t)
-                    ? "border-amber-400 bg-amber-500/10"
-                    : "border-neutral-700 bg-neutral-900"
-                }`}
+                className={`chip ${selTypes.has(t) ? "active" : ""}`}
               >
                 {t || "—"}
               </button>
@@ -406,64 +336,35 @@ export default function Page() {
           </div>
         </section>
 
-        {/* Trip Builder */}
         <section className="mb-2">
-          <h2 className="text-xl font-semibold mb-2">Trip Builder</h2>
+          <h2 className="mb-2">Trip Builder</h2>
           <div className="mb-2 flex flex-wrap gap-2">
             {stops.map((s, i) => (
-              <span
-                key={`${s.name}-${i}`}
-                className="rounded-full border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs"
-              >
-                {i + 1}. {s.name}
-              </span>
+              <span key={`${s.name}-${i}`} className="chip">{i + 1}. {s.name}</span>
             ))}
             {stops.length === 0 ? (
-              <span className="text-xs text-neutral-400">
-                Click map points to add stops…
-              </span>
+              <span className="text-xs text-neutral-400">Click map points to add stops…</span>
             ) : null}
           </div>
           <div className="flex gap-2">
             <button
               onClick={optimize}
-              className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-medium text-black hover:bg-emerald-400"
+              className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-black hover:bg-emerald-400"
             >
               Optimize
             </button>
             <button
               onClick={clearStops}
-              className="rounded-xl bg-neutral-800 px-3 py-2 text-sm font-medium hover:bg-neutral-700"
+              className="rounded-lg bg-neutral-800 px-3 py-2 text-sm font-medium hover:bg-neutral-700"
             >
               Clear
             </button>
           </div>
           {optimized.length > 0 ? (
             <div className="mt-3 flex flex-col gap-2 text-sm">
-              <a
-                target="_blank"
-                rel="noreferrer"
-                href={googleHref}
-                className="underline hover:no-underline"
-              >
-                Open in Google Maps
-              </a>
-              <a
-                target="_blank"
-                rel="noreferrer"
-                href={appleHref}
-                className="underline hover:no-underline"
-              >
-                Open in Apple Maps
-              </a>
-              <a
-                target="_blank"
-                rel="noreferrer"
-                href={wazeHref}
-                className="underline hover:no-underline"
-              >
-                Open in Waze
-              </a>
+              <a target="_blank" rel="noreferrer" href={googleHref} className="underline hover:no-underline">Open in Google Maps</a>
+              <a target="_blank" rel="noreferrer" href={appleHref} className="underline hover:no-underline">Open in Apple Maps</a>
+              <a target="_blank" rel="noreferrer" href={wazeHref} className="underline hover:no-underline">Open in Waze</a>
             </div>
           ) : null}
         </section>
@@ -474,19 +375,12 @@ export default function Page() {
       </aside>
 
       {/* Map area */}
-      <main className="min-w-0 flex-1 p-3">
-        <div className="h-full rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+      <main className="min-w-0 flex-1 p-4">
+        <div className="card h-full overflow-hidden">
           {filteredFc && kingpinFc ? (
-            <CertisMap
-              data={filteredFc as any}
-              kingpins={kingpinFc as any}
-              home={home as any}
-              onPointClick={addStop as any}
-            />
+            <CertisMap data={filteredFc as any} kingpins={kingpinFc as any} home={home as any} onPointClick={addStop as any} />
           ) : (
-            <div className="flex h-full items-center justify-center text-neutral-400">
-              Loading map…
-            </div>
+            <div className="flex h-full items-center justify-center text-neutral-400">Loading map…</div>
           )}
         </div>
       </main>
