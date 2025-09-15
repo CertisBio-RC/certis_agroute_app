@@ -458,7 +458,7 @@ export default function Page() {
               />
             </div>
             <CertisMap
-              data={filteredMain}
+              main={filteredMain}
               kingpins={rawKing}
               home={home}
               onPointClick={addStop}
@@ -470,4 +470,5 @@ export default function Page() {
     </div>
   );
 }
+
 
