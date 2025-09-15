@@ -283,7 +283,7 @@ export default function CertisMap({
       offset: [0, -12],
     });
 
-    const showPopup = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+    const showPopup = (e: mapboxgl.MapMouseEvent) => {
       const feats = m.queryRenderedFeatures(e.point, {
         layers: [KING_LAYER, MAIN_POINTS],
       });
@@ -340,7 +340,7 @@ export default function CertisMap({
 
     // click to add a stop
     const onClick = (
-      e: mapboxgl.MapMouseEvent & mapboxgl.EventData,
+      e: mapboxgl.MapMouseEvent,
       lid: string
     ) => {
       const feats = m.queryRenderedFeatures(e.point, { layers: [lid] });
@@ -419,3 +419,5 @@ export default function CertisMap({
     />
   );
 }
+
+
