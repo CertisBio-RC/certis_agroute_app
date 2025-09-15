@@ -1,12 +1,18 @@
-/* ==== Base reset / theme ==== */
+/* ---------- Base / Reset ---------- */
 :root {
-  --bg: #0f1a22;
-  --panel: #111f29;
-  --panel-border: #1b2b36;
-  --text: #e6f2f7;
-  --muted: #b5c8d1;
-  --accent: #35c3ff;
-  --shadow: 0 8px 24px rgba(0,0,0,.35);
+  --bg: #0b1220;          /* dark slate */
+  --card: #0f172a;        /* slightly lighter */
+  --muted: #a9b1c6;
+  --text: #e6edf3;
+  --accent: #1f6feb;
+  --accent-2: #22c55e;
+  --ring: #233044;
+
+  /* layout */
+  --gutter: 16px;
+  --sidebar-w: 380px;     /* width of left column */
+  --radius: 12px;
+  --shadow: 0 4px 18px rgba(0,0,0,.25);
 }
 
 *,
@@ -14,137 +20,178 @@
 *::after { box-sizing: border-box; }
 
 html, body {
-  padding: 0;
-  margin: 0;
   height: 100%;
+}
+
+body {
+  margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 400 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.4;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue",
+               Arial, "Noto Sans", "Liberation Sans", "Apple Color Emoji",
+               "Segoe UI Emoji", "Segoe UI Symbol";
 }
 
+/* Links / buttons basic */
 a { color: var(--accent); text-decoration: none; }
-button { cursor: pointer; }
+a:hover { text-decoration: underline; }
 
-h1, h2, h3 {
-  margin: 0 0 12px;
-  font-weight: 700;
-  line-height: 1.2;
+button {
+  cursor: pointer;
+  border: 1px solid var(--ring);
+  background: #101a30;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 6px 12px;
+}
+button:disabled { opacity: .6; cursor: not-allowed; }
+
+/* Inputs */
+input[type="text"], input[type="number"], input[type="search"] {
+  width: 100%;
+  background: #0c1528;
+  color: var(--text);
+  border: 1px solid var(--ring);
+  border-radius: 10px;
+  padding: 8px 10px;
+  outline: none;
+}
+input::placeholder { color: #7f8ca8; }
+
+label { display: inline-flex; align-items: center; gap: 8px; }
+fieldset { border: 1px solid var(--ring); border-radius: var(--radius); }
+legend { padding: 0 8px; color: var(--muted); }
+
+/* Tiny colored dots you’re showing in the legend */
+.dot {
+  display:inline-block; width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.35);
+  vertical-align: middle; margin-right: 8px;
 }
 
-/* ==== App layout ==== */
+/* ---------- App Layout (rock solid 2-col) ---------- */
 
-/* Support either .pane-grid (older markup) or .app-grid (newer) */
-.pane-grid,
-.app-grid {
+/* Main page becomes a 2-col grid. This does not depend on your class names. */
+main {
   display: grid;
-  grid-template-columns: 360px 1fr;  /* hard 2-col layout */
-  gap: 16px;
+  grid-template-columns: minmax(280px, var(--sidebar-w)) 1fr;
+  gap: var(--gutter);
+  padding: var(--gutter);
   align-items: start;
-  min-height: 100vh;
-  padding: 16px;
 }
 
-/* Left panel / sidebar card */
-.sidebar,
-.left-pane {
+/* Any direct child of <main> that DOES NOT contain a Mapbox map = sidebar panel. */
+main > *:not(:has(.mapboxgl-map)) {
+  grid-column: 1;
   position: sticky;
-  top: 16px;               /* sticks while scrolling */
+  top: var(--gutter);
   align-self: start;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: var(--shadow);
-  max-height: calc(100vh - 32px);
+  max-height: calc(100vh - (var(--gutter) * 2));
   overflow: auto;
+  padding-right: 4px;         /* keep scrollbar from hugging content */
 }
 
-/* Map column */
-.map-pane,
-.right-pane {
-  min-height: calc(100vh - 32px);
+/* Any direct child of <main> that DOES contain a Mapbox map = map column. */
+main > *:has(.mapboxgl-map) {
+  grid-column: 2;
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  min-height: calc(100vh - (var(--gutter) * 3));   /* the map card height */
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
-/* Map container “frame” with rounded corners and shadow */
-.map-frame {
-  position: relative;
-  background: #0b141a;
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  /* This height is the key – guarantees canvas space */
-  min-height: 72vh;
-  height: min(82vh, 1200px);
-  overflow: hidden;
+/* Ensure the map area itself fills the card vertically */
+main > *:has(.mapboxgl-map) > * {
+  flex: 1 1 auto;
+  min-height: 420px; /* extra guard for small screens */
 }
 
-/* The div you pass to new mapboxgl.Map({container}) should fill .map-frame */
-.map-wrap,
+/* Mapbox internals should stretch */
+.mapboxgl-map,
+.mapboxgl-canvas,
+.mapboxgl-canvas-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* If your map component wraps the map in a specific container id/class, keep it full */
 #map,
-.mapbox-container {
-  position: absolute;
-  inset: 0;
+.mapWrap,
+.mapCard {
   width: 100%;
   height: 100%;
 }
 
-/* Mapbox canvas & controls fit the frame */
-.mapboxgl-canvas { width: 100% !important; height: 100% !important; outline: none; }
-.mapboxgl-control-container { pointer-events: none; }
-.mapboxgl-ctrl-group,
-.mapboxgl-ctrl-logo,
-.mapboxgl-ctrl-attrib { pointer-events: auto; }
+/* ---------- Cards / spacing (applies to both sides) ---------- */
 
-/* Form bits */
-fieldset { margin: 0 0 16px; border: none; padding: 0; }
-label { display: inline-flex; align-items: center; gap: 8px; margin: 6px 10px 6px 0; }
-input[type="text"] {
-  width: 100%;
-  background: #0b141a;
-  border: 1px solid var(--panel-border);
-  color: var(--text);
-  padding: 10px 12px;
-  border-radius: 10px;
+.card {
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
 }
-button, .btn {
-  background: #1b3342;
-  color: var(--text);
-  border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  padding: 8px 12px;
-}
-button:hover, .btn:hover { background: #234358; }
 
-/* Little legend dots next to category labels */
-.legend-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
+h1, h2, h3 {
+  margin: 6px 0 10px;
+  font-weight: 700;
+}
+h1 { font-size: 28px; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+
+.section {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #20304a;
+}
+.section:last-child { border-bottom: 0; }
+
+/* Compact checklists with clean wrapping */
+.checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+.checklist .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--ring);
   border-radius: 999px;
-  vertical-align: middle;
-  margin-right: 6px;
-  border: 1px solid rgba(255,255,255,.45);
+  padding: 6px 10px;
+  background: #0d162b;
+  white-space: nowrap;
 }
 
-/* Certis logo placement options */
-.certis-logo-inline { height: 28px; vertical-align: middle; margin-right: 8px; }
-.certis-logo-on-map {
-  position: absolute; z-index: 3; left: 16px; top: 12px;
-  height: 26px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.55));
+/* ---------- Branding ---------- */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 8px;
+}
+.brand img {
+  height: 26px;
+  object-fit: contain;
 }
 
-/* Mobile fallback: stack */
-@media (max-width: 900px) {
-  .pane-grid,
-  .app-grid {
-    grid-template-columns: 1fr;
+/* ---------- Utility ---------- */
+.hide { display: none !important; }
+
+/* Small viewports: stack but keep map tall */
+@media (max-width: 940px) {
+  main { grid-template-columns: 1fr; }
+  main > *:not(:has(.mapboxgl-map)) {
+    position: relative; top: 0; max-height: none; overflow: visible;
   }
-  .sidebar, .left-pane { position: static; max-height: none; }
-  .map-frame { min-height: 58vh; height: 58vh; }
+  main > *:has(.mapboxgl-map) { min-height: 70vh; }
 }
-
-/* Utility spacing for lists that render items inline */
-.inline-list { display: flex; flex-wrap: wrap; gap: 8px 12px; }
