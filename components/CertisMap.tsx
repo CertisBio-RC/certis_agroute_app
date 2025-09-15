@@ -1,532 +1,449 @@
-'use client';
+"use client";
 
-import React, { useEffect, useMemo, useRef } from 'react';
-import type { FeatureCollection, Feature, Point, Position } from 'geojson';
-import mapboxgl, { Map, LngLatLike, LngLat } from 'mapbox-gl';
-import { withBasePath } from '@/utils/paths';
+import React, { useEffect, useMemo, useRef } from "react";
+import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
+import type { FeatureCollection, Feature, Point, Position } from "geojson";
+import { withBasePath } from "@/utils/paths";
 
-export type CertisMapProps = {
-  /** Main locations (all non-kingpins). MUST be a Point FeatureCollection. */
-  main: FeatureCollection<Point, { [k: string]: any }>;
-  /** Kingpin locations. MUST be a Point FeatureCollection. */
-  kingpins: FeatureCollection<Point, { [k: string]: any }>;
-  /** Optional home marker as [lng,lat]. */
-  home?: Position | null;
-  /** Click handler: add to trip builder. (legacy 2-arg signature kept) */
-  onPointClick: (props: any, ll: LngLat) => void;
-  /** 'hybrid' | 'street' */
-  mapStyle: 'hybrid' | 'street';
-};
-
-const STYLE_HYBRID = 'mapbox://styles/mapbox/satellite-streets-v12';
-const STYLE_STREET = 'mapbox://styles/mapbox/streets-v12';
-
-const MAIN_SRC = 'main';
-const MAIN_CLUSTERS = 'main-clusters';
-const MAIN_CLUSTER_COUNT = 'main-cluster-count';
-const MAIN_POINTS = 'main-points';
-
-const KING_SRC = 'kingpins';
-const KING_LAYER = 'kingpins-layer';
-
-const HOME_SRC = 'home';
-const HOME_LAYER = 'home-pin';
-
-/** Category → color (matches the legend dots in the sidebar). */
+/** Public color map used elsewhere for legend dots */
 export const CATEGORY_COLOR: Record<string, string> = {
-  'Agronomy': '#3ee279',          // green
-  'Agronomy/Grain': '#a060ff',    // purple
-  'Distribution': '#19c2d8',      // cyan
-  'Grain': '#ffb11a',             // orange
-  'Grain/Feed': '#6b4a00',        // brown
-  'Office/Service': '#4fa1ff',    // blue
-  'Kingpin': '#ff3b3b',           // red (not used here—kingpins are separate source)
+  Agronomy: "#26c281",
+  "Agronomy/Grain": "#9457ff",
+  Distribution: "#20bfd6",
+  Grain: "#f1b70e",
+  "Grain/Feed": "#7a5a23",
+  Kingpin: "#ea3a42",
+  "Office/Service": "#4484ff",
 };
 
-/** Pull a safe string prop from either cased key. */
-function prop<T = any>(p: any, keys: string[], fallback: T): T {
-  for (const k of keys) {
-    if (p && p[k] != null) return p[k] as T;
-  }
-  return fallback;
+type CertisMapProps = {
+  main: FeatureCollection<Point, { [k: string]: any }>;
+  kingpins: FeatureCollection<Point, { [k: string]: any }>;
+  home?: Position;
+  onPointClick: (props: any, ll: mapboxgl.LngLat) => void;
+  mapStyle: "hybrid" | "street";
+};
+
+const CONTAINER_ID = "certis-map";
+const MAIN_SRC = "main-src";
+const KING_SRC = "king-src";
+const HOME_SRC = "home-src";
+const CLUSTER_LAYER = "main-clusters";
+const CLUSTER_COUNT_LAYER = "main-cluster-count";
+const MAIN_POINTS = "main-unclustered";
+const KING_LAYER = "kingpins";
+const HOME_LAYER = "home-layer";
+
+function styleUrlFor(style: "hybrid" | "street") {
+  return style === "hybrid"
+    ? "mapbox://styles/mapbox/satellite-streets-v12"
+    : "mapbox://styles/mapbox/streets-v12";
 }
 
-/** Slug for finding logos in /public/icons/*.png */
-function slugify(s: string) {
-  return String(s ?? '')
+/** Token at runtime: env first, else /public/mapbox-token via basePath */
+async function ensureAccessToken(): Promise<string> {
+  const current = (mapboxgl as any).accessToken as string | undefined;
+  if (current && current.trim()) return current;
+
+  const env = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
+  if (env) {
+    mapboxgl.accessToken = env;
+    return env;
+  }
+
+  try {
+    const res = await fetch(withBasePath("/mapbox-token"), { cache: "no-store" });
+    if (!res.ok) throw new Error("no token file");
+    const txt = (await res.text()).trim();
+    if (txt) mapboxgl.accessToken = txt;
+    return txt;
+  } catch (e) {
+    console.error(
+      "Mapbox token missing. Put your token in .env.local as NEXT_PUBLIC_MAPBOX_TOKEN or in /public/mapbox-token"
+    );
+    return "";
+  }
+}
+
+function retailerLogoPath(retailer?: string): string | null {
+  if (!retailer) return null;
+  const fileName = retailer
     .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+    .replace(/\s+/g, "-")
+    .replace(/[^\w\-]/g, "");
+  return withBasePath(`/icons/${fileName}.png`);
 }
 
-/** Choose category off properties in a resilient way. */
-function getCategory(p: any): string {
-  const c = prop<string>(p, ['Category', 'category', 'Type', 'type'], '');
-  // Normalize a few known variants
-  const norm = c
-    .replace(/\s*\/\s*/g, '/')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (CATEGORY_COLOR[norm]) return norm;
-  // Heuristics
-  if (/kingpin/i.test(norm)) return 'Kingpin';
-  if (/office|service/i.test(norm)) return 'Office/Service';
-  if (/agro.*grain|agronomy\/grain/i.test(norm)) return 'Agronomy/Grain';
-  if (/agro|agronomy/i.test(norm)) return 'Agronomy';
-  if (/grain\s*\/\s*feed|feed/i.test(norm)) return 'Grain/Feed';
-  if (/grain/i.test(norm)) return 'Grain';
-  if (/dist/i.test(norm)) return 'Distribution';
-  return 'Agronomy'; // safe default
-}
-
-/** Mapbox color match expression based on CATEGORY_COLOR */
-function categoryPaintExpression(): any[] {
-  const expr: any[] = ['match', ['coalesce',
-    ['get', 'Category'],
-    ['get', 'category'],
-    ['get', 'Type'],
-    ['get', 'type'],
-  ]];
-  for (const [k, v] of Object.entries(CATEGORY_COLOR)) {
-    expr.push(k, v);
+function toTuple2(pos?: Position): [number, number] | null {
+  if (!pos) return null;
+  if (Array.isArray(pos) && pos.length >= 2) {
+    return [Number(pos[0]), Number(pos[1])];
   }
-  // default
-  expr.push('#3ee279');
-  return expr;
+  return null;
 }
 
-function toPosLL(x?: Position | null): [number, number] | null {
-  if (!x || x.length < 2) return null;
-  return [x[0], x[1]];
+function categoryPaintExpression(): any {
+  return [
+    "case",
+    ["==", ["get", "type"], "Kingpin"],
+    CATEGORY_COLOR["Kingpin"],
+    ["==", ["get", "type"], "Agronomy"],
+    CATEGORY_COLOR["Agronomy"],
+    ["==", ["get", "type"], "Agronomy/Grain"],
+    CATEGORY_COLOR["Agronomy/Grain"],
+    ["==", ["get", "type"], "Distribution"],
+    CATEGORY_COLOR["Distribution"],
+    ["==", ["get", "type"], "Grain"],
+    CATEGORY_COLOR["Grain"],
+    ["==", ["get", "type"], "Grain/Feed"],
+    CATEGORY_COLOR["Grain/Feed"],
+    ["==", ["get", "type"], "Office/Service"],
+    CATEGORY_COLOR["Office/Service"],
+    "#1fb6c9",
+  ];
 }
 
-const styleUrlFor = (mode: 'hybrid' | 'street') =>
-  mode === 'hybrid' ? STYLE_HYBRID : STYLE_STREET;
+const clusterCountLayout: any = {
+  "text-field": ["to-string", ["get", "point_count"]],
+  "text-size": 11,
+  "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+};
 
-/** One shared popup instance. */
-function createPopup() {
-  return new mapboxgl.Popup({
-    closeButton: false,
-    closeOnClick: false,
-    offset: 12,
-    className: 'agroute-popup',
-  });
-}
+const clusterPaint: any = {
+  "circle-color": "#42d8e6",
+  "circle-radius": ["step", ["get", "point_count"], 16, 10, 20, 25, 26, 50, 32],
+  "circle-stroke-width": 1.2,
+  "circle-stroke-color": "#0d2231",
+};
 
-/** Build popup HTML with optional retailer logo. */
-function popupHTML(p: any) {
-  const name = prop<string>(p, ['Retailer', 'retailer', 'Name', 'name', 'Location', 'location'], 'Location');
-  const addr = prop<string>(p, ['Address', 'address'], '');
-  const city = prop<string>(p, ['City', 'city'], '');
-  const state = prop<string>(p, ['State', 'state'], '');
-  const category = getCategory(p);
-  const logoSlug = slugify(prop<string>(p, ['Retailer', 'retailer', 'Name', 'name'], ''));
-  const logoUrl = withBasePath(`/icons/${logoSlug}.png`);
+const countPaint: any = {
+  "text-color": "#0e2332",
+  "text-halo-color": "#eaffff",
+  "text-halo-width": 1,
+};
 
-  const addrLine = [addr, [city, state].filter(Boolean).join(', ')].filter(Boolean).join(' • ');
+const MAIN_POINT_PAINT: any = {
+  "circle-color": categoryPaintExpression(),
+  "circle-radius": 6,
+  "circle-stroke-width": 1.25,
+  "circle-stroke-color": "#0d2231",
+};
 
+const KING_PAINT: any = {
+  "circle-color": CATEGORY_COLOR["Kingpin"],
+  "circle-radius": 7.5,
+  "circle-stroke-width": 2.25,
+  "circle-stroke-color": "#ffd84d",
+};
+
+const HOME_PAINT: any = {
+  "circle-color": "#ffffff",
+  "circle-radius": 6.5,
+  "circle-stroke-width": 2,
+  "circle-stroke-color": "#68e1ff",
+};
+
+const hoverPopupHtml = (p: any) => {
+  const name = p?.name || p?.Retailer || "Location";
+  const addr = [p?.address, p?.city, p?.state, p?.zip].filter(Boolean).join(" — ");
+  const cat = p?.type || p?.category || "";
+  const logo = retailerLogoPath(p?.Retailer);
   return `
-    <div class="agroute-pop">
-      <div class="agroute-pop__row">
-        <div class="agroute-pop__text">
-          <div class="agroute-pop__name">${name}</div>
-          ${addrLine ? `<div class="agroute-pop__addr">${addrLine}</div>` : ``}
-          <div class="agroute-pop__cat"><span class="dot" style="background:${CATEGORY_COLOR[category] ?? '#3ee279'}"></span>${category}</div>
-        </div>
-        ${logoSlug ? `<img class="agroute-pop__logo" src="${logoUrl}" onerror="this.style.display='none'"/>` : ``}
+    <div style="min-width:220px;display:flex;gap:10px;align-items:flex-start;">
+      ${logo ? `<img src="${logo}" alt="" style="width:36px;height:36px;object-fit:contain;margin-top:2px" onerror="this.style.display='none'">` : ""}
+      <div>
+        <div style="font-weight:700;margin-bottom:2px;">${name}</div>
+        ${cat ? `<div style="font-size:12px;margin-bottom:2px;">${cat}</div>` : ""}
+        ${addr ? `<div style="font-size:12px;opacity:.85;">${addr}</div>` : ""}
       </div>
     </div>
   `;
-}
+};
 
-/** Put kingpins above all cluster/point layers every time we (re)add layers. */
-function layerOrder(map: Map) {
-  try {
-    if (map.getLayer(KING_LAYER)) map.moveLayer(KING_LAYER);
-  } catch {}
-}
-
-const CertisMap: React.FC<CertisMapProps> = ({ main, kingpins, home, onPointClick, mapStyle }) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<Map | null>(null);
+const CertisMap: React.FC<CertisMapProps> = ({
+  main,
+  kingpins,
+  home,
+  onPointClick,
+  mapStyle,
+}) => {
+  const mapRef = useRef<MapboxMap | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Ensure a token (uses /public/mapbox-token as we’ve been doing)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        // If already set, keep it.
-        if (mapboxgl.accessToken) return;
-        const res = await fetch(withBasePath('/mapbox-token'));
-        const t = (await res.text()).trim();
-        if (!cancelled && t) mapboxgl.accessToken = t;
-      } catch {
-        // Let Mapbox complain in UI if missing
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  const homeTuple = useMemo(() => toTuple2(home), [home]);
 
-  // Create map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const m = new mapboxgl.Map({
-      container: containerRef.current,
-      style: styleUrlFor(mapStyle),
-      projection: { name: 'mercator' as any },
-      center: [-94.5, 41.7], // Iowa-ish
-      zoom: 5,
-      attributionControl: false,
-      preserveDrawingBuffer: false,
-      hash: false,
-      cooperativeGestures: true,
-    });
-    mapRef.current = m;
+    let cancelled = false;
 
-    m.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left');
+    (async () => {
+      const token = await ensureAccessToken();
+      if (cancelled || !token) return;
 
-    const resize = () => m.resize();
-    window.addEventListener('resize', resize);
+      const map = new mapboxgl.Map({
+        container: containerRef.current!,
+        style: styleUrlFor(mapStyle),
+        projection: { name: "mercator" as any },
+        center: [-94.5, 41.5],
+        zoom: 4,
+        pitchWithRotate: false,
+        dragRotate: false,
+      });
 
-    const onStyleLoad = () => {
-      // lock mercator
-      try { m.setProjection({ name: 'mercator' as any }); } catch {}
-      // Sources
-      if (!m.getSource(MAIN_SRC)) {
-        m.addSource(MAIN_SRC, {
-          type: 'geojson',
-          data: main,
-          cluster: true,
-          clusterRadius: 45,
-          clusterMaxZoom: 14,
-          promoteId: 'id',
-          generateId: true,
-        });
-      }
-      if (!m.getSource(KING_SRC)) {
-        m.addSource(KING_SRC, { type: 'geojson', data: kingpins });
-      }
-      if (!m.getSource(HOME_SRC)) {
-        m.addSource(HOME_SRC, {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: toPosLL(home)
-              ? [{
-                  type: 'Feature',
+      mapRef.current = map;
+
+      const wire = () => {
+        if (!map.isStyleLoaded()) return;
+        try {
+          map.setProjection({ name: "mercator" as any });
+        } catch {}
+
+        if (!map.getSource(MAIN_SRC)) {
+          map.addSource(MAIN_SRC, {
+            type: "geojson",
+            data: main,
+            cluster: true,
+            clusterMaxZoom: 12,
+            clusterRadius: 55,
+          });
+        } else {
+          (map.getSource(MAIN_SRC) as mapboxgl.GeoJSONSource).setData(main);
+        }
+
+        if (!map.getSource(KING_SRC)) {
+          map.addSource(KING_SRC, { type: "geojson", data: kingpins });
+        } else {
+          (map.getSource(KING_SRC) as mapboxgl.GeoJSONSource).setData(kingpins);
+        }
+
+        const homeFC: FeatureCollection<Point> = homeTuple
+          ? {
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
                   properties: {},
-                  geometry: { type: 'Point', coordinates: toPosLL(home)! },
-                }]
-              : [],
-          },
-        });
-      }
+                  geometry: { type: "Point", coordinates: homeTuple },
+                },
+              ],
+            }
+          : { type: "FeatureCollection", features: [] };
 
-      // Cluster circles
-      if (!m.getLayer(MAIN_CLUSTERS)) {
-        m.addLayer({
-          id: MAIN_CLUSTERS,
-          type: 'circle',
+        if (!map.getSource(HOME_SRC)) {
+          map.addSource(HOME_SRC, { type: "geojson", data: homeFC });
+        } else {
+          (map.getSource(HOME_SRC) as mapboxgl.GeoJSONSource).setData(homeFC);
+        }
+
+        [CLUSTER_LAYER, CLUSTER_COUNT_LAYER, MAIN_POINTS, KING_LAYER, HOME_LAYER].forEach(
+          (id) => {
+            if (map.getLayer(id)) map.removeLayer(id);
+          }
+        );
+
+        map.addLayer({
+          id: CLUSTER_LAYER,
+          type: "circle",
           source: MAIN_SRC,
-          filter: ['has', 'point_count'],
+          filter: [">", ["get", "point_count"], 0],
           paint: {
-            'circle-color': '#13b4cc',
-            'circle-radius': [
-              'step',
-              ['get', 'point_count'],
-              16, 10,
-              20, 25,
-              26,
-            ],
-            'circle-opacity': 0.85,
-            'circle-stroke-color': '#0b3a43',
-            'circle-stroke-width': 1.2,
+            "circle-color": "#42d8e6",
+            "circle-radius": ["step", ["get", "point_count"], 16, 10, 20, 25, 26, 50, 32],
+            "circle-stroke-width": 1.2,
+            "circle-stroke-color": "#0d2231",
           },
         });
-      }
-      if (!m.getLayer(MAIN_CLUSTER_COUNT)) {
-        m.addLayer({
-          id: MAIN_CLUSTER_COUNT,
-          type: 'symbol',
+
+        map.addLayer({
+          id: CLUSTER_COUNT_LAYER,
+          type: "symbol",
           source: MAIN_SRC,
-          filter: ['has', 'point_count'],
+          filter: [">", ["get", "point_count"], 0],
           layout: {
-            'text-field': ['get', 'point_count_abbreviated'],
-            'text-size': 12,
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          },
+            "text-field": ["to-string", ["get", "point_count"]],
+            "text-size": 11,
+            "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+          } as any,
           paint: {
-            'text-color': '#ffffff',
-          },
+            "text-color": "#0e2332",
+            "text-halo-color": "#eaffff",
+            "text-halo-width": 1,
+          } as any,
         });
-      }
 
-      // Unclustered main points
-      if (!m.getLayer(MAIN_POINTS)) {
-        m.addLayer({
+        map.addLayer({
           id: MAIN_POINTS,
-          type: 'circle',
+          type: "circle",
           source: MAIN_SRC,
-          filter: ['!', ['has', 'point_count']],
+          filter: ["!", ["has", "point_count"]],
           paint: {
-            'circle-color': categoryPaintExpression(),
-            'circle-radius': 6,
-            'circle-stroke-width': 1.25,
-            'circle-stroke-color': '#0d2231',
+            ...(categoryPaintExpression() ? {} : {}),
+            "circle-color": categoryPaintExpression() as any,
+            "circle-radius": 6,
+            "circle-stroke-width": 1.25,
+            "circle-stroke-color": "#0d2231",
           },
         });
-      }
 
-      // Kingpins (above)
-      if (!m.getLayer(KING_LAYER)) {
-        m.addLayer({
+        map.addLayer({
           id: KING_LAYER,
-          type: 'circle',
+          type: "circle",
           source: KING_SRC,
           paint: {
-            'circle-color': '#ff3b3b',
-            'circle-radius': 6,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffd400', // yellow ring
-          },
+            "circle-color": "#ea3a42",
+            "circle-radius": 7.5,
+            "circle-stroke-width": 2.25,
+            "circle-stroke-color": "#ffd84d",
+          } as any,
         });
-      }
 
-      // Home
-      if (!m.getLayer(HOME_LAYER)) {
-        m.addLayer({
+        map.addLayer({
           id: HOME_LAYER,
-          type: 'circle',
+          type: "circle",
           source: HOME_SRC,
           paint: {
-            'circle-color': '#ffffff',
-            'circle-radius': 5,
-            'circle-stroke-color': '#2d7ef6',
-            'circle-stroke-width': 2,
-          },
+            "circle-color": "#ffffff",
+            "circle-radius": 6.5,
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#68e1ff",
+          } as any,
         });
-      }
 
-      // Interactions
-      // cluster click → simple zoom-in (avoid removed v2 API)
-      m.on('click', MAIN_CLUSTERS, (e) => {
-        const f = e.features?.[0] as any;
-        if (!f) return;
-        const center = (f.geometry?.coordinates ?? null) as [number, number] | null;
-        if (!center) return;
-        m.easeTo({ center, zoom: Math.min(m.getZoom() + 2.25, 18) });
-      });
+        map.on("mouseenter", MAIN_POINTS, () => (map.getCanvas().style.cursor = "pointer"));
+        map.on("mouseleave", MAIN_POINTS, () => (map.getCanvas().style.cursor = ""));
+        map.on("mouseenter", KING_LAYER, () => (map.getCanvas().style.cursor = "pointer"));
+        map.on("mouseleave", KING_LAYER, () => (map.getCanvas().style.cursor = ""));
 
-      const showPopup = (e: mapboxgl.MapMouseEvent) => {
-        const feats = m.queryRenderedFeatures(e.point, { layers: [KING_LAYER, MAIN_POINTS] });
-        const feat = feats?.[0] as any as Feature<Point, any> | undefined;
-        if (!feat) {
-          popupRef.current?.remove();
-          popupRef.current = null;
-          m.getCanvas().style.cursor = '';
-          return;
-        }
-        m.getCanvas().style.cursor = 'pointer';
-        const html = popupHTML(feat.properties || {});
-        if (!popupRef.current) popupRef.current = createPopup();
-        popupRef.current
-          .setLngLat(e.lngLat)
-          .setHTML(html)
-          .addTo(m);
+        const ensurePopup = () => {
+          if (!popupRef.current) {
+            popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
+          }
+          return popupRef.current;
+        };
+
+        const showPopup = (e: mapboxgl.MapMouseEvent) => {
+          const feats = map.queryRenderedFeatures(e.point, { layers: [KING_LAYER, MAIN_POINTS] });
+          const f = feats[0];
+          if (!f) return;
+          const p = f.properties || {};
+          const coords = (f.geometry as any).coordinates as [number, number];
+          ensurePopup().setLngLat(coords).setHTML(hoverPopupHtml(p)).addTo(map);
+        };
+        const hidePopup = () => popupRef.current?.remove();
+
+        map.on("mousemove", MAIN_POINTS, showPopup);
+        map.on("mouseleave", MAIN_POINTS, hidePopup);
+        map.on("mousemove", KING_LAYER, showPopup);
+        map.on("mouseleave", KING_LAYER, hidePopup);
+
+        map.on("click", MAIN_POINTS, (e) => {
+          const f = e.features?.[0] as Feature<Point> | undefined;
+          if (!f) return;
+          const p = f.properties || {};
+          const [lng, lat] = f.geometry.coordinates as [number, number];
+          onPointClick(p, new mapboxgl.LngLat(lng, lat));
+        });
+
+        map.on("click", KING_LAYER, (e) => {
+          const f = e.features?.[0] as Feature<Point> | undefined;
+          if (!f) return;
+          const p = f.properties || {};
+          const [lng, lat] = f.geometry.coordinates as [number, number];
+          onPointClick(p, new mapboxgl.LngLat(lng, lat));
+        });
+
+        map.on("click", CLUSTER_LAYER, (e) => {
+          const f = e.features?.[0];
+          if (!f) return;
+          const clusterId = f.properties && (f.properties as any).cluster_id;
+          const src = map.getSource(MAIN_SRC) as mapboxgl.GeoJSONSource | undefined;
+          if (!src || clusterId == null) return;
+          // @ts-ignore — available at runtime on GeoJSONSource
+          src.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
+            if (err) return;
+            const center = (f.geometry as any).coordinates as [number, number];
+            map.easeTo({ center, zoom });
+          });
+        });
       };
 
-      const clickPoint = (e: mapboxgl.MapMouseEvent) => {
-        const feats = m.queryRenderedFeatures(e.point, { layers: [KING_LAYER, MAIN_POINTS] });
-        const feat = feats?.[0] as any as Feature<Point, any> | undefined;
-        if (!feat) return;
-        const ll = new LngLat(e.lngLat.lng, e.lngLat.lat);
-        onPointClick(feat.properties || {}, ll);
+      map.on("style.load", wire);
+      map.once("load", wire);
+
+      return () => {
+        popupRef.current?.remove();
+        map.remove();
+        mapRef.current = null;
       };
-
-      m.on('mousemove', MAIN_POINTS, showPopup);
-      m.on('mousemove', KING_LAYER, showPopup);
-      m.on('mouseleave', MAIN_POINTS, () => {
-        popupRef.current?.remove();
-        popupRef.current = null;
-        m.getCanvas().style.cursor = '';
-      });
-      m.on('mouseleave', KING_LAYER, () => {
-        popupRef.current?.remove();
-        popupRef.current = null;
-        m.getCanvas().style.cursor = '';
-      });
-
-      m.on('click', MAIN_POINTS, clickPoint);
-      m.on('click', KING_LAYER, clickPoint);
-
-      layerOrder(m);
-    };
-
-    m.once('style.load', onStyleLoad);
+    })();
 
     return () => {
-      window.removeEventListener('resize', resize);
-      popupRef.current?.remove();
-      popupRef.current = null;
-      m.remove();
-      mapRef.current = null;
+      cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // React to style toggle
-  useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
-    const next = styleUrlFor(mapStyle);
-    // if same URL, skip
-    // @ts-expect-error mapbox type is fine
-    if (m.getStyle()?.sprite?.includes(mapStyle)) return;
-    m.setStyle(next);
-    m.once('style.load', () => {
-      // Rewire everything after style swap
-      try { m.setProjection({ name: 'mercator' as any }); } catch {}
-      if (!m.getSource(MAIN_SRC)) {
-        m.addSource(MAIN_SRC, {
-          type: 'geojson',
-          data: main,
-          cluster: true,
-          clusterRadius: 45,
-          clusterMaxZoom: 14,
-          promoteId: 'id',
-          generateId: true,
-        });
-      }
-      if (!m.getSource(KING_SRC)) m.addSource(KING_SRC, { type: 'geojson', data: kingpins });
-      if (!m.getSource(HOME_SRC)) {
-        m.addSource(HOME_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      }
-      // layers again
-      if (!m.getLayer(MAIN_CLUSTERS)) {
-        m.addLayer({
-          id: MAIN_CLUSTERS,
-          type: 'circle',
-          source: MAIN_SRC,
-          filter: ['has', 'point_count'],
-          paint: {
-            'circle-color': '#13b4cc',
-            'circle-radius': ['step', ['get', 'point_count'], 16, 10, 20, 25, 26],
-            'circle-opacity': 0.85,
-            'circle-stroke-color': '#0b3a43',
-            'circle-stroke-width': 1.2,
-          },
-        });
-      }
-      if (!m.getLayer(MAIN_CLUSTER_COUNT)) {
-        m.addLayer({
-          id: MAIN_CLUSTER_COUNT,
-          type: 'symbol',
-          source: MAIN_SRC,
-          filter: ['has', 'point_count'],
-          layout: {
-            'text-field': ['get', 'point_count_abbreviated'],
-            'text-size': 12,
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          },
-          paint: { 'text-color': '#ffffff' },
-        });
-      }
-      if (!m.getLayer(MAIN_POINTS)) {
-        m.addLayer({
-          id: MAIN_POINTS,
-          type: 'circle',
-          source: MAIN_SRC,
-          filter: ['!', ['has', 'point_count']],
-          paint: {
-            'circle-color': categoryPaintExpression(),
-            'circle-radius': 6,
-            'circle-stroke-width': 1.25,
-            'circle-stroke-color': '#0d2231',
-          },
-        });
-      }
-      if (!m.getLayer(KING_LAYER)) {
-        m.addLayer({
-          id: KING_LAYER,
-          type: 'circle',
-          source: KING_SRC,
-          paint: {
-            'circle-color': '#ff3b3b',
-            'circle-radius': 6,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffd400',
-          },
-        });
-      }
-      if (!m.getLayer(HOME_LAYER)) {
-        m.addLayer({
-          id: HOME_LAYER,
-          type: 'circle',
-          source: HOME_SRC,
-          paint: {
-            'circle-color': '#ffffff',
-            'circle-radius': 5,
-            'circle-stroke-color': '#2d7ef6',
-            'circle-stroke-width': 2,
-          },
-        });
-      }
-      layerOrder(m);
-      // refresh data right after re-add
-      try {
-        (m.getSource(MAIN_SRC) as mapboxgl.GeoJSONSource)?.setData(main);
-        (m.getSource(KING_SRC) as mapboxgl.GeoJSONSource)?.setData(kingpins);
-        const homePos = toPosLL(home);
-        (m.getSource(HOME_SRC) as mapboxgl.GeoJSONSource)?.setData({
-          type: 'FeatureCollection',
-          features: homePos
-            ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: homePos } }]
-            : [],
-        } as any);
-      } catch {}
-    });
   }, [mapStyle, main, kingpins, home]);
 
-  // Live data updates without style swap
+  // Style toggle
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
-    try { (m.getSource(MAIN_SRC) as mapboxgl.GeoJSONSource)?.setData(main); } catch {}
+    m.setStyle(styleUrlFor(mapStyle));
+    m.once("style.load", () => {
+      try {
+        m.setProjection({ name: "mercator" as any });
+      } catch {}
+    });
+  }, [mapStyle]);
+
+  // Data updates
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    const src = m.getSource(MAIN_SRC) as mapboxgl.GeoJSONSource | undefined;
+    if (src) src.setData(main);
   }, [main]);
 
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
-    try { (m.getSource(KING_SRC) as mapboxgl.GeoJSONSource)?.setData(kingpins); } catch {}
+    const src = m.getSource(KING_SRC) as mapboxgl.GeoJSONSource | undefined;
+    if (src) src.setData(kingpins);
   }, [kingpins]);
 
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
-    const pos = toPosLL(home);
-    try {
-      (m.getSource(HOME_SRC) as mapboxgl.GeoJSONSource)?.setData({
-        type: 'FeatureCollection',
-        features: pos ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: pos } }] : [],
-      } as any);
-    } catch {}
+    const src = m.getSource(HOME_SRC) as mapboxgl.GeoJSONSource | undefined;
+    if (!src) return;
+    const fc: FeatureCollection<Point> = toTuple2(home)
+      ? {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: {},
+              geometry: { type: "Point", coordinates: toTuple2(home)! },
+            },
+          ],
+        }
+      : { type: "FeatureCollection", features: [] };
+    src.setData(fc);
   }, [home]);
 
   return (
-    <div className="agroute-mapwrap">
-      {/* watermark logo inside map */}
-      <img
-        className="agroute-maplogo"
-        src={withBasePath('/certis-logo.png')}
-        alt="CERTIS"
-        draggable={false}
-      />
-      <div ref={containerRef} className="agroute-mapbox" />
-    </div>
+    <div
+      id={CONTAINER_ID}
+      ref={containerRef}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        minHeight: 560,
+        borderRadius: 12,
+        overflow: "hidden",
+      }}
+    />
   );
 };
 
