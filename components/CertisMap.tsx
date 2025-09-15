@@ -179,112 +179,7 @@ const CertisMap: React.FC<CertisMapProps> = (props) => {
     setData(m, main, kingpins, home, onPointClick, onAddStop);
   }, [main, kingpins, home, onPointClick, onAddStop]);
 
-  return <div ref={containerRef} className="map-root" />; // NOTE: no map-frame logo
-};
-
-// ---------- Wiring helpers ----------
-function wireSourcesAndLayers(m: mapboxgl.Map) {
-  // Remove any leftovers (fresh style)
-  ["layer", "source"].forEach(() => {
-    [MAIN_CLUSTERS, MAIN_CLUSTER_COUNT, MAIN_POINTS].forEach((id) => { if (m.getLayer(id)) m.removeLayer(id); });
-    [KING_LAYER].forEach((id) => { if (m.getLayer(id)) m.removeLayer(id); });
-    [HOME_LAYER].forEach((id) => { if (m.getLayer(id)) m.removeLayer(id); });
-    [MAIN_SRC, KING_SRC, HOME_SRC].forEach((id) => { if (m.getSource(id)) m.removeSource(id); });
-  });
-
-  // Sources
-  m.addSource(MAIN_SRC, { type: "geojson", data: emptyFC(), cluster: true, clusterRadius: 55, clusterMaxZoom: 12 });
-  m.addSource(KING_SRC, { type: "geojson", data: emptyFC() });
-  m.addSource(HOME_SRC, { type: "geojson", data: emptyFC() });
-
-  // Cluster circles
-  m.addLayer({
-    id: MAIN_CLUSTERS,
-    type: "circle",
-    source: MAIN_SRC,
-    filter: ["has", "point_count"],
-    paint: {
-      "circle-color": "#68e0cf",
-      "circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 25, 24, 50, 30],
-      "circle-stroke-color": "#0d2231",
-      "circle-stroke-width": 1.5,
-    },
-  });
-
-  // Cluster counts
-  m.addLayer({
-    id: MAIN_CLUSTER_COUNT,
-    type: "symbol",
-    source: MAIN_SRC,
-    filter: ["has", "point_count"],
-    layout: {
-      "text-field": ["get", "point_count_abbreviated"],
-      "text-size": 12,
-      "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-    },
-    paint: { "text-color": "#002d3d" },
-  });
-
-  // Unclustered points (category color)
-  m.addLayer({
-    id: MAIN_POINTS,
-    type: "circle",
-    source: MAIN_SRC,
-    filter: ["!", ["has", "point_count"]],
-    paint: {
-      "circle-color": categoryPaintExpression() as any,
-      "circle-radius": 6,
-      "circle-stroke-width": 1.25,
-      "circle-stroke-color": "#0d2231",
-    },
-  });
-
-  // Kingpins on top
-  m.addLayer({
-    id: KING_LAYER,
-    type: "circle",
-    source: KING_SRC,
-    paint: {
-      "circle-color": "#ff4d4f",
-      "circle-radius": 7,
-      "circle-stroke-width": 2.25,
-      "circle-stroke-color": "#ffd43b",
-    },
-  });
-
-  // Home
-  m.addLayer({
-    id: HOME_LAYER,
-    type: "circle",
-    source: HOME_SRC,
-    paint: {
-      "circle-color": "#ffffff",
-      "circle-radius": 5,
-      "circle-stroke-width": 2,
-      "circle-stroke-color": "#3b82f6",
-    },
-  });
-
-  // Events
-  // Hover
-  const hoverMove = (e: mapboxgl.MapLayerMouseEvent) => {
-    m.getCanvas().style.cursor = "pointer";
-    const feat = e.features?.[0] as Feature<Point, GeoJsonProperties> | undefined;
-    if (!feat) return;
-    const p = feat.properties || {};
-    const [lng, lat] = (feat.geometry?.coordinates || []) as [number, number];
-
-    const name = String(p.name ?? p.Name ?? p.title ?? "Location");
-    const cat = String((p.category ?? p.Category ?? p.type ?? p.Type ?? "")).toLowerCase();
-    const logoSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-    const logoUrl = withBasePath(`/icons/${logoSlug}.png`);
-
-    const html = `
-      <div style="font: 600 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <img src="${logoUrl}" onerror="this.style.display='none'" width="28" height="28" style="object-fit:contain;border-radius:4px;" />
-          <div>
-            <div>${name}</div>
+  return 
             <div style="opacity:.75;font-weight:500;text-transform:capitalize">${cat || ""}</div>
           </div>
         </div>
@@ -372,3 +267,4 @@ function setData(
 }
 
 export default CertisMap;
+

@@ -177,10 +177,14 @@ export default function Page() {
         <CertisMap
           styleMode={styleMode}
           selectedSuppliers={selectedSuppliers}
-          onAddStop={onAddStop}
+          onAddStop={(s:any)=>onAddStop('coord' in s
+  ? { id: `${s.coord[1]},${s.coord[0]}`, lon: s.coord[0], lat: s.coord[1], name: (s.name ?? s.retailer ?? 'Stop') }
+  : s
+)}
           onDataLoaded={setSupplierSummary}
         />
       </section>
     </main>
   );
 }
+
