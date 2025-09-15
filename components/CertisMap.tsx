@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
-import mapboxgl, { LngLatLike, Map } from "mapbox-gl";
+import mapboxgl, { LngLatLike, Map as MapboxMap } from "mapbox-gl";
 import { withBasePath } from "@/utils/paths";
 
 type Stop = { id: string; name: string; lon: number; lat: number };
@@ -14,9 +14,9 @@ type SupplierSummary = {
 
 type Props = {
   styleMode: "hybrid" | "street";
-  selectedSuppliers: string[];                 // supplier filter from sidebar
+  selectedSuppliers: string[];
   onAddStop?: (s: Stop) => void;
-  onDataLoaded?: (summary: SupplierSummary) => void; // send supplier list up
+  onDataLoaded?: (summary: SupplierSummary) => void;
 };
 
 const HYBRID = "mapbox://styles/mapbox/satellite-streets-v12";
@@ -24,16 +24,16 @@ const STREET = "mapbox://styles/mapbox/streets-v12";
 
 // Color-vision–friendly palette (Okabe–Ito) + reserved Kingpin
 const CATEGORY_COLORS: Record<string, string> = {
-  "Agronomy": "#0072B2",        // deep blue
-  "Agronomy/Grain": "#56B4E9",  // sky blue
-  "Distribution": "#E69F00",    // orange
-  "Grain": "#CC79A7",           // magenta
-  "Grain/Feed": "#9467BD",      // violet
-  "Office/Service": "#F0E442",  // yellow
-  "Kingpin": "#D55E00",         // vermillion center
+  "Agronomy": "#0072B2",
+  "Agronomy/Grain": "#56B4E9",
+  "Distribution": "#E69F00",
+  "Grain": "#CC79A7",
+  "Grain/Feed": "#9467BD",
+  "Office/Service": "#F0E442",
+  "Kingpin": "#D55E00", // vermillion center
 };
 
-// --- Data loader: GeoJSON first, fall back to CSV/TSV, normalize fields ----
+// ---------- Data loader & normalizers ----------
 type FC = GeoJSON.FeatureCollection<GeoJSON.Point, any>;
 
 function truthy(v: unknown): boolean {
@@ -64,7 +64,6 @@ function normalizeProps(p: any) {
   const name = pickProp(p, ["Name", "Retailer", "Location", "Long Name"], "Location");
   const city = pickProp(p, ["City", "Town"], "");
   const supplier = pickProp(p, ["Supplier", "Suppliers", "Parent", "Mothership"], "");
-  // Category normalization
   let category = pickProp(p, ["Category", "Type", "Location Type"], "");
   const isKingpin = truthy(p.Kingpin) || truthy(p.IsKingpin) || category.toLowerCase() === "kingpin";
   if (isKingpin) category = "Kingpin";
@@ -72,7 +71,6 @@ function normalizeProps(p: any) {
 }
 
 function csvToRows(text: string, delim: "," | "\t"): any[] {
-  // simple CSV/TSV parser (handles quotes)
   const rows: any[] = [];
   const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter(Boolean);
   if (!lines.length) return rows;
@@ -119,7 +117,7 @@ async function loadRetailers(): Promise<FC> {
     }
   } catch {}
 
-  // 2) CSV
+  // 2) CSV/TSV
   for (const filename of ["data/retailers.csv", "data/retailers.tsv"]) {
     try {
       const res = await fetch(withBasePath(`${filename}?ver=3`));
@@ -147,16 +145,15 @@ async function loadRetailers(): Promise<FC> {
   return { type: "FeatureCollection", features: [] };
 }
 
-// Build supplier filter expression for Mapbox
 function supplierFilterExpr(selected: string[]) {
-  if (!selected || selected.length === 0) return true; // no filter
+  if (!selected || selected.length === 0) return true;
   return ["in", ["coalesce", ["get", "Supplier"], ""], ["literal", selected]];
 }
-// ---------------------------------------------------------------------------
+// ------------------------------------------------------------
 
 export default function CertisMap({ styleMode, selectedSuppliers, onAddStop, onDataLoaded }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<Map | null>(null);
+  const mapRef = useRef<MapboxMap | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const currentSupplierFilter = useRef<string[]>([]);
 
@@ -203,13 +200,17 @@ export default function CertisMap({ styleMode, selectedSuppliers, onAddStop, onD
           if (!sup) continue;
           counts.set(sup, (counts.get(sup) || 0) + 1);
         }
-        const suppliers = [...counts.entries()].sort((a,b)=>b[1]-a[1]).map(([name,count])=>({name, count}));
+        const suppliers = [...counts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([name, count]) => ({ name, count }));
         onDataLoaded({ total: fc.features.length, suppliers });
       }
 
       map.on("load", async () => {
-        // (Re)create source & layers
-        const rm = (id: string) => { if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); };
+        const rm = (id: string) => {
+          if (map.getLayer(id)) map.removeLayer(id);
+          if (map.getSource(id)) map.removeSource(id);
+        };
         ["retailers","clusters","cluster-count","retailer-points","retailer-kingpin-ring","retailer-kingpin-center"].forEach(rm);
 
         map.addSource("retailers", {
@@ -243,7 +244,7 @@ export default function CertisMap({ styleMode, selectedSuppliers, onAddStop, onD
           paint: { "text-color": "#ffffff" }
         });
 
-        // Common supplier filter expression
+        // Supplier filter expression
         currentSupplierFilter.current = selectedSuppliers || [];
         const supExpr = supplierFilterExpr(currentSupplierFilter.current);
 
@@ -274,7 +275,7 @@ export default function CertisMap({ styleMode, selectedSuppliers, onAddStop, onD
           }
         });
 
-        // Kingpin RING (above clusters)
+        // Kingpin ring — above clusters
         map.addLayer({
           id: "retailer-kingpin-ring",
           type: "circle",
@@ -290,7 +291,7 @@ export default function CertisMap({ styleMode, selectedSuppliers, onAddStop, onD
           paint: { "circle-radius": 9, "circle-color": "#0000", "circle-stroke-width": 3, "circle-stroke-color": "#F0E442" }
         });
 
-        // Kingpin CENTER
+        // Kingpin center
         map.addLayer({
           id: "retailer-kingpin-center",
           type: "circle",
@@ -309,7 +310,7 @@ export default function CertisMap({ styleMode, selectedSuppliers, onAddStop, onD
         // Cluster expand
         map.on("click", "clusters", (e) => {
           const f = map.queryRenderedFeatures(e.point, { layers: ["clusters"] })[0];
-          const id = f?.properties?.cluster_id;
+          const id = (f?.properties as any)?.cluster_id;
           if (id == null) return;
           (map.getSource("retailers") as mapboxgl.GeoJSONSource).getClusterExpansionZoom(id, (err, zoom) => {
             if (err) return;
@@ -366,7 +367,7 @@ export default function CertisMap({ styleMode, selectedSuppliers, onAddStop, onD
     };
   }, [styleURL, onAddStop, onDataLoaded]);
 
-  // React to supplier filter changes from the sidebar
+  // React to supplier filter changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -377,7 +378,6 @@ export default function CertisMap({ styleMode, selectedSuppliers, onAddStop, onD
     const nonKingpin = ["!=", ["get", "Category"], "Kingpin"] as any;
     const kingpinExpr = ["any", ["==", ["get", "Category"], "Kingpin"], ["==", ["get", "KingpinFlag"], true]] as any;
 
-    // Update filters on layers
     map.setFilter("retailer-points", supExpr === true ? ["all", baseNonCluster, nonKingpin] : ["all", baseNonCluster, nonKingpin, supExpr]);
     map.setFilter("retailer-kingpin-ring", supExpr === true ? ["all", baseNonCluster, kingpinExpr] : ["all", baseNonCluster, kingpinExpr, supExpr]);
     map.setFilter("retailer-kingpin-center", supExpr === true ? ["all", baseNonCluster, kingpinExpr] : ["all", baseNonCluster, kingpinExpr, supExpr]);
