@@ -5,3 +5,6 @@ out/
 data/geocode-cache.json
 *.7z.exe
 PortableGit*.7z.exe
+
+PortableGit/
+data/*.xlsx
