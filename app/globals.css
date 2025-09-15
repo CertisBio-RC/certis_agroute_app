@@ -1,163 +1,102 @@
-/* app/globals.css — hard, predictable layout + dark theme
-   This file intentionally avoids Tailwind reliance and gives you a robust
-   two-column grid + tidy typographic defaults.  */
-
-:root { color-scheme: dark; }
-
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  background: #0b1220;            /* deep slate */
-  color: #e5e7eb;                 /* neutral-200 */
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-  line-height: 1.4;
-}
-
-img { max-width: 100%; display: block; }
-
-a { color: #93c5fd; text-decoration: none; }
-a:hover { text-decoration: underline; }
-
-h1,h2,h3 { margin: 0 0 .5rem; line-height: 1.15; }
-h1 { font-size: 2.1rem; font-weight: 800; }
-h2 { font-size: 1.4rem; font-weight: 700; }
-h3 { font-size: 1.1rem; font-weight: 700; }
-
-small, .muted { color: #9ca3af; }
-
-/* ---------- GRID LAYOUT ---------- */
-
-.pane-grid {
-  display: grid !important;
-  grid-template-columns: 360px 1fr; /* sidebar + map */
-  gap: 16px;
-  align-items: start;
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px 16px 28px;
+/* ---------- Base / reset ---------- */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-.left-pane {
-  position: sticky;
-  top: 12px;
-  align-self: start;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+html, body {
+  height: 100%;
 }
 
-.map-pane {
-  min-height: calc(100vh - 80px);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(15,23,42,.5), 0 12px 32px rgba(0,0,0,.35);
-  background: #0f172a;
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  color: #e6edf3;
+  background: #0c1117;
 }
 
-/* ---------- CARDS & FORM CONTROLS ---------- */
+/* links, images */
+a { color: #9fd3ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; display: block; }
 
-.card {
-  background: #0f172a;
-  border: 1px solid rgba(148,163,184,.18);
-  border-radius: 12px;
-  padding: 14px 14px 12px;
-}
-
-.card h2 {
-  margin-bottom: 8px;
-}
-
-fieldset { border: 0; margin: 0; padding: 0; }
-legend { padding: 0; }
-
-.input-row {
+/* ---------- Layout grid ---------- */
+/* Outer page grid: fixed 2-col on desktop, single column on mobile */
+.pane-grid {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  align-items: center;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  padding: 16px;
+  min-height: 100vh;
 }
 
-input[type="text"],
-input[type="number"] {
+/* When viewport is narrow, stack vertically and keep a tall map */
+@media (max-width: 1024px) {
+  .pane-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sidebar / left column */
+.left-pane {
+  background: #0f1621;
+  border: 1px solid #1f2a3a;
+  border-radius: 12px;
+  padding: 16px;
+  overflow: auto;
+}
+
+/* Map column wrapper */
+.right-pane {
+  background: #0f1621;
+  border: 1px solid #1f2a3a;
+  border-radius: 12px;
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* A general-purpose map host – use if your JSX gives the host a class */
+.map-host,
+.map-box,
+.map-container {
+  position: relative;
   width: 100%;
-  height: 38px;
+  height: calc(100vh - 56px); /* fill the viewport inside the card */
   border-radius: 10px;
-  border: 1px solid rgba(148,163,184,.35);
-  background: #0b1220;
-  color: #e5e7eb;
-  padding: 0 12px;
-  outline: none;
+  overflow: hidden;
 }
-input[type="text"]::placeholder { color: #6b7280; }
 
-button,
-.btn {
-  height: 38px;
+/* ---------- HARD STOP: force Mapbox to have height ----------
+   Mapbox applies the class 'mapboxgl-map' to the container you pass as 'container'.
+   Giving that element an explicit height guarantees the map renders even if
+   a parent accidentally has height:0 or no computed height. */
+.mapboxgl-map {
+  width: 100% !important;
+  height: calc(100vh - 56px) !important;
   border-radius: 10px;
-  border: 1px solid rgba(148,163,184,.35);
-  background: #111827;
-  color: #e5e7eb;
-  padding: 0 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-button:hover, .btn:hover { background: #1f2937; }
-
-.radio-row,
-.checkbox-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 12px;
-  align-items: center;
+  overflow: hidden;
 }
 
-.checkbox-item {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  padding: 6px 8px;
-  border-radius: 9999px;
-  border: 1px solid rgba(148,163,184,.18);
-  background: #0b1220;
-}
-
-.checkbox-item input {
-  width: 16px;
-  height: 16px;
-}
-
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 9999px;
-  display: inline-block;
-  margin-right: 6px;
-  vertical-align: -1px;
-  box-shadow: 0 0 0 1px rgba(0,0,0,.45);
-}
-
-/* ---------- MAPBOX WRAPPER ---------- */
-
-#certis-map {
+/* Ensure the canvas always fills the container */
+.mapboxgl-canvas,
+.mapboxgl-canvas-container {
   width: 100% !important;
   height: 100% !important;
 }
 
-/* ---------- HEADER LOGO ---------- */
-.header-logo {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.header-logo img { height: 24px; opacity: .92; }
+/* Small UI niceties */
+.section-title { margin: 0 0 8px; font-weight: 700; font-size: 18px; }
+.card { background:#0f1621; border:1px solid #1f2a3a; border-radius:12px; padding:12px; }
+.hr { height:1px; background:#1f2a3a; margin:12px 0; }
 
-/* Small screens: stack */
-@media (max-width: 880px) {
-  .pane-grid { grid-template-columns: 1fr; }
-  .map-pane { min-height: 64vh; }
-  .left-pane { position: static; }
-}
+/* Radio/checkbox rows look clean in the sidebar */
+.filter-row { display:flex; align-items:center; gap:10px; padding:6px 0; }
+.legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+
+/* Keep Mapbox controls readable on dark bg */
+.mapboxgl-ctrl-group { background:#0f1621; border-color:#1f2a3a; }
+.mapboxgl-ctrl button { filter: invert(90%); }
