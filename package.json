@@ -9,6 +9,7 @@
         "start": "next start"
     },
     "dependencies": {
+        "@turf/turf": "^7.2.0",
         "mapbox-gl": "^3.3.0",
         "next": "15.0.0",
         "react": "18.2.0",
