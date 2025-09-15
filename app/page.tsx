@@ -377,7 +377,7 @@ export default function Page() {
                   checked={!!selectedCats[c]}
                   onChange={(v) => setSelectedCats((m) => ({ ...m, [c]: v }))}
                   label={c}
-                  dotColor={CATEGORY_COLOR(c)}
+                  dotColor={CATEGORY_COLOR[c] ?? CATEGORY_COLOR[""]}
                 />
               ))}
             </div>
@@ -470,3 +470,4 @@ export default function Page() {
     </div>
   );
 }
+
