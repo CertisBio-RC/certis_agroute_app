@@ -1,57 +1,163 @@
-/* Simple chips & check grid (keeps your current palette) */
-.chip {
-  background: #122131;
-  border: 1px solid #1f2c38;
-  color: #e5e7eb;
-  padding: 4px 8px;
-  border-radius: 8px;
-  font-size: 12px;
-}
-.chip-on {
-  background: #2a3a4e;
-  border-color: #3a4b61;
-}
-.chip.action {
-  background: #f6c32f;
-  color: #0b1620;
-  border-color: #f6c32f;
+/* app/globals.css — hard, predictable layout + dark theme
+   This file intentionally avoids Tailwind reliance and gives you a robust
+   two-column grid + tidy typographic defaults.  */
+
+:root { color-scheme: dark; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0b1220;            /* deep slate */
+  color: #e5e7eb;                 /* neutral-200 */
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  line-height: 1.4;
 }
 
-.checkbox-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.checkbox-grid.stack {
-  grid-template-columns: 1fr; /* one per row */
+img { max-width: 100%; display: block; }
+
+a { color: #93c5fd; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+h1,h2,h3 { margin: 0 0 .5rem; line-height: 1.15; }
+h1 { font-size: 2.1rem; font-weight: 800; }
+h2 { font-size: 1.4rem; font-weight: 700; }
+h3 { font-size: 1.1rem; font-weight: 700; }
+
+small, .muted { color: #9ca3af; }
+
+/* ---------- GRID LAYOUT ---------- */
+
+.pane-grid {
+  display: grid !important;
+  grid-template-columns: 360px 1fr; /* sidebar + map */
+  gap: 16px;
+  align-items: start;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 16px 28px;
+  box-sizing: border-box;
 }
 
-.row-check {
+.left-pane {
+  position: sticky;
+  top: 12px;
+  align-self: start;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.map-pane {
+  min-height: calc(100vh - 80px);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(15,23,42,.5), 0 12px 32px rgba(0,0,0,.35);
+  background: #0f172a;
+}
+
+/* ---------- CARDS & FORM CONTROLS ---------- */
+
+.card {
+  background: #0f172a;
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 12px;
+  padding: 14px 14px 12px;
+}
+
+.card h2 {
+  margin-bottom: 8px;
+}
+
+fieldset { border: 0; margin: 0; padding: 0; }
+legend { padding: 0; }
+
+.input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 8px;
+  align-items: center;
+}
+
+input[type="text"],
+input[type="number"] {
+  width: 100%;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(148,163,184,.35);
+  background: #0b1220;
+  color: #e5e7eb;
+  padding: 0 12px;
+  outline: none;
+}
+input[type="text"]::placeholder { color: #6b7280; }
+
+button,
+.btn {
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(148,163,184,.35);
+  background: #111827;
+  color: #e5e7eb;
+  padding: 0 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:hover, .btn:hover { background: #1f2937; }
+
+.radio-row,
+.checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: center;
+}
+
+.checkbox-item {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
   padding: 6px 8px;
-  background: #0f1c28;
-  border: 1px solid #1f2c38;
-  border-radius: 8px;
-  font-size: 12px;
-}
-.row-check > input[type="checkbox"] {
-  accent-color: #f6c32f;
+  border-radius: 9999px;
+  border: 1px solid rgba(148,163,184,.18);
+  background: #0b1220;
 }
 
-/* Links */
-.link {
-  color: #9ad0ff;
-  text-decoration: underline;
+.checkbox-item input {
+  width: 16px;
+  height: 16px;
 }
 
-/* --- Popup cosmetics & retailer logo --- */
-.popup { font-size: 12px; line-height: 1.25; }
-.popup-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
-.popup-title { font-weight: 600; }
-.popup-sub { opacity: .85; margin-bottom: 2px; }
-.popup-tag { display: inline-block; padding: 2px 6px; border-radius: 9999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); margin-bottom: 2px; }
-.popup-supplier { opacity: .9; margin-bottom: 2px; }
-.popup-addr { opacity: .85; }
-.retailer-logo { height: 18px; width: auto; border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,.25); }
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.45);
+}
+
+/* ---------- MAPBOX WRAPPER ---------- */
+
+#certis-map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ---------- HEADER LOGO ---------- */
+.header-logo {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.header-logo img { height: 24px; opacity: .92; }
+
+/* Small screens: stack */
+@media (max-width: 880px) {
+  .pane-grid { grid-template-columns: 1fr; }
+  .map-pane { min-height: 64vh; }
+  .left-pane { position: static; }
+}
