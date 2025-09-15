@@ -1,139 +1,117 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import CertisMap, { SupplierSummary } from "@/components/CertisMap";
+import React, { useCallback, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { withBasePath } from "@/utils/paths";
 
-type StyleMode = "hybrid" | "street";
+const CertisMap = dynamic(() => import("@/components/CertisMap"), { ssr: false });
 
 type Stop = { name?: string; coord: [number, number] };
 
 export default function Page() {
-  const [styleMode, setStyleMode] = useState<StyleMode>("hybrid");
-  const [supplierSummary, setSupplierSummary] = useState<SupplierSummary>({ total: 0, suppliers: {} });
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [styleMode, setStyleMode] = useState<"hybrid" | "street">("hybrid");
+  const [roundTrip, setRoundTrip] = useState(true);
   const [stops, setStops] = useState<Stop[]>([]);
-  const [zip, setZip] = useState<string>("");
+  const [supplierSummary, setSupplierSummary] = useState<{ total: number; suppliers: string[] } | null>(null);
 
-  // keep selected suppliers consistent with what exists
-  const supplierList = useMemo(() => {
-    const entries = Object.entries(supplierSummary.suppliers);
-    entries.sort((a, b) => a[0].localeCompare(b[0]));
-    return entries;
-  }, [supplierSummary]);
-
-  useEffect(() => {
-    // remove any selections that no longer exist
-    const all = new Set(Object.keys(supplierSummary.suppliers));
-    setSelectedSuppliers((prev) => prev.filter((s) => all.has(s)));
-  }, [supplierSummary]);
-
-  const toggleSupplier = (name: string) => {
-    setSelectedSuppliers((prev) =>
-      prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]
-    );
-  };
-
-  const onAddStop = (s: Stop) => {
+  const onAddStop = useCallback((s: Stop) => {
     setStops((prev) => [...prev, s]);
-  };
+  }, []);
 
-  const clearStops = () => setStops([]);
+  const clearStops = useCallback(() => setStops([]), []);
 
-  return (
-    <main className="app-grid">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <header className="brand">
-          <img
-            src={withBasePath("/certis-logo.png")}
-            alt="CERTIS"
-            style={{ height: 26, width: "auto" }}
-          />
-          <div className="brand-sub">Retailers • Kingpins • Filters</div>
-        </header>
+  const openNav = useCallback(
+    (kind: "google" | "apple" | "waze") => {
+      if (!stops.length) return;
+      const pts = roundTrip ? [...stops, stops[0]] : stops;
+      const coords = pts.map((p) => `${p.coord[1]},${p.coord[0]}`); // lat,lng for URLs
 
-        <section className="card">
-          <div className="card-title">Home (ZIP)</div>
-          <div className="row">
-            <input
-              value={zip}
-              placeholder="e.g. 50309"
-              onChange={(e) => setZip(e.target.value)}
-              className="input"
-            />
-            <button className="btn">Set</button>
-          </div>
-        </section>
+      if (kind === "google") {
+        const url = `https://www.google.com/maps/dir/${coords.join("/")}`;
+        window.open(url, "_blank");
+      } else if (kind === "apple") {
+        const url = `https://maps.apple.com/?daddr=${coords.join("+to:")}`;
+        window.open(url, "_blank");
+      } else {
+        // Waze supports single destination better; use the first or last
+        const last = pts[pts.length - 1];
+        const url = `https://waze.com/ul?ll=${last.coord[1]},${last.coord[0]}&navigate=yes`;
+        window.open(url, "_blank");
+      }
+    },
+    [stops, roundTrip]
+  );
 
-        <section className="card">
-          <div className="card-title">Map style</div>
-          <label className="radio">
-            <input
-              type="radio"
-              name="style"
-              checked={styleMode === "hybrid"}
-              onChange={() => setStyleMode("hybrid")}
-            />
-            <span>Hybrid (default)</span>
-          </label>
-          <label className="radio">
-            <input
-              type="radio"
-              name="style"
-              checked={styleMode === "street"}
-              onChange={() => setStyleMode("street")}
-            />
-            <span>Street</span>
-          </label>
-        </section>
+  const styleRadios = (
+    <div className="card">
+      <div className="card-title">Map style</div>
+      <label className="row">
+        <input type="radio" checked={styleMode === "hybrid"} onChange={() => setStyleMode("hybrid")} />
+        <span>Hybrid (default)</span>
+      </label>
+      <label className="row">
+        <input type="radio" checked={styleMode === "street"} onChange={() => setStyleMode("street")} />
+        <span>Street</span>
+      </label>
+    </div>
+  );
 
-        <section className="card">
-          <div className="card-title">
-            Suppliers <span className="muted">({supplierList.length})</span>
-          </div>
-          {supplierList.length === 0 ? (
-            <div className="muted">Loading suppliers…</div>
-          ) : (
-            <div className="pill-grid">
-              {supplierList.map(([name, count]) => (
-                <label key={name} className="pill">
-                  <input
-                    type="checkbox"
-                    checked={selectedSuppliers.includes(name)}
-                    onChange={() => toggleSupplier(name)}
-                  />
-                  <span>{name} <span className="muted">({count})</span></span>
-                </label>
+  const suppliersPanel = (
+    <div className="card">
+      <div className="card-title">
+        Suppliers ({supplierSummary?.total ?? 0})
+      </div>
+      <div className="text-sm opacity-75">
+        {supplierSummary ? (
+          supplierSummary.suppliers.length ? (
+            <div className="grid grid-cols-1 gap-y-1 max-h-48 overflow-auto pr-1">
+              {supplierSummary.suppliers.map((s) => (
+                <div key={s} className="truncate">{s}</div>
               ))}
             </div>
-          )}
-        </section>
+          ) : (
+            "No suppliers found in /public/data."
+          )
+        ) : (
+          "Loading suppliers..."
+        )}
+      </div>
+    </div>
+  );
 
-        <section className="card">
-          <div className="card-title">Trip</div>
-          <label className="checkbox">
-            <input type="checkbox" defaultChecked />
-            <span>Round-trip</span>
-          </label>
-          <div className="muted" style={{ marginTop: 6 }}>
-            Click points on the map to add stops.
-          </div>
+  const tripPanel = (
+    <div className="card">
+      <div className="card-title">Trip</div>
+      <label className="row">
+        <input type="checkbox" checked={roundTrip} onChange={(e) => setRoundTrip(e.target.checked)} />
+        <span>Round-trip</span>
+      </label>
+      <div className="text-sm opacity-75 mb-2">Click points on the map to add stops.</div>
+      <div className="flex gap-2 flex-wrap">
+        <button className="btn" onClick={clearStops}>Clear</button>
+        <button className="btn" onClick={() => openNav("google")}>Open Google</button>
+        <button className="btn" onClick={() => openNav("apple")}>Open Apple</button>
+        <button className="btn" onClick={() => openNav("waze")}>Open Waze</button>
+      </div>
+    </div>
+  );
 
-          <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
-            <button className="btn-secondary" onClick={clearStops}>Clear</button>
-            <button className="btn-secondary">Open Google</button>
-            <button className="btn-secondary">Open Apple</button>
-            <button className="btn-secondary">Open Waze</button>
-          </div>
-        </section>
+  return (
+    <main className="page">
+      <aside className="sidebar">
+        <div className="logo-row">
+          <img src={withBasePath("/certis-logo.png")} alt="Certis" height={28} />
+          <div className="logo-caption">Retailers • Kingpins • Filters</div>
+        </div>
+
+        {styleRadios}
+        {suppliersPanel}
+        {tripPanel}
       </aside>
 
-      {/* Map panel */}
-      <section className="map-panel">
+      <section className="map-shell">
         <CertisMap
           styleMode={styleMode}
-          selectedSuppliers={selectedSuppliers}
           onAddStop={onAddStop}
           onDataLoaded={setSupplierSummary}
         />
