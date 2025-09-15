@@ -459,7 +459,7 @@ export default function Page() {
             </div>
             <CertisMap
               main={(filteredMain as unknown as import("geojson").FeatureCollection<import("geojson").Point, any>)}
-              kingpins={rawKing}
+              kingpins={(rawKing as unknown as import("geojson").FeatureCollection<import("geojson").Point, any>)}
               home={home}
               onPointClick={addStop}
               mapStyle={mapStyle}
@@ -470,6 +470,7 @@ export default function Page() {
     </div>
   );
 }
+
 
 
 
