@@ -1,102 +1,200 @@
-/* ---------- Base / reset ---------- */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html, body {
-  height: 100%;
-}
-
+/* ---------- Reset / base ---------- */
+*:where(*) { box-sizing: border-box; }
+html, body { height: 100%; }
+html { scroll-behavior: smooth; }
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-  font-size: 16px;
-  line-height: 1.4;
-  color: #e6edf3;
-  background: #0c1117;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+    "Apple Color Emoji", "Segoe UI Emoji";
+  color: #e5e7eb;               /* zinc-200 */
+  background: #0b1220;          /* deep navy */
+  line-height: 1.45;
 }
 
-/* links, images */
-a { color: #9fd3ff; text-decoration: none; }
-a:hover { text-decoration: underline; }
-img { max-width: 100%; display: block; }
+/* Prevent images from blowing up layout */
+img, svg, video, canvas { display: block; max-width: 100%; height: auto; }
 
-/* ---------- Layout grid ---------- */
-/* Outer page grid: fixed 2-col on desktop, single column on mobile */
+/* Links (keep neutral) */
+a { color: #93c5fd; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---------- Layout shell ---------- */
+
+.page-wrap {
+  width: min(1400px, 100%);
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+/* Two-column grid: left sidebar + map on the right */
 .pane-grid {
   display: grid;
   grid-template-columns: 360px 1fr;
   gap: 16px;
-  padding: 16px;
-  min-height: 100vh;
+  align-items: start;
 }
 
-/* When viewport is narrow, stack vertically and keep a tall map */
-@media (max-width: 1024px) {
+/* One-column on small screens */
+@media (max-width: 900px) {
   .pane-grid {
     grid-template-columns: 1fr;
   }
 }
 
-/* Sidebar / left column */
+/* ---------- Sidebar (left) ---------- */
+
 .left-pane {
-  background: #0f1621;
-  border: 1px solid #1f2a3a;
-  border-radius: 12px;
-  padding: 16px;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
   overflow: auto;
+  padding-right: 2px;               /* space for scrollbar so content not clipped */
 }
 
-/* Map column wrapper */
-.right-pane {
-  background: #0f1621;
-  border: 1px solid #1f2a3a;
+.card {
+  background: #0f1b2e;              /* slightly lighter than body */
+  border: 1px solid #1f2a44;        /* subtle outline */
   border-radius: 12px;
-  padding: 12px;
-  position: relative;
-  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 14px 16px;
+  margin-bottom: 14px;
 }
 
-/* A general-purpose map host – use if your JSX gives the host a class */
-.map-host,
-.map-box,
-.map-container {
-  position: relative;
+/* Headings */
+h1, h2, h3 {
+  margin: 0 0 10px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #f8fafc;                   /* slate-50 */
+}
+h1 { font-size: 28px; }
+h2 { font-size: 18px; letter-spacing: .2px; }
+
+/* Small muted text */
+.muted { color: #9aa6bd; }
+
+/* Input row */
+.input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.input {
   width: 100%;
-  height: calc(100vh - 56px); /* fill the viewport inside the card */
+  padding: 10px 12px;
   border-radius: 10px;
+  border: 1px solid #263554;
+  background: #0c182a;
+  color: #e5e7eb;
+}
+.btn {
+  appearance: none;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #2a3b5e;
+  background: #1b2945;
+  color: #e5e7eb;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn:hover { background: #22355c; }
+
+/* Checkbox rows (states/retailers/categories) */
+.check-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+@media (max-width: 1100px) {
+  .check-list { grid-template-columns: 1fr; }
+}
+.check {
+  display: flex; align-items: center; gap: 8px;
+  white-space: nowrap;
+}
+.check input[type="checkbox"] {
+  width: 16px; height: 16px;
+  accent-color: #3b82f6;
+}
+
+/* Tiny colored dot for legend / category marker */
+.dot {
+  width: 10px; height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-right: 6px;
+  box-shadow: 0 0 0 2px rgba(15, 27, 46, .85); /* ring to pop on dark bg */
+}
+
+/* Retailers long list spacing */
+.retailers-list {
+  display: flex; flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+/* Toggle row (round trip etc.) */
+.toggle-row { display: flex; align-items: center; gap: 12px; }
+
+/* ---------- Map (right) ---------- */
+
+.map-card {
+  background: #0f1b2e;
+  border: 1px solid #1f2a44;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 0;                       /* map should touch the rounded edges */
   overflow: hidden;
 }
 
-/* ---------- HARD STOP: force Mapbox to have height ----------
-   Mapbox applies the class 'mapboxgl-map' to the container you pass as 'container'.
-   Giving that element an explicit height guarantees the map renders even if
-   a parent accidentally has height:0 or no computed height. */
-.mapboxgl-map {
-  width: 100% !important;
-  height: calc(100vh - 56px) !important;
-  border-radius: 10px;
+/* The actual map container must have HEIGHT or Mapbox won't render */
+.map-shell {
+  height: calc(100vh - 140px);
+  min-height: 620px;                /* floor for shorter viewports */
+  width: 100%;
+  position: relative;
+}
+
+/* Keeps Mapbox controls visible on dark backgrounds */
+.mapboxgl-ctrl-group:not(:empty) {
+  box-shadow: 0 1px 2px rgba(0,0,0,.35);
+  border-radius: 8px;
   overflow: hidden;
 }
 
-/* Ensure the canvas always fills the container */
-.mapboxgl-canvas,
-.mapboxgl-canvas-container {
-  width: 100% !important;
-  height: 100% !important;
+/* Certis watermark in-map (if you absolutely-position an <img>) */
+.map-watermark {
+  position: absolute;
+  top: 10px; left: 10px;
+  width: 92px; height: auto;
+  opacity: .9;
+  z-index: 3;
+  pointer-events: none;
 }
 
-/* Small UI niceties */
-.section-title { margin: 0 0 8px; font-weight: 700; font-size: 18px; }
-.card { background:#0f1621; border:1px solid #1f2a3a; border-radius:12px; padding:12px; }
-.hr { height:1px; background:#1f2a3a; margin:12px 0; }
+/* Popup typography polish */
+.mapboxgl-popup-content {
+  background: #0f1b2e;
+  border: 1px solid #1f2a44;
+  color: #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.mapboxgl-popup-close-button {
+  color: #cbd5e1;
+}
 
-/* Radio/checkbox rows look clean in the sidebar */
-.filter-row { display:flex; align-items:center; gap:10px; padding:6px 0; }
-.legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+/* ---------- Utility ---------- */
 
-/* Keep Mapbox controls readable on dark bg */
-.mapboxgl-ctrl-group { background:#0f1621; border-color:#1f2a3a; }
-.mapboxgl-ctrl button { filter: invert(90%); }
+hr.sep {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,.06),
+    rgba(255,255,255,.18),
+    rgba(255,255,255,.06)
+  );
+  margin: 14px 0;
+}
