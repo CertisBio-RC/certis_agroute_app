@@ -50,8 +50,7 @@ const KING_LAYER = "kingpins-points";
 
 /** Use Mapbox styles; change names here if you switch providers. */
 function styleUrlFor(s: MapStyleName) {
-  // These are the standard Mapbox v11 URLs:
-  // hybrid = satellite-streets, street = streets
+  // Mapbox v12 style URLs:
   return s === "street"
     ? "mapbox://styles/mapbox/streets-v12"
     : "mapbox://styles/mapbox/satellite-streets-v12";
@@ -78,10 +77,11 @@ function popupHtml(p: any) {
   const addr = p?.address ?? p?.addr ?? "";
   const city = p?.city ?? "";
   const state = p?.state ?? "";
-  const category = p?.category ?? p?.type ?? "";
-  const suppliers = p?.suppliers ?? p?.supplier ?? "";
+  const zip = p?.zip ?? p?.Zip ?? "";
+  const category = p?.category ?? p?.type ?? p?.Category ?? "";
+  const suppliers = p?.suppliers ?? p?.supplier ?? p?.Suppliers ?? "";
   const color = categoryColor(category);
-  const logo = retailerLogoPath(p?.retailer);
+  const logo = retailerLogoPath(p?.retailer || p?.Retailer);
   const logoImg = logo
     ? `<img src="${logo}" alt="" style="height:24px;max-width:120px;object-fit:contain;display:block;margin-bottom:6px" onerror="this.style.display='none'"/>`
     : "";
@@ -89,10 +89,10 @@ function popupHtml(p: any) {
   return `
     <div style="font: 12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#eaeef2; line-height:1.25">
       ${logoImg}
-      <div style="font-weight:600;margin-bottom:4px">${name}</div>
-      <div style="opacity:.9">${addr}${addr && (city || state) ? "<br/>" : ""}${city}${city && state ? ", " : ""}${state}</div>
-      <div style="margin-top:6px">${dot(color)}<span style="opacity:.9">${category || "Location"}</span></div>
-      ${suppliers ? `<div style="margin-top:6px;opacity:.9"><b>Suppliers:</b> ${suppliers}</div>` : ""}
+      <div style="font-weight:600;margin-bottom:4px">${escapeHtml(name)}</div>
+      <div style="opacity:.9">${escapeHtml(addr)}${addr && (city || state || zip) ? "<br/>" : ""}${escapeHtml(city)}${city && state ? ", " : ""}${escapeHtml(state)} ${escapeHtml(zip)}</div>
+      <div style="margin-top:6px">${dot(color)}<span style="opacity:.9">${escapeHtml(category || "Location")}</span></div>
+      ${suppliers ? `<div style="margin-top:6px;opacity:.9"><b>Suppliers:</b> ${escapeHtml(suppliers)}</div>` : ""}
     </div>
   `;
 }
@@ -181,7 +181,7 @@ const CertisMap: React.FC<CertisMapProps> = (props) => {
             "#EF4444", // red (won't show here—kingpins come from separate src)
             [
               "match",
-              ["get", "category"],
+              ["coalesce", ["get", "category"], ["get", "Category"]],
               "Agronomy",
               CATEGORY_COLOR["Agronomy"],
               "Grain",
@@ -284,7 +284,9 @@ const CertisMap: React.FC<CertisMapProps> = (props) => {
         el.style.left = "8px";
         el.style.zIndex = "3";
         el.style.pointerEvents = "none";
-        el.innerHTML = `<img src="${withBasePath(CERTIS_LOGO)}" style="height:26px;opacity:.9;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))" alt="CERTIS"/>`;
+        el.innerHTML = `<img src="${withBasePath(
+          CERTIS_LOGO
+        )}" style="height:26px;opacity:.9;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))" alt="CERTIS"/>`;
         m.getContainer().appendChild(el);
       }
     };
@@ -320,8 +322,7 @@ const CertisMap: React.FC<CertisMapProps> = (props) => {
       const clusterId = (f.properties as any)?.cluster_id;
       const src = m.getSource(MAIN_SRC) as mapboxgl.GeoJSONSource | undefined;
       if (!src || clusterId == null) return;
-      // @ts-expect-error v3: getClusterExpansionZoom exists on GeoJSONSource
-      src.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
+      (src as any).getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
         if (err) return;
         m.easeTo({ center: (f.geometry as any).coordinates as [number, number], zoom });
       });
@@ -377,3 +378,11 @@ const CertisMap: React.FC<CertisMapProps> = (props) => {
 };
 
 export default CertisMap;
+
+/** helpers */
+function escapeHtml(s: any): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
