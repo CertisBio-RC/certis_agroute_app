@@ -1,190 +1,209 @@
-// app/page.tsx
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
-import CertisMap from "@/components/CertisMap";
+import CertisMap, { CATEGORY_COLOR } from "@/components/CertisMap";
 import { withBasePath } from "@/utils/paths";
 
-type Stop = { id: string; name: string; lon: number; lat: number };
-type SupplierSummary = { total: number; suppliers: Array<{ name: string; count: number }> };
+// very small Stop type for the sidebar
+type Stop = { id: string; name?: string; lon: number; lat: number };
 
-const ASSET_VER = "v=3"; // cache-bust for logo
+// Build Google/Apple/Waze links (simple; no turf/deps)
+function toPair(c: [number, number]) {
+  return `${c[1]},${c[0]}`; // lat,lng
+}
+function buildGoogle(origin: [number, number], coords: [number, number][], roundTrip: boolean) {
+  const pts = coords.map(toPair);
+  const start = toPair(origin);
+  const dest = roundTrip ? start : pts.at(-1) ?? start;
+  const w = pts.slice(0, roundTrip ? pts.length : Math.max(0, pts.length - 1));
+  const wp = w.length ? `&waypoints=${encodeURIComponent(w.join("|"))}` : "";
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(start)}&destination=${encodeURIComponent(dest!)}${wp}`;
+}
+function buildApple(origin: [number, number], coords: [number, number][], roundTrip: boolean) {
+  const pts = coords.map(toPair);
+  const start = toPair(origin);
+  const dest = roundTrip ? start : pts.at(-1) ?? start;
+  const wp = pts.slice(0, roundTrip ? pts.length : Math.max(0, pts.length - 1)).map(encodeURIComponent);
+  // Apple supports multiple via daddr with +to: segments
+  return `https://maps.apple.com/?saddr=${encodeURIComponent(start)}&daddr=${encodeURIComponent(dest!)}${wp.length ? `+to:${wp.join("+to:")}` : ""}`;
+}
+function buildWaze(origin: [number, number], coords: [number, number][], roundTrip: boolean) {
+  const pts = coords.map(([lng, lat]) => `ll=${lat},${lng}`);
+  // Waze has limited waypoints; we’ll send origin + first dest (roundTrip ignored here)
+  const first = pts[0] ?? "";
+  return `https://www.waze.com/ul?${first}`;
+}
 
 export default function Page() {
-  const [zip, setZip] = useState("");
+  // UI state
   const [styleMode, setStyleMode] = useState<"hybrid" | "street">("hybrid");
-  const [roundTrip, setRoundTrip] = useState(true);
+  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [supplierSummary, setSupplierSummary] = useState<{ total: number; bySupplier: Record<string, number> }>({ total: 0, bySupplier: {} });
+
+  // trip
   const [stops, setStops] = useState<Stop[]>([]);
+  const [roundTrip, setRoundTrip] = useState(true);
+  const hasStops = stops.length > 0;
 
-  // Supplier filter state
-  const [supplierSummary, setSupplierSummary] = useState<SupplierSummary>({ total: 0, suppliers: [] });
-  const [supplierSearch, setSupplierSearch] = useState("");
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]); // empty = all
-
-  const onAddStop = useCallback((s: Stop) => {
-    setStops((prev) => (prev.find((p) => p.id === s.id) ? prev : [...prev, s]));
+  const onAddStop = useCallback((s: { name?: string; coord: [number, number]; [k: string]: any }) => {
+    const id = `${s.coord[0]},${s.coord[1]}`;
+    setStops((prev) => prev.some(p => p.id === id) ? prev : [...prev, { id, name: s.name ?? (s.Retailer ?? "Stop"), lon: s.coord[0], lat: s.coord[1] }]);
   }, []);
+
   const clearStops = useCallback(() => setStops([]), []);
-  const undoStop = useCallback(() => setStops((prev) => prev.slice(0, -1)), []);
 
-  const routeLinks = useMemo(() => {
-    if (stops.length < 2) return { google: "", apple: "", waze: "" };
-    const coords = stops.map((s) => `${s.lat},${s.lon}`);
-    const origin = coords[0];
-    const destination = roundTrip ? coords[0] : coords[coords.length - 1];
-    const waypoints = coords.slice(1, -1).join("|");
-    const google = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ""}`;
-    const apple  = `https://maps.apple.com/?saddr=${encodeURIComponent(origin)}&daddr=${encodeURIComponent(destination)}${waypoints ? `&dirflg=d&addr=${encodeURIComponent(waypoints)}` : ""}`;
-    const waze   = `https://waze.com/ul?ll=${encodeURIComponent(destination)}&from=${encodeURIComponent(origin)}`;
-    return { google, apple, waze };
-  }, [stops, roundTrip]);
+  const coords = useMemo<[number, number][]>(() => stops.map(s => [s.lon, s.lat]), [stops]);
+  const origin = useMemo<[number, number] | null>(() => coords[0] ?? null, [coords]);
 
-  const visibleSuppliers = useMemo(() => {
-    const q = supplierSearch.trim().toLowerCase();
-    const list = supplierSummary.suppliers;
-    if (!q) return list;
-    return list.filter((s) => s.name.toLowerCase().includes(q));
-  }, [supplierSearch, supplierSummary]);
+  const googleHref = useMemo(() => {
+    if (!origin || coords.length === 0) return "";
+    return buildGoogle(origin, coords, roundTrip);
+  }, [origin, coords, roundTrip]);
 
-  const toggleSupplier = (name: string) => {
-    setSelectedSuppliers((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]);
-  };
-  const clearSuppliers = () => setSelectedSuppliers([]);
+  const appleHref = useMemo(() => {
+    if (!origin || coords.length === 0) return "";
+    return buildApple(origin, coords, roundTrip);
+  }, [origin, coords, roundTrip]);
+
+  const wazeHref = useMemo(() => {
+    if (!origin || coords.length === 0) return "";
+    return buildWaze(origin, coords, roundTrip);
+  }, [origin, coords, roundTrip]);
+
+  const allSuppliers = useMemo(() => {
+    const list = Object.keys(supplierSummary.bySupplier || {});
+    list.sort((a, b) => a.localeCompare(b));
+    return list;
+  }, [supplierSummary]);
 
   return (
-    <main className="h-screen grid grid-cols-[360px_1fr] gap-4 p-2">
-      <aside className="sticky top-2 self-start h-[calc(100vh-1rem)] overflow-auto px-3 py-3 rounded-2xl bg-[#0c1624] border border-[#1b2a41]">
-        {/* CERTIS logo (correct file name) */}
-        <div className="flex items-center justify-between mb-3">
+    <main className="app-grid">
+      {/* LEFT: sticky sidebar */}
+      <aside className="sidebar">
+        <header className="brand-row">
           <img
-            src={withBasePath(`certis-logo.png?${ASSET_VER}`)}
-            alt="CERTIS"
-            className="h-6 w-auto"
-            onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+            src={withBasePath("/certis-logo.png")}
+            alt="Certis"
+            className="brand"
           />
-        </div>
-
-        {/* MINI-CARDS */}
-        <section className="panel-card">
-          <h2 className="panel-title">Home (ZIP)</h2>
-          <div className="flex gap-2">
-            <input
-              className="panel-input"
-              placeholder="e.g., 50309"
-              value={zip}
-              onChange={(e) => setZip(e.target.value)}
-            />
-            <button className="btn-primary">Set</button>
+          <div className="brand-text">
+            <div className="brand-title">Route Builder</div>
+            <div className="brand-sub">Retailers • Kingpins • Filters</div>
           </div>
-        </section>
+        </header>
 
-        <section className="panel-card">
-          <h2 className="panel-title">Map Style</h2>
-          <div className="flex flex-col gap-2">
-            <label className="panel-check">
-              <input type="radio" name="style" checked={styleMode === "hybrid"} onChange={() => setStyleMode("hybrid")} />
-              <span>Hybrid</span>
+        {/* Map style */}
+        <section className="card">
+          <div className="card-title">Map style</div>
+          <div className="row">
+            <label className="radio">
+              <input
+                type="radio"
+                name="style"
+                value="hybrid"
+                checked={styleMode === "hybrid"}
+                onChange={() => setStyleMode("hybrid")}
+              />
+              <span>Hybrid (default)</span>
             </label>
-            <label className="panel-check">
-              <input type="radio" name="style" checked={styleMode === "street"} onChange={() => setStyleMode("street")} />
+            <label className="radio">
+              <input
+                type="radio"
+                name="style"
+                value="street"
+                checked={styleMode === "street"}
+                onChange={() => setStyleMode("street")}
+              />
               <span>Street</span>
             </label>
           </div>
         </section>
 
-        <section className="panel-card">
-          <h2 className="panel-title">Location Types</h2>
-          {/* legend only (filters will expand) */}
-          <ul className="space-y-1 text-sm opacity-90">
-            <li><span className="dot dot-blue" /> Agronomy</li>
-            <li><span className="dot dot-sky" /> Agronomy/Grain</li>
-            <li><span className="dot dot-orange" /> Distribution</li>
-            <li><span className="dot dot-magenta" /> Grain</li>
-            <li><span className="dot dot-violet" /> Grain/Feed</li>
-            <li><span className="dot dot-red" /> Kingpin</li>
-            <li><span className="dot dot-yellow" /> Office/Service</li>
-          </ul>
-        </section>
-
-        {/* NEW: Suppliers filter (search + counts) */}
-        <section className="panel-card">
-          <h2 className="panel-title">Suppliers ({supplierSummary.suppliers.length || 0})</h2>
-          <input
-            className="panel-input mb-2"
-            placeholder="Search suppliers…"
-            value={supplierSearch}
-            onChange={(e) => setSupplierSearch(e.target.value)}
-          />
-          <div style={{ maxHeight: 200, overflow: "auto", borderRadius: 8, border: "1px solid #1b2a41", padding: 6 }}>
-            {visibleSuppliers.length === 0 && (
-              <div className="text-sm opacity-70">No matches.</div>
-            )}
-            {visibleSuppliers.map((s) => (
-              <label key={s.name} className="panel-check" style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>
+        {/* Suppliers filter */}
+        <section className="card">
+          <div className="card-title">
+            Suppliers <span className="muted">({allSuppliers.length})</span>
+          </div>
+          <div className="supplier-list">
+            {allSuppliers.map((s) => {
+              const checked = selectedSuppliers.includes(s);
+              return (
+                <label key={s} className="supplier-row">
                   <input
                     type="checkbox"
-                    checked={selectedSuppliers.includes(s.name)}
-                    onChange={() => toggleSupplier(s.name)}
-                    style={{ marginRight: 8 }}
+                    checked={checked}
+                    onChange={(e) => {
+                      setSelectedSuppliers((prev) =>
+                        e.target.checked
+                          ? [...prev, s]
+                          : prev.filter((x) => x !== s)
+                      );
+                    }}
                   />
-                  {s.name}
-                </span>
-                <span style={{ opacity: 0.75, fontSize: 12 }}>{s.count}</span>
-              </label>
-            ))}
-          </div>
-          <div className="flex gap-2 mt-2">
-            <button className="btn-muted" onClick={clearSuppliers} disabled={selectedSuppliers.length === 0}>Clear</button>
-          </div>
-          <div className="text-xs opacity-70 mt-1">
-            Tip: leave all unchecked to show all suppliers.
+                  <span className="dot" style={{ background: CATEGORY_COLOR["Agronomy"] }} />
+                  <span className="supplier-name">{s}</span>
+                  <span className="count">
+                    {supplierSummary.bySupplier?.[s] ?? 0}
+                  </span>
+                </label>
+              );
+            })}
+            {!allSuppliers.length && (
+              <div className="muted">Loading suppliers…</div>
+            )}
           </div>
         </section>
 
-        {/* Trip Builder */}
-        <section className="panel-card">
-          <h2 className="panel-title">Trip Builder</h2>
-          <p className="text-xs mb-2 opacity-80">Hover to preview, click to add a stop.</p>
+        {/* Trip builder */}
+        <section className="card">
+          <div className="card-title">Trip</div>
+          <div className="row">
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={roundTrip}
+                onChange={(e) => setRoundTrip(e.target.checked)}
+              />
+              <span>Round-trip</span>
+            </label>
+          </div>
 
-          <label className="panel-check mb-2">
-            <input type="checkbox" checked={roundTrip} onChange={(e) => setRoundTrip(e.target.checked)} />
-            <span>Round trip</span>
-          </label>
-
-          <div className="space-y-1 mb-3">
-            {stops.map((s, i) => (
-              <div key={s.id} className="text-sm truncate">{i + 1}. {s.name}</div>
+          <div className="stops">
+            {stops.map((s) => (
+              <div key={s.id} className="stop">
+                <div className="stop-dot" />
+                <div className="stop-text">
+                  <div className="stop-name">{s.name ?? "Stop"}</div>
+                  <div className="stop-ll">{s.lat.toFixed(4)}, {s.lon.toFixed(4)}</div>
+                </div>
+              </div>
             ))}
-            {stops.length === 0 && <div className="text-sm opacity-70">No stops yet.</div>}
+            {!stops.length && <div className="muted">Click points on the map to add stops.</div>}
           </div>
 
-          <div className="flex gap-2">
-            <button className="btn-muted" onClick={undoStop} disabled={stops.length === 0}>Undo</button>
-            <button className="btn-muted" onClick={clearStops} disabled={stops.length === 0}>Clear</button>
-          </div>
-
-          <div className="mt-3 flex flex-col gap-1 text-sm">
-            <a className={`link ${routeLinks.google ? "" : "pointer-events-none opacity-40"}`} href={routeLinks.google || "#"} target="_blank" rel="noreferrer">Open in Google Maps</a>
-            <a className={`link ${routeLinks.apple ? "" : "pointer-events-none opacity-40"}`} href={routeLinks.apple || "#"} target="_blank" rel="noreferrer">Open in Apple Maps</a>
-            <a className={`link ${routeLinks.waze ? "" : "pointer-events-none opacity-40"}`} href={routeLinks.waze || "#"} target="_blank" rel="noreferrer">Open in Waze</a>
+          <div className="row buttons">
+            <button className="btn" disabled={!hasStops} onClick={clearStops}>Clear</button>
+            <a className={`btn ${!hasStops ? "disabled" : ""}`} href={hasStops ? googleHref : "#"} target="_blank" rel="noreferrer">Open Google</a>
+            <a className={`btn ${!hasStops ? "disabled" : ""}`} href={hasStops ? appleHref : "#"} target="_blank" rel="noreferrer">Open Apple</a>
+            <a className={`btn ${!hasStops ? "disabled" : ""}`} href={hasStops ? wazeHref : "#"} target="_blank" rel="noreferrer">Open Waze</a>
           </div>
         </section>
       </aside>
 
-      {/* Map pane */}
-      <section className="rounded-2xl overflow-hidden border border-[#1b2a41]">
+      {/* RIGHT: Map card (no logo overlay in the map) */}
+      <section className="map-card">
         <CertisMap
           styleMode={styleMode}
           selectedSuppliers={selectedSuppliers}
-          onAddStop={(s:any)=>onAddStop('coord' in s
-  ? { id: `${s.coord[1]},${s.coord[0]}`, lon: s.coord[0], lat: s.coord[1], name: (s.name ?? s.retailer ?? 'Stop') }
-  : s
-)}
+          onAddStop={(s) =>
+            // Wrap into our Stop shape
+            s?.coord
+              ? onAddStop(s)
+              : null
+          }
           onDataLoaded={setSupplierSummary}
         />
       </section>
     </main>
   );
 }
-
