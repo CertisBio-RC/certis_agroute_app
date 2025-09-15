@@ -1,9 +1,20 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
-import type { Map as MapboxMap, GeoJSONSource, LngLat, MapMouseEvent } from "mapbox-gl";
-import type { FeatureCollection, Feature, Geometry, GeoJsonProperties, Position } from "geojson";
+import type {
+  Map as MapboxMap,
+  GeoJSONSource,
+  LngLat,
+  MapMouseEvent,
+} from "mapbox-gl";
+import type {
+  FeatureCollection,
+  Feature,
+  Geometry,
+  GeoJsonProperties,
+  Position,
+} from "geojson";
 
 // ---------- Props ----------
 export type MapStyleKey = "hybrid" | "street";
@@ -54,16 +65,31 @@ const toTuple2 = (pos: Position | null | undefined): [number, number] | null => 
   return [pos[0], pos[1]];
 };
 
-// Category → color ramp used for both layer + legend dots you render in the sidebar
-const categoryColorExpr = [
+// ---------- Category colors (exported for sidebar legend) ----------
+export const CATEGORY_COLOR: Record<string, string> = {
+  "Agronomy": "#22d3ee",
+  "Office/Service": "#a78bfa",
+  "Agronomy/Grain": "#34d399",
+  "Grain/Feed": "#f59e0b",
+  "Distribution": "#fb7185",
+  "": "#38bdf8", // default/fallback
+};
+
+// Expression used by the map layer (built from CATEGORY_COLOR)
+const categoryColorExpr: any = [
   "match",
   ["coalesce", ["get", "Category"], ""],
-  "Agronomy", "#22d3ee",
-  "Office/Service", "#a78bfa",
-  "Agronomy/Grain", "#34d399",
-  "Grain/Feed", "#f59e0b",
-  "Distribution", "#fb7185",
-  /* default */ "#38bdf8",
+  "Agronomy",
+  CATEGORY_COLOR["Agronomy"],
+  "Office/Service",
+  CATEGORY_COLOR["Office/Service"],
+  "Agronomy/Grain",
+  CATEGORY_COLOR["Agronomy/Grain"],
+  "Grain/Feed",
+  CATEGORY_COLOR["Grain/Feed"],
+  "Distribution",
+  CATEGORY_COLOR["Distribution"],
+  /* default */ CATEGORY_COLOR[""],
 ];
 
 // ---------- Component ----------
@@ -82,7 +108,7 @@ export default function CertisMap({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Access token (env or text file). We keep it simple: env has priority.
+    // Access token (env first)
     if (!mapboxgl.accessToken) {
       const tokenFromEnv = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
       mapboxgl.accessToken = tokenFromEnv;
@@ -100,7 +126,7 @@ export default function CertisMap({
 
     mapRef.current = map;
 
-    // When the *first* style has finished loading, wire sources/layers/events.
+    // First style load
     map.on("style.load", () => {
       try {
         map.setProjection({ name: "mercator" as any });
@@ -108,7 +134,6 @@ export default function CertisMap({
       wireAll(map, toFC(mainFc), toFC(kingpinFc), toTuple2(home));
     });
 
-    // Clean up
     return () => {
       try {
         popupRef.current?.remove();
@@ -125,7 +150,6 @@ export default function CertisMap({
     if (!m) return;
     const next = styleUrlFor(mapStyle);
     m.setStyle(next);
-    // after *this* style has loaded, re-wire everything
     m.once("style.load", () => {
       try {
         m.setProjection({ name: "mercator" as any });
@@ -210,7 +234,7 @@ export default function CertisMap({
     kingpins: FeatureCollection,
     homeTuple: [number, number] | null
   ) {
-    // Remove any existing layers/sources from prior style
+    // Remove leftovers from previous style
     safeRemoveLayer(map, CLUSTER_COUNT);
     safeRemoveLayer(map, CLUSTERS);
     safeRemoveLayer(map, UNCLUSTERED);
@@ -230,7 +254,7 @@ export default function CertisMap({
       clusterMaxZoom: 14,
     });
 
-    // Add kingpin & home sources
+    // Kingpin & home sources
     map.addSource(KING_SRC, { type: "geojson", data: kingpins });
     map.addSource(HOME_SRC, {
       type: "geojson",
@@ -258,11 +282,11 @@ export default function CertisMap({
         "circle-color": [
           "step",
           ["get", "point_count"],
-          "#7dd3fc", // small
+          "#7dd3fc",
           20,
-          "#38bdf8", // medium
+          "#38bdf8",
           50,
-          "#0ea5e9", // large
+          "#0ea5e9",
         ],
         "circle-radius": ["step", ["get", "point_count"], 16, 20, 22, 50, 28],
         "circle-stroke-width": 1.5,
@@ -293,7 +317,7 @@ export default function CertisMap({
       source: MAIN_SRC,
       filter: ["!", ["has", "point_count"]],
       paint: {
-        "circle-color": categoryColorExpr as any,
+        "circle-color": categoryColorExpr,
         "circle-radius": 7,
         "circle-stroke-width": 2,
         "circle-stroke-color": "#00131A",
@@ -327,7 +351,6 @@ export default function CertisMap({
     });
 
     // Interactions ------------------------------------------------------------
-    // hover popup (shared)
     if (!popupRef.current) {
       popupRef.current = new mapboxgl.Popup({
         closeButton: false,
@@ -336,7 +359,6 @@ export default function CertisMap({
       });
     }
 
-    // Hover to show popup
     const showPopup = (e: MapMouseEvent) => {
       const feats = map.queryRenderedFeatures(e.point, {
         layers: [KING_LAYER, UNCLUSTERED],
@@ -362,13 +384,19 @@ export default function CertisMap({
       const iconUrl = slug ? `/icons/${slug}.png` : null;
 
       const lines: string[] = [];
-      if (rawName) lines.push(`<div style="font-weight:700">${escapeHtml(rawName)}</div>`);
-      if (p.Address || p.address) lines.push(`<div>${escapeHtml(p.Address || p.address)}</div>`);
+      if (rawName)
+        lines.push(`<div style="font-weight:700">${escapeHtml(rawName)}</div>`);
+      if (p.Address || p.address)
+        lines.push(`<div>${escapeHtml(p.Address || p.address)}</div>`);
       if (p.City || p.city) {
         const city = p.City || p.city;
         const st = p.State || p.state || "";
         const zip = p.Zip || p.zip || "";
-        lines.push(`<div>${escapeHtml(city)}${st ? ", " + escapeHtml(st) : ""} ${escapeHtml(zip)}</div>`);
+        lines.push(
+          `<div>${escapeHtml(city)}${
+            st ? ", " + escapeHtml(st) : ""
+          } ${escapeHtml(zip)}</div>`
+        );
       }
       if (p.Category) lines.push(`<div style="opacity:.8">${escapeHtml(p.Category)}</div>`);
       if (p.Suppliers) lines.push(`<div style="opacity:.8">${escapeHtml(p.Suppliers)}</div>`);
@@ -379,7 +407,11 @@ export default function CertisMap({
 
       popupRef.current!
         .setLngLat(coord as any)
-        .setHTML(`<div style="display:flex;align-items:center;gap:6px">${logoHtml}<div>${lines.join("")}</div></div>`)
+        .setHTML(
+          `<div style="display:flex;align-items:center;gap:6px">${logoHtml}<div>${lines.join(
+            ""
+          )}</div></div>`
+        )
         .addTo(map);
     };
 
@@ -395,11 +427,14 @@ export default function CertisMap({
       const clusterId = (f.properties as any)?.cluster_id;
       const source = map.getSource(MAIN_SRC) as GeoJSONSource;
       if (!source || clusterId == null) return;
-      (source as any).getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
-        if (err) return;
-        const center = (f.geometry as any)?.coordinates as [number, number];
-        map.easeTo({ center, zoom });
-      });
+      (source as any).getClusterExpansionZoom(
+        clusterId,
+        (err: any, zoom: number) => {
+          if (err) return;
+          const center = (f.geometry as any)?.coordinates as [number, number];
+          map.easeTo({ center, zoom });
+        }
+      );
     });
 
     // Hover handlers (both unclustered + kingpins)
