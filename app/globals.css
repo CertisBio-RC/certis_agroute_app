@@ -1,197 +1,115 @@
-/* ---------- Base / Reset ---------- */
-:root {
-  --bg: #0b1220;          /* dark slate */
-  --card: #0f172a;        /* slightly lighter */
-  --muted: #a9b1c6;
-  --text: #e6edf3;
-  --accent: #1f6feb;
-  --accent-2: #22c55e;
-  --ring: #233044;
-
-  /* layout */
-  --gutter: 16px;
-  --sidebar-w: 380px;     /* width of left column */
-  --radius: 12px;
-  --shadow: 0 4px 18px rgba(0,0,0,.25);
+/* ===== Reset / base ===== */
+:root{
+  --sidebar-w: 420px;     /* left column width */
+  --page-gap: 16px;       /* gap between columns & edges */
+  --top-pad: 16px;        /* top padding inside page */
+  --card-bg: #0f172a;     /* slate-900-ish */
+  --card-border: #1f2937; /* slate-800-ish */
+  --text: #e5e7eb;        /* slate-200-ish */
+  --muted: #9ca3af;       /* slate-400-ish */
+  --accent: #22d3ee;      /* cyan-400 */
 }
-
-*,
-*::before,
-*::after { box-sizing: border-box; }
-
+* { box-sizing: border-box; }
 html, body {
   height: 100%;
-}
-
-body {
   margin: 0;
-  background: var(--bg);
   color: var(--text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.4;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue",
-               Arial, "Noto Sans", "Liberation Sans", "Apple Color Emoji",
-               "Segoe UI Emoji", "Segoe UI Symbol";
+  background: #0b1022;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
 }
-
-/* Links / buttons basic */
 a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+button { cursor: pointer; }
 
-button {
-  cursor: pointer;
-  border: 1px solid var(--ring);
-  background: #101a30;
-  color: var(--text);
-  border-radius: 10px;
-  padding: 6px 12px;
-}
-button:disabled { opacity: .6; cursor: not-allowed; }
-
-/* Inputs */
-input[type="text"], input[type="number"], input[type="search"] {
-  width: 100%;
-  background: #0c1528;
-  color: var(--text);
-  border: 1px solid var(--ring);
-  border-radius: 10px;
-  padding: 8px 10px;
-  outline: none;
-}
-input::placeholder { color: #7f8ca8; }
-
-label { display: inline-flex; align-items: center; gap: 8px; }
-fieldset { border: 1px solid var(--ring); border-radius: var(--radius); }
-legend { padding: 0 8px; color: var(--muted); }
-
-/* Tiny colored dots you’re showing in the legend */
-.dot {
-  display:inline-block; width: 10px; height: 10px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,.35);
-  vertical-align: middle; margin-right: 8px;
+/* ===== Hard 2-column layout without :has() =====
+   We pin a sticky sidebar and give the map panel an absolute slot on the right.
+   Works even if the DOM inside main changes.
+*/
+.agroute-shell {
+  position: relative;
+  padding: var(--top-pad) var(--page-gap);
+  min-height: 100vh;
 }
 
-/* ---------- App Layout (rock solid 2-col) ---------- */
-
-/* Main page becomes a 2-col grid. This does not depend on your class names. */
-main {
-  display: grid;
-  grid-template-columns: minmax(280px, var(--sidebar-w)) 1fr;
-  gap: var(--gutter);
-  padding: var(--gutter);
-  align-items: start;
-}
-
-/* Any direct child of <main> that DOES NOT contain a Mapbox map = sidebar panel. */
-main > *:not(:has(.mapboxgl-map)) {
-  grid-column: 1;
+/* Sidebar (left column) */
+.agroute-sidebar {
   position: sticky;
-  top: var(--gutter);
-  align-self: start;
-  max-height: calc(100vh - (var(--gutter) * 2));
+  top: var(--top-pad);
+  left: var(--page-gap);
+  width: var(--sidebar-w);
+  max-height: calc(100vh - var(--top-pad) - var(--page-gap));
   overflow: auto;
-  padding-right: 4px;         /* keep scrollbar from hugging content */
+  padding-bottom: 24px;
 }
 
-/* Any direct child of <main> that DOES contain a Mapbox map = map column. */
-main > *:has(.mapboxgl-map) {
-  grid-column: 2;
-  background: var(--card);
-  border: 1px solid var(--ring);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  min-height: calc(100vh - (var(--gutter) * 3));   /* the map card height */
-  display: flex;
-  flex-direction: column;
+/* Map panel (right column) */
+.agroute-map-panel {
+  position: absolute;
+  top: var(--top-pad);
+  left: calc(var(--page-gap) + var(--sidebar-w) + var(--page-gap));
+  right: var(--page-gap);
+  min-height: calc(100vh - var(--top-pad) - var(--page-gap));
 }
 
-/* Ensure the map area itself fills the card vertically */
-main > *:has(.mapboxgl-map) > * {
-  flex: 1 1 auto;
-  min-height: 420px; /* extra guard for small screens */
+/* Card styling */
+.card{
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 18px rgba(0,0,0,.25);
+}
+.card + .card{ margin-top: 12px; }
+
+h1, h2, h3 { margin: 0 0 8px; font-weight: 700; line-height: 1.2; }
+h1{ font-size: 28px; }
+h2{ font-size: 20px; }
+label{ font-size: 14px; color: var(--muted); }
+
+fieldset{ border: none; margin: 0; padding: 0; }
+.legend-dots{ display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 15px; }
+.legend-dots .dot{
+  display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:6px; vertical-align: -1px;
 }
 
-/* Mapbox internals should stretch */
-.mapboxgl-map,
-.mapboxgl-canvas,
-.mapboxgl-canvas-container {
+/* Inputs/buttons */
+.input-row{ display:flex; gap:8px; align-items:center; }
+.input-row input[type="text"]{
+  width: 220px; background:#0a1224; color:var(--text);
+  border:1px solid var(--card-border); border-radius:8px; padding:8px 10px;
+}
+.btn{
+  background:#0a7ea4; color:#fff; border:none; border-radius:10px; padding:8px 14px; font-weight:600;
+}
+.btn:disabled{ opacity:.6; cursor: not-allowed; }
+
+/* Mapbox container guarantees */
+.map-host{
+  position: relative;
+  width: 100%;
+  min-height: 72vh;           /* never collapse */
+  height: calc(100vh - 140px);/* typical full height */
+}
+.map-host .mapboxgl-map,
+.map-host .mapboxgl-canvas,
+.map-host canvas{
   width: 100% !important;
   height: 100% !important;
 }
 
-/* If your map component wraps the map in a specific container id/class, keep it full */
-#map,
-.mapWrap,
-.mapCard {
-  width: 100%;
-  height: 100%;
+/* Certis watermark over map (kept) */
+.map-watermark{
+  position:absolute; z-index:5; top:10px; left:10px;
+  display:flex; align-items:center; gap:6px;
+  background:rgba(0,0,0,.35); padding:6px 8px; border-radius:8px;
 }
+.map-watermark img{ height:20px; }
 
-/* ---------- Cards / spacing (applies to both sides) ---------- */
-
-.card {
-  background: var(--card);
-  border: 1px solid var(--ring);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 14px;
-}
-
-h1, h2, h3 {
-  margin: 6px 0 10px;
-  font-weight: 700;
-}
-h1 { font-size: 28px; }
-h2 { font-size: 20px; }
-h3 { font-size: 16px; }
-
-.section {
-  margin-bottom: 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px dashed #20304a;
-}
-.section:last-child { border-bottom: 0; }
-
-/* Compact checklists with clean wrapping */
-.checklist {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-}
-.checklist .pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--ring);
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: #0d162b;
-  white-space: nowrap;
-}
-
-/* ---------- Branding ---------- */
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 2px 0 8px;
-}
-.brand img {
-  height: 26px;
-  object-fit: contain;
-}
-
-/* ---------- Utility ---------- */
-.hide { display: none !important; }
-
-/* Small viewports: stack but keep map tall */
-@media (max-width: 940px) {
-  main { grid-template-columns: 1fr; }
-  main > *:not(:has(.mapboxgl-map)) {
-    position: relative; top: 0; max-height: none; overflow: visible;
+/* Responsive fallback: stack on very small widths */
+@media (max-width: 980px){
+  .agroute-sidebar{
+    position: relative; width: 100%; max-height: none; left: 0;
   }
-  main > *:has(.mapboxgl-map) { min-height: 70vh; }
+  .agroute-map-panel{
+    position: relative; left: 0; right: 0; min-height: 65vh; margin-top: 14px;
+  }
 }
