@@ -1,144 +1,29 @@
-/* ====== CSS Reset-ish ====== */
+/* app/globals.css */
 :root {
-  --bg: #0f1a23;
-  --panel: #0f1a23;
-  --card: #0f1e2b;
-  --card-border: #1d3344;
-  --text: #e6eef6;
-  --muted: #9fb4c7;
-
-  --page-gap: 16px;
-  --top-pad: 16px;
-  --card-pad: 16px;
-  --card-gap: 12px;
-  --sidebar-w: 420px;
-
-  --radius: 12px;
-  --shadow: 0 6px 22px rgba(0,0,0,0.25);
+  color-scheme: dark;
 }
 
-* { box-sizing: border-box; }
-
-html, body {
+html, body, #__next {
   height: 100%;
+}
+
+body {
   margin: 0;
-  padding: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  background: #0b1220;
+  color: #e5e7eb;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", "Apple Color Emoji", "Segoe UI Emoji";
 }
 
-/* ====== App Shell ====== */
-main.agroute-shell {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  gap: var(--page-gap);
-  padding: var(--top-pad);
-  min-height: 100vh;
+/* Two-column layout handled in page.tsx via grid classes */
+
+/* Map container: NO logo/background inside the map frame */
+.map-container {
+  width: 100%;
+  height: 100%;
+  min-height: calc(100vh - 1rem);
+  background: #0b1220; /* neutral only */
 }
 
-/* Sidebar stays put; it scrolls independently if long */
-.agroute-sidebar {
-  position: sticky;
-  top: var(--top-pad);
-  align-self: start;
-  display: flex;
-  flex-direction: column;
-  gap: var(--card-gap);
-  max-height: calc(100vh - var(--top-pad) * 2);
-  overflow: auto;
-}
-
-/* Pretty cards */
-.agcard {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: var(--card-pad);
-}
-
-/* Map panel uses all vertical height and never collapses */
-.agroute-map-panel {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 0;
-  min-height: calc(100vh - var(--top-pad) * 2);
-  display: flex;
-  flex-direction: column;
-}
-
-/* Map wrapper + Mapbox container */
-.agroute-mapwrap {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 560px;
-}
-
-.agroute-mapbox {
-  position: absolute;
-  inset: 0;
-}
-
-/* Watermark logo inside map */
-.agroute-maplogo {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  height: 24px;
-  width: auto;
-  z-index: 3;
-  pointer-events: none;
-  opacity: 0.95;
-}
-
-/* Mapbox canvas should fill container */
-.mapboxgl-canvas,
-.mapboxgl-map {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* ====== Controls niceties ====== */
-fieldset { border: 0; margin: 0; padding: 0; }
-legend { font-weight: 700; margin-bottom: 8px; }
-
-label.chk {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 10px 4px 0;
-}
-.dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  margin-right: 6px;
-  vertical-align: -1px;
-}
-
-/* Popup styling */
-.agroute-popup .mapboxgl-popup-content {
-  background: #0f1720;
-  border: 1px solid #22384a;
-  border-radius: 10px;
-  padding: 10px 12px;
-  color: var(--text);
-}
-.agroute-pop__row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: center;
-}
-.agroute-pop__name { font-weight: 700; }
-.agroute-pop__addr { color: var(--muted); font-size: 12px; margin-top: 2px; }
-.agroute-pop__cat { margin-top: 6px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
-.agroute-pop__logo {
-  max-height: 40px;
-  width: auto;
-  display: block;
-}
+/* Basic links */
+a.link { color: #93c5fd; text-decoration: underline; }
+a.link:hover { color: #bfdbfe; }
