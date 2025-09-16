@@ -1,4 +1,4 @@
-/* --- Reset / base -------------------------------------------------------- */
+/* --- Theme variables ---------------------------------------------------- */
 :root {
   --bg: #0b1824;          /* app background */
   --panel: #0f1f2f;       /* cards */
@@ -9,14 +9,13 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+html, body { height: 100%; margin: 0; padding: 0; }
 body {
-  margin: 0;
   color: var(--text);
   background: var(--bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
 /* --- Two column shell ---------------------------------------------------- */
@@ -28,7 +27,7 @@ body {
   min-height: 100dvh;
 }
 
-/* Left: sticky sidebar */
+/* Sidebar */
 .sidebar {
   position: sticky;
   top: 20px;
@@ -39,6 +38,7 @@ body {
   height: calc(100dvh - 40px);
 }
 
+/* Brand block */
 .brand {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -56,7 +56,7 @@ body {
   font-size: 12px;
 }
 
-/* Reusable card */
+/* Reusable card (panels) */
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -69,7 +69,7 @@ body {
   font-weight: 700;
 }
 
-/* Simple form rows */
+/* Form rows */
 .radio-row {
   display: grid;
   grid-template-columns: 1fr;
@@ -86,6 +86,7 @@ body {
 }
 .radio input { accent-color: var(--accent); }
 
+/* Muted bullets */
 .bullets {
   margin: 0;
   padding-left: 18px;
@@ -93,7 +94,7 @@ body {
   font-size: 14px;
 }
 
-/* Right: map content */
+/* --- Map content --------------------------------------------------------- */
 .content {
   min-height: calc(100dvh - 40px);
 }
@@ -113,7 +114,7 @@ body {
 
 .map-frame {
   position: relative;
-  height: calc(100dvh - 40px - 20px); /* page padding + breathing room */
+  height: calc(100dvh - 40px - 20px); /* full height minus page padding */
   border-radius: 12px;
   overflow: hidden;
 }
@@ -123,7 +124,7 @@ body {
   inset: 0;
 }
 
-/* Map overlay (boot / errors) */
+/* Map overlay (loading/errors) */
 .map-overlay {
   position: absolute;
   inset: 0;
@@ -139,7 +140,7 @@ body {
   color: #ffb4b4;
 }
 
-/* Mobile: stack columns */
+/* --- Mobile -------------------------------------------------------------- */
 @media (max-width: 900px) {
   .page-shell {
     grid-template-columns: 1fr;
@@ -153,5 +154,5 @@ body {
   }
 }
 
-/* Mapbox GL core class overrides stay neutral */
-.mapboxgl-ctrl-logo { display: block; } /* keep Mapbox attribution requirements */
+/* --- Mapbox GL neutral overrides ---------------------------------------- */
+.mapboxgl-ctrl-logo { display: block; } /* keep Mapbox attribution */
