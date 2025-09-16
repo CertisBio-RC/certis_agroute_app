@@ -32,17 +32,21 @@ export default function CertisMap({
           style: "mapbox://styles/mapbox/satellite-streets-v12",
           center: [-93.5, 41.5], // Midwest-ish
           zoom: 5,
+          projection: { name: "mercator" }, // ✅ Force flat Mercator
         });
 
         mapRef.current = map;
 
         map.on("load", async () => {
           try {
-            // Load retailers.geojson
-            const resp = await fetch(
-              "/certis_agroute_app/data/retailers.geojson"
-            );
+            console.log("Map loaded, fetching retailers.geojson...");
+
+            // ✅ retailers.geojson must be in /public/data/
+            const resp = await fetch("/certis_agroute_app/data/retailers.geojson");
+            console.log("Response status:", resp.status);
+
             const data = await resp.json();
+            console.log("Loaded features:", data.features?.length || 0);
 
             map.addSource("retailers", {
               type: "geojson",
@@ -98,7 +102,7 @@ export default function CertisMap({
                   "match",
                   ["get", "category"],
                   ...Object.entries(categoryColors).flat(),
-                  "#A9A9A9", // fallback
+                  "#A9A9A9",
                 ],
                 "circle-radius": 6,
                 "circle-stroke-width": 1,
@@ -123,11 +127,9 @@ export default function CertisMap({
                 .setHTML(`<strong>${name}</strong>`)
                 .addTo(map);
 
-              // Add stop
               onAddStop(name);
             });
 
-            // Cursor change
             map.on("mouseenter", "unclustered-point", () => {
               map.getCanvas().style.cursor = "pointer";
             });
@@ -146,8 +148,9 @@ export default function CertisMap({
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
+    const src = map.getSource("retailers") as GeoJSONSource | undefined;
 
-    if (!map.getLayer("unclustered-point")) return;
+    if (!src) return;
 
     if (selectedCategories.length === 0) {
       map.setFilter("unclustered-point", null);
@@ -155,7 +158,7 @@ export default function CertisMap({
       map.setFilter("unclustered-point", [
         "in",
         ["get", "category"],
-        ...selectedCategories,
+        ["literal", selectedCategories],
       ]);
     }
   }, [selectedCategories]);
