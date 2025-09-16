@@ -1,11 +1,21 @@
-/* --- Theme variables ---------------------------------------------------- */
+/* --- Theme variables: LIGHT by default ---------------------------------- */
 :root {
-  --bg: #0b1824;          /* app background */
-  --panel: #0f1f2f;       /* cards */
-  --border: #1b2a41;      /* subtle border */
-  --text: #e8f1fb;        /* main text */
-  --muted: #9fb3c8;       /* secondary text */
-  --accent: #2dd4bf;      /* mint accent */
+  --bg: #f8fafc;          /* light background */
+  --panel: #ffffff;       /* cards */
+  --border: #d1d5db;      /* subtle border */
+  --text: #111827;        /* main text */
+  --muted: #6b7280;       /* secondary text */
+  --accent: #0ea5e9;      /* blue accent */
+}
+
+/* --- DARK overrides ----------------------------------------------------- */
+.dark {
+  --bg: #0b1824;
+  --panel: #0f1f2f;
+  --border: #1b2a41;
+  --text: #e8f1fb;
+  --muted: #9fb3c8;
+  --accent: #2dd4bf;
 }
 
 * { box-sizing: border-box; }
@@ -18,7 +28,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* --- Two column shell ---------------------------------------------------- */
+/* --- Two column shell --------------------------------------------------- */
 .page-shell {
   display: grid;
   grid-template-columns: 360px 1fr; /* fixed sidebar, fluid content */
@@ -94,7 +104,7 @@ body {
   font-size: 14px;
 }
 
-/* --- Map content --------------------------------------------------------- */
+/* --- Map content -------------------------------------------------------- */
 .content {
   min-height: calc(100dvh - 40px);
 }
@@ -140,7 +150,7 @@ body {
   color: #ffb4b4;
 }
 
-/* --- Mobile -------------------------------------------------------------- */
+/* --- Mobile ------------------------------------------------------------- */
 @media (max-width: 900px) {
   .page-shell {
     grid-template-columns: 1fr;
@@ -154,5 +164,5 @@ body {
   }
 }
 
-/* --- Mapbox GL neutral overrides ---------------------------------------- */
+/* --- Mapbox GL neutral overrides --------------------------------------- */
 .mapboxgl-ctrl-logo { display: block; } /* keep Mapbox attribution */

@@ -7,6 +7,7 @@ import { CATEGORY_COLORS } from "../utils/constants";
 export default function Page() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [tripStops, setTripStops] = useState<string[]>([]);
+  const [darkMode, setDarkMode] = useState(true);
 
   const handleCategoryToggle = (category: string) => {
     setSelectedCategories((prev) =>
@@ -20,6 +21,11 @@ export default function Page() {
     setTripStops((prev) => [...prev, stop]);
   };
 
+  const toggleDarkMode = () => {
+    document.documentElement.classList.toggle("dark");
+    setDarkMode(!darkMode);
+  };
+
   return (
     <div className="page-shell">
       {/* Sidebar */}
@@ -28,6 +34,14 @@ export default function Page() {
           <h1>Certis AgRoute Planner</h1>
           <div className="brand-meta">Plan retailer visits with ease</div>
         </div>
+
+        <button
+          onClick={toggleDarkMode}
+          className="panel"
+          style={{ cursor: "pointer" }}
+        >
+          {darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+        </button>
 
         {/* Category Filters */}
         <div className="panel">
