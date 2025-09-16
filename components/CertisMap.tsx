@@ -1,4 +1,3 @@
-// components/CertisMap.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -7,7 +6,7 @@ import mapboxgl, { Map, Popup, GeoJSONSource } from "mapbox-gl";
 type CertisMapProps = {
   categoryColors: Record<string, string>;
   selectedCategories: string[];
-  onAddStop: (stop: string) => void; // fixed typing
+  onAddStop: (stop: string) => void;
 };
 
 export default function CertisMap({
@@ -21,7 +20,6 @@ export default function CertisMap({
   useEffect(() => {
     if (mapRef.current || !mapContainer.current) return;
 
-    // Load token dynamically from public/data/token.txt
     fetch("/certis_agroute_app/data/token.txt")
       .then((res) => res.text())
       .then((token) => {
@@ -30,7 +28,7 @@ export default function CertisMap({
         const map = new mapboxgl.Map({
           container: mapContainer.current,
           style: "mapbox://styles/mapbox/satellite-streets-v12",
-          center: [-93.5, 41.5], // Midwest-ish
+          center: [-93.5, 41.5],
           zoom: 5,
         });
 
@@ -38,7 +36,6 @@ export default function CertisMap({
 
         map.on("load", async () => {
           try {
-            // Load retailers.geojson
             const resp = await fetch(
               "/certis_agroute_app/data/retailers.geojson"
             );
@@ -52,14 +49,13 @@ export default function CertisMap({
               clusterRadius: 40,
             });
 
-            // Cluster circles
             map.addLayer({
               id: "clusters",
               type: "circle",
               source: "retailers",
               filter: ["has", "point_count"],
               paint: {
-                "circle-color": "#87CEFA", // light blue
+                "circle-color": "#87CEFA",
                 "circle-radius": [
                   "step",
                   ["get", "point_count"],
@@ -72,7 +68,6 @@ export default function CertisMap({
               },
             });
 
-            // Cluster count labels
             map.addLayer({
               id: "cluster-count",
               type: "symbol",
@@ -87,7 +82,6 @@ export default function CertisMap({
               },
             });
 
-            // Unclustered points
             map.addLayer({
               id: "unclustered-point",
               type: "circle",
@@ -98,7 +92,7 @@ export default function CertisMap({
                   "match",
                   ["get", "category"],
                   ...Object.entries(categoryColors).flat(),
-                  "#A9A9A9", // fallback
+                  "#A9A9A9",
                 ],
                 "circle-radius": 6,
                 "circle-stroke-width": 1,
@@ -106,7 +100,6 @@ export default function CertisMap({
               },
             });
 
-            // Popup + click-to-add-stop
             const popup = new Popup({ closeButton: true, closeOnClick: true });
 
             map.on("click", "unclustered-point", (e) => {
@@ -123,11 +116,9 @@ export default function CertisMap({
                 .setHTML(`<strong>${name}</strong>`)
                 .addTo(map);
 
-              // Add stop
               onAddStop(name);
             });
 
-            // Cursor change
             map.on("mouseenter", "unclustered-point", () => {
               map.getCanvas().style.cursor = "pointer";
             });
@@ -142,26 +133,22 @@ export default function CertisMap({
       .catch((err) => console.error("Failed to load token:", err));
   }, [categoryColors, onAddStop]);
 
-  // Filter updates
   useEffect(() => {
     if (!mapRef.current) return;
-
     const map = mapRef.current;
-    const src = map.getSource("retailers") as GeoJSONSource | undefined;
 
-    if (!src) return;
-
-    // Apply filter based on selectedCategories
     if (selectedCategories.length === 0) {
       map.setFilter("unclustered-point", null);
     } else {
       map.setFilter("unclustered-point", [
-        "in",
+        "match",
         ["get", "category"],
-        ["literal", selectedCategories],
+        selectedCategories,
+        true,
+        false,
       ]);
     }
   }, [selectedCategories]);
 
-  return <div ref={mapContainer} className="w-full h-full" />;
+  return <div ref={mapContainer} className="map-canvas" />;
 }

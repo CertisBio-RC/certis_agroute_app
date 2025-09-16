@@ -75,18 +75,16 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Map */}
       <div className="content">
         <div className="content-inner">
           <div className="map-card">
             <div className="map-frame">
-              <div className="map-canvas">
-                <CertisMap
-                  categoryColors={CATEGORY_COLORS}
-                  selectedCategories={selectedCategories}
-                  onAddStop={handleAddStop}
-                />
-              </div>
+              <CertisMap
+                categoryColors={CATEGORY_COLORS}
+                selectedCategories={selectedCategories}
+                onAddStop={handleAddStop}
+              />
             </div>
           </div>
         </div>
