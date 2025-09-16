@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -24,12 +23,12 @@ export default function Page() {
   return (
     <div className="flex h-screen">
       {/* Sidebar */}
-      <aside className="w-80 bg-gray-100 dark:bg-gray-900 p-4 overflow-y-auto">
-        <h1 className="text-xl font-bold mb-4">Certis AgRoute Planner</h1>
+      <aside className="w-80 bg-gray-100 dark:bg-gray-900 p-4 overflow-y-auto shadow-lg">
+        <h1 className="text-2xl font-bold mb-6">Certis AgRoute Planner</h1>
 
         {/* Category Filters */}
-        <section>
-          <h2 className="text-lg font-semibold mb-2">Filter by Category</h2>
+        <section className="mb-6 p-4 rounded-xl bg-white dark:bg-gray-800 shadow">
+          <h2 className="text-lg font-semibold mb-3">Filter by Category</h2>
           <ul>
             {Object.keys(CATEGORY_COLORS).map((category) => (
               <li key={category} className="mb-2">
@@ -52,8 +51,8 @@ export default function Page() {
         </section>
 
         {/* Trip Builder */}
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold mb-2">Trip Builder</h2>
+        <section className="p-4 rounded-xl bg-white dark:bg-gray-800 shadow">
+          <h2 className="text-lg font-semibold mb-3">Trip Builder</h2>
           {tripStops.length === 0 ? (
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Click markers on the map to add stops.
@@ -69,7 +68,7 @@ export default function Page() {
       </aside>
 
       {/* Map */}
-      <main className="flex-1">
+      <main className="flex-1 h-full">
         <CertisMap
           categoryColors={CATEGORY_COLORS}
           selectedCategories={selectedCategories}
