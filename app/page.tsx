@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import CertisMap, { CategoryKey, CATEGORY_COLORS, SupplierSummary } from '@/components/CertisMap';
+import React, { useMemo, useState } from 'react';
+import CertisMap, { CATEGORY_COLORS } from '@/components/CertisMap';
 import { withBasePath } from '@/utils/paths';
 
 type StyleMode = 'hybrid' | 'street';
 
-const CATEGORY_ORDER: CategoryKey[] = [
+const ALL_CATEGORIES = [
   'Agronomy',
   'Agronomy/Grain',
   'Distribution',
@@ -14,191 +14,195 @@ const CATEGORY_ORDER: CategoryKey[] = [
   'Grain/Feed',
   'Kingpin',
   'Office/Service',
-];
+] as const;
 
 export default function Page() {
-  // map style
   const [styleMode, setStyleMode] = useState<StyleMode>('hybrid');
 
-  // category filters
-  const [selectedCats, setSelectedCats] = useState<Record<CategoryKey, boolean>>({
-    'Agronomy': true,
-    'Agronomy/Grain': true,
-    'Distribution': true,
-    'Grain': true,
-    'Grain/Feed': true,
-    'Kingpin': true,
-    'Office/Service': true,
+  const [cats, setCats] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const c of ALL_CATEGORIES) init[c] = true;
+    return init;
   });
 
-  // summary from map once data loads
-  const [summary, setSummary] = useState<SupplierSummary>({
-    total: 0,
-    byCategory: {
-      'Agronomy': 0,
-      'Agronomy/Grain': 0,
-      'Distribution': 0,
-      'Grain': 0,
-      'Grain/Feed': 0,
-      'Kingpin': 0,
-      'Office/Service': 0,
-    },
-  });
+  const allOn = useMemo(() => Object.values(cats).every(Boolean), [cats]);
+  const anyOn = useMemo(() => Object.values(cats).some(Boolean), [cats]);
 
-  const toggleCat = useCallback((c: CategoryKey, value?: boolean) => {
-    setSelectedCats((prev) => ({ ...prev, [c]: value ?? !prev[c] }));
-  }, []);
+  const toggle = (c: string, v?: boolean) =>
+    setCats((prev) => ({ ...prev, [c]: v ?? !prev[c] }));
 
-  const allOn = useMemo(() => CATEGORY_ORDER.every((c) => selectedCats[c]), [selectedCats]);
-  const anyOn = useMemo(() => CATEGORY_ORDER.some((c) => selectedCats[c]), [selectedCats]);
-
-  const setAll = useCallback((v: boolean) => {
-    const next = { ...selectedCats };
-    CATEGORY_ORDER.forEach((c) => (next[c] = v));
-    setSelectedCats(next);
-  }, [selectedCats]);
-
-  const onAddStop = useCallback((_stop: { name?: string; coord: [number, number] }) => {
-    // Hook left intentionally simple (no UI change). Keeps layout stable.
-    // You can wire this into your "Trip Builder" panel later.
-    // console.log('Add stop:', _stop);
-  }, []);
+  const setAll = (v: boolean) =>
+    setCats((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const k of Object.keys(prev)) next[k] = v;
+      return next;
+    });
 
   return (
-    <div className="page-shell">
-      {/* Left column (sticky) */}
-      <aside className="sidebar-col">
-        {/* Header card */}
+    <main className="page-shell">
+      {/* Left sticky column */}
+      <aside className="left-col">
         <div className="card">
-          <div className="card-title flex items-center justify-between">
-            <img src={withBasePath('/certis-logo.png')} alt="CERTIS" style={{ height: 22 }} />
-            <span className="text-sm opacity-70">Route Builder • Layout baseline</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <img
+              src={withBasePath('/certis-logo.png')}
+              alt="CERTIS"
+              style={{ height: 20, opacity: 0.95 }}
+            />
           </div>
+          <div style={{ marginTop: 6, opacity: 0.85 }}>Route Builder • Layout baseline</div>
         </div>
 
-        {/* Map style */}
         <div className="card">
           <div className="card-title">Map style</div>
-          <div className="space-y-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="style"
-                checked={styleMode === 'hybrid'}
-                onChange={() => setStyleMode('hybrid')}
-              />
-              <span>Hybrid (default)</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="style"
-                checked={styleMode === 'street'}
-                onChange={() => setStyleMode('street')}
-              />
-              <span>Street</span>
-            </label>
-          </div>
+          <label className="radio">
+            <input
+              type="radio"
+              checked={styleMode === 'hybrid'}
+              onChange={() => setStyleMode('hybrid')}
+            />
+            <span>Hybrid (default)</span>
+          </label>
+          <label className="radio">
+            <input
+              type="radio"
+              checked={styleMode === 'street'}
+              onChange={() => setStyleMode('street')}
+            />
+            <span>Street</span>
+          </label>
         </div>
 
-        {/* Suppliers (summary loaded from map) */}
         <div className="card">
-          <div className="card-title">Suppliers ({summary.total})</div>
-          <div className="space-y-2 text-sm">
-            {CATEGORY_ORDER.map((c) => (
-              <div key={c} className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <span
-                    title={c}
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: 6,
-                      display: 'inline-block',
-                      backgroundColor: CATEGORY_COLORS[c],
-                      boxShadow: '0 0 0 1px rgba(0,0,0,.35) inset',
-                    }}
-                  />
-                  {c}
-                </span>
-                <span className="opacity-70">{summary.byCategory[c] ?? 0}</span>
-              </div>
-            ))}
+          <div className="card-title">Location Types</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <button className="btn sm" onClick={() => setAll(true)} disabled={allOn}>
+              All
+            </button>
+            <button className="btn sm" onClick={() => setAll(false)} disabled={!anyOn}>
+              None
+            </button>
           </div>
-        </div>
 
-        {/* Location Types (filters) */}
-        <div className="card">
-          <div className="card-title flex items-center justify-between">
-            <span>Location Types</span>
-            <div className="flex items-center gap-2">
-              <button
-                className="btn btn-sm"
-                onClick={() => setAll(true)}
-                disabled={allOn}
-                title="Select all"
-              >
-                All
-              </button>
-              <button
-                className="btn btn-sm"
-                onClick={() => setAll(false)}
-                disabled={!anyOn}
-                title="Deselect all"
-              >
-                None
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            {CATEGORY_ORDER.map((c) => (
-              <label key={c} className="flex items-center gap-3 cursor-pointer">
+          <div className="cat-grid">
+            {ALL_CATEGORIES.map((c) => (
+              <label key={c} className="check">
                 <input
                   type="checkbox"
-                  checked={selectedCats[c]}
-                  onChange={(e) => toggleCat(c, e.target.checked)}
+                  checked={!!cats[c]}
+                  onChange={(e) => toggle(c, e.currentTarget.checked)}
                 />
-                <span
-                  title={c}
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 6,
-                    display: 'inline-block',
-                    backgroundColor: CATEGORY_COLORS[c],
-                    boxShadow: '0 0 0 1px rgba(0,0,0,.35) inset',
-                  }}
-                />
+                <span className="dot" style={{ background: CATEGORY_COLORS[c] ?? '#8b949e' }} />
                 <span>{c}</span>
               </label>
             ))}
           </div>
         </div>
 
-        {/* Placeholder for Trip options (layout only) */}
         <div className="card">
           <div className="card-title">Trip</div>
-          <div className="text-sm opacity-80">Round-trip • Click points on the map to add stops.</div>
-          <div className="flex gap-2 mt-3">
-            <button className="btn btn-sm">Clear</button>
-            <button className="btn btn-sm">Open Google</button>
-            <button className="btn btn-sm">Open Apple</button>
-            <button className="btn btn-sm">Open Waze</button>
+          <div className="text-muted">Round-trip • Click points on the map to add stops.</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button className="btn sm">Clear</button>
+            <button className="btn sm">Open Google</button>
+            <button className="btn sm">Open Apple</button>
+            <button className="btn sm">Open Waze</button>
           </div>
         </div>
       </aside>
 
-      {/* Right column (map) */}
-      <main className="map-col">
-        <section className="card p-0 overflow-hidden">
-          <CertisMap
-            styleMode={styleMode}
-            selectedCategories={selectedCats}
-            onAddStop={onAddStop}
-            onDataLoaded={setSummary}
-          />
-        </section>
-      </main>
-    </div>
+      {/* Right map column */}
+      <section className="right-col">
+        <div className="map-frame">
+          <CertisMap styleMode={styleMode} categories={cats} />
+        </div>
+      </section>
+
+      {/* light styles only for this page (keeps your global CSS stable) */}
+      <style jsx>{`
+        .page-shell {
+          display: grid;
+          grid-template-columns: 360px 1fr;
+          gap: 18px;
+          padding: 18px;
+        }
+        .left-col {
+          position: sticky;
+          top: 16px;
+          height: fit-content;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .right-col {
+          min-height: calc(100vh - 32px);
+        }
+        .map-frame {
+          height: calc(100vh - 50px);
+          border: 1px solid #1b2a41;
+          border-radius: 14px;
+          overflow: hidden;
+          background: #0b1220;
+        }
+        .card {
+          background: #0f1928;
+          border: 1px solid #1b2a41;
+          border-radius: 14px;
+          padding: 14px;
+        }
+        .card-title {
+          font-weight: 700;
+          margin-bottom: 10px;
+        }
+        .radio,
+        .check {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 6px 0;
+        }
+        .check .dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 9999px;
+          border: 1px solid #0b1220;
+          display: inline-block;
+        }
+        .btn {
+          background: #0f1928;
+          border: 1px solid #22324b;
+          color: #cfe3ff;
+          border-radius: 8px;
+          padding: 8px 12px;
+        }
+        .btn.sm {
+          padding: 6px 10px;
+          font-size: 0.9rem;
+        }
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+        .text-muted {
+          opacity: 0.8;
+        }
+        .cat-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+        @media (max-width: 1100px) {
+          .page-shell {
+            grid-template-columns: 1fr;
+          }
+          .left-col {
+            position: static;
+          }
+          .map-frame {
+            height: 70vh;
+          }
+        }
+      `}</style>
+    </main>
   );
 }
