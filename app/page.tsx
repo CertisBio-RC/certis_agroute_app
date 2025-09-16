@@ -1,188 +1,204 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl, { Map as MapboxMap } from 'mapbox-gl';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import CertisMap, { CategoryKey, CATEGORY_COLORS, SupplierSummary } from '@/components/CertisMap';
 import { withBasePath } from '@/utils/paths';
-
-/**
- * Two-column layout baseline with a working Mapbox map.
- * - Left column: fixed sidebar (header + basic controls)
- * - Right column: full-height map panel
- * - No in-map Certis logo; only sidebar header logo.
- * - Token is fetched at runtime from /data/token.txt (Option A).
- */
 
 type StyleMode = 'hybrid' | 'street';
 
-const STYLE_URLS: Record<StyleMode, string> = {
-  hybrid:
-    'mapbox://styles/mapbox/satellite-streets-v12',
-  street:
-    'mapbox://styles/mapbox/streets-v12',
-};
-
-async function getMapboxToken(): Promise<string | null> {
-  // 1) env during static render (if set in GH action) – harmless fallback
-  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_MAPBOX_TOKEN) {
-    return process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  }
-
-  // 2) runtime file (Option A): /data/token.txt
-  try {
-    const res = await fetch(withBasePath('/data/token.txt'), { cache: 'no-store' });
-    if (res.ok) {
-      const txt = (await res.text()).trim();
-      if (txt) return txt;
-    }
-  } catch {
-    // ignore and fall through
-  }
-
-  return null;
-}
+const CATEGORY_ORDER: CategoryKey[] = [
+  'Agronomy',
+  'Agronomy/Grain',
+  'Distribution',
+  'Grain',
+  'Grain/Feed',
+  'Kingpin',
+  'Office/Service',
+];
 
 export default function Page() {
-  const mapRef = useRef<MapboxMap | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  // map style
   const [styleMode, setStyleMode] = useState<StyleMode>('hybrid');
-  const [bootError, setBootError] = useState<string | null>(null);
-  const [booting, setBooting] = useState(true);
 
-  // Create / update map
-  useEffect(() => {
-    let cancelled = false;
+  // category filters
+  const [selectedCats, setSelectedCats] = useState<Record<CategoryKey, boolean>>({
+    'Agronomy': true,
+    'Agronomy/Grain': true,
+    'Distribution': true,
+    'Grain': true,
+    'Grain/Feed': true,
+    'Kingpin': true,
+    'Office/Service': true,
+  });
 
-    (async () => {
-      setBooting(true);
-      setBootError(null);
+  // summary from map once data loads
+  const [summary, setSummary] = useState<SupplierSummary>({
+    total: 0,
+    byCategory: {
+      'Agronomy': 0,
+      'Agronomy/Grain': 0,
+      'Distribution': 0,
+      'Grain': 0,
+      'Grain/Feed': 0,
+      'Kingpin': 0,
+      'Office/Service': 0,
+    },
+  });
 
-      const token = await getMapboxToken();
-      if (!token) {
-        setBootError('Missing Mapbox token. Provide /public/data/token.txt or NEXT_PUBLIC_MAPBOX_TOKEN.');
-        setBooting(false);
-        return;
-      }
+  const toggleCat = useCallback((c: CategoryKey, value?: boolean) => {
+    setSelectedCats((prev) => ({ ...prev, [c]: value ?? !prev[c] }));
+  }, []);
 
-      // Apply token
-      (mapboxgl as any).accessToken = token;
+  const allOn = useMemo(() => CATEGORY_ORDER.every((c) => selectedCats[c]), [selectedCats]);
+  const anyOn = useMemo(() => CATEGORY_ORDER.some((c) => selectedCats[c]), [selectedCats]);
 
-      // If map exists and only style changes, swap style cleanly
-      if (mapRef.current && containerRef.current) {
-        const m = mapRef.current;
-        const nextStyle = STYLE_URLS[styleMode];
-        // Guard against style.load races
-        try {
-          m.setStyle(nextStyle);
-          m.once('style.load', () => {
-            try {
-              m.setProjection({ name: 'mercator' as any }); // lock mercator
-            } catch {}
-          });
-        } catch (e) {
-          // If setStyle failed (edge case), fall back to full rebuild
-          try { m.remove(); } catch {}
-          mapRef.current = null;
-        }
-      }
+  const setAll = useCallback((v: boolean) => {
+    const next = { ...selectedCats };
+    CATEGORY_ORDER.forEach((c) => (next[c] = v));
+    setSelectedCats(next);
+  }, [selectedCats]);
 
-      // If no map, build it fresh
-      if (!mapRef.current && containerRef.current) {
-        try {
-          const m = new mapboxgl.Map({
-            container: containerRef.current,
-            style: STYLE_URLS[styleMode],
-            center: [-95.5, 39.8], // CONUS-ish
-            zoom: 3.3,
-            attributionControl: true,
-            preserveDrawingBuffer: false,
-            dragRotate: false,
-            pitchWithRotate: false,
-            cooperativeGestures: true,
-          });
-          mapRef.current = m;
-
-          m.once('style.load', () => {
-            try {
-              m.setProjection({ name: 'mercator' as any });
-            } catch {}
-          });
-
-          m.addControl(new mapboxgl.NavigationControl({ showZoom: true, showCompass: false }), 'bottom-right');
-        } catch (e: any) {
-          if (!cancelled) {
-            setBootError(e?.message || 'Failed to initialize map.');
-          }
-        }
-      }
-
-      if (!cancelled) setBooting(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [styleMode]);
+  const onAddStop = useCallback((_stop: { name?: string; coord: [number, number] }) => {
+    // Hook left intentionally simple (no UI change). Keeps layout stable.
+    // You can wire this into your "Trip Builder" panel later.
+    // console.log('Add stop:', _stop);
+  }, []);
 
   return (
-    <main className="page-shell">
-      {/* LEFT: sticky sidebar */}
-      <aside className="sidebar">
-        <header className="brand">
-          <img src={withBasePath('/certis-logo.png')} alt="CERTIS" />
-          <div className="brand-meta">Route Builder • Layout baseline</div>
-        </header>
+    <div className="page-shell">
+      {/* Left column (sticky) */}
+      <aside className="sidebar-col">
+        {/* Header card */}
+        <div className="card">
+          <div className="card-title flex items-center justify-between">
+            <img src={withBasePath('/certis-logo.png')} alt="CERTIS" style={{ height: 22 }} />
+            <span className="text-sm opacity-70">Route Builder • Layout baseline</span>
+          </div>
+        </div>
 
-        <section className="panel">
-          <h2>Map style</h2>
-          <div className="radio-row">
-            <label className="radio">
+        {/* Map style */}
+        <div className="card">
+          <div className="card-title">Map style</div>
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
-                name="mapstyle"
+                name="style"
                 checked={styleMode === 'hybrid'}
                 onChange={() => setStyleMode('hybrid')}
               />
               <span>Hybrid (default)</span>
             </label>
-            <label className="radio">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
-                name="mapstyle"
+                name="style"
                 checked={styleMode === 'street'}
                 onChange={() => setStyleMode('street')}
               />
               <span>Street</span>
             </label>
           </div>
-        </section>
+        </div>
 
-        <section className="panel">
-          <h2>Controls (placeholder)</h2>
-          <ul className="bullets">
-            <li>Filters</li>
-            <li>Trip options</li>
-          </ul>
-        </section>
-      </aside>
-
-      {/* RIGHT: full-height map panel */}
-      <section className="content">
-        <div className="content-inner">
-          <div className="map-card">
-            <div className="map-frame">
-              <div ref={containerRef} className="map-canvas" />
-              {booting && (
-                <div className="map-overlay">Loading map…</div>
-              )}
-              {bootError && (
-                <div className="map-overlay error">
-                  {bootError}
-                </div>
-              )}
-            </div>
+        {/* Suppliers (summary loaded from map) */}
+        <div className="card">
+          <div className="card-title">Suppliers ({summary.total})</div>
+          <div className="space-y-2 text-sm">
+            {CATEGORY_ORDER.map((c) => (
+              <div key={c} className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <span
+                    title={c}
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 6,
+                      display: 'inline-block',
+                      backgroundColor: CATEGORY_COLORS[c],
+                      boxShadow: '0 0 0 1px rgba(0,0,0,.35) inset',
+                    }}
+                  />
+                  {c}
+                </span>
+                <span className="opacity-70">{summary.byCategory[c] ?? 0}</span>
+              </div>
+            ))}
           </div>
         </div>
-      </section>
-    </main>
+
+        {/* Location Types (filters) */}
+        <div className="card">
+          <div className="card-title flex items-center justify-between">
+            <span>Location Types</span>
+            <div className="flex items-center gap-2">
+              <button
+                className="btn btn-sm"
+                onClick={() => setAll(true)}
+                disabled={allOn}
+                title="Select all"
+              >
+                All
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={() => setAll(false)}
+                disabled={!anyOn}
+                title="Deselect all"
+              >
+                None
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-2">
+            {CATEGORY_ORDER.map((c) => (
+              <label key={c} className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedCats[c]}
+                  onChange={(e) => toggleCat(c, e.target.checked)}
+                />
+                <span
+                  title={c}
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 6,
+                    display: 'inline-block',
+                    backgroundColor: CATEGORY_COLORS[c],
+                    boxShadow: '0 0 0 1px rgba(0,0,0,.35) inset',
+                  }}
+                />
+                <span>{c}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Placeholder for Trip options (layout only) */}
+        <div className="card">
+          <div className="card-title">Trip</div>
+          <div className="text-sm opacity-80">Round-trip • Click points on the map to add stops.</div>
+          <div className="flex gap-2 mt-3">
+            <button className="btn btn-sm">Clear</button>
+            <button className="btn btn-sm">Open Google</button>
+            <button className="btn btn-sm">Open Apple</button>
+            <button className="btn btn-sm">Open Waze</button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Right column (map) */}
+      <main className="map-col">
+        <section className="card p-0 overflow-hidden">
+          <CertisMap
+            styleMode={styleMode}
+            selectedCategories={selectedCats}
+            onAddStop={onAddStop}
+            onDataLoaded={setSummary}
+          />
+        </section>
+      </main>
+    </div>
   );
 }
