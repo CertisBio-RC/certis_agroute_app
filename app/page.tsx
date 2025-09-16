@@ -21,23 +21,25 @@ export default function Page() {
   };
 
   return (
-    <div className="flex h-screen">
+    <div className="page-shell">
       {/* Sidebar */}
-      <aside className="w-80 bg-gray-100 dark:bg-gray-900 p-4 overflow-y-auto shadow-lg">
-        <h1 className="text-2xl font-bold mb-6">Certis AgRoute Planner</h1>
+      <aside className="sidebar">
+        <div className="brand">
+          <h1>Certis AgRoute Planner</h1>
+          <div className="brand-meta">Plan retailer visits with ease</div>
+        </div>
 
         {/* Category Filters */}
-        <section className="mb-6 p-4 rounded-xl bg-white dark:bg-gray-800 shadow">
-          <h2 className="text-lg font-semibold mb-3">Filter by Category</h2>
+        <div className="panel">
+          <h2>Filter by Category</h2>
           <ul>
             {Object.keys(CATEGORY_COLORS).map((category) => (
-              <li key={category} className="mb-2">
-                <label className="inline-flex items-center space-x-2">
+              <li key={category}>
+                <label className="radio">
                   <input
                     type="checkbox"
                     checked={selectedCategories.includes(category)}
                     onChange={() => handleCategoryToggle(category)}
-                    className="form-checkbox"
                   />
                   <span
                     className="w-3 h-3 inline-block rounded"
@@ -48,15 +50,13 @@ export default function Page() {
               </li>
             ))}
           </ul>
-        </section>
+        </div>
 
         {/* Trip Builder */}
-        <section className="p-4 rounded-xl bg-white dark:bg-gray-800 shadow">
-          <h2 className="text-lg font-semibold mb-3">Trip Builder</h2>
+        <div className="panel">
+          <h2>Trip Builder</h2>
           {tripStops.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Click markers on the map to add stops.
-            </p>
+            <p className="bullets">Click markers on the map to add stops.</p>
           ) : (
             <ol className="list-decimal list-inside space-y-1">
               {tripStops.map((stop, i) => (
@@ -64,17 +64,25 @@ export default function Page() {
               ))}
             </ol>
           )}
-        </section>
+        </div>
       </aside>
 
-      {/* Map */}
-      <main className="flex-1 h-full">
-        <CertisMap
-          categoryColors={CATEGORY_COLORS}
-          selectedCategories={selectedCategories}
-          onAddStop={handleAddStop}
-        />
-      </main>
+      {/* Content / Map */}
+      <div className="content">
+        <div className="content-inner">
+          <div className="map-card">
+            <div className="map-frame">
+              <div className="map-canvas">
+                <CertisMap
+                  categoryColors={CATEGORY_COLORS}
+                  selectedCategories={selectedCategories}
+                  onAddStop={handleAddStop}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
