@@ -35,15 +35,10 @@ export default function Page() {
           <div className="brand-meta">Plan retailer visits with ease</div>
         </div>
 
-        <button
-          onClick={toggleDarkMode}
-          className="panel"
-          style={{ cursor: "pointer" }}
-        >
+        <div className="panel" style={{ cursor: "pointer" }} onClick={toggleDarkMode}>
           {darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-        </button>
+        </div>
 
-        {/* Category Filters */}
         <div className="panel">
           <h2>Filter by Category</h2>
           <ul>
@@ -66,7 +61,6 @@ export default function Page() {
           </ul>
         </div>
 
-        {/* Trip Builder */}
         <div className="panel">
           <h2>Trip Builder</h2>
           {tripStops.length === 0 ? (
@@ -81,7 +75,7 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* Content / Map */}
+      {/* Content */}
       <div className="content">
         <div className="content-inner">
           <div className="map-card">
