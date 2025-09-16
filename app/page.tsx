@@ -1,128 +1,142 @@
-'use client';
+// app/page.tsx
+import React from "react";
 
-import React, { useMemo, useState } from 'react';
-import CertisMap, { CATEGORY_COLOR, StopLike } from '@/components/CertisMap';
-
-type StyleMode = 'hybrid' | 'street';
-const ALL_CATEGORIES = Object.keys(CATEGORY_COLOR);
+/**
+ * Two-column baseline layout only.
+ * - Left column: sticky sidebar
+ * - Right column: large content panel (placeholder for the map)
+ * - No external CSS required; all styles are inline to avoid collisions.
+ * - No props; compiles cleanly with Next 15 strict checks.
+ */
 
 export default function Page() {
-  const [styleMode, setStyleMode] = useState<StyleMode>('hybrid');
-  const [roundTrip, setRoundTrip] = useState(true);
-  const [selectedCats, setSelectedCats] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(ALL_CATEGORIES.map((c) => [c, true]))
-  );
-  const [stops, setStops] = useState<StopLike[]>([]);
-  const [supplierCount, setSupplierCount] = useState(0);
-
-  const activeCategories = useMemo(
-    () => ALL_CATEGORIES.filter((c) => selectedCats[c]),
-    [selectedCats]
-  );
-
-  function addStop(s: StopLike) {
-    setStops((prev) => [...prev, s]);
-  }
-  function clearStops() {
-    setStops([]);
-  }
-
   return (
-    <main className="px-4 md:px-6 py-4 grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
-      {/* Left column (sticky cards) */}
-      <aside className="space-y-4">
-        <section className="rounded-2xl p-4 border border-[#1b2a41] bg-[#0b1623]">
-          <div className="text-xs uppercase tracking-wide opacity-75 mb-1">Route Builder</div>
-          <div className="text-[11px] opacity-60 mb-4">Retailers • Kingpins • Filters</div>
-
-          <div className="rounded-xl p-3 border border-[#1b2a41] mb-3">
-            <div className="font-medium mb-2">Map style</div>
-            <div className="flex items-center gap-4 text-sm">
-              <label className="inline-flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="style"
-                  checked={styleMode === 'hybrid'}
-                  onChange={() => setStyleMode('hybrid')}
-                />
-                <span>Hybrid (default)</span>
-              </label>
-              <label className="inline-flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="style"
-                  checked={styleMode === 'street'}
-                  onChange={() => setStyleMode('street')}
-                />
-                <span>Street</span>
-              </label>
-            </div>
+    <main
+      style={{
+        minHeight: "100vh",
+        padding: "16px",
+        display: "grid",
+        gridTemplateColumns: "380px 1fr",
+        gap: "16px",
+        alignItems: "start",
+        background: "#0b1623", // dark canvas
+      }}
+    >
+      {/* LEFT: sticky sidebar */}
+      <aside
+        style={{
+          position: "sticky",
+          top: 16,
+          alignSelf: "start",
+          display: "grid",
+          gap: 16,
+          height: "fit-content",
+        }}
+      >
+        {/* Header / Logo area (left only, per your rule) */}
+        <section
+          style={{
+            borderRadius: 12,
+            border: "1px solid #1b2a41",
+            background: "#0f2235",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              fontWeight: 800,
+              letterSpacing: 0.2,
+              color: "#c7e0ff",
+              marginBottom: 8,
+            }}
+          >
+            CERTIS
           </div>
-
-          <div className="rounded-xl p-3 border border-[#1b2a41] mb-3">
-            <div className="font-medium mb-2">Suppliers ({supplierCount})</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 text-sm">
-              {ALL_CATEGORIES.map((c) => (
-                <label key={c} className="inline-flex items-center gap-2 cursor-pointer">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ background: CATEGORY_COLOR[c] || '#999' }}
-                    aria-hidden
-                  />
-                  <input
-                    type="checkbox"
-                    checked={!!selectedCats[c]}
-                    onChange={(e) =>
-                      setSelectedCats((m) => ({ ...m, [c]: e.currentTarget.checked }))
-                    }
-                  />
-                  <span>{c}</span>
-                </label>
-              ))}
-            </div>
+          <div style={{ color: "#8aa3bf", fontSize: 14 }}>
+            Route Builder • Layout baseline
           </div>
+        </section>
 
-          <div className="rounded-xl p-3 border border-[#1b2a41]">
-            <div className="font-medium mb-2">Trip</div>
-            <label className="inline-flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={roundTrip}
-                onChange={(e) => setRoundTrip(e.currentTarget.checked)}
-              />
-              <span>Round-trip</span>
-            </label>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                className="px-3 py-1.5 rounded-md text-sm border border-slate-600/60"
-                onClick={clearStops}
-              >
-                Clear
-              </button>
-              {/* You can wire Open Google/Apple/Waze as needed later */}
-            </div>
-            {stops.length > 0 && (
-              <ul className="mt-3 space-y-1 text-sm opacity-90">
-                {stops.map((s, i) => (
-                  <li key={`${s.name}-${i}`}>
-                    {i + 1}. {s.name} — {s.coord[1].toFixed(3)},{' '}
-                    {s.coord[0].toFixed(3)}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        {/* Example card */}
+        <section
+          style={{
+            borderRadius: 12,
+            border: "1px solid #1b2a41",
+            background: "#0f2235",
+            padding: 16,
+          }}
+        >
+          <h2
+            style={{
+              margin: 0,
+              marginBottom: 10,
+              fontSize: 18,
+              color: "#e6f0ff",
+              fontWeight: 700,
+            }}
+          >
+            Sidebar
+          </h2>
+          <p style={{ margin: 0, color: "#9fb5cc", fontSize: 14, lineHeight: 1.5 }}>
+            This is a fixed sticky sidebar. As you scroll, the right panel can be tall,
+            but this column stays pinned.
+          </p>
+        </section>
+
+        {/* Another example card */}
+        <section
+          style={{
+            borderRadius: 12,
+            border: "1px solid #1b2a41",
+            background: "#0f2235",
+            padding: 16,
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              marginBottom: 8,
+              fontSize: 16,
+              color: "#e6f0ff",
+              fontWeight: 700,
+            }}
+          >
+            Controls (placeholder)
+          </h3>
+          <ul style={{ margin: 0, paddingLeft: 18, color: "#9fb5cc", fontSize: 14 }}>
+            <li>Map style toggle</li>
+            <li>Filters</li>
+            <li>Trip options</li>
+          </ul>
         </section>
       </aside>
 
-      {/* Right column (map frame) */}
-      <section className="rounded-2xl p-3 border border-[#1b2a41] bg-[#0b1623]">
-        <CertisMap
-          styleMode={styleMode}
-          categories={activeCategories}
-          onAddStop={addStop}
-          onDataLoaded={(s) => setSupplierCount(s.count)}
-        />
+      {/* RIGHT: main content panel (map placeholder) */}
+      <section
+        style={{
+          borderRadius: 14,
+          border: "1px solid #1b2a41",
+          background:
+            "linear-gradient(180deg, rgba(18,31,49,0.9), rgba(12,23,36,0.9))",
+          minHeight: "80vh",
+          height: "calc(100vh - 32px)",
+          overflow: "hidden",
+          display: "grid",
+          placeItems: "center",
+        }}
+      >
+        <div
+          style={{
+            color: "#a8c4e6",
+            fontSize: 16,
+            padding: 12,
+            borderRadius: 8,
+            border: "1px dashed #355071",
+            background: "rgba(16, 34, 52, 0.65)",
+          }}
+        >
+          Right panel (map goes here). Two-column layout locked.
+        </div>
       </section>
     </main>
   );
