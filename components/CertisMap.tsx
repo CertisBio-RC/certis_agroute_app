@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import CertisMap, { CATEGORY_COLORS } from '@/components/CertisMap';
 import { withBasePath } from '@/utils/paths';
 
 type StyleMode = 'hybrid' | 'street';
@@ -206,3 +205,15 @@ export default function Page() {
     </main>
   );
 }
+// --- Shared category palette for UI + map ---
+export const CATEGORY_COLORS: Record<string, string> = {
+  'Agronomy': '#22c55e',        // green
+  'Agronomy/Grain': '#a855f7',  // purple
+  'Distribution': '#06b6d4',    // cyan/teal
+  'Grain': '#eab308',           // amber
+  'Grain/Feed': '#b45309',      // brown
+  'Kingpin': '#ef4444',         // red (special)
+  'Office/Service': '#3b82f6',  // blue
+};
+// Convenience single-lookup (kept for legacy callers)
+export const CATEGORY_COLOR = (c: string) => CATEGORY_COLORS[c] ?? '#9ca3af';
