@@ -1,3 +1,8 @@
+/* Tailwind base layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* --- Theme variables: LIGHT by default ---------------------------------- */
 :root {
   --bg: #f8fafc;          /* light background */
@@ -18,6 +23,7 @@
   --accent: #2dd4bf;
 }
 
+/* --- Base resets -------------------------------------------------------- */
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; padding: 0; }
 body {
