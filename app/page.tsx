@@ -1,3 +1,4 @@
+// app/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -35,16 +36,19 @@ export default function Page() {
           <div className="brand-meta">Plan retailer visits with ease</div>
         </div>
 
-        <div className="panel" style={{ cursor: "pointer" }} onClick={toggleDarkMode}>
+        <div
+          className="panel cursor-pointer select-none"
+          onClick={toggleDarkMode}
+        >
           {darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
         </div>
 
         <div className="panel">
           <h2>Filter by Category</h2>
-          <ul>
+          <ul className="space-y-2">
             {Object.keys(CATEGORY_COLORS).map((category) => (
               <li key={category}>
-                <label className="radio">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectedCategories.includes(category)}
@@ -75,16 +79,18 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* Map */}
+      {/* Main content */}
       <div className="content">
         <div className="content-inner">
           <div className="map-card">
             <div className="map-frame">
-              <CertisMap
-                categoryColors={CATEGORY_COLORS}
-                selectedCategories={selectedCategories}
-                onAddStop={handleAddStop}
-              />
+              <div className="map-canvas">
+                <CertisMap
+                  categoryColors={CATEGORY_COLORS}
+                  selectedCategories={selectedCategories}
+                  onAddStop={handleAddStop}
+                />
+              </div>
             </div>
           </div>
         </div>
