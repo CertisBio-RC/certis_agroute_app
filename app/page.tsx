@@ -75,7 +75,7 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* Content */}
+      {/* Main content */}
       <div className="content">
         <div className="content-inner">
           <div className="map-card">
