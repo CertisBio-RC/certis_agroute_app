@@ -1,256 +1,299 @@
-"use client";
+'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import mapboxgl, { Map as MapboxMap, LngLatLike, MapMouseEvent } from "mapbox-gl";
-import type { FeatureCollection, Geometry, Point } from "geojson";
-import { withBasePath } from "@/utils/paths";
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import mapboxgl, { Map } from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import type { FeatureCollection, Feature, Point } from 'geojson';
+import { withBasePath } from '@/utils/paths';
 
-type SupplierPointProps = {
-  name?: string;
-  supplier?: string;
-  category?: string;
-  [k: string]: any;
-};
-
-export type StopLike = { name?: string; coord: [number, number] };
+export type StopLike = { name?: string; coord: [number, number]; [k: string]: any };
 
 export type CertisMapProps = {
-  /** "hybrid" (satellite-streets) or "street" */
-  styleMode: "hybrid" | "street";
-  /** Called when user clicks an unclustered point */
+  /** "hybrid" = satellite-streets; "street" = streets */
+  styleMode: 'hybrid' | 'street';
+  /** Optional client-side category filter (by feature.properties.category) */
+  categories?: string[];
+  /** Called when the user clicks a point */
   onAddStop?: (s: StopLike) => void;
-  /** Notify parent with supplier list/count for the left panel */
-  onDataLoaded?: (summary: { total: number; suppliers: string[] }) => void;
+  /** Called once supplier data loads */
+  onDataLoaded?: (summary: { count: number; categories: Record<string, number> }) => void;
 };
 
-const STYLE_HYBRID = "mapbox://styles/mapbox/satellite-streets-v12";
-const STYLE_STREET = "mapbox://styles/mapbox/streets-v12";
+const STYLE_HYBRID = 'mapbox://styles/mapbox/satellite-streets-v12';
+const STYLE_STREET = 'mapbox://styles/mapbox/streets-v12';
 
-const SOURCE_ID = "suppliers";
-const CLUSTER_LAYER = "suppliers-clusters";
-const CLUSTER_COUNT = "suppliers-count";
-const POINT_LAYER = "suppliers-points";
+const SUPPLIERS_SRC = 'suppliers-src';
+const CLUSTER_LAYER = 'suppliers-clusters';
+const CLUSTER_COUNT_LAYER = 'suppliers-cluster-count';
+const POINT_LAYER = 'suppliers-points';
 
-/** static color map per location category (kept simple, can be expanded later) */
-const CATEGORY_COLOR_MAP: Record<string, string> = {
-  Agronomy: "#22c55e",
-  "Agronomy/Grain": "#a855f7",
-  Distribution: "#06b6d4",
-  Grain: "#f59e0b",
-  "Grain/Feed": "#7c3a00",
-  Kingpin: "#ef4444",
-  "Office/Service": "#60a5fa",
+export const CATEGORY_COLOR: Record<string, string> = {
+  Agronomy: '#19c37d',
+  'Agronomy/Grain': '#a855f7',
+  Distribution: '#06b6d4',
+  Grain: '#f5a623',
+  'Grain/Feed': '#8b5a2b',
+  Kingpin: '#ef4444',
+  'Office/Service': '#3b82f6',
 };
 
-function colorExpression() {
-  // Mapbox v3 needs a valid expression, not a function call at runtime
-  const pairs: (string | any[])[] = [];
-  Object.entries(CATEGORY_COLOR_MAP).forEach(([k, v]) => {
-    pairs.push(k, v);
-  });
-  // ["match", ["get", "category"], "Agronomy","#22c55e", ... , defaultColor]
-  return ["match", ["get", "category"], ...pairs, "#38bdf8"] as any;
+function styleUrlFor(mode: 'hybrid' | 'street') {
+  return mode === 'street' ? STYLE_STREET : STYLE_HYBRID;
 }
 
-async function fetchToken(): Promise<string | null> {
-  try {
-    const res = await fetch(withBasePath("/mapbox-token"), { cache: "no-store" });
-    if (!res.ok) return null;
-    return (await res.text()).trim();
-  } catch {
-    return null;
+function matchCategoryExpression(): any {
+  // ['match', ['get','category'], 'Agronomy', '#19c37d', ... , '#cccccc']
+  const entries: any[] = [];
+  for (const [k, v] of Object.entries(CATEGORY_COLOR)) {
+    entries.push(k, v);
   }
+  return ['match', ['get', 'category'], ...entries, '#cccccc'];
 }
 
-async function fetchSuppliers(): Promise<FeatureCollection<Point, SupplierPointProps> | null> {
-  // Try retailers first, then main. Both are optional; we degrade gracefully.
-  const tries = ["/data/retailers.geojson", "/data/main.geojson"];
-  for (const p of tries) {
-    try {
-      const res = await fetch(withBasePath(p), { cache: "no-store" });
-      if (!res.ok) continue;
-      const json = (await res.json()) as FeatureCollection<Geometry, any>;
-      // Coerce any geometry to Point-only collection (skip non-points)
-      const pts = (json.features || []).filter((f) => f.geometry?.type === "Point") as any[];
-      return { type: "FeatureCollection", features: pts as any };
-    } catch {
-      /* continue */
-    }
-  }
-  return null;
+function filterByCategories(categories?: string[]): any {
+  if (!categories || categories.length === 0) return true; // show none? we’ll show all instead
+  // ['in', ['get','category'], ['literal', categories]]
+  return ['in', ['get', 'category'], ['literal', categories]];
 }
 
-export default function CertisMap({ styleMode, onAddStop, onDataLoaded }: CertisMapProps) {
+async function fetchText(url: string) {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  return res.text();
+}
+async function fetchJSON<T = any>(url: string): Promise<T> {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  return res.json();
+}
+
+export default function CertisMap(props: CertisMapProps) {
+  const { styleMode, categories, onAddStop, onDataLoaded } = props;
+
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<MapboxMap | null>(null);
-  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const mapRef = useRef<Map | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
-  const styleUrl = useMemo(() => (styleMode === "street" ? STYLE_STREET : STYLE_HYBRID), [styleMode]);
+  const styleUrl = useMemo(() => styleUrlFor(styleMode), [styleMode]);
 
-  // Init once
+  // Build or rebuild the map whenever style changes
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      setLoadErr(null);
+    async function init() {
+      setError(null);
+      setReady(false);
 
-      const token = await fetchToken();
-      if (!token) {
-        setLoadErr("Map token not found. Make sure /mapbox-token is published.");
+      // 1) Token
+      let token: string;
+      try {
+        token = (await fetchText(withBasePath('/mapbox-token'))).trim();
+      } catch {
+        setError(
+          'Missing /mapbox-token. Create public/mapbox-token with your pk.* Mapbox token.'
+        );
+        return;
+      }
+      if (!token || !token.startsWith('pk.')) {
+        setError('Invalid Mapbox token. Ensure public/mapbox-token contains your pk.* token.');
         return;
       }
       mapboxgl.accessToken = token;
 
-      // Create map
+      // 2) Create Map (Mercator locked)
+      if (!containerRef.current) return;
+      // Destroy any previous map fully
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+
       const map = new mapboxgl.Map({
-        container: containerRef.current as HTMLElement,
+        container: containerRef.current,
         style: styleUrl,
-        projection: { name: "mercator" as any }, // lock mercator forever
-        center: [-94, 41], // midwest
-        zoom: 3.7,
-        pitchWithRotate: false,
-        dragRotate: false,
+        center: [-96.0, 41.5],
+        zoom: 3.6,
+        projection: { name: 'mercator' as any },
         attributionControl: true,
+        dragRotate: false,
+        touchPitch: false,
       });
       mapRef.current = map;
 
-      map.once("style.load", async () => {
+      // Controls
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right');
+
+      map.on('load', async () => {
+        if (cancelled) return;
+
         try {
-          map.setProjection({ name: "mercator" as any });
-
-          // Load data
-          const fc = await fetchSuppliers();
-          if (!fc || !fc.features?.length) {
-            setLoadErr("No supplier data found under /data. (retailers.geojson or main.geojson)");
-            onDataLoaded?.({ total: 0, suppliers: [] });
-            return;
-          }
-
-          // Source with clustering
-          if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
-          map.addSource(SOURCE_ID, {
-            type: "geojson",
-            data: fc,
-            cluster: true,
-            clusterMaxZoom: 12,
-            clusterRadius: 50,
-          });
-
-          // Cluster bubbles
-          map.addLayer({
-            id: CLUSTER_LAYER,
-            type: "circle",
-            source: SOURCE_ID,
-            filter: ["has", "point_count"],
-            paint: {
-              "circle-color": ["interpolate", ["linear"], ["get", "point_count"], 1, "#0ea5e9", 50, "#2563eb", 100, "#1d4ed8"],
-              "circle-radius": ["interpolate", ["linear"], ["get", "point_count"], 1, 12, 50, 20, 100, 28],
-              "circle-stroke-width": 1.25,
-              "circle-stroke-color": "#0b1825",
-            },
-          });
-
-          map.addLayer({
-            id: CLUSTER_COUNT,
-            type: "symbol",
-            source: SOURCE_ID,
-            filter: ["has", "point_count"],
-            layout: {
-              "text-field": ["to-string", ["get", "point_count"]],
-              "text-size": 12,
-              "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
-            },
-            paint: { "text-color": "#e2e8f0" },
-          });
-
-          // Unclustered points
-          map.addLayer({
-            id: POINT_LAYER,
-            type: "circle",
-            source: SOURCE_ID,
-            filter: ["!", ["has", "point_count"]],
-            paint: {
-              "circle-color": colorExpression(),
-              "circle-radius": 6,
-              "circle-stroke-width": 1.25,
-              "circle-stroke-color": "#0b1825",
-            },
-          });
-
-          // Hover popup
-          const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
-          const handleMove = (e: MapMouseEvent) => {
-            const feats = map.queryRenderedFeatures(e.point, { layers: [POINT_LAYER] });
-            const f = feats?.[0];
-            if (!f) {
-              popup.remove();
-              return;
-            }
-            const p = f.properties as SupplierPointProps;
-            const name = (p?.name || p?.supplier || "Supplier").toString();
-            popup
-              .setLngLat(e.lngLat)
-              .setHTML(
-                `<div style="padding:6px 8px;font-weight:600">${name}</div>` +
-                  (p?.category ? `<div style="padding:0 8px 6px;opacity:.75">${p.category}</div>` : "")
-              )
-              .addTo(map);
-          };
-          map.on("mousemove", handleMove);
-          map.on("mouseleave", POINT_LAYER, () => popup.remove());
-
-          // Click to add a stop
-          map.on("click", (e) => {
-            const feats = map.queryRenderedFeatures(e.point, { layers: [POINT_LAYER] });
-            const f = feats?.[0];
-            if (!f) return;
-            const p = f.properties as SupplierPointProps;
-            const coords = (f.geometry as Point).coordinates as [number, number];
-            onAddStop?.({ name: p?.name || p?.supplier || "Stop", coord: coords });
-          });
-
-          // Fit to data
+          // 3) Load suppliers (retailers)
+          let fc: FeatureCollection<Point, any> | null = null;
           try {
-            const all = (fc.features || []).map((ft: any) => ft.geometry?.coordinates).filter(Boolean) as [number, number][];
-            if (all.length) {
-              const b = new mapboxgl.LngLatBounds();
-              all.forEach((c) => b.extend(c as LngLatLike));
-              map.fitBounds(b, { padding: 40, duration: 0 });
-            }
+            fc = await fetchJSON<FeatureCollection<Point, any>>(
+              withBasePath('/data/retailers.geojson')
+            );
           } catch {
-            /* ignore */
+            // try fallback
+            try {
+              fc = await fetchJSON<FeatureCollection<Point, any>>(
+                withBasePath('/data/main.geojson')
+              );
+            } catch {
+              // ignore; we’ll show an overlay below
+            }
           }
 
-          // Update left panel summary
-          const names = Array.from(
-            new Set(
-              (fc.features || [])
-                .map((f: any) => (f.properties?.supplier || f.properties?.name || "").toString().trim())
-                .filter(Boolean)
-            )
-          ).sort((a, b) => a.localeCompare(b));
-          onDataLoaded?.({ total: names.length, suppliers: names });
+          if (fc && fc.type === 'FeatureCollection') {
+            // Summary back to the page
+            if (onDataLoaded) {
+              const buckets: Record<string, number> = {};
+              for (const f of fc.features) {
+                const c = (f.properties?.category as string) || 'Unknown';
+                buckets[c] = (buckets[c] || 0) + 1;
+              }
+              onDataLoaded({ count: fc.features.length, categories: buckets });
+            }
+
+            // Source (+cluster)
+            map.addSource(SUPPLIERS_SRC, {
+              type: 'geojson',
+              data: fc,
+              cluster: true,
+              clusterMaxZoom: 12,
+              clusterRadius: 42,
+              generateId: true,
+            });
+
+            // Clusters
+            map.addLayer({
+              id: CLUSTER_LAYER,
+              type: 'circle',
+              source: SUPPLIERS_SRC,
+              filter: ['has', 'point_count'],
+              paint: {
+                'circle-color': [
+                  'step',
+                  ['get', 'point_count'],
+                  '#165c7d',
+                  25,
+                  '#1f7aa1',
+                  100,
+                  '#2ba8db',
+                ],
+                'circle-radius': ['step', ['get', 'point_count'], 12, 25, 16, 100, 22],
+                'circle-stroke-width': 1.25,
+                'circle-stroke-color': '#0d2231',
+              },
+            });
+
+            map.addLayer({
+              id: CLUSTER_COUNT_LAYER,
+              type: 'symbol',
+              source: SUPPLIERS_SRC,
+              filter: ['has', 'point_count'],
+              layout: {
+                'text-field': ['get', 'point_count_abbreviated'],
+                'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+                'text-size': 11,
+              },
+              paint: { 'text-color': '#dbeafe' },
+            });
+
+            // Unclustered points
+            map.addLayer({
+              id: POINT_LAYER,
+              type: 'circle',
+              source: SUPPLIERS_SRC,
+              filter: ['!', ['has', 'point_count']],
+              paint: {
+                'circle-color': matchCategoryExpression(),
+                'circle-radius': 6,
+                'circle-stroke-width': 1.25,
+                'circle-stroke-color': '#0d2231',
+              },
+            });
+
+            // Cluster expand on click
+            map.on('click', CLUSTER_LAYER, (e) => {
+              const f = e.features?.[0] as any;
+              const cid = f?.properties?.cluster_id;
+              const src = map.getSource(SUPPLIERS_SRC) as mapboxgl.GeoJSONSource;
+              if (src && cid != null) {
+                // @ts-ignore Mapbox GL v3 supports this on GeoJSONSource
+                src.getClusterExpansionZoom(cid, (err: any, zoom: number) => {
+                  if (err) return;
+                  const center = (f.geometry?.coordinates as [number, number]) || map.getCenter();
+                  map.easeTo({ center, zoom });
+                });
+              }
+            });
+            map.on('mouseenter', CLUSTER_LAYER, () => (map.getCanvas().style.cursor = 'pointer'));
+            map.on('mouseleave', CLUSTER_LAYER, () => (map.getCanvas().style.cursor = ''));
+
+            // Point click -> onAddStop
+            map.on('click', POINT_LAYER, (e) => {
+              const f = e.features?.[0] as Feature<Point, any> | undefined;
+              if (!f) return;
+              const coord = f.geometry.coordinates as [number, number];
+              const name = (f.properties?.name as string) || 'Stop';
+              onAddStop?.({ name, coord, ...f.properties });
+            });
+            map.on('mouseenter', POINT_LAYER, () => (map.getCanvas().style.cursor = 'pointer'));
+            map.on('mouseleave', POINT_LAYER, () => (map.getCanvas().style.cursor = ''));
+          } else {
+            setError(
+              'No supplier data found. Publish public/data/retailers.geojson (or public/data/main.geojson).'
+            );
+          }
+
+          setReady(true);
         } catch (err: any) {
-          setLoadErr(err?.message || "Map failed to initialize.");
+          setError(err?.message || 'Map initialization failed.');
         }
       });
-    })();
+    }
+
+    init();
 
     return () => {
       cancelled = true;
-      mapRef.current?.remove();
-      mapRef.current = null;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
-    // styleUrl only controls set at init; we recreate map on change for safety
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [styleUrl]);
+  }, [styleUrl, onAddStop, onDataLoaded]);
+
+  // Live category filtering
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      map.setFilter(POINT_LAYER, ['all', ['!', ['has', 'point_count']], filterByCategories(categories)]);
+    } catch {
+      // layer not ready yet; ignore
+    }
+  }, [categories]);
 
   return (
-    <div className="h-[72vh] w-full">
-      {loadErr ? (
-        <div className="text-sm text-red-300 bg-[#1b2736] border border-[#2a3b53] rounded-lg p-3">{loadErr}</div>
-      ) : (
-        <div ref={containerRef} className="map-container rounded-2xl overflow-hidden border border-[#1b2a41] h-full w-full" />
+    <div className="relative w-full h-[72vh] min-h-[520px]">
+      <div ref={containerRef} className="absolute inset-0 rounded-xl overflow-hidden" />
+      {/* overlay messages */}
+      {!ready && !error && (
+        <div className="absolute inset-0 grid place-items-center bg-transparent pointer-events-none">
+          <div className="px-3 py-2 text-sm text-slate-300 bg-slate-900/60 rounded-md border border-slate-600">
+            Loading map…
+          </div>
+        </div>
+      )}
+      {error && (
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="max-w-[720px] px-4 py-3 rounded-lg bg-red-900/60 border border-red-500 text-red-100">
+            {error}
+          </div>
+        </div>
       )}
     </div>
   );

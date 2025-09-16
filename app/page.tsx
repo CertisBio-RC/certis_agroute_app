@@ -1,119 +1,127 @@
-"use client";
+'use client';
 
-import React, { useCallback, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
-import { withBasePath } from "@/utils/paths";
+import React, { useMemo, useState } from 'react';
+import CertisMap, { CATEGORY_COLOR, StopLike } from '@/components/CertisMap';
 
-const CertisMap = dynamic(() => import("@/components/CertisMap"), { ssr: false });
-
-type Stop = { name?: string; coord: [number, number] };
+type StyleMode = 'hybrid' | 'street';
+const ALL_CATEGORIES = Object.keys(CATEGORY_COLOR);
 
 export default function Page() {
-  const [styleMode, setStyleMode] = useState<"hybrid" | "street">("hybrid");
+  const [styleMode, setStyleMode] = useState<StyleMode>('hybrid');
   const [roundTrip, setRoundTrip] = useState(true);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [supplierSummary, setSupplierSummary] = useState<{ total: number; suppliers: string[] } | null>(null);
+  const [selectedCats, setSelectedCats] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(ALL_CATEGORIES.map((c) => [c, true]))
+  );
+  const [stops, setStops] = useState<StopLike[]>([]);
+  const [supplierCount, setSupplierCount] = useState(0);
 
-  const onAddStop = useCallback((s: Stop) => {
+  const activeCategories = useMemo(
+    () => ALL_CATEGORIES.filter((c) => selectedCats[c]),
+    [selectedCats]
+  );
+
+  function addStop(s: StopLike) {
     setStops((prev) => [...prev, s]);
-  }, []);
-
-  const clearStops = useCallback(() => setStops([]), []);
-
-  const openNav = useCallback(
-    (kind: "google" | "apple" | "waze") => {
-      if (!stops.length) return;
-      const pts = roundTrip ? [...stops, stops[0]] : stops;
-      const coords = pts.map((p) => `${p.coord[1]},${p.coord[0]}`); // lat,lng for URLs
-
-      if (kind === "google") {
-        const url = `https://www.google.com/maps/dir/${coords.join("/")}`;
-        window.open(url, "_blank");
-      } else if (kind === "apple") {
-        const url = `https://maps.apple.com/?daddr=${coords.join("+to:")}`;
-        window.open(url, "_blank");
-      } else {
-        // Waze supports single destination better; use the first or last
-        const last = pts[pts.length - 1];
-        const url = `https://waze.com/ul?ll=${last.coord[1]},${last.coord[0]}&navigate=yes`;
-        window.open(url, "_blank");
-      }
-    },
-    [stops, roundTrip]
-  );
-
-  const styleRadios = (
-    <div className="card">
-      <div className="card-title">Map style</div>
-      <label className="row">
-        <input type="radio" checked={styleMode === "hybrid"} onChange={() => setStyleMode("hybrid")} />
-        <span>Hybrid (default)</span>
-      </label>
-      <label className="row">
-        <input type="radio" checked={styleMode === "street"} onChange={() => setStyleMode("street")} />
-        <span>Street</span>
-      </label>
-    </div>
-  );
-
-  const suppliersPanel = (
-    <div className="card">
-      <div className="card-title">
-        Suppliers ({supplierSummary?.total ?? 0})
-      </div>
-      <div className="text-sm opacity-75">
-        {supplierSummary ? (
-          supplierSummary.suppliers.length ? (
-            <div className="grid grid-cols-1 gap-y-1 max-h-48 overflow-auto pr-1">
-              {supplierSummary.suppliers.map((s) => (
-                <div key={s} className="truncate">{s}</div>
-              ))}
-            </div>
-          ) : (
-            "No suppliers found in /public/data."
-          )
-        ) : (
-          "Loading suppliers..."
-        )}
-      </div>
-    </div>
-  );
-
-  const tripPanel = (
-    <div className="card">
-      <div className="card-title">Trip</div>
-      <label className="row">
-        <input type="checkbox" checked={roundTrip} onChange={(e) => setRoundTrip(e.target.checked)} />
-        <span>Round-trip</span>
-      </label>
-      <div className="text-sm opacity-75 mb-2">Click points on the map to add stops.</div>
-      <div className="flex gap-2 flex-wrap">
-        <button className="btn" onClick={clearStops}>Clear</button>
-        <button className="btn" onClick={() => openNav("google")}>Open Google</button>
-        <button className="btn" onClick={() => openNav("apple")}>Open Apple</button>
-        <button className="btn" onClick={() => openNav("waze")}>Open Waze</button>
-      </div>
-    </div>
-  );
+  }
+  function clearStops() {
+    setStops([]);
+  }
 
   return (
-    <main className="page">
-      <aside className="sidebar">
-        <div className="logo-row">
-          <img src={withBasePath("/certis-logo.png")} alt="Certis" height={28} />
-          <div className="logo-caption">Retailers • Kingpins • Filters</div>
-        </div>
+    <main className="px-4 md:px-6 py-4 grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
+      {/* Left column (sticky cards) */}
+      <aside className="space-y-4">
+        <section className="rounded-2xl p-4 border border-[#1b2a41] bg-[#0b1623]">
+          <div className="text-xs uppercase tracking-wide opacity-75 mb-1">Route Builder</div>
+          <div className="text-[11px] opacity-60 mb-4">Retailers • Kingpins • Filters</div>
 
-        {styleRadios}
-        {suppliersPanel}
-        {tripPanel}
+          <div className="rounded-xl p-3 border border-[#1b2a41] mb-3">
+            <div className="font-medium mb-2">Map style</div>
+            <div className="flex items-center gap-4 text-sm">
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="style"
+                  checked={styleMode === 'hybrid'}
+                  onChange={() => setStyleMode('hybrid')}
+                />
+                <span>Hybrid (default)</span>
+              </label>
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="style"
+                  checked={styleMode === 'street'}
+                  onChange={() => setStyleMode('street')}
+                />
+                <span>Street</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="rounded-xl p-3 border border-[#1b2a41] mb-3">
+            <div className="font-medium mb-2">Suppliers ({supplierCount})</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 text-sm">
+              {ALL_CATEGORIES.map((c) => (
+                <label key={c} className="inline-flex items-center gap-2 cursor-pointer">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ background: CATEGORY_COLOR[c] || '#999' }}
+                    aria-hidden
+                  />
+                  <input
+                    type="checkbox"
+                    checked={!!selectedCats[c]}
+                    onChange={(e) =>
+                      setSelectedCats((m) => ({ ...m, [c]: e.currentTarget.checked }))
+                    }
+                  />
+                  <span>{c}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl p-3 border border-[#1b2a41]">
+            <div className="font-medium mb-2">Trip</div>
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={roundTrip}
+                onChange={(e) => setRoundTrip(e.currentTarget.checked)}
+              />
+              <span>Round-trip</span>
+            </label>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                className="px-3 py-1.5 rounded-md text-sm border border-slate-600/60"
+                onClick={clearStops}
+              >
+                Clear
+              </button>
+              {/* You can wire Open Google/Apple/Waze as needed later */}
+            </div>
+            {stops.length > 0 && (
+              <ul className="mt-3 space-y-1 text-sm opacity-90">
+                {stops.map((s, i) => (
+                  <li key={`${s.name}-${i}`}>
+                    {i + 1}. {s.name} — {s.coord[1].toFixed(3)},{' '}
+                    {s.coord[0].toFixed(3)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
       </aside>
 
-      <section className="map-shell">
+      {/* Right column (map frame) */}
+      <section className="rounded-2xl p-3 border border-[#1b2a41] bg-[#0b1623]">
         <CertisMap
           styleMode={styleMode}
-          onAddStop={onAddStop}
-          onDataLoaded={setSupplierSummary}
+          categories={activeCategories}
+          onAddStop={addStop}
+          onDataLoaded={(s) => setSupplierCount(s.count)}
         />
       </section>
     </main>
