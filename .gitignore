@@ -8,3 +8,5 @@ PortableGit*.7z.exe
 
 PortableGit/
 data/*.xlsx
+
+!public/data/token.txt
