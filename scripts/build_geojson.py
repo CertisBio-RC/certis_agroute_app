@@ -4,13 +4,13 @@ from pathlib import Path
 from geopy.geocoders import MapBox
 import os
 
-# Config
-MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN")
+# Config - check both env vars for flexibility
+MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN") or os.environ.get("MAPBOX_PUBLIC_TOKEN")
 if not MAPBOX_TOKEN:
-    raise RuntimeError("Missing MAPBOX_TOKEN environment variable")
+    raise RuntimeError("Missing MAPBOX_TOKEN or MAPBOX_PUBLIC_TOKEN environment variable")
 
 # Paths
-xlsx_path = Path("retailers.xlsx")
+xlsx_path = Path("data/retailers.xlsx")  # <-- fixed path
 cache_path = Path("public/data/geocode-cache.json")
 out_path = Path("public/data/retailers.geojson")
 
@@ -30,6 +30,7 @@ for _, row in df.iterrows():
     address = str(row.get("Address") or "").strip()
     city = str(row.get("City") or "").strip()
     state = str(row.get("State") or "").strip()
+    supplier = str(row.get("Supplier") or "").strip()
     full_addr = f"{address}, {city}, {state}"
 
     if not name or not full_addr.strip(", "):
@@ -50,13 +51,18 @@ for _, row in df.iterrows():
             print(f"Error geocoding {full_addr}: {e}")
             continue
 
+    # Match logo filename to retailer name (column B logic)
+    logo_filename = name.replace(" ", "_").lower() + ".png"
+
     features.append({
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [lon, lat]},
         "properties": {
             "name": name,
             "address": full_addr,
-            "category": str(row.get("Category") or "").strip()
+            "category": str(row.get("Category") or "").strip(),
+            "supplier": supplier,
+            "logo": f"/icons/{logo_filename}"
         }
     })
 
