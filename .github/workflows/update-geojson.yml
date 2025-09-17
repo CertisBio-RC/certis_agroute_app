@@ -1,0 +1,23 @@
+﻿name: Update Retailers GeoJSON
+
+on:
+  push:
+    paths:
+      - "retailers.xlsx"
+  workflow_dispatch:
+
+jobs:
+  build-geojson:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install pandas geopy openpyxl
+      - run: python scripts/build_geojson.py
+        env:
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-update retailers.geojson from Excel"
