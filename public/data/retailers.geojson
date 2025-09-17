@@ -74,13 +74,13 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -89.81301,
-          40.92923
+          -89.822945,
+          40.923374
         ]
       },
       "properties": {
         "name": "Ag-Land FS",
-        "address": "19716 N Elliott Rd, Monica, IL",
+        "address": "19716 N Elliott Rd, Monica Plant, IL",
         "category": "Agronomy",
         "supplier": "",
         "logo": "/icons/ag-land_fs.png"
