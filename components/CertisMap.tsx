@@ -21,6 +21,7 @@ export default function CertisMap({
   useEffect(() => {
     if (mapRef.current || !mapContainer.current) return;
 
+    // Load token dynamically
     fetch("/certis_agroute_app/data/token.txt")
       .then((res) => res.text())
       .then((token) => {
@@ -31,7 +32,7 @@ export default function CertisMap({
           style: "mapbox://styles/mapbox/satellite-streets-v12",
           center: [-93.5, 41.5],
           zoom: 5,
-          projection: "mercator", // force Mercator
+          projection: { name: "mercator" },
         });
 
         mapRef.current = map;
@@ -51,6 +52,7 @@ export default function CertisMap({
               clusterRadius: 40,
             });
 
+            // Cluster circles
             map.addLayer({
               id: "clusters",
               type: "circle",
@@ -70,6 +72,7 @@ export default function CertisMap({
               },
             });
 
+            // Cluster count labels
             map.addLayer({
               id: "cluster-count",
               type: "symbol",
@@ -79,11 +82,10 @@ export default function CertisMap({
                 "text-field": "{point_count_abbreviated}",
                 "text-size": 12,
               },
-              paint: {
-                "text-color": "#000000",
-              },
+              paint: { "text-color": "#000000" },
             });
 
+            // Unclustered points
             map.addLayer({
               id: "unclustered-point",
               type: "circle",
@@ -104,6 +106,7 @@ export default function CertisMap({
 
             const popup = new Popup({ closeButton: true, closeOnClick: true });
 
+            // Popup + click-to-add-stop
             map.on("click", "unclustered-point", (e) => {
               const features = map.queryRenderedFeatures(e.point, {
                 layers: ["unclustered-point"],
@@ -112,25 +115,28 @@ export default function CertisMap({
 
               const f = features[0];
               const props = f.properties || {};
-              const coords = (f.geometry as any).coordinates;
-
               const name = props.name || "Unknown";
               const address = props.address || "";
               const category = props.category || "";
               const supplier = props.supplier || "";
               const logo = props.logo || "";
 
-              const html = `
-                <div style="min-width:200px">
-                  ${logo ? `<img src="${logo}" alt="logo" style="max-width:80px; margin-bottom:6px;" />` : ""}
-                  <div><strong>${name}</strong></div>
-                  ${address ? `<div>${address}</div>` : ""}
-                  ${category ? `<div><em>Category:</em> ${category}</div>` : ""}
-                  ${supplier ? `<div><em>Supplier:</em> ${supplier}</div>` : ""}
-                </div>
-              `;
+              const logoHTML = logo
+                ? `<img src="/certis_agroute_app/icons/${logo}" alt="${name}" style="width:40px;height:40px;margin-bottom:6px;" />`
+                : "";
 
-              popup.setLngLat(coords).setHTML(html).addTo(map);
+              popup
+                .setLngLat((f.geometry as any).coordinates)
+                .setHTML(`
+                  <div style="font-family:sans-serif;max-width:220px;">
+                    ${logoHTML}
+                    <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">${name}</div>
+                    ${address ? `<div>${address}</div>` : ""}
+                    ${category ? `<div><strong>Category:</strong> ${category}</div>` : ""}
+                    ${supplier ? `<div><strong>Supplier:</strong> ${supplier}</div>` : ""}
+                  </div>
+                `)
+                .addTo(map);
 
               onAddStop(name);
             });
@@ -149,12 +155,11 @@ export default function CertisMap({
       .catch((err) => console.error("Failed to load token:", err));
   }, [categoryColors, onAddStop]);
 
+  // Filter updates
   useEffect(() => {
     if (!mapRef.current) return;
-
     const map = mapRef.current;
     const src = map.getSource("retailers") as GeoJSONSource | undefined;
-
     if (!src) return;
 
     if (selectedCategories.length === 0) {
