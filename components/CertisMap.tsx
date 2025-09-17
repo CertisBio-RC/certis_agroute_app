@@ -1,118 +1,162 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import mapboxgl, { Map, Popup } from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN || "";
 
-interface RetailerFeature {
-  type: "Feature";
-  geometry: {
-    type: "Point";
-    coordinates: [number, number];
-  };
-  properties: {
-    name: string;
-    address?: string;
-    category?: string;
-    supplier?: string;
-    logo?: string;
-  };
+interface CertisMapProps {
+  categoryColors: Record<string, string>;
+  selectedCategories: string[];
+  onAddStop: (stop: string) => void;
 }
 
-export default function CertisMap() {
-  const mapContainer = useRef<HTMLDivElement | null>(null);
+export default function CertisMap({
+  categoryColors,
+  selectedCategories,
+  onAddStop,
+}: CertisMapProps) {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
-  const [hoveredFeature, setHoveredFeature] = useState<RetailerFeature | null>(null);
+  const popupRef = useRef<Popup | null>(null);
+
+  const [geojson, setGeojson] = useState<any>(null);
 
   useEffect(() => {
-    if (mapRef.current) return; // prevent re-init
+    if (!mapContainerRef.current) return;
 
     const map = new mapboxgl.Map({
-      container: mapContainer.current as HTMLDivElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-93.6091, 41.6005], // Des Moines as default center
+      container: mapContainerRef.current,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [-93.6091, 41.6005], // Midwest center
       zoom: 5,
-      projection: "mercator", // force Mercator
+      projection: { name: "mercator" },
     });
 
     mapRef.current = map;
 
     map.on("load", () => {
-      // Load GeoJSON points
-      map.addSource("retailers", {
-        type: "geojson",
-        data: "/data/retailers.geojson",
-      });
+      fetch("/data/retailers.geojson")
+        .then((res) => res.json())
+        .then((data) => {
+          setGeojson(data);
 
-      map.addLayer({
-        id: "retailers-layer",
-        type: "circle",
-        source: "retailers",
-        paint: {
-          "circle-radius": 6,
-          "circle-color": "#ff6600",
-          "circle-stroke-width": 1,
-          "circle-stroke-color": "#fff",
-        },
-      });
+          // Source
+          map.addSource("retailers", {
+            type: "geojson",
+            data,
+          });
 
-      // Hover logic
-      map.on("mousemove", "retailers-layer", (e) => {
-        if (e.features?.length) {
-          const feature = e.features[0] as any;
-          setHoveredFeature(feature);
-        }
-      });
+          // Base layer for all non-Kingpin retailers
+          map.addLayer({
+            id: "retailers-circle",
+            type: "circle",
+            source: "retailers",
+            filter: ["!=", ["get", "category"], "Kingpin"],
+            paint: {
+              "circle-radius": 6,
+              "circle-color": [
+                "coalesce",
+                ["get", "color"],
+                "#007cbf",
+              ],
+              "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 2,
+            },
+          });
 
-      map.on("mouseleave", "retailers-layer", () => {
-        setHoveredFeature(null);
-      });
+          // Kingpin overlay layer (always on top)
+          map.addLayer({
+            id: "kingpins-circle",
+            type: "circle",
+            source: "retailers",
+            filter: ["==", ["get", "category"], "Kingpin"],
+            paint: {
+              "circle-radius": 8,
+              "circle-color": "#ff0000",   // red fill
+              "circle-stroke-color": "#ffff00", // yellow outline
+              "circle-stroke-width": 2,
+            },
+          });
+        });
     });
+
+    return () => {
+      map.remove();
+    };
+  }, [categoryColors]);
+
+  // Filtering logic — Kingpins stay visible
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !geojson) return;
+
+    const filtered = {
+      ...geojson,
+      features: geojson.features.filter((f: any) => {
+        const category = f.properties.category;
+        if (category === "Kingpin") return true; // always keep Kingpins
+        return selectedCategories.includes(category);
+      }),
+    };
+
+    (map.getSource("retailers") as mapboxgl.GeoJSONSource)?.setData(filtered);
+  }, [selectedCategories, geojson]);
+
+  // Hover popup
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const popup = new mapboxgl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+    });
+    popupRef.current = popup;
+
+    const showPopup = (e: mapboxgl.MapMouseEvent & { features?: any[] }) => {
+      map.getCanvas().style.cursor = "pointer";
+
+      const feature = e.features?.[0];
+      if (!feature) return;
+
+      const { name, address, category, supplier, logo } = feature.properties;
+
+      const logoHtml = logo
+        ? `<img src="/icons/${logo}" alt="${name}" style="width:40px;height:40px;object-fit:contain;margin-bottom:4px;" />`
+        : "";
+
+      const html = `
+        <div style="font-family:sans-serif;max-width:200px;">
+          ${logoHtml}
+          <div style="font-weight:bold;font-size:14px;">${name}</div>
+          <div style="font-size:12px;">${address || ""}</div>
+          <div style="font-size:12px;">Category: ${category || ""}</div>
+          <div style="font-size:12px;">Supplier: ${supplier || ""}</div>
+        </div>
+      `;
+
+      popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+    };
+
+    const hidePopup = () => {
+      map.getCanvas().style.cursor = "";
+      popup.remove();
+    };
+
+    // Apply hover to both layers
+    map.on("mousemove", "retailers-circle", showPopup);
+    map.on("mousemove", "kingpins-circle", showPopup);
+    map.on("mouseleave", "retailers-circle", hidePopup);
+    map.on("mouseleave", "kingpins-circle", hidePopup);
+
+    return () => {
+      map.off("mousemove", "retailers-circle", showPopup);
+      map.off("mousemove", "kingpins-circle", showPopup);
+      map.off("mouseleave", "retailers-circle", hidePopup);
+      map.off("mouseleave", "kingpins-circle", hidePopup);
+    };
   }, []);
 
-  return (
-    <div style={{ position: "relative", height: "100%", width: "100%" }}>
-      <div ref={mapContainer} style={{ height: "100%", width: "100%" }} />
-
-      {/* Hover Popup */}
-      {hoveredFeature && (
-        <Popup
-          longitude={hoveredFeature.geometry.coordinates[0]}
-          latitude={hoveredFeature.geometry.coordinates[1]}
-          closeButton={false}
-          closeOnClick={false}
-          anchor="top"
-        >
-          <div style={{ minWidth: "180px" }}>
-            {hoveredFeature.properties.logo && (
-              <img
-                src={`/icons/${hoveredFeature.properties.logo}`}
-                alt={hoveredFeature.properties.supplier || "logo"}
-                style={{ height: "24px", marginBottom: "4px" }}
-              />
-            )}
-            <strong>{hoveredFeature.properties.name}</strong>
-            <br />
-            {hoveredFeature.properties.address && (
-              <>
-                {hoveredFeature.properties.address}
-                <br />
-              </>
-            )}
-            {hoveredFeature.properties.category && (
-              <>
-                {hoveredFeature.properties.category}
-                <br />
-              </>
-            )}
-            {hoveredFeature.properties.supplier && (
-              <>{hoveredFeature.properties.supplier}</>
-            )}
-          </div>
-        </Popup>
-      )}
-    </div>
-  );
+  return <div ref={mapContainerRef} className="w-full h-full" />;
 }
