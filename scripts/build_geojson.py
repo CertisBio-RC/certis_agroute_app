@@ -4,15 +4,10 @@ from pathlib import Path
 from geopy.geocoders import MapBox
 import os
 
-# ✅ Accept multiple possible token names (works local + CI + Next.js)
-MAPBOX_TOKEN = (
-    os.environ.get("MAPBOX_TOKEN")
-    or os.environ.get("NEXT_PUBLIC_MAPBOX_TOKEN")
-    or os.environ.get("NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN")
-)
-
+# Config - unified token
+MAPBOX_TOKEN = os.environ.get("NEXT_PUBLIC_MAPBOX_TOKEN")
 if not MAPBOX_TOKEN:
-    raise RuntimeError("Missing Mapbox environment variable")
+    raise RuntimeError("Missing NEXT_PUBLIC_MAPBOX_TOKEN environment variable")
 
 # Paths
 xlsx_path = Path("data/retailers.xlsx")
@@ -31,12 +26,13 @@ geocoder = MapBox(api_key=MAPBOX_TOKEN)
 
 features = []
 for _, row in df.iterrows():
-    name = str(row.get("Retailer") or "").strip()
+    retailer = str(row.get("Retailer") or "").strip()
+    name = str(row.get("Name") or "").strip()
     address = str(row.get("Address") or "").strip()
     city = str(row.get("City") or "").strip()
     state = str(row.get("State") or "").strip()
-    supplier = str(row.get("Supplier") or "").strip()
     category = str(row.get("Category") or "").strip()
+    supplier = str(row.get("Suppliers") or "").strip()
     full_addr = f"{address}, {city}, {state}"
 
     if not name or not full_addr.strip(", "):
@@ -61,11 +57,11 @@ for _, row in df.iterrows():
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [lon, lat]},
         "properties": {
+            "retailer": retailer,
             "name": name,
             "address": full_addr,
             "category": category,
             "supplier": supplier,
-            "logo": f"/icons/{supplier}.png" if supplier else None
         }
     })
 

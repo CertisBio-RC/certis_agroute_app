@@ -1,122 +1,135 @@
 "use client";
+
 import React, { useEffect, useRef, useState } from "react";
 import mapboxgl, { Map, Popup } from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string;
 
-type CertisMapProps = {
+interface CertisMapProps {
   categoryColors: Record<string, string>;
   selectedCategories: string[];
   onAddStop: (stop: string) => void;
-};
+}
 
-export default function CertisMap({
+const CertisMap: React.FC<CertisMapProps> = ({
   categoryColors,
   selectedCategories,
   onAddStop,
-}: CertisMapProps) {
+}) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const popupRef = useRef<Popup | null>(null);
+
+  const [geojson, setGeojson] = useState<any>(null);
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/satellite-v9",
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [-93.6091, 41.6005],
-      zoom: 4,
+      zoom: 5,
+      accessToken: process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string,
     });
 
     mapRef.current = map;
 
-    map.on("load", () => {
+    map.on("load", async () => {
+      const response = await fetch("/data/retailers.geojson");
+      const data = await response.json();
+      setGeojson(data);
+
       map.addSource("retailers", {
         type: "geojson",
-        data: "/certis_agroute_app/data/retailers.geojson",
+        data,
       });
 
       map.addLayer({
-        id: "retailers-layer",
+        id: "retailer-points",
         type: "circle",
         source: "retailers",
         paint: {
           "circle-radius": [
             "case",
             ["==", ["get", "category"], "Kingpin"],
-            8,
+            9,
             6,
           ],
           "circle-color": [
             "case",
             ["==", ["get", "category"], "Kingpin"],
-            "#FF0000",
-            ["match", ["get", "category"],
+            "#ff0000",
+            [
+              "match",
+              ["get", "category"],
               Object.keys(categoryColors),
-              ["get", "color"],
-              "#888888"
-            ]
-          ],
-          "circle-stroke-width": [
-            "case",
-            ["==", ["get", "category"], "Kingpin"],
-            2,
-            1,
+              [
+                "coalesce",
+                ["get", "color"],
+                "#888888",
+              ],
+              "#888888",
+            ],
           ],
           "circle-stroke-color": [
             "case",
             ["==", ["get", "category"], "Kingpin"],
-            "#FFFF00",
-            "#000000",
+            "#ffff00",
+            "#ffffff",
           ],
+          "circle-stroke-width": 2,
         },
       });
+    });
 
-      // Hover popup
-      map.on("mousemove", "retailers-layer", (e) => {
-        if (!e.features?.length) return;
-        const f = e.features[0];
+    // Hover popup
+    map.on("mousemove", "retailer-points", (e) => {
+      map.getCanvas().style.cursor = "pointer";
 
-        if (!popupRef.current) {
-          popupRef.current = new mapboxgl.Popup({
-            closeButton: false,
-            closeOnClick: false,
-          });
-        }
+      const feature = e.features?.[0];
+      if (!feature) return;
 
-        const { name, address, category, supplier, retailer } = f.properties as any;
+      const { name, address, category, supplier, retailer } = feature.properties;
 
-        const html = `
-          <div style="font-size: 14px;">
-            <img src="/icons/${retailer}.png" alt="${retailer}" style="width:40px;height:40px;" />
-            <div><b>${name}</b></div>
-            <div>${address}</div>
-            <div><b>Category:</b> ${category}</div>
-            <div><b>Supplier:</b> ${supplier}</div>
-          </div>
-        `;
+      const popupContent = `
+        <div style="font-size:14px">
+          <img src="/icons/${retailer}.png" alt="${retailer}" style="max-width:50px;max-height:50px" />
+          <div><strong>${name}</strong></div>
+          <div>${address}</div>
+          <div><strong>Category:</strong> ${category}</div>
+          <div><strong>Supplier:</strong> ${supplier}</div>
+        </div>
+      `;
 
-        popupRef.current
-          .setLngLat(e.lngLat)
-          .setHTML(html)
-          .addTo(map);
-      });
+      if (!popupRef.current) {
+        popupRef.current = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+        });
+      }
 
-      map.on("mouseleave", "retailers-layer", () => {
-        if (popupRef.current) {
-          popupRef.current.remove();
-          popupRef.current = null;
-        }
-      });
+      popupRef.current
+        .setLngLat((e.lngLat as any).toArray())
+        .setHTML(popupContent)
+        .addTo(map);
+    });
 
-      // Click -> Add to trip builder
-      map.on("click", "retailers-layer", (e) => {
-        if (!e.features?.length) return;
-        const f = e.features[0];
-        const { name } = f.properties as any;
-        onAddStop(name);
-      });
+    map.on("mouseleave", "retailer-points", () => {
+      map.getCanvas().style.cursor = "";
+      if (popupRef.current) {
+        popupRef.current.remove();
+        popupRef.current = null;
+      }
+    });
+
+    // Click → add stop
+    map.on("click", "retailer-points", (e) => {
+      const feature = e.features?.[0];
+      if (feature) {
+        onAddStop(feature.properties.name);
+      }
     });
 
     return () => {
@@ -124,5 +137,7 @@ export default function CertisMap({
     };
   }, [categoryColors, selectedCategories, onAddStop]);
 
-  return <div ref={mapContainerRef} className="w-full h-full" />;
-}
+  return <div ref={mapContainerRef} className="w-full h-full rounded-lg" />;
+};
+
+export default CertisMap;
