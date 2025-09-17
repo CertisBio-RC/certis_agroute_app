@@ -1,30 +1,31 @@
 ﻿name: Update Retailers GeoJSON
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - main
     paths:
       - "data/retailers.xlsx"
       - "scripts/build_geojson.py"
-  workflow_dispatch:
 
 jobs:
-  build-geojson:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
-
-      - run: pip install pandas geopy openpyxl
-
-      - run: python scripts/build_geojson.py
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install pandas geopy openpyxl
+      - name: Build GeoJSON
         env:
-          MAPBOX_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
-
-      - uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: auto-update retailers.geojson from Excel"
+          NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
+        run: python scripts/build_geojson.py
+      - name: Commit and push
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add public/data/retailers.geojson public/data/geocode-cache.json
+          git commit -m "chore: update retailers.geojson"
+          git push

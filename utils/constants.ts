@@ -1,8 +1,14 @@
 // utils/constants.ts
+
+// Define the color mapping for categories
 export const CATEGORY_COLORS: Record<string, string> = {
-  kingpin: "#FFD700",   // Gold
-  supplier: "#1E90FF",  // Dodger Blue
-  retailer: "#32CD32",  // Lime Green
-  dealer: "#FF8C00",    // Dark Orange
-  other: "#A9A9A9",     // Dark Gray
+  Retailer: "#1f77b4",   // blue
+  Dealer: "#ff7f0e",     // orange
+  Supplier: "#2ca02c",   // green
+  Distributor: "#d62728", // red
+  Other: "#9467bd",      // purple
 };
+
+// You can expand or modify categories here as needed.
+// Make sure any category in your retailers.xlsx file
+// has a corresponding entry in this object.

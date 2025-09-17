@@ -10,7 +10,6 @@ export default function Page() {
   const [tripStops, setTripStops] = useState<string[]>([]);
   const [darkMode, setDarkMode] = useState(true);
 
-  // Toggle category filters
   const handleCategoryToggle = (category: string) => {
     setSelectedCategories((prev) =>
       prev.includes(category)
@@ -19,24 +18,10 @@ export default function Page() {
     );
   };
 
-  // Add stop to Trip Builder, avoiding duplicates
   const handleAddStop = (stop: string) => {
-    setTripStops((prev) =>
-      prev.includes(stop) ? prev : [...prev, stop]
-    );
+    setTripStops((prev) => [...prev, stop]);
   };
 
-  // Remove one stop
-  const handleRemoveStop = (stop: string) => {
-    setTripStops((prev) => prev.filter((s) => s !== stop));
-  };
-
-  // Clear all stops
-  const handleClearAllStops = () => {
-    setTripStops([]);
-  };
-
-  // Dark mode toggle
   const toggleDarkMode = () => {
     document.documentElement.classList.toggle("dark");
     setDarkMode(!darkMode);
@@ -73,7 +58,7 @@ export default function Page() {
                     className="w-3 h-3 inline-block rounded"
                     style={{ backgroundColor: CATEGORY_COLORS[category] }}
                   ></span>
-                  <span className="capitalize ml-1">{category}</span>
+                  <span className="capitalize">{category}</span>
                 </label>
               </li>
             ))}
@@ -85,32 +70,16 @@ export default function Page() {
           {tripStops.length === 0 ? (
             <p className="bullets">Click markers on the map to add stops.</p>
           ) : (
-            <>
-              <ol className="list-decimal list-inside space-y-1">
-                {tripStops.map((stop, i) => (
-                  <li key={i} className="flex justify-between items-center">
-                    <span>{stop}</span>
-                    <button
-                      onClick={() => handleRemoveStop(stop)}
-                      className="ml-2 text-red-500 hover:text-red-700"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                ))}
-              </ol>
-              <button
-                onClick={handleClearAllStops}
-                className="mt-3 px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
-              >
-                Clear All
-              </button>
-            </>
+            <ol className="list-decimal list-inside space-y-1">
+              {tripStops.map((stop, i) => (
+                <li key={i}>{stop}</li>
+              ))}
+            </ol>
           )}
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main Content */}
       <div className="content">
         <div className="content-inner">
           <div className="map-card">

@@ -4,42 +4,37 @@ from pathlib import Path
 from geopy.geocoders import MapBox
 import os
 
-# Config - check both env vars for flexibility
-MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN") or os.environ.get("MAPBOX_PUBLIC_TOKEN")
+# Config
+MAPBOX_TOKEN = os.environ.get("NEXT_PUBLIC_MAPBOX_TOKEN")
 if not MAPBOX_TOKEN:
-    raise RuntimeError("Missing MAPBOX_TOKEN or MAPBOX_PUBLIC_TOKEN environment variable")
+    raise RuntimeError("Missing NEXT_PUBLIC_MAPBOX_TOKEN environment variable")
 
 # Paths
-xlsx_path = Path("data/retailers.xlsx")  # ✅ Correct path
+xlsx_path = Path("data/retailers.xlsx")
 cache_path = Path("public/data/geocode-cache.json")
 out_path = Path("public/data/retailers.geojson")
 
 # Load Excel
 df = pd.read_excel(xlsx_path)
 
-# Load cache if exists
+# Load cache
 cache = {}
 if cache_path.exists():
     cache = json.loads(cache_path.read_text())
 
 geocoder = MapBox(api_key=MAPBOX_TOKEN)
-
 features = []
+
 for _, row in df.iterrows():
-    retailer = str(row.get("Retailer") or "").strip()
-    name = str(row.get("Name") or "").strip()
+    name = str(row.get("Retailer") or "").strip()
     address = str(row.get("Address") or "").strip()
     city = str(row.get("City") or "").strip()
     state = str(row.get("State") or "").strip()
-    category = str(row.get("Category") or "").strip()
-    supplier = str(row.get("Suppliers") or "").strip()
-
     full_addr = f"{address}, {city}, {state}"
 
-    if not retailer or not full_addr.strip(", "):
+    if not name or not full_addr.strip(", "):
         continue
 
-    # Geocode with cache
     if full_addr in cache:
         lat, lon = cache[full_addr]
     else:
@@ -59,18 +54,14 @@ for _, row in df.iterrows():
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [lon, lat]},
         "properties": {
-            "retailer": retailer,
-            "name": name,
+            "retailer": name,
+            "name": str(row.get("Name") or "").strip(),
             "address": full_addr,
-            "category": category,
-            "supplier": supplier,
-            "logo": f"/icons/{retailer}.png"  # ✅ expects logo in public/icons
+            "category": str(row.get("Category") or "").strip(),
+            "supplier": str(row.get("Suppliers") or "").strip()
         }
     })
 
-# Write GeoJSON
 geojson = {"type": "FeatureCollection", "features": features}
 out_path.write_text(json.dumps(geojson, indent=2))
-
-# Update cache
 cache_path.write_text(json.dumps(cache, indent=2))
