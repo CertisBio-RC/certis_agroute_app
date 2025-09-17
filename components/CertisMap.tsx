@@ -21,7 +21,6 @@ export default function CertisMap({
   useEffect(() => {
     if (mapRef.current || !mapContainer.current) return;
 
-    // Load token dynamically from public/data/token.txt
     fetch("/certis_agroute_app/data/token.txt")
       .then((res) => res.text())
       .then((token) => {
@@ -30,23 +29,19 @@ export default function CertisMap({
         const map = new mapboxgl.Map({
           container: mapContainer.current,
           style: "mapbox://styles/mapbox/satellite-streets-v12",
-          center: [-93.5, 41.5], // Midwest-ish
+          center: [-93.5, 41.5],
           zoom: 5,
-          projection: { name: "mercator" }, // ✅ Force flat Mercator
+          projection: "mercator", // force Mercator
         });
 
         mapRef.current = map;
 
         map.on("load", async () => {
           try {
-            console.log("Map loaded, fetching retailers.geojson...");
-
-            // ✅ retailers.geojson must be in /public/data/
-            const resp = await fetch("/certis_agroute_app/data/retailers.geojson");
-            console.log("Response status:", resp.status);
-
+            const resp = await fetch(
+              "/certis_agroute_app/data/retailers.geojson"
+            );
             const data = await resp.json();
-            console.log("Loaded features:", data.features?.length || 0);
 
             map.addSource("retailers", {
               type: "geojson",
@@ -56,7 +51,6 @@ export default function CertisMap({
               clusterRadius: 40,
             });
 
-            // Cluster circles
             map.addLayer({
               id: "clusters",
               type: "circle",
@@ -76,7 +70,6 @@ export default function CertisMap({
               },
             });
 
-            // Cluster count labels
             map.addLayer({
               id: "cluster-count",
               type: "symbol",
@@ -91,7 +84,6 @@ export default function CertisMap({
               },
             });
 
-            // Unclustered points
             map.addLayer({
               id: "unclustered-point",
               type: "circle",
@@ -110,7 +102,6 @@ export default function CertisMap({
               },
             });
 
-            // Popup + click-to-add-stop
             const popup = new Popup({ closeButton: true, closeOnClick: true });
 
             map.on("click", "unclustered-point", (e) => {
@@ -120,12 +111,26 @@ export default function CertisMap({
               if (!features.length) return;
 
               const f = features[0];
-              const name = f.properties?.name || "Unknown";
+              const props = f.properties || {};
+              const coords = (f.geometry as any).coordinates;
 
-              popup
-                .setLngLat((f.geometry as any).coordinates)
-                .setHTML(`<strong>${name}</strong>`)
-                .addTo(map);
+              const name = props.name || "Unknown";
+              const address = props.address || "";
+              const category = props.category || "";
+              const supplier = props.supplier || "";
+              const logo = props.logo || "";
+
+              const html = `
+                <div style="min-width:200px">
+                  ${logo ? `<img src="${logo}" alt="logo" style="max-width:80px; margin-bottom:6px;" />` : ""}
+                  <div><strong>${name}</strong></div>
+                  ${address ? `<div>${address}</div>` : ""}
+                  ${category ? `<div><em>Category:</em> ${category}</div>` : ""}
+                  ${supplier ? `<div><em>Supplier:</em> ${supplier}</div>` : ""}
+                </div>
+              `;
+
+              popup.setLngLat(coords).setHTML(html).addTo(map);
 
               onAddStop(name);
             });
@@ -144,9 +149,9 @@ export default function CertisMap({
       .catch((err) => console.error("Failed to load token:", err));
   }, [categoryColors, onAddStop]);
 
-  // Filter updates
   useEffect(() => {
     if (!mapRef.current) return;
+
     const map = mapRef.current;
     const src = map.getSource("retailers") as GeoJSONSource | undefined;
 
