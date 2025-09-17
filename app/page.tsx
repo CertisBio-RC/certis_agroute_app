@@ -10,6 +10,7 @@ export default function Page() {
   const [tripStops, setTripStops] = useState<string[]>([]);
   const [darkMode, setDarkMode] = useState(true);
 
+  // Toggle category filters
   const handleCategoryToggle = (category: string) => {
     setSelectedCategories((prev) =>
       prev.includes(category)
@@ -18,10 +19,24 @@ export default function Page() {
     );
   };
 
+  // Add stop to Trip Builder, avoiding duplicates
   const handleAddStop = (stop: string) => {
-    setTripStops((prev) => [...prev, stop]);
+    setTripStops((prev) =>
+      prev.includes(stop) ? prev : [...prev, stop]
+    );
   };
 
+  // Remove one stop
+  const handleRemoveStop = (stop: string) => {
+    setTripStops((prev) => prev.filter((s) => s !== stop));
+  };
+
+  // Clear all stops
+  const handleClearAllStops = () => {
+    setTripStops([]);
+  };
+
+  // Dark mode toggle
   const toggleDarkMode = () => {
     document.documentElement.classList.toggle("dark");
     setDarkMode(!darkMode);
@@ -37,7 +52,7 @@ export default function Page() {
         </div>
 
         <div
-          className="panel cursor-pointer select-none"
+          className="panel cursor-pointer"
           onClick={toggleDarkMode}
         >
           {darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
@@ -45,10 +60,10 @@ export default function Page() {
 
         <div className="panel">
           <h2>Filter by Category</h2>
-          <ul className="space-y-2">
+          <ul>
             {Object.keys(CATEGORY_COLORS).map((category) => (
               <li key={category}>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="radio">
                   <input
                     type="checkbox"
                     checked={selectedCategories.includes(category)}
@@ -58,7 +73,7 @@ export default function Page() {
                     className="w-3 h-3 inline-block rounded"
                     style={{ backgroundColor: CATEGORY_COLORS[category] }}
                   ></span>
-                  <span className="capitalize">{category}</span>
+                  <span className="capitalize ml-1">{category}</span>
                 </label>
               </li>
             ))}
@@ -70,11 +85,27 @@ export default function Page() {
           {tripStops.length === 0 ? (
             <p className="bullets">Click markers on the map to add stops.</p>
           ) : (
-            <ol className="list-decimal list-inside space-y-1">
-              {tripStops.map((stop, i) => (
-                <li key={i}>{stop}</li>
-              ))}
-            </ol>
+            <>
+              <ol className="list-decimal list-inside space-y-1">
+                {tripStops.map((stop, i) => (
+                  <li key={i} className="flex justify-between items-center">
+                    <span>{stop}</span>
+                    <button
+                      onClick={() => handleRemoveStop(stop)}
+                      className="ml-2 text-red-500 hover:text-red-700"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ol>
+              <button
+                onClick={handleClearAllStops}
+                className="mt-3 px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+              >
+                Clear All
+              </button>
+            </>
           )}
         </div>
       </aside>
