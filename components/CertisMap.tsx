@@ -1,177 +1,118 @@
-// components/CertisMap.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
-import mapboxgl, { Map, Popup, GeoJSONSource } from "mapbox-gl";
+import React, { useEffect, useRef, useState } from "react";
+import mapboxgl, { Map, Popup } from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 
-type CertisMapProps = {
-  categoryColors: Record<string, string>;
-  selectedCategories: string[];
-  onAddStop: (stop: string) => void;
-};
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN || "";
 
-export default function CertisMap({
-  categoryColors,
-  selectedCategories,
-  onAddStop,
-}: CertisMapProps) {
+interface RetailerFeature {
+  type: "Feature";
+  geometry: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+  properties: {
+    name: string;
+    address?: string;
+    category?: string;
+    supplier?: string;
+    logo?: string;
+  };
+}
+
+export default function CertisMap() {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
+  const [hoveredFeature, setHoveredFeature] = useState<RetailerFeature | null>(null);
 
   useEffect(() => {
-    if (mapRef.current || !mapContainer.current) return;
+    if (mapRef.current) return; // prevent re-init
 
-    // Load token dynamically
-    fetch("/certis_agroute_app/data/token.txt")
-      .then((res) => res.text())
-      .then((token) => {
-        mapboxgl.accessToken = token.trim();
+    const map = new mapboxgl.Map({
+      container: mapContainer.current as HTMLDivElement,
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
+      center: [-93.6091, 41.6005], // Des Moines as default center
+      zoom: 5,
+      projection: "mercator", // force Mercator
+    });
 
-        const map = new mapboxgl.Map({
-          container: mapContainer.current,
-          style: "mapbox://styles/mapbox/satellite-streets-v12",
-          center: [-93.5, 41.5],
-          zoom: 5,
-          projection: { name: "mercator" },
-        });
+    mapRef.current = map;
 
-        mapRef.current = map;
+    map.on("load", () => {
+      // Load GeoJSON points
+      map.addSource("retailers", {
+        type: "geojson",
+        data: "/data/retailers.geojson",
+      });
 
-        map.on("load", async () => {
-          try {
-            const resp = await fetch(
-              "/certis_agroute_app/data/retailers.geojson"
-            );
-            const data = await resp.json();
+      map.addLayer({
+        id: "retailers-layer",
+        type: "circle",
+        source: "retailers",
+        paint: {
+          "circle-radius": 6,
+          "circle-color": "#ff6600",
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#fff",
+        },
+      });
 
-            map.addSource("retailers", {
-              type: "geojson",
-              data,
-              cluster: true,
-              clusterMaxZoom: 12,
-              clusterRadius: 40,
-            });
+      // Hover logic
+      map.on("mousemove", "retailers-layer", (e) => {
+        if (e.features?.length) {
+          const feature = e.features[0] as any;
+          setHoveredFeature(feature);
+        }
+      });
 
-            // Cluster circles
-            map.addLayer({
-              id: "clusters",
-              type: "circle",
-              source: "retailers",
-              filter: ["has", "point_count"],
-              paint: {
-                "circle-color": "#87CEFA",
-                "circle-radius": [
-                  "step",
-                  ["get", "point_count"],
-                  15,
-                  20,
-                  20,
-                  50,
-                  25,
-                ],
-              },
-            });
+      map.on("mouseleave", "retailers-layer", () => {
+        setHoveredFeature(null);
+      });
+    });
+  }, []);
 
-            // Cluster count labels
-            map.addLayer({
-              id: "cluster-count",
-              type: "symbol",
-              source: "retailers",
-              filter: ["has", "point_count"],
-              layout: {
-                "text-field": "{point_count_abbreviated}",
-                "text-size": 12,
-              },
-              paint: { "text-color": "#000000" },
-            });
+  return (
+    <div style={{ position: "relative", height: "100%", width: "100%" }}>
+      <div ref={mapContainer} style={{ height: "100%", width: "100%" }} />
 
-            // Unclustered points
-            map.addLayer({
-              id: "unclustered-point",
-              type: "circle",
-              source: "retailers",
-              filter: ["!", ["has", "point_count"]],
-              paint: {
-                "circle-color": [
-                  "match",
-                  ["get", "category"],
-                  ...Object.entries(categoryColors).flat(),
-                  "#A9A9A9",
-                ],
-                "circle-radius": 6,
-                "circle-stroke-width": 1,
-                "circle-stroke-color": "#ffffff",
-              },
-            });
-
-            const popup = new Popup({ closeButton: true, closeOnClick: true });
-
-            // Popup + click-to-add-stop
-            map.on("click", "unclustered-point", (e) => {
-              const features = map.queryRenderedFeatures(e.point, {
-                layers: ["unclustered-point"],
-              });
-              if (!features.length) return;
-
-              const f = features[0];
-              const props = f.properties || {};
-              const name = props.name || "Unknown";
-              const address = props.address || "";
-              const category = props.category || "";
-              const supplier = props.supplier || "";
-              const logo = props.logo || "";
-
-              const logoHTML = logo
-                ? `<img src="/certis_agroute_app/icons/${logo}" alt="${name}" style="width:40px;height:40px;margin-bottom:6px;" />`
-                : "";
-
-              popup
-                .setLngLat((f.geometry as any).coordinates)
-                .setHTML(`
-                  <div style="font-family:sans-serif;max-width:220px;">
-                    ${logoHTML}
-                    <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">${name}</div>
-                    ${address ? `<div>${address}</div>` : ""}
-                    ${category ? `<div><strong>Category:</strong> ${category}</div>` : ""}
-                    ${supplier ? `<div><strong>Supplier:</strong> ${supplier}</div>` : ""}
-                  </div>
-                `)
-                .addTo(map);
-
-              onAddStop(name);
-            });
-
-            map.on("mouseenter", "unclustered-point", () => {
-              map.getCanvas().style.cursor = "pointer";
-            });
-            map.on("mouseleave", "unclustered-point", () => {
-              map.getCanvas().style.cursor = "";
-            });
-          } catch (err) {
-            console.error("Failed to load retailers data:", err);
-          }
-        });
-      })
-      .catch((err) => console.error("Failed to load token:", err));
-  }, [categoryColors, onAddStop]);
-
-  // Filter updates
-  useEffect(() => {
-    if (!mapRef.current) return;
-    const map = mapRef.current;
-    const src = map.getSource("retailers") as GeoJSONSource | undefined;
-    if (!src) return;
-
-    if (selectedCategories.length === 0) {
-      map.setFilter("unclustered-point", null);
-    } else {
-      map.setFilter("unclustered-point", [
-        "in",
-        ["get", "category"],
-        ["literal", selectedCategories],
-      ]);
-    }
-  }, [selectedCategories]);
-
-  return <div ref={mapContainer} className="w-full h-full" />;
+      {/* Hover Popup */}
+      {hoveredFeature && (
+        <Popup
+          longitude={hoveredFeature.geometry.coordinates[0]}
+          latitude={hoveredFeature.geometry.coordinates[1]}
+          closeButton={false}
+          closeOnClick={false}
+          anchor="top"
+        >
+          <div style={{ minWidth: "180px" }}>
+            {hoveredFeature.properties.logo && (
+              <img
+                src={`/icons/${hoveredFeature.properties.logo}`}
+                alt={hoveredFeature.properties.supplier || "logo"}
+                style={{ height: "24px", marginBottom: "4px" }}
+              />
+            )}
+            <strong>{hoveredFeature.properties.name}</strong>
+            <br />
+            {hoveredFeature.properties.address && (
+              <>
+                {hoveredFeature.properties.address}
+                <br />
+              </>
+            )}
+            {hoveredFeature.properties.category && (
+              <>
+                {hoveredFeature.properties.category}
+                <br />
+              </>
+            )}
+            {hoveredFeature.properties.supplier && (
+              <>{hoveredFeature.properties.supplier}</>
+            )}
+          </div>
+        </Popup>
+      )}
+    </div>
+  );
 }
