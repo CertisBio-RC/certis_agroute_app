@@ -8,6 +8,9 @@ on:
     paths:
       - "data/retailers.xlsx"
 
+permissions:
+  contents: write
+
 jobs:
   build-geojson:
     runs-on: ubuntu-latest
