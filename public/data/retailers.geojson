@@ -1,1 +1,20 @@
-{"type":"FeatureCollection","features":[]}
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-93.6091, 41.6005] },
+      "properties": { "name": "Test Retailer - Des Moines", "category": "Retailer" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-95.9980, 41.2524] },
+      "properties": { "name": "Test Retailer - Omaha", "category": "Dealer" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-90.1994, 38.6270] },
+      "properties": { "name": "Test Retailer - St. Louis", "category": "Supplier" }
+    }
+  ]
+}
