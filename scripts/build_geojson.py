@@ -10,7 +10,7 @@ if not MAPBOX_TOKEN:
     raise RuntimeError("Missing MAPBOX_TOKEN or MAPBOX_PUBLIC_TOKEN environment variable")
 
 # Paths
-xlsx_path = Path("data/retailers.xlsx")  # <-- fixed path
+xlsx_path = Path("data/retailers.xlsx")  # ✅ Correct path
 cache_path = Path("public/data/geocode-cache.json")
 out_path = Path("public/data/retailers.geojson")
 
@@ -26,16 +26,20 @@ geocoder = MapBox(api_key=MAPBOX_TOKEN)
 
 features = []
 for _, row in df.iterrows():
-    name = str(row.get("Retailer") or "").strip()
+    retailer = str(row.get("Retailer") or "").strip()
+    name = str(row.get("Name") or "").strip()
     address = str(row.get("Address") or "").strip()
     city = str(row.get("City") or "").strip()
     state = str(row.get("State") or "").strip()
-    supplier = str(row.get("Supplier") or "").strip()
+    category = str(row.get("Category") or "").strip()
+    supplier = str(row.get("Suppliers") or "").strip()
+
     full_addr = f"{address}, {city}, {state}"
 
-    if not name or not full_addr.strip(", "):
+    if not retailer or not full_addr.strip(", "):
         continue
 
+    # Geocode with cache
     if full_addr in cache:
         lat, lon = cache[full_addr]
     else:
@@ -51,18 +55,16 @@ for _, row in df.iterrows():
             print(f"Error geocoding {full_addr}: {e}")
             continue
 
-    # Match logo filename to retailer name (column B logic)
-    logo_filename = name.replace(" ", "_").lower() + ".png"
-
     features.append({
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [lon, lat]},
         "properties": {
+            "retailer": retailer,
             "name": name,
             "address": full_addr,
-            "category": str(row.get("Category") or "").strip(),
+            "category": category,
             "supplier": supplier,
-            "logo": f"/icons/{logo_filename}"
+            "logo": f"/icons/{retailer}.png"  # ✅ expects logo in public/icons
         }
     })
 
