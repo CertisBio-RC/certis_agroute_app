@@ -4,10 +4,15 @@ from pathlib import Path
 from geopy.geocoders import MapBox
 import os
 
-# Config
-MAPBOX_TOKEN = os.environ.get("NEXT_PUBLIC_MAPBOX_TOKEN")
+# ✅ Accept multiple possible token names (works local + CI + Next.js)
+MAPBOX_TOKEN = (
+    os.environ.get("MAPBOX_TOKEN")
+    or os.environ.get("NEXT_PUBLIC_MAPBOX_TOKEN")
+    or os.environ.get("NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN")
+)
+
 if not MAPBOX_TOKEN:
-    raise RuntimeError("Missing NEXT_PUBLIC_MAPBOX_TOKEN environment variable")
+    raise RuntimeError("Missing Mapbox environment variable")
 
 # Paths
 xlsx_path = Path("data/retailers.xlsx")
@@ -17,19 +22,21 @@ out_path = Path("public/data/retailers.geojson")
 # Load Excel
 df = pd.read_excel(xlsx_path)
 
-# Load cache
+# Load cache if exists
 cache = {}
 if cache_path.exists():
     cache = json.loads(cache_path.read_text())
 
 geocoder = MapBox(api_key=MAPBOX_TOKEN)
-features = []
 
+features = []
 for _, row in df.iterrows():
     name = str(row.get("Retailer") or "").strip()
     address = str(row.get("Address") or "").strip()
     city = str(row.get("City") or "").strip()
     state = str(row.get("State") or "").strip()
+    supplier = str(row.get("Supplier") or "").strip()
+    category = str(row.get("Category") or "").strip()
     full_addr = f"{address}, {city}, {state}"
 
     if not name or not full_addr.strip(", "):
@@ -54,14 +61,17 @@ for _, row in df.iterrows():
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [lon, lat]},
         "properties": {
-            "retailer": name,
-            "name": str(row.get("Name") or "").strip(),
+            "name": name,
             "address": full_addr,
-            "category": str(row.get("Category") or "").strip(),
-            "supplier": str(row.get("Suppliers") or "").strip()
+            "category": category,
+            "supplier": supplier,
+            "logo": f"/icons/{supplier}.png" if supplier else None
         }
     })
 
+# Write GeoJSON
 geojson = {"type": "FeatureCollection", "features": features}
 out_path.write_text(json.dumps(geojson, indent=2))
+
+# Update cache
 cache_path.write_text(json.dumps(cache, indent=2))
