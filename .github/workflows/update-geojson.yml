@@ -11,6 +11,10 @@ on:
 jobs:
   build-geojson:
     runs-on: ubuntu-latest
+
+    env:
+      NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -18,14 +22,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.x
+          python-version: "3.11"
 
       - name: Install Python dependencies
         run: pip install pandas geopy openpyxl
 
       - name: Build GeoJSON
-        env:
-          NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
         run: python scripts/build_geojson.py
 
       - name: Commit GeoJSON

@@ -1,73 +1,77 @@
-﻿import json
+﻿import os
+import json
 import pandas as pd
-from pathlib import Path
 from geopy.geocoders import MapBox
-import os
+from pathlib import Path
 
-# Config - unified token
-MAPBOX_TOKEN = os.environ.get("NEXT_PUBLIC_MAPBOX_TOKEN")
-if not MAPBOX_TOKEN:
+# ✅ Always pull from NEXT_PUBLIC_MAPBOX_TOKEN
+mapbox_token = os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN")
+if not mapbox_token:
     raise RuntimeError("Missing NEXT_PUBLIC_MAPBOX_TOKEN environment variable")
 
 # Paths
-xlsx_path = Path("data/retailers.xlsx")
-cache_path = Path("public/data/geocode-cache.json")
-out_path = Path("public/data/retailers.geojson")
+xlsx_file = Path("data/retailers.xlsx")
+geojson_file = Path("public/data/retailers.geojson")
+cache_file = Path("public/data/geocode-cache.json")
+
+# Load cache
+if cache_file.exists():
+    with open(cache_file, "r") as f:
+        cache = json.load(f)
+else:
+    cache = {}
+
+# Initialize geocoder
+geolocator = MapBox(api_key=mapbox_token)
 
 # Load Excel
-df = pd.read_excel(xlsx_path)
-
-# Load cache if exists
-cache = {}
-if cache_path.exists():
-    cache = json.loads(cache_path.read_text())
-
-geocoder = MapBox(api_key=MAPBOX_TOKEN)
+df = pd.read_excel(xlsx_file)
 
 features = []
 for _, row in df.iterrows():
-    retailer = str(row.get("Retailer") or "").strip()
-    name = str(row.get("Name") or "").strip()
-    address = str(row.get("Address") or "").strip()
-    city = str(row.get("City") or "").strip()
-    state = str(row.get("State") or "").strip()
-    category = str(row.get("Category") or "").strip()
-    supplier = str(row.get("Suppliers") or "").strip()
-    full_addr = f"{address}, {city}, {state}"
+    name = str(row.get("Name", "")).strip()
+    address = str(row.get("Address", "")).strip()
+    category = str(row.get("Category", "")).strip()
+    supplier = str(row.get("Supplier", "")).strip()
+    retailer = str(row.get("Retailer", "")).strip()
 
-    if not name or not full_addr.strip(", "):
+    if not address:
         continue
 
-    if full_addr in cache:
-        lat, lon = cache[full_addr]
+    # Use cached coordinates if available
+    if address in cache:
+        location = cache[address]
     else:
-        try:
-            loc = geocoder.geocode(full_addr, timeout=10)
-            if loc:
-                lat, lon = loc.latitude, loc.longitude
-                cache[full_addr] = [lat, lon]
-            else:
-                print(f"Failed to geocode: {full_addr}")
-                continue
-        except Exception as e:
-            print(f"Error geocoding {full_addr}: {e}")
+        loc = geolocator.geocode(address)
+        if loc:
+            location = {"lat": loc.latitude, "lon": loc.longitude}
+            cache[address] = location
+        else:
             continue
 
     features.append({
         "type": "Feature",
-        "geometry": {"type": "Point", "coordinates": [lon, lat]},
+        "geometry": {
+            "type": "Point",
+            "coordinates": [location["lon"], location["lat"]],
+        },
         "properties": {
-            "retailer": retailer,
             "name": name,
-            "address": full_addr,
+            "address": address,
             "category": category,
             "supplier": supplier,
-        }
+            "retailer": retailer,
+        },
     })
 
-# Write GeoJSON
+# Save GeoJSON
 geojson = {"type": "FeatureCollection", "features": features}
-out_path.write_text(json.dumps(geojson, indent=2))
+geojson_file.parent.mkdir(parents=True, exist_ok=True)
+with open(geojson_file, "w") as f:
+    json.dump(geojson, f, indent=2)
 
-# Update cache
-cache_path.write_text(json.dumps(cache, indent=2))
+# Save cache
+with open(cache_file, "w") as f:
+    json.dump(cache, f, indent=2)
+
+print(f"✅ GeoJSON saved to {geojson_file}")

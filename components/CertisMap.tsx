@@ -4,7 +4,14 @@ import React, { useEffect, useRef, useState } from "react";
 import mapboxgl, { Map, Popup } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string;
+// ✅ Centralize token once
+const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string;
+
+if (!mapboxToken) {
+  throw new Error(
+    "Missing NEXT_PUBLIC_MAPBOX_TOKEN. Please set it in your .env.local and GitHub Actions."
+  );
+}
 
 interface CertisMapProps {
   categoryColors: Record<string, string>;
@@ -26,12 +33,13 @@ const CertisMap: React.FC<CertisMapProps> = ({
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
+    // ✅ Use centralized token
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [-93.6091, 41.6005],
       zoom: 5,
-      accessToken: process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string,
+      accessToken: mapboxToken,
     });
 
     mapRef.current = map;

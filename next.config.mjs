@@ -1,11 +1,13 @@
-﻿const repo = process.env.NEXT_PUBLIC_REPO_NAME || "certis_agroute_app";
+﻿/** @type {import('next').NextConfig} */
+const repoName = process.env.NEXT_PUBLIC_REPO_NAME || "";
 
-/** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export",
-  basePath: `/${repo}`,
-  assetPrefix: `/${repo}/`,
-  images: { unoptimized: true },
+  output: "export", // ✅ required for GitHub Pages static hosting
+  basePath: `/${repoName}`,
+  assetPrefix: `/${repoName}/`,
+  images: {
+    unoptimized: true, // GitHub Pages doesn’t support Next.js Image Optimization
+  },
   env: {
     NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
   },
