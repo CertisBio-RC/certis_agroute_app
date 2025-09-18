@@ -9,13 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build-deploy:
+  build:
     runs-on: ubuntu-latest
-
-    env:
-      NEXT_PUBLIC_REPO_NAME: certis_agroute_app
-      NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,11 +23,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Next.js project
+      - name: Build project
+        env:
+          NEXT_PUBLIC_REPO_NAME: certis_agroute_app
+          NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPBOX_TOKEN }}
         run: npm run build
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./out

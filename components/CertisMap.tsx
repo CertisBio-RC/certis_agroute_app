@@ -5,17 +5,26 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { MAPBOX_TOKEN } from "../utils/token";
 
+// Define props so page.tsx can pass data in
+interface CertisMapProps {
+  categoryColors: Record<string, string>;
+  selectedCategories: string[];
+  onAddStop: (stop: string) => void;
+}
+
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
-export default function CertisMap() {
+export default function CertisMap({
+  categoryColors,
+  selectedCategories,
+  onAddStop,
+}: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   useEffect(() => {
     if (!mapContainer.current) return;
-
-    // Prevent re-initializing map if already created
-    if (mapRef.current) return;
+    if (mapRef.current) return; // prevent double init
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -25,13 +34,26 @@ export default function CertisMap() {
       accessToken: MAPBOX_TOKEN,
     });
 
-    // Optional: add navigation controls
     mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+    // Example hook-up for markers based on selectedCategories
+    mapRef.current.on("load", () => {
+      console.log("✅ Map loaded with categories:", selectedCategories);
+      console.log("✅ Category colors:", categoryColors);
+
+      // This is where you would normally add data layers/filters
+      // Using categoryColors + selectedCategories props
+
+      // For debug only: call onAddStop with a fake stop
+      if (onAddStop) {
+        onAddStop("Debug Stop - Map Loaded");
+      }
+    });
 
     return () => {
       mapRef.current?.remove();
     };
-  }, []);
+  }, [categoryColors, selectedCategories, onAddStop]);
 
   return (
     <div
