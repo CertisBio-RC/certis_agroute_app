@@ -3,63 +3,52 @@
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { MAPBOX_TOKEN } from "../utils/token";
 
-// Define props so page.tsx can pass data in
 interface CertisMapProps {
   categoryColors: Record<string, string>;
   selectedCategories: string[];
   onAddStop: (stop: string) => void;
 }
 
-mapboxgl.accessToken = MAPBOX_TOKEN;
-
 export default function CertisMap({
   categoryColors,
   selectedCategories,
   onAddStop,
 }: CertisMapProps) {
-  const mapContainer = useRef<HTMLDivElement | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   useEffect(() => {
-    if (!mapContainer.current) return;
-    if (mapRef.current) return; // prevent double init
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    console.log("🗺️ Mapbox token at runtime:", token);
 
-    mapRef.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-93.5, 41.5], // Iowa center fallback
-      zoom: 5,
-      accessToken: MAPBOX_TOKEN,
-    });
+    if (!token) {
+      console.error("❌ No Mapbox token found!");
+      return;
+    }
 
-    mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    if (mapRef.current) return; // prevent re-init
 
-    // Example hook-up for markers based on selectedCategories
-    mapRef.current.on("load", () => {
-      console.log("✅ Map loaded with categories:", selectedCategories);
-      console.log("✅ Category colors:", categoryColors);
+    mapboxgl.accessToken = token;
 
-      // This is where you would normally add data layers/filters
-      // Using categoryColors + selectedCategories props
+    try {
+      const map = new mapboxgl.Map({
+        container: mapContainerRef.current!,
+        style: "mapbox://styles/mapbox/streets-v11",
+        center: [-93.5, 42.0], // Iowa/Midwest center
+        zoom: 5,
+      });
 
-      // For debug only: call onAddStop with a fake stop
-      if (onAddStop) {
+      mapRef.current = map;
+
+      map.on("load", () => {
+        console.log("✅ Mapbox map loaded");
         onAddStop("Debug Stop - Map Loaded");
-      }
-    });
+      });
+    } catch (err) {
+      console.error("⚠️ Error initializing Mapbox map:", err);
+    }
+  }, [onAddStop]);
 
-    return () => {
-      mapRef.current?.remove();
-    };
-  }, [categoryColors, selectedCategories, onAddStop]);
-
-  return (
-    <div
-      ref={mapContainer}
-      style={{ width: "100%", height: "100vh" }}
-      id="map"
-    />
-  );
+  return <div ref={mapContainerRef} className="w-full h-full" />;
 }
