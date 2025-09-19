@@ -1,21 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import CertisMap from "../components/CertisMap";
+import Image from "next/image";
+import CertisMap from "@/components/CertisMap";
 
-// Category color legend (Kingpin + other categories)
 const CATEGORY_COLORS: Record<string, string> = {
-  Kingpin: "#ff0000",
-  Retailer: "#1d4ed8",
-  Dealer: "#059669",
-  Distributor: "#f59e0b",
+  Retailer: "#1E90FF",
+  Distributor: "#32CD32",
+  Partner: "#FFD700",
 };
 
-export default function HomePage() {
+export default function Page() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [stops, setStops] = useState<string[]>([]);
 
-  const handleCategoryToggle = (category: string) => {
+  const toggleCategory = (category: string) => {
     setSelectedCategories((prev) =>
       prev.includes(category)
         ? prev.filter((c) => c !== category)
@@ -23,54 +21,57 @@ export default function HomePage() {
     );
   };
 
-  const handleAddStop = (stop: string) => {
-    setStops((prev) => [...prev, stop]);
-  };
-
   return (
-    <div className="flex h-screen">
-      {/* Sidebar */}
-      <div className="w-64 bg-gray-100 dark:bg-gray-800 p-4 overflow-y-auto">
-        <h2 className="text-lg font-bold mb-4">Filters</h2>
-
-        {/* Category filters */}
-        {Object.entries(CATEGORY_COLORS).map(([category, color]) => (
-          <label key={category} className="flex items-center space-x-2 mb-2">
-            <input
-              type="checkbox"
-              checked={selectedCategories.includes(category)}
-              onChange={() => handleCategoryToggle(category)}
-            />
-            <span
-              className="w-3 h-3 inline-block rounded"
-              style={{ backgroundColor: color }}
-            ></span>
-            <span>{category}</span>
-          </label>
-        ))}
-
-        {/* Stops */}
-        <h2 className="text-lg font-bold mt-6 mb-2">Stops</h2>
-        <ul className="list-disc ml-5">
-          {stops.map((stop, idx) => (
-            <li key={idx}>{stop}</li>
-          ))}
-        </ul>
-
-        {/* Kingpin note */}
-        <div className="mt-6 p-2 border rounded bg-yellow-50 dark:bg-yellow-900">
-          <strong>Note:</strong> Kingpin locations are always shown in bright red
-          with yellow outlines.
+    <div className="flex flex-col h-screen">
+      {/* Header */}
+      <header className="flex items-center justify-between bg-white shadow px-4 py-2">
+        <div className="flex items-center space-x-3">
+          <Image
+            src="/ymslogo3.png"
+            alt="Certis Logo"
+            width={40}
+            height={40}
+            priority
+          />
+          <h1 className="text-xl font-bold">Certis AgRoute Planner</h1>
         </div>
-      </div>
+      </header>
 
-      {/* Map area */}
-      <div className="flex-1">
-        <CertisMap
-          categoryColors={CATEGORY_COLORS}
-          selectedCategories={selectedCategories}
-          onAddStop={handleAddStop}
-        />
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <aside className="w-72 bg-gray-50 border-r border-gray-200 p-4 overflow-y-auto">
+          <h2 className="text-lg font-semibold mb-2">Categories</h2>
+          {Object.entries(CATEGORY_COLORS).map(([category, color]) => (
+            <label key={category} className="flex items-center space-x-2 mb-1">
+              <input
+                type="checkbox"
+                checked={selectedCategories.includes(category)}
+                onChange={() => toggleCategory(category)}
+              />
+              <span
+                className="w-3 h-3 rounded"
+                style={{ backgroundColor: color }}
+              ></span>
+              <span>{category}</span>
+            </label>
+          ))}
+
+          {/* Kingpin note */}
+          <div className="mt-4 p-2 border border-yellow-400 bg-yellow-50 rounded">
+            <strong className="text-red-600">Kingpins:</strong> Always visible,
+            bright red with yellow outline.
+          </div>
+        </aside>
+
+        {/* Map */}
+        <main className="flex-1 relative">
+          <div className="map-canvas absolute inset-0">
+            <CertisMap
+              categoryColors={CATEGORY_COLORS}
+              selectedCategories={selectedCategories}
+            />
+          </div>
+        </main>
       </div>
     </div>
   );

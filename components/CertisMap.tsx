@@ -2,125 +2,99 @@
 
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-import { MAPBOX_TOKEN } from "../utils/token";
 
-mapboxgl.accessToken = MAPBOX_TOKEN;
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 interface CertisMapProps {
   categoryColors: Record<string, string>;
   selectedCategories: string[];
-  onAddStop: (stop: string) => void;
 }
 
 export default function CertisMap({
   categoryColors,
   selectedCategories,
-  onAddStop,
 }: CertisMapProps) {
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const [basemap, setBasemap] = useState<string>("satellite-streets-v12");
 
-  // Default to hybrid/satellite view
-  const [mapStyle, setMapStyle] = useState(
-    "mapbox://styles/mapbox/satellite-streets-v12"
-  );
-
-  // Restore saved basemap from localStorage (only in browser)
+  // Load basemap preference
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedStyle = localStorage.getItem("mapStyle");
-      if (savedStyle) {
-        setMapStyle(savedStyle);
-      }
+      const saved = localStorage.getItem("basemap");
+      if (saved) setBasemap(saved);
     }
   }, []);
 
-  // Save to localStorage whenever style changes (only in browser)
+  // Initialize map
+  useEffect(() => {
+    if (!mapContainer.current || mapRef.current) return;
+
+    mapRef.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: `mapbox://styles/mapbox/${basemap}`,
+      center: [-93.5, 41.9], // Midwest center
+      zoom: 5,
+      projection: "mercator",
+    });
+
+    mapRef.current.addControl(new mapboxgl.NavigationControl());
+
+    mapRef.current.on("load", () => {
+      if (!mapRef.current) return;
+
+      // Load GeoJSON data
+      mapRef.current.addSource("retailers", {
+        type: "geojson",
+        data: "/retailers.geojson",
+      });
+
+      // Category-based layer
+      mapRef.current.addLayer({
+        id: "retailers-layer",
+        type: "circle",
+        source: "retailers",
+        paint: {
+          "circle-radius": 6,
+          "circle-color": [
+            "match",
+            ["get", "Category"],
+            ...Object.entries(categoryColors).flat(),
+            "#ccc",
+          ],
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#fff",
+        },
+        filter: ["in", ["get", "Category"], ["literal", selectedCategories]],
+      });
+
+      // Kingpin overlay (always visible)
+      mapRef.current.addLayer({
+        id: "kingpins-layer",
+        type: "circle",
+        source: "retailers",
+        paint: {
+          "circle-radius": 8,
+          "circle-color": "#FF0000",
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#FFD700",
+        },
+        filter: ["==", ["get", "Category"], "Kingpin"],
+      });
+    });
+
+    return () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
+  }, [basemap, categoryColors, selectedCategories]);
+
+  // Persist basemap
   useEffect(() => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("mapStyle", mapStyle);
+      localStorage.setItem("basemap", basemap);
     }
-  }, [mapStyle]);
+  }, [basemap]);
 
-  // Initialize Mapbox map
-  useEffect(() => {
-    if (mapRef.current) return; // prevent double init
-
-    if (mapContainerRef.current) {
-      mapRef.current = new mapboxgl.Map({
-        container: mapContainerRef.current,
-        style: mapStyle,
-        center: [-93.5, 41.5], // Midwest center
-        zoom: 5,
-      });
-
-      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
-
-      mapRef.current.on("click", (e) => {
-        const coords = `${e.lngLat.lng.toFixed(4)}, ${e.lngLat.lat.toFixed(4)}`;
-        onAddStop(coords);
-      });
-    }
-  }, []);
-
-  // Update style dynamically
-  useEffect(() => {
-    if (mapRef.current) {
-      mapRef.current.setStyle(mapStyle);
-    }
-  }, [mapStyle]);
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Map container */}
-      <div ref={mapContainerRef} className="flex-1 h-[600px] rounded-lg shadow" />
-
-      {/* Basemap selector styled like sidebar controls */}
-      <div className="mt-2 flex space-x-2">
-        <button
-          onClick={() => setMapStyle("mapbox://styles/mapbox/streets-v12")}
-          className={`px-3 py-1 rounded ${
-            mapStyle.includes("streets") && !mapStyle.includes("satellite")
-              ? "bg-blue-600 text-white"
-              : "bg-gray-200 dark:bg-gray-700"
-          }`}
-        >
-          Streets
-        </button>
-        <button
-          onClick={() =>
-            setMapStyle("mapbox://styles/mapbox/satellite-streets-v12")
-          }
-          className={`px-3 py-1 rounded ${
-            mapStyle.includes("satellite")
-              ? "bg-blue-600 text-white"
-              : "bg-gray-200 dark:bg-gray-700"
-          }`}
-        >
-          Hybrid
-        </button>
-        <button
-          onClick={() => setMapStyle("mapbox://styles/mapbox/light-v11")}
-          className={`px-3 py-1 rounded ${
-            mapStyle.includes("light")
-              ? "bg-blue-600 text-white"
-              : "bg-gray-200 dark:bg-gray-700"
-          }`}
-        >
-          Light
-        </button>
-        <button
-          onClick={() => setMapStyle("mapbox://styles/mapbox/dark-v11")}
-          className={`px-3 py-1 rounded ${
-            mapStyle.includes("dark")
-              ? "bg-blue-600 text-white"
-              : "bg-gray-200 dark:bg-gray-700"
-          }`}
-        >
-          Dark
-        </button>
-      </div>
-    </div>
-  );
+  return <div ref={mapContainer} className="w-full h-full" />;
 }
