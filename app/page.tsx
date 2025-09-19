@@ -1,16 +1,21 @@
-// app/page.tsx
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import CertisMap from "../components/CertisMap";
-import { CATEGORY_COLORS } from "../utils/constants";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Retailer: "#1f77b4",
+  Dealer: "#ff7f0e",
+  Supplier: "#2ca02c",
+  Distributor: "#d62728",
+  Other: "#9467bd",
+};
 
 export default function Page() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [tripStops, setTripStops] = useState<string[]>([]);
-  const [darkMode, setDarkMode] = useState(true);
 
-  const handleCategoryToggle = (category: string) => {
+  const handleCategoryChange = (category: string) => {
     setSelectedCategories((prev) =>
       prev.includes(category)
         ? prev.filter((c) => c !== category)
@@ -22,79 +27,72 @@ export default function Page() {
     setTripStops((prev) => [...prev, stop]);
   };
 
-  const toggleDarkMode = () => {
-    document.documentElement.classList.toggle("dark");
-    setDarkMode(!darkMode);
-  };
-
   return (
-    <div className="page-shell">
+    <main className="flex h-screen">
       {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="brand">
-          <h1>Certis AgRoute Planner</h1>
-          <div className="brand-meta">Plan retailer visits with ease</div>
+      <div className="w-64 bg-gray-900 text-white p-4 flex flex-col space-y-6">
+        <div>
+          <h1 className="text-xl font-bold mb-1">Certis AgRoute Planner</h1>
+          <p className="text-sm text-gray-400">Plan retailer visits with ease</p>
         </div>
 
-        <div
-          className="panel cursor-pointer"
-          onClick={toggleDarkMode}
-        >
-          {darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-        </div>
-
-        <div className="panel">
-          <h2>Filter by Category</h2>
-          <ul>
-            {Object.keys(CATEGORY_COLORS).map((category) => (
-              <li key={category}>
-                <label className="radio">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(category)}
-                    onChange={() => handleCategoryToggle(category)}
-                  />
+        {/* Category Filters */}
+        <div>
+          <h2 className="text-lg font-semibold mb-2">Filter by Category</h2>
+          <ul className="space-y-1">
+            {Object.entries(CATEGORY_COLORS).map(([cat, color]) => (
+              <li key={cat} className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id={cat}
+                  checked={selectedCategories.includes(cat)}
+                  onChange={() => handleCategoryChange(cat)}
+                />
+                <label htmlFor={cat} className="flex items-center space-x-2">
                   <span
-                    className="w-3 h-3 inline-block rounded"
-                    style={{ backgroundColor: CATEGORY_COLORS[category] }}
-                  ></span>
-                  <span className="capitalize">{category}</span>
+                    className="inline-block w-3 h-3 rounded"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span>{cat}</span>
                 </label>
               </li>
             ))}
           </ul>
-        </div>
 
-        <div className="panel">
-          <h2>Trip Builder</h2>
-          {tripStops.length === 0 ? (
-            <p className="bullets">Click markers on the map to add stops.</p>
-          ) : (
-            <ol className="list-decimal list-inside space-y-1">
-              {tripStops.map((stop, i) => (
-                <li key={i}>{stop}</li>
-              ))}
-            </ol>
-          )}
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <div className="content">
-        <div className="content-inner">
-          <div className="map-card">
-            <div className="map-frame">
-              <div className="map-canvas">
-                <CertisMap
-                  categoryColors={CATEGORY_COLORS}
-                  selectedCategories={selectedCategories}
-                  onAddStop={handleAddStop}
-                />
-              </div>
+          {/* Kingpin Legend Entry */}
+          <div className="mt-3">
+            <h3 className="text-sm font-semibold text-gray-300 mb-1">
+              Special Category
+            </h3>
+            <div className="flex items-center space-x-2">
+              <span
+                className="inline-block w-3 h-3 rounded border-2"
+                style={{ backgroundColor: "#FF0000", borderColor: "#FFFF00" }}
+              />
+              <span>Kingpin (always visible)</span>
             </div>
           </div>
         </div>
+
+        {/* Trip Builder */}
+        <div>
+          <h2 className="text-lg font-semibold mb-2">Trip Builder</h2>
+          <ul className="list-disc pl-5 text-sm space-y-1">
+            {tripStops.map((stop, idx) => (
+              <li key={idx}>{stop}</li>
+            ))}
+          </ul>
+        </div>
       </div>
-    </div>
+
+      {/* Map */}
+      <div className="flex-1">
+        <CertisMap
+          categoryColors={CATEGORY_COLORS}
+          selectedCategories={selectedCategories}
+          onAddStop={handleAddStop}
+        />
+      </div>
+    </main>
   );
 }
