@@ -1,174 +1,126 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { MAPBOX_TOKEN } from "../utils/token";
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+mapboxgl.accessToken = MAPBOX_TOKEN;
 
-type CertisMapProps = {
+interface CertisMapProps {
   categoryColors: Record<string, string>;
   selectedCategories: string[];
   onAddStop: (stop: string) => void;
-};
+}
 
-const CertisMap: React.FC<CertisMapProps> = ({
+export default function CertisMap({
   categoryColors,
   selectedCategories,
   onAddStop,
-}) => {
-  const mapContainer = useRef<HTMLDivElement>(null);
+}: CertisMapProps) {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Restore persisted basemap style
+  // Default to hybrid/satellite view
   const [mapStyle, setMapStyle] = useState(
-    localStorage.getItem("mapStyle") || "mapbox://styles/mapbox/satellite-streets-v12"
+    "mapbox://styles/mapbox/satellite-streets-v12"
   );
 
-  const handleStyleChange = (style: string) => {
-    setMapStyle(style);
-    localStorage.setItem("mapStyle", style);
-    if (mapRef.current) {
-      mapRef.current.setStyle(style);
-      mapRef.current.once("styledata", () => {
-        addRetailerLayers(mapRef.current!); // Re-add layers after style change
-      });
-    }
-  };
-
+  // Restore saved basemap from localStorage (only in browser)
   useEffect(() => {
-    if (!mapContainer.current) return;
-
-    const map = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: mapStyle,
-      center: [-96, 40],
-      zoom: 4,
-    });
-
-    mapRef.current = map;
-
-    map.on("load", () => {
-      setMapLoaded(true);
-
-      map.addSource("retailers", {
-        type: "geojson",
-        data: "/retailers.geojson",
-      });
-
-      addRetailerLayers(map);
-    });
-
-    return () => {
-      map.remove();
-    };
+    if (typeof window !== "undefined") {
+      const savedStyle = localStorage.getItem("mapStyle");
+      if (savedStyle) {
+        setMapStyle(savedStyle);
+      }
+    }
   }, []);
 
-  // Add normal categories + Kingpin layer
-  const addRetailerLayers = (map: mapboxgl.Map) => {
-    // Clear old layers first
-    Object.keys(categoryColors).forEach((cat) => {
-      if (map.getLayer(cat)) map.removeLayer(cat);
-    });
-    if (map.getLayer("kingpins")) map.removeLayer("kingpins");
-
-    // Normal category layers
-    Object.entries(categoryColors).forEach(([category, color]) => {
-      map.addLayer({
-        id: category,
-        type: "circle",
-        source: "retailers",
-        paint: {
-          "circle-radius": 6,
-          "circle-color": color,
-          "circle-stroke-color": "#000",
-          "circle-stroke-width": 1,
-        },
-        filter: ["==", ["get", "Category"], category],
-      });
-    });
-
-    // Kingpins: always visible
-    map.addLayer({
-      id: "kingpins",
-      type: "circle",
-      source: "retailers",
-      paint: {
-        "circle-radius": 8,
-        "circle-color": "#ff0000", // Bright red
-        "circle-stroke-color": "#ffff00", // Yellow outline
-        "circle-stroke-width": 3,
-      },
-      filter: ["==", ["get", "Category"], "Kingpin"],
-    });
-
-    // Click handler for adding stops
-    map.on("click", (e) => {
-      const features = map.queryRenderedFeatures(e.point, {
-        layers: [...Object.keys(categoryColors), "kingpins"],
-      });
-      if (!features.length) return;
-      const props = features[0].properties;
-      if (props?.Name) {
-        onAddStop(props.Name);
-      }
-    });
-  };
-
-  // Toggle visibility of non-Kingpin layers
+  // Save to localStorage whenever style changes (only in browser)
   useEffect(() => {
-    if (!mapRef.current || !mapLoaded) return;
-    Object.keys(categoryColors).forEach((category) => {
-      if (mapRef.current?.getLayer(category)) {
-        const visibility = selectedCategories.includes(category)
-          ? "visible"
-          : "none";
-        mapRef.current.setLayoutProperty(category, "visibility", visibility);
-      }
-    });
-  }, [selectedCategories, mapLoaded, categoryColors]);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mapStyle", mapStyle);
+    }
+  }, [mapStyle]);
+
+  // Initialize Mapbox map
+  useEffect(() => {
+    if (mapRef.current) return; // prevent double init
+
+    if (mapContainerRef.current) {
+      mapRef.current = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: mapStyle,
+        center: [-93.5, 41.5], // Midwest center
+        zoom: 5,
+      });
+
+      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+      mapRef.current.on("click", (e) => {
+        const coords = `${e.lngLat.lng.toFixed(4)}, ${e.lngLat.lat.toFixed(4)}`;
+        onAddStop(coords);
+      });
+    }
+  }, []);
+
+  // Update style dynamically
+  useEffect(() => {
+    if (mapRef.current) {
+      mapRef.current.setStyle(mapStyle);
+    }
+  }, [mapStyle]);
 
   return (
-    <div className="relative h-full w-full">
-      <div ref={mapContainer} className="h-full w-full" />
+    <div className="flex flex-col h-full">
+      {/* Map container */}
+      <div ref={mapContainerRef} className="flex-1 h-[600px] rounded-lg shadow" />
 
-      {/* Basemap Style Switcher */}
-      <div className="absolute top-2 right-2 z-10 flex gap-2">
+      {/* Basemap selector styled like sidebar controls */}
+      <div className="mt-2 flex space-x-2">
         <button
-          onClick={() => handleStyleChange("mapbox://styles/mapbox/streets-v12")}
-          className="px-2 py-1 bg-blue-500 text-white rounded"
+          onClick={() => setMapStyle("mapbox://styles/mapbox/streets-v12")}
+          className={`px-3 py-1 rounded ${
+            mapStyle.includes("streets") && !mapStyle.includes("satellite")
+              ? "bg-blue-600 text-white"
+              : "bg-gray-200 dark:bg-gray-700"
+          }`}
         >
           Streets
         </button>
         <button
-          onClick={() => handleStyleChange("mapbox://styles/mapbox/outdoors-v12")}
-          className="px-2 py-1 bg-green-600 text-white rounded"
+          onClick={() =>
+            setMapStyle("mapbox://styles/mapbox/satellite-streets-v12")
+          }
+          className={`px-3 py-1 rounded ${
+            mapStyle.includes("satellite")
+              ? "bg-blue-600 text-white"
+              : "bg-gray-200 dark:bg-gray-700"
+          }`}
         >
-          Outdoors
+          Hybrid
         </button>
         <button
-          onClick={() => handleStyleChange("mapbox://styles/mapbox/light-v11")}
-          className="px-2 py-1 bg-purple-500 text-white rounded"
+          onClick={() => setMapStyle("mapbox://styles/mapbox/light-v11")}
+          className={`px-3 py-1 rounded ${
+            mapStyle.includes("light")
+              ? "bg-blue-600 text-white"
+              : "bg-gray-200 dark:bg-gray-700"
+          }`}
         >
           Light
         </button>
         <button
-          onClick={() => handleStyleChange("mapbox://styles/mapbox/dark-v11")}
-          className="px-2 py-1 bg-gray-800 text-white rounded"
+          onClick={() => setMapStyle("mapbox://styles/mapbox/dark-v11")}
+          className={`px-3 py-1 rounded ${
+            mapStyle.includes("dark")
+              ? "bg-blue-600 text-white"
+              : "bg-gray-200 dark:bg-gray-700"
+          }`}
         >
           Dark
-        </button>
-        <button
-          onClick={() =>
-            handleStyleChange("mapbox://styles/mapbox/satellite-streets-v12")
-          }
-          className="px-2 py-1 bg-yellow-600 text-white rounded"
-        >
-          Hybrid
         </button>
       </div>
     </div>
   );
-};
-
-export default CertisMap;
+}

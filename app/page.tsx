@@ -1,21 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import CertisMap from "../components/CertisMap";
 
+// Category color legend (Kingpin + other categories)
 const CATEGORY_COLORS: Record<string, string> = {
-  Retailer: "#1f77b4",
-  Dealer: "#ff7f0e",
-  Supplier: "#2ca02c",
-  Distributor: "#d62728",
-  Other: "#9467bd",
+  Kingpin: "#ff0000",
+  Retailer: "#1d4ed8",
+  Dealer: "#059669",
+  Distributor: "#f59e0b",
 };
 
-export default function Page() {
+export default function HomePage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [tripStops, setTripStops] = useState<string[]>([]);
+  const [stops, setStops] = useState<string[]>([]);
 
-  const handleCategoryChange = (category: string) => {
+  const handleCategoryToggle = (category: string) => {
     setSelectedCategories((prev) =>
       prev.includes(category)
         ? prev.filter((c) => c !== category)
@@ -24,68 +24,47 @@ export default function Page() {
   };
 
   const handleAddStop = (stop: string) => {
-    setTripStops((prev) => [...prev, stop]);
+    setStops((prev) => [...prev, stop]);
   };
 
   return (
-    <main className="flex h-screen">
+    <div className="flex h-screen">
       {/* Sidebar */}
-      <div className="w-64 bg-gray-900 text-white p-4 flex flex-col space-y-6">
-        <div>
-          <h1 className="text-xl font-bold mb-1">Certis AgRoute Planner</h1>
-          <p className="text-sm text-gray-400">Plan retailer visits with ease</p>
-        </div>
+      <div className="w-64 bg-gray-100 dark:bg-gray-800 p-4 overflow-y-auto">
+        <h2 className="text-lg font-bold mb-4">Filters</h2>
 
-        {/* Category Filters */}
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Filter by Category</h2>
-          <ul className="space-y-1">
-            {Object.entries(CATEGORY_COLORS).map(([cat, color]) => (
-              <li key={cat} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id={cat}
-                  checked={selectedCategories.includes(cat)}
-                  onChange={() => handleCategoryChange(cat)}
-                />
-                <label htmlFor={cat} className="flex items-center space-x-2">
-                  <span
-                    className="inline-block w-3 h-3 rounded"
-                    style={{ backgroundColor: color }}
-                  />
-                  <span>{cat}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
+        {/* Category filters */}
+        {Object.entries(CATEGORY_COLORS).map(([category, color]) => (
+          <label key={category} className="flex items-center space-x-2 mb-2">
+            <input
+              type="checkbox"
+              checked={selectedCategories.includes(category)}
+              onChange={() => handleCategoryToggle(category)}
+            />
+            <span
+              className="w-3 h-3 inline-block rounded"
+              style={{ backgroundColor: color }}
+            ></span>
+            <span>{category}</span>
+          </label>
+        ))}
 
-          {/* Kingpin Legend Entry */}
-          <div className="mt-3">
-            <h3 className="text-sm font-semibold text-gray-300 mb-1">
-              Special Category
-            </h3>
-            <div className="flex items-center space-x-2">
-              <span
-                className="inline-block w-3 h-3 rounded border-2"
-                style={{ backgroundColor: "#FF0000", borderColor: "#FFFF00" }}
-              />
-              <span>Kingpin (always visible)</span>
-            </div>
-          </div>
-        </div>
+        {/* Stops */}
+        <h2 className="text-lg font-bold mt-6 mb-2">Stops</h2>
+        <ul className="list-disc ml-5">
+          {stops.map((stop, idx) => (
+            <li key={idx}>{stop}</li>
+          ))}
+        </ul>
 
-        {/* Trip Builder */}
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Trip Builder</h2>
-          <ul className="list-disc pl-5 text-sm space-y-1">
-            {tripStops.map((stop, idx) => (
-              <li key={idx}>{stop}</li>
-            ))}
-          </ul>
+        {/* Kingpin note */}
+        <div className="mt-6 p-2 border rounded bg-yellow-50 dark:bg-yellow-900">
+          <strong>Note:</strong> Kingpin locations are always shown in bright red
+          with yellow outlines.
         </div>
       </div>
 
-      {/* Map */}
+      {/* Map area */}
       <div className="flex-1">
         <CertisMap
           categoryColors={CATEGORY_COLORS}
@@ -93,6 +72,6 @@ export default function Page() {
           onAddStop={handleAddStop}
         />
       </div>
-    </main>
+    </div>
   );
 }
