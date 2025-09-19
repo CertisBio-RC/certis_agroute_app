@@ -1,53 +1,42 @@
-﻿name: Deploy Certis AgRoute Planner
+﻿name: Deploy to GitHub Pages
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22   # matches your portable Node (v22.19.0)
-          cache: npm
+          node-version: 20
 
       - name: Install dependencies
         run: npm install
 
-      - name: Build project
+      - name: Build GeoJSON from retailers.xlsx
+        run: |
+          mkdir -p public
+          if [ -f data/retailers.xlsx ]; then
+            python3 scripts/build_geojson.py data/retailers.xlsx public/retailers.geojson
+          else
+            echo "⚠️ WARNING: data/retailers.xlsx not found, skipping GeoJSON build"
+          fi
+
+      - name: Build Next.js app
         run: npm run build
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: out   # must match distDir in next.config.js
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: github-pages
-          path: ./out
+      - name: Export static site
+        run: npm run export
 
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out
