@@ -17,17 +17,21 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Python dependencies
+        run: pip install pandas openpyxl
+
+      - name: Install Node dependencies
         run: npm install
 
       - name: Build GeoJSON from retailers.xlsx
         run: |
           mkdir -p public
-          if [ -f data/retailers.xlsx ]; then
-            python3 scripts/build_geojson.py data/retailers.xlsx public/retailers.geojson
-          else
-            echo "⚠️ WARNING: data/retailers.xlsx not found, skipping GeoJSON build"
-          fi
+          python3 scripts/build_geojson.py data/retailers.xlsx public/retailers.geojson
 
       - name: Build Next.js app
         run: npm run build
