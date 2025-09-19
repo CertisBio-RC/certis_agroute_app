@@ -1,100 +1,132 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import mapboxgl from "mapbox-gl";
+import React, { useEffect, useRef, useState } from "react";
+import mapboxgl, { Map, Marker, Popup } from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string;
 
-interface CertisMapProps {
+type CertisMapProps = {
   categoryColors: Record<string, string>;
   selectedCategories: string[];
-}
+  onAddStop: (stop: string) => void;
+};
 
 export default function CertisMap({
   categoryColors,
   selectedCategories,
+  onAddStop,
 }: CertisMapProps) {
-  const mapContainer = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const [basemap, setBasemap] = useState<string>("satellite-streets-v12");
-
-  // Load basemap preference
-  useEffect(() => {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<Map | null>(null);
+  const [basemap, setBasemap] = useState<string>(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("basemap");
-      if (saved) setBasemap(saved);
+      return localStorage.getItem("basemap") || "streets-v12";
     }
-  }, []);
+    return "streets-v12";
+  });
 
-  // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || mapRef.current) return;
+    if (!mapContainerRef.current) return;
 
-    mapRef.current = new mapboxgl.Map({
-      container: mapContainer.current,
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
       style: `mapbox://styles/mapbox/${basemap}`,
-      center: [-93.5, 41.9], // Midwest center
+      center: [-93.5, 41.6],
       zoom: 5,
       projection: "mercator",
     });
 
-    mapRef.current.addControl(new mapboxgl.NavigationControl());
+    mapRef.current = map;
 
-    mapRef.current.on("load", () => {
-      if (!mapRef.current) return;
+    map.on("load", () => {
+      // Fetch GeoJSON data
+      fetch("/retailers.geojson")
+        .then((res) => res.json())
+        .then((data) => {
+          for (const feature of data.features) {
+            const { geometry, properties } = feature;
+            if (!geometry || geometry.type !== "Point") continue;
 
-      // Load GeoJSON data
-      mapRef.current.addSource("retailers", {
-        type: "geojson",
-        data: "/retailers.geojson",
-      });
+            const [lng, lat] = geometry.coordinates;
+            const category = properties.Category;
+            const name = properties.Name || "Unknown";
 
-      // Category-based layer
-      mapRef.current.addLayer({
-        id: "retailers-layer",
-        type: "circle",
-        source: "retailers",
-        paint: {
-          "circle-radius": 6,
-          "circle-color": [
-            "match",
-            ["get", "Category"],
-            ...Object.entries(categoryColors).flat(),
-            "#ccc",
-          ],
-          "circle-stroke-width": 1,
-          "circle-stroke-color": "#fff",
-        },
-        filter: ["in", ["get", "Category"], ["literal", selectedCategories]],
-      });
+            const color =
+              category === "Kingpin"
+                ? "#FF0000"
+                : categoryColors[category] || "#999";
 
-      // Kingpin overlay (always visible)
-      mapRef.current.addLayer({
-        id: "kingpins-layer",
-        type: "circle",
-        source: "retailers",
-        paint: {
-          "circle-radius": 8,
-          "circle-color": "#FF0000",
-          "circle-stroke-width": 2,
-          "circle-stroke-color": "#FFD700",
-        },
-        filter: ["==", ["get", "Category"], "Kingpin"],
-      });
+            const outline =
+              category === "Kingpin" ? "2px solid yellow" : "none";
+
+            if (
+              category === "Kingpin" ||
+              selectedCategories.includes(category)
+            ) {
+              const el = document.createElement("div");
+              el.style.width = "14px";
+              el.style.height = "14px";
+              el.style.borderRadius = "50%";
+              el.style.backgroundColor = color;
+              el.style.border = outline;
+
+              const marker = new mapboxgl.Marker(el)
+                .setLngLat([lng, lat])
+                .setPopup(
+                  new Popup().setHTML(
+                    `<strong>${name}</strong><br/>${category}`
+                  )
+                )
+                .addTo(map);
+
+              el.addEventListener("click", () => {
+                onAddStop(name);
+              });
+            }
+          }
+        });
     });
 
     return () => {
-      mapRef.current?.remove();
-      mapRef.current = null;
+      map.remove();
     };
-  }, [basemap, categoryColors, selectedCategories]);
+  }, [basemap, categoryColors, selectedCategories, onAddStop]);
 
-  // Persist basemap
-  useEffect(() => {
+  const handleBasemapChange = (style: string) => {
+    setBasemap(style);
     if (typeof window !== "undefined") {
-      localStorage.setItem("basemap", basemap);
+      localStorage.setItem("basemap", style);
     }
-  }, [basemap]);
+  };
 
-  return <div ref={mapContainer} className="w-full h-full" />;
+  return (
+    <div className="relative w-full h-full">
+      <div ref={mapContainerRef} className="w-full h-full" />
+
+      {/* Basemap toggle */}
+      <div className="absolute bottom-4 left-4 bg-white dark:bg-gray-800 shadow-md rounded-lg p-2 space-x-2">
+        <button
+          onClick={() => handleBasemapChange("streets-v12")}
+          className={`px-3 py-1 rounded ${
+            basemap === "streets-v12"
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200 dark:bg-gray-700 dark:text-white"
+          }`}
+        >
+          Streets
+        </button>
+        <button
+          onClick={() => handleBasemapChange("satellite-streets-v12")}
+          className={`px-3 py-1 rounded ${
+            basemap === "satellite-streets-v12"
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200 dark:bg-gray-700 dark:text-white"
+          }`}
+        >
+          Hybrid
+        </button>
+      </div>
+    </div>
+  );
 }

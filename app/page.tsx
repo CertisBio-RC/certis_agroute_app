@@ -1,19 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import CertisMap from "@/components/CertisMap";
+import CertisMap from "../components/CertisMap";
 
 const CATEGORY_COLORS: Record<string, string> = {
+  Kingpin: "#FF0000",
   Retailer: "#1E90FF",
   Distributor: "#32CD32",
-  Partner: "#FFD700",
 };
 
-export default function Page() {
+export default function HomePage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [stops, setStops] = useState<string[]>([]);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sidebar-theme") === "dark";
+    }
+    return false;
+  });
 
-  const toggleCategory = (category: string) => {
+  const handleCategoryChange = (category: string) => {
     setSelectedCategories((prev) =>
       prev.includes(category)
         ? prev.filter((c) => c !== category)
@@ -21,57 +28,73 @@ export default function Page() {
     );
   };
 
+  const handleAddStop = (stop: string) => {
+    setStops((prev) => [...prev, stop]);
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sidebar-theme", darkMode ? "dark" : "light");
+    }
+  }, [darkMode]);
+
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header */}
-      <header className="flex items-center justify-between bg-white shadow px-4 py-2">
-        <div className="flex items-center space-x-3">
+    <div className="flex h-screen">
+      {/* Sidebar */}
+      <div
+        className={`w-80 p-4 flex flex-col ${
+          darkMode ? "bg-gray-900 text-white" : "bg-white text-black"
+        }`}
+      >
+        {/* Header with logo + dark mode toggle */}
+        <div className="flex items-center justify-between mb-6">
           <Image
-            src="/ymslogo3.png"
+            src="/certis-logo.png"
             alt="Certis Logo"
-            width={40}
+            width={140}
             height={40}
             priority
           />
-          <h1 className="text-xl font-bold">Certis AgRoute Planner</h1>
+          <button
+            onClick={() => setDarkMode((prev) => !prev)}
+            className="px-3 py-1 rounded bg-gray-300 dark:bg-gray-700 dark:text-white"
+          >
+            {darkMode ? "Light" : "Dark"}
+          </button>
         </div>
-      </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-72 bg-gray-50 border-r border-gray-200 p-4 overflow-y-auto">
-          <h2 className="text-lg font-semibold mb-2">Categories</h2>
-          {Object.entries(CATEGORY_COLORS).map(([category, color]) => (
-            <label key={category} className="flex items-center space-x-2 mb-1">
-              <input
-                type="checkbox"
-                checked={selectedCategories.includes(category)}
-                onChange={() => toggleCategory(category)}
-              />
-              <span
-                className="w-3 h-3 rounded"
-                style={{ backgroundColor: color }}
-              ></span>
-              <span>{category}</span>
-            </label>
-          ))}
-
-          {/* Kingpin note */}
-          <div className="mt-4 p-2 border border-yellow-400 bg-yellow-50 rounded">
-            <strong className="text-red-600">Kingpins:</strong> Always visible,
-            bright red with yellow outline.
-          </div>
-        </aside>
-
-        {/* Map */}
-        <main className="flex-1 relative">
-          <div className="map-canvas absolute inset-0">
-            <CertisMap
-              categoryColors={CATEGORY_COLORS}
-              selectedCategories={selectedCategories}
+        <h2 className="text-lg font-semibold mb-2">Filter by Category</h2>
+        {Object.keys(CATEGORY_COLORS).map((category) => (
+          <label key={category} className="block mb-1">
+            <input
+              type="checkbox"
+              checked={selectedCategories.includes(category)}
+              onChange={() => handleCategoryChange(category)}
+              className="mr-2"
             />
-          </div>
-        </main>
+            {category}
+          </label>
+        ))}
+
+        <div className="mt-6 text-sm italic">
+          Kingpins are always shown in red with yellow outlines.
+        </div>
+
+        <h2 className="text-lg font-semibold mt-6 mb-2">Selected Stops</h2>
+        <ul className="list-disc list-inside text-sm">
+          {stops.map((stop, idx) => (
+            <li key={idx}>{stop}</li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Map */}
+      <div className="flex-1">
+        <CertisMap
+          categoryColors={CATEGORY_COLORS}
+          selectedCategories={selectedCategories}
+          onAddStop={handleAddStop}
+        />
       </div>
     </div>
   );
