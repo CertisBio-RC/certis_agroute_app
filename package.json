@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next dev",
-    "build": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next build",
-    "start": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next start",
-    "deploy": "%USERPROFILE%\\node-portable\\node.exe node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
     "@types/mapbox-gl": "^3.4.1",
@@ -23,7 +23,6 @@
     "autoprefixer": "10.4.20",
     "postcss": "8.4.49",
     "tailwindcss": "3.4.13",
-    "typescript": "5.9.2",
-    "gh-pages": "^6.1.1"
+    "typescript": "5.9.2"
   }
 }
