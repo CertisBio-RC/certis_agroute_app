@@ -20,11 +20,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # ⏸️ Skipped — using committed retailers.geojson instead of regenerating
-      # - name: Build GeoJSON from retailers.xlsx
-      #   run: |
-      #     mkdir -p public
-      #     python3 scripts/build_geojson.py data/retailers.xlsx public/retailers.geojson
+      # ✅ Skip building GeoJSON – we use prebuilt public/retailers.geojson
+      - name: Skip GeoJSON build
+        run: echo "Skipping build_geojson.py – using prebuilt retailers.geojson"
 
       - name: Build Next.js app
         run: npm run build
