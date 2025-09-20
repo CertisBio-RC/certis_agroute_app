@@ -17,21 +17,14 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Install Python dependencies
-        run: pip install pandas openpyxl
-
-      - name: Install Node dependencies
+      - name: Install dependencies
         run: npm install
 
-      - name: Build GeoJSON from retailers.xlsx
-        run: |
-          mkdir -p public
-          python3 scripts/build_geojson.py data/retailers.xlsx public/retailers.geojson
+      # ⏸️ Skipped — using committed retailers.geojson instead of regenerating
+      # - name: Build GeoJSON from retailers.xlsx
+      #   run: |
+      #     mkdir -p public
+      #     python3 scripts/build_geojson.py data/retailers.xlsx public/retailers.geojson
 
       - name: Build Next.js app
         run: npm run build
