@@ -1,128 +1,144 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import mapboxgl, { Map, Marker, Popup } from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import { useEffect, useRef, useState } from "react";
+import mapboxgl from "mapbox-gl";
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string;
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 type CertisMapProps = {
-  categoryColors: Record<string, string>;
   selectedCategories: string[];
-  onAddStop: (stop: string) => void;
 };
 
-export default function CertisMap({
-  categoryColors,
-  selectedCategories,
-  onAddStop,
-}: CertisMapProps) {
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<Map | null>(null);
-  const [basemap, setBasemap] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("basemap") || "streets-v12";
-    }
-    return "streets-v12";
-  });
+export default function CertisMap({ selectedCategories }: CertisMapProps) {
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const [basemap, setBasemap] = useState<string>("hybrid");
 
+  // Restore saved basemap
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("basemap");
+      if (saved) setBasemap(saved);
+    }
+  }, []);
 
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: `mapbox://styles/mapbox/${basemap}`,
-      center: [-93.5, 41.6],
-      zoom: 5,
-      projection: "mercator",
+  // Init map
+  useEffect(() => {
+    if (!mapContainer.current || mapRef.current) return;
+
+    mapRef.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style:
+        basemap === "streets"
+          ? "mapbox://styles/mapbox/streets-v12"
+          : "mapbox://styles/mapbox/satellite-streets-v12",
+      center: [-93.5, 41.5], // Midwest default center
+      zoom: 4,
+      projection: { name: "mercator" },
     });
 
-    mapRef.current = map;
+    const map = mapRef.current;
 
-    map.on("load", () => {
-      // Fetch GeoJSON data
-      fetch("/retailers.geojson")
-        .then((res) => res.json())
-        .then((data) => {
-          for (const feature of data.features) {
-            const { geometry, properties } = feature;
-            if (!geometry || geometry.type !== "Point") continue;
+    // Load data
+    map.on("load", async () => {
+      try {
+        const res = await fetch("/retailers.geojson");
+        const geojson = await res.json();
 
-            const [lng, lat] = geometry.coordinates;
-            const category = properties.Category;
-            const name = properties.Name || "Unknown";
+        if (!map.getSource("retailers")) {
+          map.addSource("retailers", {
+            type: "geojson",
+            data: geojson,
+          });
+        }
 
-            const color =
-              category === "Kingpin"
-                ? "#FF0000"
-                : categoryColors[category] || "#999";
-
-            const outline =
-              category === "Kingpin" ? "2px solid yellow" : "none";
-
-            if (
-              category === "Kingpin" ||
-              selectedCategories.includes(category)
-            ) {
-              const el = document.createElement("div");
-              el.style.width = "14px";
-              el.style.height = "14px";
-              el.style.borderRadius = "50%";
-              el.style.backgroundColor = color;
-              el.style.border = outline;
-
-              const marker = new mapboxgl.Marker(el)
-                .setLngLat([lng, lat])
-                .setPopup(
-                  new Popup().setHTML(
-                    `<strong>${name}</strong><br/>${category}`
-                  )
-                )
-                .addTo(map);
-
-              el.addEventListener("click", () => {
-                onAddStop(name);
-              });
-            }
-          }
+        // Normal categories
+        map.addLayer({
+          id: "retailers-circle",
+          type: "circle",
+          source: "retailers",
+          paint: {
+            "circle-radius": 6,
+            "circle-color": [
+              "match",
+              ["get", "Category"],
+              "Retailer", "#1f77b4",
+              "Dealer", "#ff7f0e",
+              "Distributor", "#2ca02c",
+              "Supplier", "#9467bd",
+              "#7f7f7f"
+            ],
+            "circle-stroke-color": "#fff",
+            "circle-stroke-width": 1,
+          },
+          filter: ["all", ["!=", ["get", "Category"], "Kingpin"]],
         });
+
+        // Kingpins special layer
+        map.addLayer({
+          id: "kingpins",
+          type: "circle",
+          source: "retailers",
+          paint: {
+            "circle-radius": 8,
+            "circle-color": "#ff0000",
+            "circle-stroke-color": "#ffff00",
+            "circle-stroke-width": 2,
+          },
+          filter: ["==", ["get", "Category"], "Kingpin"],
+        });
+      } catch (err) {
+        console.error("Error loading retailers.geojson", err);
+      }
     });
 
     return () => {
       map.remove();
+      mapRef.current = null;
     };
-  }, [basemap, categoryColors, selectedCategories, onAddStop]);
+  }, [basemap]);
 
-  const handleBasemapChange = (style: string) => {
+  // Update filters when categories change
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (map.getLayer("retailers-circle")) {
+      map.setFilter("retailers-circle", [
+        "all",
+        ["!=", ["get", "Category"], "Kingpin"],
+        ["in", ["get", "Category"], ["literal", selectedCategories]],
+      ]);
+    }
+  }, [selectedCategories]);
+
+  const switchBasemap = (style: string) => {
     setBasemap(style);
     if (typeof window !== "undefined") {
       localStorage.setItem("basemap", style);
+    }
+    if (mapRef.current) {
+      mapRef.current.setStyle(
+        style === "streets"
+          ? "mapbox://styles/mapbox/streets-v12"
+          : "mapbox://styles/mapbox/satellite-streets-v12"
+      );
     }
   };
 
   return (
     <div className="relative w-full h-full">
-      <div ref={mapContainerRef} className="w-full h-full" />
-
-      {/* Basemap toggle */}
-      <div className="absolute bottom-4 left-4 bg-white dark:bg-gray-800 shadow-md rounded-lg p-2 space-x-2">
+      <div ref={mapContainer} className="w-full h-full rounded-2xl" />
+      <div className="absolute bottom-2 left-2 flex gap-2">
         <button
-          onClick={() => handleBasemapChange("streets-v12")}
-          className={`px-3 py-1 rounded ${
-            basemap === "streets-v12"
-              ? "bg-blue-500 text-white"
-              : "bg-gray-200 dark:bg-gray-700 dark:text-white"
-          }`}
+          onClick={() => switchBasemap("streets")}
+          className={`px-2 py-1 rounded ${basemap === "streets" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
         >
           Streets
         </button>
         <button
-          onClick={() => handleBasemapChange("satellite-streets-v12")}
-          className={`px-3 py-1 rounded ${
-            basemap === "satellite-streets-v12"
-              ? "bg-blue-500 text-white"
-              : "bg-gray-200 dark:bg-gray-700 dark:text-white"
-          }`}
+          onClick={() => switchBasemap("hybrid")}
+          className={`px-2 py-1 rounded ${basemap === "hybrid" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
         >
           Hybrid
         </button>
