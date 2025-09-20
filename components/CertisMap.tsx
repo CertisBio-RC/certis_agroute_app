@@ -1,4 +1,3 @@
-// components/CertisMap.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -8,10 +7,13 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 export interface CertisMapProps {
   selectedCategories: string[];
-  onAddStop?: (stop: string) => void;
+  onAddStop?: (stop: { name: string; lat: number; lng: number }) => void;
 }
 
-export default function CertisMap({ selectedCategories, onAddStop }: CertisMapProps) {
+export default function CertisMap({
+  selectedCategories,
+  onAddStop,
+}: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
@@ -21,61 +23,77 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-93.5, 41.5], // Midwest center
+      center: [-93.5, 41.6],
       zoom: 4,
     });
 
-    // Load retailer markers
-    const loadRetailers = async () => {
+    mapRef.current.on("load", async () => {
       try {
-        const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-        const response = await fetch(`${basePath}/data/retailers.geojson`);
-        if (!response.ok) throw new Error(`Failed to load retailers.geojson: ${response.status}`);
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/retailers.geojson`
+        );
         const geojson = await response.json();
 
-        if (!mapRef.current.getSource("retailers")) {
-          mapRef.current.addSource("retailers", {
+        if (!mapRef.current?.getSource("retailers")) {
+          mapRef.current?.addSource("retailers", {
             type: "geojson",
             data: geojson,
           });
 
-          mapRef.current.addLayer({
-            id: "retailer-points",
+          // Add Kingpin layer (red circles with yellow outline)
+          mapRef.current?.addLayer({
+            id: "kingpin-points",
             type: "circle",
             source: "retailers",
+            filter: ["==", "category", "Kingpin"],
             paint: {
               "circle-radius": 6,
-              "circle-color": "#FF6600",
-              "circle-stroke-width": 1,
-              "circle-stroke-color": "#ffffff",
+              "circle-color": "#ff0000",
+              "circle-stroke-width": 2,
+              "circle-stroke-color": "#ffff00",
             },
           });
 
-          // Click handler for adding stops
-          mapRef.current.on("click", "retailer-points", (e) => {
-            if (!e.features || e.features.length === 0) return;
-            const feature = e.features[0];
-            const name = feature.properties?.name || "Unknown";
-            if (onAddStop) onAddStop(name);
+          // Add general retailer/distributor points
+          mapRef.current?.addLayer({
+            id: "retailer-points",
+            type: "circle",
+            source: "retailers",
+            filter: ["!=", "category", "Kingpin"],
+            paint: {
+              "circle-radius": 5,
+              "circle-color": "#ff7f0e",
+            },
           });
 
-          // Tooltip on hover
-          mapRef.current.on("mouseenter", "retailer-points", () => {
-            mapRef.current.getCanvas().style.cursor = "pointer";
+          // Click handler
+          mapRef.current?.on("click", "retailer-points", (e) => {
+            const feature = e.features?.[0];
+            if (!feature) return;
+
+            const coords = feature.geometry as GeoJSON.Point;
+            const [lng, lat] = coords.coordinates;
+            const name = feature.properties?.name || "Unknown";
+
+            onAddStop?.({ name, lat, lng });
           });
-          mapRef.current.on("mouseleave", "retailer-points", () => {
-            mapRef.current.getCanvas().style.cursor = "";
+
+          mapRef.current?.on("click", "kingpin-points", (e) => {
+            const feature = e.features?.[0];
+            if (!feature) return;
+
+            const coords = feature.geometry as GeoJSON.Point;
+            const [lng, lat] = coords.coordinates;
+            const name = feature.properties?.name || "Unknown (Kingpin)";
+
+            onAddStop?.({ name, lat, lng });
           });
         }
       } catch (err) {
-        console.error("Error loading retailers.geojson:", err);
+        console.error("Failed to load retailers.geojson", err);
       }
-    };
-
-    mapRef.current.on("load", () => {
-      loadRetailers();
     });
   }, [onAddStop]);
 
-  return <div ref={mapContainer} className="w-full h-[600px] rounded-xl shadow-lg" />;
+  return <div ref={mapContainer} className="w-full h-full" />;
 }
