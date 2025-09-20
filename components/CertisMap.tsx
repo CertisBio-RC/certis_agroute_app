@@ -22,7 +22,7 @@ export default function CertisMap({ onAddStop }: CertisMapProps) {
 
     const map = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/streets-v12",
+      style: "mapbox://styles/mapbox/satellite-streets-v12", // default basemap
       center: [-93.5, 41.9],
       zoom: 4.3,
       attributionControl: true,
@@ -57,7 +57,7 @@ export default function CertisMap({ onAddStop }: CertisMapProps) {
             source: SOURCE_ID,
             layout: {
               "icon-image": "certis-logo",
-              "icon-size": 0.08, // adjust size if logo too big/small
+              "icon-size": 0.08, // adjust size to match your logo
               "icon-allow-overlap": true,
               "text-field": ["get", "name"],
               "text-offset": [0, 1.2],
