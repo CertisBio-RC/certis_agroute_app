@@ -2,95 +2,62 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
-import CertisMap from "../components/CertisMap";
+import dynamic from "next/dynamic";
+
+const CertisMap = dynamic(() => import("../components/CertisMap"), { ssr: false });
 
 export default function Page() {
-  const [darkMode, setDarkMode] = useState(true);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    "Kingpin",
-    "Retailer",
-    "Distributor",
-  ]);
-  const [selectedStops, setSelectedStops] = useState<string[]>([]);
+  const [stops, setStops] = useState<string[]>([]);
 
-  const handleCategoryToggle = (category: string) => {
-    if (selectedCategories.includes(category)) {
-      setSelectedCategories(selectedCategories.filter((c) => c !== category));
-    } else {
-      setSelectedCategories([...selectedCategories, category]);
-    }
+  const addStop = (name: string) => {
+    setStops((prev) => (prev.includes(name) ? prev : [...prev, name]));
   };
 
-  const handleAddStop = (stop: string) => {
-    if (!selectedStops.includes(stop)) {
-      setSelectedStops([...selectedStops, stop]);
-    }
-  };
+  const removeStop = (name: string) => setStops((prev) => prev.filter((s) => s !== name));
+  const clearStops = () => setStops([]);
 
   return (
-    <div className={darkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-black"}>
-      {/* Header */}
-      <header className="flex justify-between items-center px-4 py-2 border-b border-gray-700">
-        <div className="flex items-center space-x-2">
-          <Image
-            src="/certis-logo.png"
-            alt="Certis Logo"
-            width={40}
-            height={40}
-            className="object-contain"
-          />
-          <h1 className="text-xl font-bold">Certis AgRoute Planner</h1>
+    <main className="min-h-screen grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 p-4 bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100">
+      {/* Sidebar */}
+      <aside className="space-y-4">
+        <section className="p-4 rounded-2xl shadow bg-white dark:bg-neutral-800">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold">Selected Stops</h2>
+            <button
+              onClick={clearStops}
+              className="text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-600"
+            >
+              Clear
+            </button>
+          </div>
+          {stops.length === 0 ? (
+            <p className="text-sm opacity-70">Click markers on the map to add stops.</p>
+          ) : (
+            <ul className="space-y-2">
+              {stops.map((s) => (
+                <li key={s} className="flex items-center justify-between text-sm">
+                  <span className="truncate pr-2" title={s}>
+                    {s}
+                  </span>
+                  <button
+                    onClick={() => removeStop(s)}
+                    className="text-xs px-2 py-0.5 rounded border border-neutral-300 dark:border-neutral-600"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </aside>
+
+      {/* Map */}
+      <section className="rounded-2xl shadow bg-white dark:bg-neutral-800 p-2">
+        <div className="h-[80vh]">
+          <CertisMap onAddStop={addStop} />
         </div>
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
-        >
-          {darkMode ? "Light" : "Dark"}
-        </button>
-      </header>
-
-      <div className="flex h-[calc(100vh-50px)]">
-        {/* Sidebar */}
-        <aside
-          className={`w-64 p-4 border-r ${
-            darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-          }`}
-        >
-          <h2 className="text-lg font-semibold mb-2">Filter by Category</h2>
-          {["Kingpin", "Retailer", "Distributor"].map((cat) => (
-            <label key={cat} className="flex items-center space-x-2 mb-2">
-              <input
-                type="checkbox"
-                checked={selectedCategories.includes(cat)}
-                onChange={() => handleCategoryToggle(cat)}
-              />
-              <span>{cat}</span>
-            </label>
-          ))}
-
-          <p className="text-sm italic mt-2 text-red-500">
-            Kingpins are always shown in red with yellow outlines.
-          </p>
-
-          <h2 className="text-lg font-semibold mt-4">Selected Stops</h2>
-          <ul className="list-disc list-inside text-sm">
-            {selectedStops.length === 0 ? (
-              <li className="text-gray-400">None yet</li>
-            ) : (
-              selectedStops.map((stop, idx) => <li key={idx}>{stop}</li>)
-            )}
-          </ul>
-        </aside>
-
-        {/* Map */}
-        <main className="flex-1">
-          <CertisMap
-            selectedCategories={selectedCategories}
-            onAddStop={handleAddStop}
-          />
-        </main>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
