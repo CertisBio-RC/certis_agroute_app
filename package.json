@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build && next export",
-    "start": "next start",
-    "deploy": "gh-pages -d out -b gh-pages"
+    "dev": "npx next dev",
+    "build": "npx next build && npx next export",
+    "start": "npx next start",
+    "deploy": "npx gh-pages -d out -b gh-pages"
   },
   "dependencies": {
     "@types/mapbox-gl": "^3.4.1",
