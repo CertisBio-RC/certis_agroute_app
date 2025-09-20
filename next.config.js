@@ -1,19 +1,22 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Produce a static site in /out (replaces "next export" in Next 15)
-  output: "export",
+  // Static export for GH Pages
+  output: 'export',
 
-  // GH Pages doesn't support Next Image Optimization
+  // Required for Next.js images in GH Pages
   images: { unoptimized: true },
 
-  // Your site is under this subpath on GitHub Pages
-  basePath: "/certis_agroute_app",
-  assetPrefix: "/certis_agroute_app/",
-
-  // Safer routing for GH Pages
+  // GitHub Pages subdirectory
+  basePath: '/certis_agroute_app',
+  assetPrefix: '/certis_agroute_app/',
   trailingSlash: true,
 
-  reactStrictMode: true
+  reactStrictMode: true,
+
+  // Make sure this is available on client + server
+  env: {
+    NEXT_PUBLIC_BASE_PATH: '/certis_agroute_app'
+  }
 };
 
 module.exports = nextConfig;
