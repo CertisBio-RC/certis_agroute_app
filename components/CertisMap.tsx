@@ -7,111 +7,100 @@ import mapboxgl from "mapbox-gl";
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 export interface CertisMapProps {
-  selectedCategories: string[];
-  onAddStop?: (stop: string) => void;
+  onAddStop?: (name: string) => void;
 }
 
-export default function CertisMap({ selectedCategories, onAddStop }: CertisMapProps) {
+const SOURCE_ID = "agroute-src";
+const LAYER_ID = "agroute-layer";
+
+export default function CertisMap({ onAddStop }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   useEffect(() => {
     if (mapRef.current) return;
 
-    mapRef.current = new mapboxgl.Map({
+    const map = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-93.5, 41.6], // Midwest
-      zoom: 5,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [-93.5, 41.9],
+      zoom: 4.3,
+      attributionControl: true,
     });
 
-    // Add zoom controls
-    mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    mapRef.current = map;
 
-    // Fetch retailers.geojson
-    mapRef.current.on("load", async () => {
-      try {
-        const res = await fetch("/certis_agroute_app/retailers.geojson");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+    map.on("load", () => {
+      // Load Certis logo image from /public
+      map.loadImage("/certis-logo.png", (error, image) => {
+        if (error) {
+          console.error("Error loading logo image:", error);
+          return;
+        }
+        if (!map.hasImage("certis-logo") && image) {
+          map.addImage("certis-logo", image);
+        }
 
-        // Add as a source
-        mapRef.current!.addSource("retailers", {
-          type: "geojson",
-          data,
-        });
+        // Add source
+        if (!map.getSource(SOURCE_ID)) {
+          map.addSource(SOURCE_ID, {
+            type: "geojson",
+            data: "/data/retailers.geojson",
+          });
+        }
 
-        // Add as a circle layer
-        mapRef.current!.addLayer({
-          id: "retailers-layer",
-          type: "circle",
-          source: "retailers",
-          paint: {
-            "circle-radius": 6,
-            "circle-color": [
-              "match",
-              ["get", "category"],
-              "Kingpin", "red",
-              "Distributor", "blue",
-              "Retailer", "green",
-              "gray" // fallback
-            ],
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "yellow",
-          },
-        });
+        // Add symbol layer with logo icon
+        if (!map.getLayer(LAYER_ID)) {
+          map.addLayer({
+            id: LAYER_ID,
+            type: "symbol",
+            source: SOURCE_ID,
+            layout: {
+              "icon-image": "certis-logo",
+              "icon-size": 0.08, // adjust size if logo too big/small
+              "icon-allow-overlap": true,
+              "text-field": ["get", "name"],
+              "text-offset": [0, 1.2],
+              "text-anchor": "top",
+              "text-size": 10,
+            },
+            paint: {
+              "text-color": "#111827",
+              "text-halo-color": "#ffffff",
+              "text-halo-width": 1,
+            },
+          });
+        }
 
-        // Popup on click
-        mapRef.current!.on("click", "retailers-layer", (e) => {
-          const feature = e.features?.[0];
-          if (!feature) return;
+        // Click handler → add stop + zoom
+        map.on("click", LAYER_ID, (e) => {
+          const feat = e.features && e.features[0];
+          const name = (feat?.properties as any)?.name as string | undefined;
+          if (name && onAddStop) onAddStop(name);
 
-          const coords = feature.geometry?.type === "Point"
-            ? feature.geometry.coordinates.slice()
-            : null;
-          const name = feature.properties?.name || "Unknown";
-
-          if (coords) {
-            new mapboxgl.Popup()
-              .setLngLat(coords as [number, number])
-              .setHTML(`<strong>${name}</strong><br/>${feature.properties?.category || ""}`)
-              .addTo(mapRef.current!);
-
-            if (onAddStop) onAddStop(name);
+          if (feat?.geometry?.type === "Point") {
+            const [lng, lat] = (feat.geometry as any).coordinates;
+            map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 7) });
           }
         });
 
-        // Change cursor
-        mapRef.current!.on("mouseenter", "retailers-layer", () => {
-          mapRef.current!.getCanvas().style.cursor = "pointer";
+        // Change cursor on hover
+        map.on("mouseenter", LAYER_ID, () => {
+          map.getCanvas().style.cursor = "pointer";
         });
-        mapRef.current!.on("mouseleave", "retailers-layer", () => {
-          mapRef.current!.getCanvas().style.cursor = "";
+        map.on("mouseleave", LAYER_ID, () => {
+          map.getCanvas().style.cursor = "";
         });
-      } catch (err) {
-        console.error("Failed to load retailers.geojson:", err);
-      }
+      });
     });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
   }, [onAddStop]);
 
-  // React to filters
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    if (mapRef.current.getLayer("retailers-layer")) {
-      if (selectedCategories.length === 0) {
-        // Show all
-        mapRef.current.setFilter("retailers-layer", null);
-      } else {
-        // Filter by category property
-        mapRef.current.setFilter("retailers-layer", [
-          "in",
-          ["get", "category"],
-          ["literal", selectedCategories],
-        ]);
-      }
-    }
-  }, [selectedCategories]);
-
-  return <div ref={mapContainer} className="w-full h-full" />;
+  return (
+    <div ref={mapContainer} className="h-full w-full rounded-2xl overflow-hidden" />
+  );
 }
