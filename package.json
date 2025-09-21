@@ -4,12 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    // Local (PowerShell + portable Node)
     "dev:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next dev",
     "build:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next build",
     "start:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next start",
-
-    // CI (GitHub Actions)
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
