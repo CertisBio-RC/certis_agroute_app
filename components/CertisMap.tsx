@@ -17,6 +17,7 @@ export interface CertisMapProps {
 export default function CertisMap({ selectedCategories, onAddStop }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -27,28 +28,43 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
       center: [-93.5, 41.6], // Default Midwest center
       zoom: 5,
     });
+  }, []);
 
-    // Load retailers.geojson from basePath
+  // Reload markers whenever categories change
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Clear existing markers
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+
     const loadRetailers = async () => {
       try {
         const res = await fetch(`${basePath}/retailers.geojson`);
         if (!res.ok) throw new Error("Failed to load retailers.geojson");
         const data = await res.json();
 
-        // Add points to the map
         for (const feature of data.features) {
           const { coordinates } = feature.geometry;
-          const { name } = feature.properties;
+          const { name, category } = feature.properties;
 
-          const marker = new mapboxgl.Marker()
-            .setLngLat(coordinates)
-            .setPopup(new mapboxgl.Popup().setText(name))
-            .addTo(mapRef.current!);
+          // Only add if category is selected (or if no filters are chosen, show all)
+          if (
+            selectedCategories.length === 0 ||
+            selectedCategories.includes(category)
+          ) {
+            const marker = new mapboxgl.Marker()
+              .setLngLat(coordinates)
+              .setPopup(new mapboxgl.Popup().setText(name))
+              .addTo(mapRef.current!);
 
-          if (onAddStop) {
-            marker.getElement().addEventListener("click", () => {
-              onAddStop(name);
-            });
+            markersRef.current.push(marker);
+
+            if (onAddStop) {
+              marker.getElement().addEventListener("click", () => {
+                onAddStop(name);
+              });
+            }
           }
         }
       } catch (err) {
@@ -61,7 +77,7 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
 
   return (
     <div className="w-full h-[600px] relative">
-      {/* Header with logo */}
+      {/* Header overlay with logo */}
       <div className="absolute top-2 left-2 z-10 bg-white rounded shadow p-2 flex items-center space-x-2">
         <img
           src={`${basePath}/certis-logo.png`}
