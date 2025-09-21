@@ -4,9 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next dev",
-    "build": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next build",
-    "start": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next start"
+    // Local (PowerShell + portable Node)
+    "dev:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next dev",
+    "build:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next build",
+    "start:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next start",
+
+    // CI (GitHub Actions)
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "ci:deploy": "gh-pages -d out -b gh-pages"
   },
   "dependencies": {
     "@types/mapbox-gl": "^3.4.1",
@@ -23,6 +30,7 @@
     "autoprefixer": "10.4.20",
     "postcss": "8.4.49",
     "tailwindcss": "3.4.13",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "gh-pages": "^6.1.1"
   }
 }
