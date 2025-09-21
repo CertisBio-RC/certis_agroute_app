@@ -1,65 +1,49 @@
 "use client";
 
-import { useState } from "react";
-import CertisMap, { Stop } from "../components/CertisMap";
+import Image from "next/image";
+import CertisMap from "../components/CertisMap";
 
-export default function HomePage() {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [stops, setStops] = useState<Stop[]>([]);
-
-  const addStop = (stop: Stop) => {
-    setStops((prev) => [...prev, stop]);
-  };
-
+export default function Page() {
   return (
-    <main className="flex flex-col h-screen">
-      <header className="p-4 bg-green-700 text-white text-xl font-bold">
-        Certis AgRoute Planner
+    <main className="min-h-screen bg-gray-50">
+      {/* Header with Certis logo */}
+      <header className="p-4 border-b bg-white shadow-sm">
+        <a
+          href="https://www.certisbio.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Image
+            src="/certis-logo.png"
+            alt="Certis Biologicals Logo"
+            width={180}
+            height={40}
+            priority
+          />
+        </a>
       </header>
 
-      <section className="flex flex-1">
-        <div className="w-2/3">
-          <CertisMap
-            selectedCategories={selectedCategories}
-            onAddStop={addStop}
-          />
-        </div>
-
-        <aside className="w-1/3 p-4 bg-gray-50 border-l overflow-y-auto">
-          <h2 className="text-lg font-semibold mb-2">Stops</h2>
-          {stops.length === 0 && (
-            <p className="text-sm text-gray-600">Click a marker on the map to add a stop.</p>
-          )}
-          <ul className="space-y-3">
-            {stops.map((stop, idx) => (
-              <li key={idx} className="border p-2 rounded bg-white shadow-sm">
-                <div className="font-bold">{stop.name}</div>
-                <div className="text-xs text-gray-600">
-                  {stop.lat.toFixed(4)}, {stop.lng.toFixed(4)}
-                </div>
-                <div className="flex gap-2 mt-1">
-                  <a
-                    href={`https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 underline text-xs"
-                  >
-                    Google Maps
-                  </a>
-                  <a
-                    href={`http://maps.apple.com/?daddr=${stop.lat},${stop.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 underline text-xs"
-                  >
-                    Apple Maps
-                  </a>
-                </div>
-              </li>
+      {/* Two-column layout */}
+      <div className="grid grid-cols-1 md:grid-cols-2 min-h-screen">
+        {/* Left: Sidebar with 5 placeholder cards */}
+        <aside className="p-4 bg-gray-100 overflow-y-auto">
+          <div className="space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="bg-white rounded-xl shadow p-6 min-h-[100px] flex items-center justify-center text-gray-500"
+              >
+                Placeholder Card {i + 1}
+              </div>
             ))}
-          </ul>
+          </div>
         </aside>
-      </section>
+
+        {/* Right: Map */}
+        <div className="h-[100vh]">
+          <CertisMap />
+        </div>
+      </div>
     </main>
   );
 }
