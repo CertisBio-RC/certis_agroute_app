@@ -5,31 +5,27 @@ import mapboxgl from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-export interface CertisMapProps {
+interface CertisMapProps {
   selectedCategories: string[];
   selectedSuppliers: string[];
 }
 
-export default function CertisMap({
-  selectedCategories,
-  selectedSuppliers,
-}: CertisMapProps) {
+export default function CertisMap({ selectedCategories, selectedSuppliers }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   useEffect(() => {
-    if (!mapContainer.current || mapRef.current) return;
+    if (mapRef.current) return;
 
-    // Initialize Mapbox map
     mapRef.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center: [-93.5, 41.5], // Midwest-centered
-      zoom: 4.5,
-      projection: "mercator", // Force Mercator
+      container: mapContainer.current as HTMLElement,
+      style: "mapbox://styles/mapbox/satellite-streets-v12", // Hybrid default
+      projection: { name: "mercator" },
+      center: [-93.5, 41.7], // Midwest default
+      zoom: 4,
     });
 
-    // Load retailers.geojson from /public
+    // Load GeoJSON waypoints
     fetch("/retailers.geojson")
       .then((res) => res.json())
       .then((data) => {
@@ -38,7 +34,7 @@ export default function CertisMap({
         mapRef.current.on("load", () => {
           if (!mapRef.current) return;
 
-          // Add GeoJSON source
+          // Add source
           if (!mapRef.current.getSource("retailers")) {
             mapRef.current.addSource("retailers", {
               type: "geojson",
@@ -46,38 +42,32 @@ export default function CertisMap({
             });
           }
 
-          // Add circle layer for waypoints
-          if (!mapRef.current.getLayer("retailers-layer")) {
+          // Add circle layer
+          if (!mapRef.current.getLayer("retailer-points")) {
             mapRef.current.addLayer({
-              id: "retailers-layer",
+              id: "retailer-points",
               type: "circle",
               source: "retailers",
               paint: {
-                "circle-radius": 6,
+                "circle-radius": 5,
                 "circle-color": "#007cbf",
                 "circle-stroke-width": 1,
-                "circle-stroke-color": "#ffffff",
+                "circle-stroke-color": "#fff",
               },
             });
           }
 
-          // Fit map to all points
+          // Fit map to bounds
           const bounds = new mapboxgl.LngLatBounds();
-          for (const feature of data.features) {
-            if (feature.geometry.type === "Point") {
-              bounds.extend(feature.geometry.coordinates as [number, number]);
-            }
-          }
+          data.features.forEach((f: any) => {
+            bounds.extend(f.geometry.coordinates);
+          });
           if (!bounds.isEmpty()) {
-            mapRef.current.fitBounds(bounds, { padding: 40 });
+            mapRef.current.fitBounds(bounds, { padding: 50 });
           }
         });
-      })
-      .catch((err) => console.error("Error loading retailers.geojson:", err));
+      });
   }, []);
 
-  // Later: apply filters with selectedCategories & selectedSuppliers
-  // For now, just ensure baseline map + points render.
-
-  return <div ref={mapContainer} className="map" />;
+  return <div ref={mapContainer} className="w-full h-full" />;
 }
