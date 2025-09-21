@@ -1,73 +1,48 @@
 "use client";
 
 import { useState } from "react";
-import CertisMap from "../components/CertisMap";
+import CertisMap, { Stop } from "../components/CertisMap";
 
-export default function Page() {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    "Kingpin",
-    "Retailer",
-    "Distributor",
-  ]);
-  const [stops, setStops] = useState<
-    { name: string; lat: number; lng: number }[]
-  >([]);
+export default function HomePage() {
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [stops, setStops] = useState<Stop[]>([]);
 
-  const addStop = (stop: { name: string; lat: number; lng: number }) => {
+  const addStop = (stop: Stop) => {
     setStops((prev) => [...prev, stop]);
   };
 
   return (
-    <main className="min-h-screen bg-neutral-100 dark:bg-neutral-900 p-4">
-      <header className="flex items-center space-x-4 mb-4">
-        {/* Certis Logo */}
-        <a
-          href="https://www.certisbio.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img
-            src="/certis-logo.png"
-            alt="Certis Logo"
-            className="h-12 w-auto"
-          />
-        </a>
-        <h1 className="text-3xl font-bold text-black dark:text-white">
-          Certis AgRoute Planner
-        </h1>
+    <main className="flex flex-col h-screen">
+      <header className="p-4 bg-green-700 text-white text-xl font-bold">
+        Certis AgRoute Planner
       </header>
 
-      <section className="rounded-2xl shadow bg-white dark:bg-neutral-800 p-2">
-        <div className="h-[70vh]">
+      <section className="flex flex-1">
+        <div className="w-2/3">
           <CertisMap
             selectedCategories={selectedCategories}
             onAddStop={addStop}
           />
         </div>
-      </section>
 
-      <section className="mt-6">
-        <h2 className="text-xl font-bold text-black dark:text-white mb-2">
-          Trip Stops
-        </h2>
-        {stops.length === 0 ? (
-          <p className="text-neutral-600 dark:text-neutral-400">
-            Click a location on the map to add it here.
-          </p>
-        ) : (
-          <ul className="space-y-2">
+        <aside className="w-1/3 p-4 bg-gray-50 border-l overflow-y-auto">
+          <h2 className="text-lg font-semibold mb-2">Stops</h2>
+          {stops.length === 0 && (
+            <p className="text-sm text-gray-600">Click a marker on the map to add a stop.</p>
+          )}
+          <ul className="space-y-3">
             {stops.map((stop, idx) => (
-              <li
-                key={idx}
-                className="flex items-center justify-between rounded bg-neutral-200 dark:bg-neutral-700 p-2"
-              >
-                <span className="text-black dark:text-white">{stop.name}</span>
-                <div className="space-x-2">
+              <li key={idx} className="border p-2 rounded bg-white shadow-sm">
+                <div className="font-bold">{stop.name}</div>
+                <div className="text-xs text-gray-600">
+                  {stop.lat.toFixed(4)}, {stop.lng.toFixed(4)}
+                </div>
+                <div className="flex gap-2 mt-1">
                   <a
                     href={`https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-500 underline"
+                    className="text-blue-600 underline text-xs"
                   >
                     Google Maps
                   </a>
@@ -75,7 +50,7 @@ export default function Page() {
                     href={`http://maps.apple.com/?daddr=${stop.lat},${stop.lng}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-500 underline"
+                    className="text-blue-600 underline text-xs"
                   >
                     Apple Maps
                   </a>
@@ -83,7 +58,7 @@ export default function Page() {
               </li>
             ))}
           </ul>
-        )}
+        </aside>
       </section>
     </main>
   );
