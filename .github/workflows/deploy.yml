@@ -1,21 +1,20 @@
-﻿name: Deploy to GitHub Pages
+﻿name: Deploy Certis AgRoute Planner
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: write
+    branches:
+      - main
 
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
           node-version: 20
 
@@ -23,9 +22,14 @@ jobs:
         run: npm ci
 
       - name: Build static site
-        run: npm run build
+        run: |
+          npm run build
+          echo "{" > out/build-info.json
+          echo "  \"commit\": \"${GITHUB_SHA}\"," >> out/build-info.json
+          echo "  \"date\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"" >> out/build-info.json
+          echo "}" >> out/build-info.json
 
-      - name: List build output   # 🔍 Debug step
+      - name: Debug out folder
         run: ls -R ./out
 
       - name: Deploy to GitHub Pages
