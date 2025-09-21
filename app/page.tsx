@@ -1,61 +1,80 @@
-// app/page.tsx
 "use client";
 
 import { useState } from "react";
 import CertisMap from "@/components/CertisMap";
 
-export default function Page() {
-  // State to hold selected categories
+export default function HomePage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
 
-  // Example categories (replace with real ones from your dataset if needed)
-  const categories = [
-    "Corn",
-    "Soybeans",
-    "Wheat",
-    "Retailer",
-    "Supplier",
-  ];
-
-  // Toggle selection
-  const handleCategoryChange = (category: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(category)
-        ? prev.filter((c) => c !== category)
-        : [...prev, category]
+  const toggleValue = (value: string, current: string[], setter: (val: string[]) => void) => {
+    setter(
+      current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value]
     );
   };
 
   return (
-    <main className="flex min-h-screen bg-gray-100">
-      {/* Sidebar Filters */}
-      <div className="w-80 bg-white shadow-md p-4 overflow-y-auto">
-        <h2 className="font-bold text-lg mb-4">Filters</h2>
-        <p className="text-sm text-gray-600 mb-4">
-          Select categories to display on the map.
-        </p>
+    <main className="flex h-screen">
+      {/* Sidebar */}
+      <aside className="w-64 bg-gray-100 dark:bg-gray-900 border-r overflow-y-auto p-4">
+        <h1 className="text-xl font-bold mb-4">Filters</h1>
 
-        <form className="space-y-2">
-          {categories.map((category) => (
-            <label
-              key={category}
-              className="flex items-center space-x-2 cursor-pointer"
-            >
+        {/* Category Filter */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">Category</h2>
+          {["Agronomy", "Grain", "Agronomy/Grain", "Office/Service", "Kingpin"].map((cat) => (
+            <label key={cat} className="flex items-center space-x-2 mb-1">
               <input
                 type="checkbox"
-                checked={selectedCategories.includes(category)}
-                onChange={() => handleCategoryChange(category)}
-                className="h-4 w-4 text-blue-600"
+                checked={selectedCategories.includes(cat)}
+                onChange={() => toggleValue(cat, selectedCategories, setSelectedCategories)}
               />
-              <span className="text-gray-800">{category}</span>
+              <span>{cat}</span>
             </label>
           ))}
-        </form>
-      </div>
+        </div>
 
-      {/* Map Section */}
-      <div className="flex-1 h-screen">
-        <CertisMap selectedCategories={selectedCategories} />
+        {/* State Filter */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">State</h2>
+          {["IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI"].map((state) => (
+            <label key={state} className="flex items-center space-x-2 mb-1">
+              <input
+                type="checkbox"
+                checked={selectedStates.includes(state)}
+                onChange={() => toggleValue(state, selectedStates, setSelectedStates)}
+              />
+              <span>{state}</span>
+            </label>
+          ))}
+        </div>
+
+        {/* Supplier Filter */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">Supplier</h2>
+          {["Growmark", "CHS", "Helena", "Nutrien", "Winfield", "Certis"].map((sup) => (
+            <label key={sup} className="flex items-center space-x-2 mb-1">
+              <input
+                type="checkbox"
+                checked={selectedSuppliers.includes(sup)}
+                onChange={() => toggleValue(sup, selectedSuppliers, setSelectedSuppliers)}
+              />
+              <span>{sup}</span>
+            </label>
+          ))}
+        </div>
+      </aside>
+
+      {/* Map */}
+      <div className="flex-1">
+        <CertisMap
+          selectedCategories={selectedCategories}
+          selectedStates={selectedStates}
+          selectedSuppliers={selectedSuppliers}
+        />
       </div>
     </main>
   );
