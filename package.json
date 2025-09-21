@@ -7,6 +7,8 @@
     "dev:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next dev",
     "build:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next build",
     "start:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next start",
+    "deploy:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages",
+
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
