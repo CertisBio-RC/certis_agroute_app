@@ -86,7 +86,9 @@ main {
 
 .sidebar .logo img {
   width: 150px;
+  max-width: 150px;   /* 🔒 Prevent expansion */
   height: auto;
+  object-fit: contain; /* keep aspect ratio */
 }
 
 /* Buttons */

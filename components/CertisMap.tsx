@@ -10,16 +10,26 @@ export default function CertisMap() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   useEffect(() => {
-    if (mapRef.current) return;
+    if (mapRef.current || !mapContainer.current) return;
 
+    // ✅ Initialize map with stable Mercator hybrid baseline
     mapRef.current = new mapboxgl.Map({
-      container: mapContainer.current as HTMLElement,
+      container: mapContainer.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12", // hybrid default
       center: [-98.5795, 39.8283], // USA center
       zoom: 4,
-      projection: "mercator",
+      projection: { name: "mercator" }, // ✅ explicit object format
     });
+
+    // ✅ Add basic navigation controls
+    mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+    // Cleanup on unmount
+    return () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
   }, []);
 
-  return <div ref={mapContainer} className="w-full h-full" />;
+  return <div ref={mapContainer} className="map-container" />;
 }
