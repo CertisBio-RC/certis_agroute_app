@@ -4,228 +4,173 @@ import { useState } from "react";
 import CertisMap from "@/components/CertisMap";
 
 export default function HomePage() {
-  // ✅ Sidebar state
-  const [homeZip, setHomeZip] = useState("");
+  // Sidebar state
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [retailerSearch, setRetailerSearch] = useState("");
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [searchRetailer, setSearchRetailer] = useState("");
+  const [homeZip, setHomeZip] = useState("");
   const [tripStops, setTripStops] = useState<string[]>([]);
 
-  // ✅ Toggle helpers
-  const toggleSelection = (
-    value: string,
-    setFn: React.Dispatch<React.SetStateAction<string[]>>,
-    state: string[]
-  ) => {
-    setFn(
-      state.includes(value)
-        ? state.filter((v) => v !== value)
-        : [...state, value]
-    );
-  };
-
-  // ✅ Clear all filters
+  // Clear all filters
   const clearAll = () => {
-    setHomeZip("");
     setSelectedStates([]);
     setSelectedCategories([]);
-    setRetailerSearch("");
     setSelectedSuppliers([]);
+    setSearchRetailer("");
+    setHomeZip("");
     setTripStops([]);
   };
 
-  // ✅ Trip logic
-  const optimizeTrip = () => {
-    alert("🚧 Trip optimization logic coming soon...");
-  };
-
-  const sendToGoogleMaps = () => {
-    alert("🚧 Google Maps export coming soon...");
-  };
-
-  const sendToAppleMaps = () => {
-    alert("🚧 Apple Maps export coming soon...");
-  };
-
-  // ✅ Handle waypoint add from map
+  // Add stop from map click
   const handleAddStop = (stop: string) => {
-    setTripStops((prev) =>
-      prev.includes(stop) ? prev : [...prev, stop]
-    );
+    if (!tripStops.includes(stop)) {
+      setTripStops([...tripStops, stop]);
+    }
   };
+
+  // Dummy arrays (TODO: load dynamically if needed)
+  const allStates = ["IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI"];
+  const allCategories = ["Agronomy", "Grain", "Agronomy/Grain", "Office/Service", "Kingpin"];
+  const allSuppliers = ["Certis", "CHS", "Helena", "Nutrien", "Winfield"]; // example
 
   return (
     <main className="flex h-screen">
       {/* Sidebar */}
-      <aside className="w-96 bg-gray-50 dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 p-4 overflow-y-auto space-y-6">
-        {/* 1. Header Card */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex flex-col items-center">
+      <aside className="sidebar">
+        
+        {/* Card 1: Logo + Title + Clear All */}
+        <div className="card flex flex-col items-center text-center">
           <a
-            href="https://www.certisbio.com/"
+            href="https://www.certisbio.com"
             target="_blank"
             rel="noopener noreferrer"
           >
             <img
               src="./certis-logo.png"
-              alt="Certis Biologicals"
-              className="h-12 w-auto mb-2"
+              alt="Certis Logo"
+              className="logo"
             />
           </a>
-          <h1 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-100">
-            Certis AgRoute Planner
-          </h1>
+          <h1 className="text-lg font-bold mt-2">Certis AgRoute Planner</h1>
           <button
             onClick={clearAll}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+            className="mt-2 bg-red-600 text-white text-sm px-3 py-1 rounded hover:bg-red-700"
           >
-            Clear All Filters
+            Clear All
           </button>
         </div>
 
-        {/* 2. Home ZIP Code */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-md font-semibold mb-2 text-gray-700 dark:text-gray-200">
-            Home ZIP Code
-          </h2>
+        {/* Card 2: Home Zip Code */}
+        <div className="card">
+          <label className="block text-sm font-medium mb-1">Home Zip Code</label>
           <input
             type="text"
             value={homeZip}
             onChange={(e) => setHomeZip(e.target.value)}
+            className="w-full p-2 border rounded"
             placeholder="Enter ZIP"
-            className="w-full p-2 border rounded-md text-gray-800"
           />
         </div>
 
-        {/* 3. State Filter */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-md font-semibold mb-3 text-gray-700 dark:text-gray-200">
-            State
-          </h2>
-          {["IA", "IL", "IN", "MI", "MN", "NE", "ND", "OH", "SD"].map((state) => (
-            <label
-              key={state}
-              className="block mb-2 text-sm text-gray-700 dark:text-gray-300"
-            >
-              <input
-                type="checkbox"
-                checked={selectedStates.includes(state)}
-                onChange={() =>
-                  toggleSelection(state, setSelectedStates, selectedStates)
-                }
-                className="mr-2 accent-purple-600"
-              />
-              {state}
-            </label>
-          ))}
+        {/* Card 3: State Filter */}
+        <div className="card">
+          <label className="block text-sm font-medium mb-1">Filter by State</label>
+          <select
+            multiple
+            value={selectedStates}
+            onChange={(e) =>
+              setSelectedStates(Array.from(e.target.selectedOptions, (o) => o.value))
+            }
+            className="w-full p-2 border rounded"
+          >
+            {allStates.map((state) => (
+              <option key={state} value={state}>
+                {state}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* 4. Category Filter */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-md font-semibold mb-3 text-gray-700 dark:text-gray-200">
-            Category
-          </h2>
-          {["Agronomy", "Grain", "Agronomy/Grain", "Office/Service", "Kingpin"].map(
-            (category) => (
-              <label
-                key={category}
-                className="block mb-2 text-sm text-gray-700 dark:text-gray-300"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedCategories.includes(category)}
-                  onChange={() =>
-                    toggleSelection(category, setSelectedCategories, selectedCategories)
-                  }
-                  className="mr-2 accent-blue-600"
-                />
-                {category}
-              </label>
-            )
-          )}
+        {/* Card 4: Category Filter */}
+        <div className="card">
+          <label className="block text-sm font-medium mb-1">Filter by Category</label>
+          <select
+            multiple
+            value={selectedCategories}
+            onChange={(e) =>
+              setSelectedCategories(Array.from(e.target.selectedOptions, (o) => o.value))
+            }
+            className="w-full p-2 border rounded"
+          >
+            {allCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* 5. Retailer Name Filter */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-md font-semibold mb-2 text-gray-700 dark:text-gray-200">
-            Retailer Name
-          </h2>
+        {/* Card 5: Retailer Name Search */}
+        <div className="card">
+          <label className="block text-sm font-medium mb-1">Search Retailer</label>
           <input
             type="text"
-            value={retailerSearch}
-            onChange={(e) => setRetailerSearch(e.target.value)}
-            placeholder="Search by retailer"
-            className="w-full p-2 border rounded-md text-gray-800"
+            value={searchRetailer}
+            onChange={(e) => setSearchRetailer(e.target.value)}
+            className="w-full p-2 border rounded"
+            placeholder="Enter retailer name"
           />
         </div>
 
-        {/* 6. Supplier Filter */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-md font-semibold mb-3 text-gray-700 dark:text-gray-200">
-            Supplier
-          </h2>
-          {["Certis", "CHS", "Helena", "Nutrien", "Winfield"].map((supplier) => (
-            <label
-              key={supplier}
-              className="block mb-2 text-sm text-gray-700 dark:text-gray-300"
-            >
-              <input
-                type="checkbox"
-                checked={selectedSuppliers.includes(supplier)}
-                onChange={() =>
-                  toggleSelection(supplier, setSelectedSuppliers, selectedSuppliers)
-                }
-                className="mr-2 accent-green-600"
-              />
-              {supplier}
-            </label>
-          ))}
+        {/* Card 6: Supplier Filter */}
+        <div className="card">
+          <label className="block text-sm font-medium mb-1">Filter by Supplier</label>
+          <select
+            multiple
+            value={selectedSuppliers}
+            onChange={(e) =>
+              setSelectedSuppliers(Array.from(e.target.selectedOptions, (o) => o.value))
+            }
+            className="w-full p-2 border rounded"
+          >
+            {allSuppliers.map((sup) => (
+              <option key={sup} value={sup}>
+                {sup}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* 7. Trip Builder */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-md font-semibold mb-3 text-gray-700 dark:text-gray-200">
-            Trip Builder
-          </h2>
-          <ul className="mb-3 list-disc list-inside text-sm text-gray-700 dark:text-gray-300">
-            {tripStops.length === 0 && <li>No stops selected yet</li>}
+        {/* Card 7: Trip Stops */}
+        <div className="card">
+          <h2 className="font-semibold mb-2">Trip Stops</h2>
+          <ul className="text-sm mb-2">
             {tripStops.map((stop, idx) => (
               <li key={idx}>{stop}</li>
             ))}
           </ul>
-          <div className="space-y-2">
+          {tripStops.length > 0 && (
             <button
-              onClick={optimizeTrip}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="bg-blue-600 text-white text-sm px-3 py-1 rounded hover:bg-blue-700"
+              onClick={() => alert("TODO: Optimize route and export to Maps")}
             >
-              Optimize Trip
+              Optimize & Export Route
             </button>
-            <button
-              onClick={sendToGoogleMaps}
-              className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-            >
-              Send to Google Maps
-            </button>
-            <button
-              onClick={sendToAppleMaps}
-              className="w-full px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800"
-            >
-              Send to Apple Maps
-            </button>
-          </div>
+          )}
         </div>
       </aside>
 
       {/* Map */}
-      <div className="flex-1">
+      <section className="map-section">
         <CertisMap
+          selectedStates={selectedStates}
           selectedCategories={selectedCategories}
           selectedSuppliers={selectedSuppliers}
-          selectedStates={selectedStates}
-          retailerSearch={retailerSearch}
+          searchRetailer={searchRetailer}
           onAddStop={handleAddStop}
         />
-      </div>
+      </section>
     </main>
   );
 }

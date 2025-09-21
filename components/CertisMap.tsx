@@ -6,18 +6,18 @@ import mapboxgl from "mapbox-gl";
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 export interface CertisMapProps {
+  selectedStates: string[];
   selectedCategories: string[];
   selectedSuppliers: string[];
-  selectedStates: string[];
-  retailerSearch: string;
+  searchRetailer: string;
   onAddStop?: (stop: string) => void;
 }
 
 export default function CertisMap({
+  selectedStates,
   selectedCategories,
   selectedSuppliers,
-  selectedStates,
-  retailerSearch,
+  searchRetailer,
   onAddStop,
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
@@ -26,166 +26,106 @@ export default function CertisMap({
   useEffect(() => {
     if (mapRef.current) return;
 
-    const map = new mapboxgl.Map({
+    mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-93.5, 41.9],
-      zoom: 5,
+      center: [-93.5, 41.7], // Midwest-ish center
+      zoom: 4,
       projection: { name: "mercator" },
     });
 
-    mapRef.current = map;
+    const map = mapRef.current;
 
     map.on("load", async () => {
-      try {
-        const response = await fetch("./data/retailers.geojson");
-        const data = await response.json();
+      const response = await fetch("./retailers.geojson");
+      const geojson = await response.json();
 
-        map.addSource("retailers", {
-          type: "geojson",
-          data,
-        });
+      map.addSource("retailers", {
+        type: "geojson",
+        data: geojson,
+      });
 
-        // ✅ Circle markers styled
-        map.addLayer({
-          id: "retailers-layer",
-          type: "circle",
-          source: "retailers",
-          paint: {
-            "circle-radius": [
-              "case",
-              ["==", ["get", "category"], "Kingpin"],
-              10,
-              6,
-            ],
-            "circle-color": [
-              "case",
-              ["==", ["get", "category"], "Kingpin"],
-              "#FF0000",
-              ["==", ["get", "category"], "Agronomy"],
-              "#1f77b4",
-              ["==", ["get", "category"], "Grain"],
-              "#2ca02c",
-              ["==", ["get", "category"], "Agronomy/Grain"],
-              "#9467bd",
-              ["==", ["get", "category"], "Office/Service"],
-              "#ff7f0e",
-              "#7f7f7f",
-            ],
-            "circle-stroke-width": [
-              "case",
-              ["==", ["get", "category"], "Kingpin"],
-              2,
-              1,
-            ],
-            "circle-stroke-color": [
-              "case",
-              ["==", ["get", "category"], "Kingpin"],
-              "#FFFF00",
-              "#FFFFFF",
-            ],
-          },
-        });
+      map.addLayer({
+        id: "retailer-points",
+        type: "circle",
+        source: "retailers",
+        paint: {
+          "circle-radius": [
+            "case",
+            ["==", ["get", "category"], "Kingpin"],
+            8,
+            6,
+          ],
+          "circle-color": [
+            "match",
+            ["get", "category"],
+            "Agronomy",
+            "#1b9e77",
+            "Grain",
+            "#4575b4",
+            "Agronomy/Grain",
+            "#66c2a5",
+            "Office/Service",
+            "#636363",
+            "Kingpin",
+            "#e31a1c",
+            "#252525",
+          ],
+          "circle-stroke-color": [
+            "case",
+            ["==", ["get", "category"], "Kingpin"],
+            "#ffff00",
+            "#ffffff",
+          ],
+          "circle-stroke-width": 2,
+        },
+      });
 
-        // ✅ Popup + add stop on click
-        map.on("click", "retailers-layer", (e) => {
-          const feature = e.features?.[0];
-          if (!feature) return;
-
-          const { name, category, address, supplier, state } =
-            feature.properties as any;
-
-          new mapboxgl.Popup()
-            .setLngLat(e.lngLat)
-            .setHTML(
-              `<div style="font-size:14px;">
-                <strong>${name}</strong><br/>
-                ${category}<br/>
-                ${supplier || ""}<br/>
-                ${state || ""}<br/>
-                ${address || ""}
-              </div>`
-            )
-            .addTo(map);
-
-          if (onAddStop && name) {
-            onAddStop(name);
-          }
-        });
-
-        // ✅ Fit map to bounds
-        const bounds = new mapboxgl.LngLatBounds();
-        data.features.forEach((f: any) => {
-          if (f.geometry?.coordinates) {
-            bounds.extend(f.geometry.coordinates as [number, number]);
-          }
-        });
-        if (!bounds.isEmpty()) {
-          map.fitBounds(bounds, { padding: 50, animate: true });
+      // Click → add stop
+      map.on("click", "retailer-points", (e) => {
+        if (!e.features || !e.features.length) return;
+        const feature = e.features[0];
+        const { longName, city, state } = feature.properties as {
+          longName: string;
+          city: string;
+          state: string;
+        };
+        if (onAddStop) {
+          onAddStop(`${longName} (${city}, ${state})`);
         }
-      } catch (err) {
-        console.error("Failed to load retailers.geojson", err);
-      }
+      });
     });
   }, [onAddStop]);
 
-  // ✅ Apply filters when props change
+  // Filtering
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.getSource("retailers")) return;
+    if (!map) return;
 
     const filters: any[] = ["all"];
 
-    // Category filter (Kingpin always shown)
-    if (selectedCategories.length > 0) {
-      filters.push([
-        "any",
-        ["in", ["get", "category"], ["literal", selectedCategories]],
-        ["==", ["get", "category"], "Kingpin"],
-      ]);
-    }
-
-    // Supplier filter
-    if (selectedSuppliers.length > 0) {
-      filters.push(["in", ["get", "supplier"], ["literal", selectedSuppliers]]);
-    }
-
-    // State filter
     if (selectedStates.length > 0) {
       filters.push(["in", ["get", "state"], ["literal", selectedStates]]);
     }
-
-    // Retailer search (case insensitive substring match)
-    if (retailerSearch.trim() !== "") {
+    if (selectedCategories.length > 0) {
+      filters.push(["in", ["get", "category"], ["literal", selectedCategories]]);
+    }
+    if (selectedSuppliers.length > 0) {
+      filters.push(["in", ["get", "supplier"], ["literal", selectedSuppliers]]);
+    }
+    if (searchRetailer) {
       filters.push([
         "in",
-        ["downcase", ["get", "name"]],
-        ["literal", [retailerSearch.toLowerCase()]],
+        searchRetailer.toLowerCase(),
+        ["downcase", ["get", "longName"]],
       ]);
     }
 
-    map.setFilter("retailers-layer", filters);
-  }, [selectedCategories, selectedSuppliers, selectedStates, retailerSearch]);
+    // Kingpin always visible
+    const finalFilter: any = ["any", ["==", ["get", "category"], "Kingpin"], filters];
 
-  return (
-    <div className="relative w-full h-screen flex-1">
-      {/* Certis logo overlay */}
-      <div className="absolute top-2 left-2 z-10 bg-white/80 rounded-lg p-2 shadow-md">
-        <a
-          href="https://www.certisbio.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img
-            src="./certis-logo.png"
-            alt="Certis Biologicals"
-            className="h-10 w-auto"
-          />
-        </a>
-      </div>
+    map.setFilter("retailer-points", finalFilter);
+  }, [selectedStates, selectedCategories, selectedSuppliers, searchRetailer]);
 
-      {/* Map container */}
-      <div ref={mapContainer} className="w-full h-full rounded-lg shadow-md" />
-    </div>
-  );
+  return <div ref={mapContainer} className="map-container" />;
 }

@@ -1,18 +1,53 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* globals.css */
 
-html,
-body {
+/* Reset & base */
+html, body, :root {
   height: 100%;
   margin: 0;
   padding: 0;
 }
 
+/* Layout */
 main {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 300px;
+  background-color: #f3f4f6; /* gray-100 */
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.map-section {
+  flex: 1;
+  position: relative;
   height: 100%;
 }
 
-aside {
-  height: 100vh;
+.card {
+  background: #ffffff;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.logo {
+  width: 150px;
+  height: auto;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.map-container {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100%;
 }
