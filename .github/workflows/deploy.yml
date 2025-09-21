@@ -5,34 +5,30 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-
 jobs:
-  build-and-deploy:
+  build-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: "========== CHECKOUT CODE =========="
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: "========== SETUP NODE =========="
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 22
 
-      - name: Install dependencies
+      - name: "========== INSTALL DEPENDENCIES =========="
         run: npm ci
 
-      - name: Build project
+      - name: "========== BUILD NEXT APP =========="
         run: npm run build
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./out
-          publish_branch: gh-pages
-          user_name: github-actions[bot]
-          user_email: github-actions[bot]@users.noreply.github.com
+      - name: "========== EXPORT STATIC SITE =========="
+        run: npm run export
+
+      - name: "========== DEPLOY TO GH-PAGES =========="
+        run: npx gh-pages -d out -b gh-pages --dotfiles
+
+      - name: "========== DEPLOY COMPLETE =========="
+        run: echo "✅ Deploy finished successfully"
