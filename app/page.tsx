@@ -1,113 +1,106 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import CertisMap from "../components/CertisMap";
-import retailersData from "../public/retailers.geojson";
+import Image from "next/image";
 
 export default function HomePage() {
-  const [retailers, setRetailers] = useState<any[]>([]);
+  // Sidebar state (placeholders for now)
+  const [homeZip, setHomeZip] = useState("");
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedRetailer, setSelectedRetailer] = useState("");
+  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [tripStops, setTripStops] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (retailersData && retailersData.features) {
-      setRetailers(retailersData.features);
-    }
-  }, []);
+  // Clear all filters
+  const clearAll = () => {
+    setHomeZip("");
+    setSelectedState("");
+    setSelectedCategories([]);
+    setSelectedRetailer("");
+    setSelectedSuppliers([]);
+    setTripStops([]);
+  };
 
   return (
-    <main className="flex h-screen">
+    <div className="app-container">
       {/* Sidebar */}
-      <div className="w-80 bg-gray-100 dark:bg-gray-900 p-4 overflow-y-auto flex flex-col space-y-4">
+      <aside className="sidebar">
         {/* Card 1: Logo + Title + Clear All */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 flex flex-col items-center">
+        <div className="sidebar-card sidebar-logo flex flex-col items-center">
           <a
             href="https://www.certisbio.com"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <img
-              src="/ymslogo3.png"
-              alt="Certis Logo"
+            <Image
+              src="/certis-logo.png"
+              alt="Certis Biologicals"
               width={150}
-              height={150}
+              height={60}
               className="mb-2"
             />
           </a>
-          <h1 className="text-lg font-bold text-center">Certis AgRoute Planner</h1>
-          <button className="mt-2 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">
+          <h1 className="text-lg font-bold mb-2">Certis AgRoute Planner</h1>
+          <button className="btn btn-secondary" onClick={clearAll}>
             Clear All
           </button>
         </div>
 
-        {/* Card 2: Home Zip */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
-          <label className="block text-sm font-medium mb-1">Home Zip Code</label>
+        {/* Card 2: Home Zip Code */}
+        <div className="sidebar-card">
+          <h2>Home Zip Code</h2>
           <input
             type="text"
             placeholder="Enter Zip"
-            className="w-full border rounded p-2"
+            value={homeZip}
+            onChange={(e) => setHomeZip(e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-2 py-1"
           />
         </div>
 
-        {/* Card 3: State */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
-          <label className="block text-sm font-medium mb-1">State</label>
-          <select className="w-full border rounded p-2">
-            <option value="">All States</option>
-            {/* TODO: populate unique states dynamically */}
-          </select>
+        {/* Card 3: State Filter */}
+        <div className="sidebar-card">
+          <h2>State</h2>
+          <p className="text-sm text-gray-500">[Filter UI coming soon]</p>
         </div>
 
-        {/* Card 4: Category */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
-          <label className="block text-sm font-medium mb-1">Category</label>
-          <select className="w-full border rounded p-2">
-            <option value="">All Categories</option>
-            <option value="Agronomy">Agronomy</option>
-            <option value="Grain">Grain</option>
-            <option value="Agronomy/Grain">Agronomy/Grain</option>
-            <option value="Office/Service">Office/Service</option>
-            <option value="Kingpin">Kingpin</option>
-          </select>
+        {/* Card 4: Category Filter */}
+        <div className="sidebar-card">
+          <h2>Category</h2>
+          <p className="text-sm text-gray-500">[Filter UI coming soon]</p>
         </div>
 
-        {/* Card 5: Retailer */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
-          <label className="block text-sm font-medium mb-1">Retailer</label>
-          <input
-            type="text"
-            placeholder="Search Retailer"
-            className="w-full border rounded p-2"
-          />
+        {/* Card 5: Retailer Filter */}
+        <div className="sidebar-card">
+          <h2>Retailer</h2>
+          <p className="text-sm text-gray-500">[Filter UI coming soon]</p>
         </div>
 
-        {/* Card 6: Supplier */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
-          <label className="block text-sm font-medium mb-1">Supplier</label>
-          <select className="w-full border rounded p-2">
-            <option value="">All Suppliers</option>
-            {/* TODO: populate dynamically from data */}
-          </select>
+        {/* Card 6: Supplier Filter */}
+        <div className="sidebar-card">
+          <h2>Supplier</h2>
+          <p className="text-sm text-gray-500">[Filter UI coming soon]</p>
         </div>
 
         {/* Card 7: Trip Builder */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 flex flex-col space-y-2">
-          <h2 className="text-sm font-medium">Trip Builder</h2>
-          <div className="text-xs text-gray-500">
-            Waypoints will appear here when selected.
-          </div>
-          <button className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded">
-            Optimize Trip
-          </button>
-          <button className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded">
-            Send to Maps
+        <div className="sidebar-card">
+          <h2>Trip Builder</h2>
+          <p className="text-sm text-gray-500">[Stops will appear here]</p>
+          <button className="btn btn-primary mt-2">
+            Optimize & Export Route
           </button>
         </div>
-      </div>
+      </aside>
 
       {/* Map */}
-      <div className="flex-1">
-        <CertisMap retailers={retailers} />
-      </div>
-    </main>
+      <main className="map-container">
+        <CertisMap
+          selectedCategories={selectedCategories}
+          selectedSuppliers={selectedSuppliers}
+        />
+      </main>
+    </div>
   );
 }

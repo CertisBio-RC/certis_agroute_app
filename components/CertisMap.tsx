@@ -1,4 +1,3 @@
-// components/CertisMap.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -18,65 +17,67 @@ export default function CertisMap({
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
-  // ✅ Load retailers.geojson from /public at runtime
-  async function loadRetailers() {
-    try {
-      const res = await fetch("/retailers.geojson");
-      if (!res.ok) throw new Error("Failed to fetch retailers.geojson");
-      return res.json();
-    } catch (err) {
-      console.error("Error loading retailers.geojson:", err);
-      return { type: "FeatureCollection", features: [] };
-    }
-  }
-
   useEffect(() => {
-    if (mapRef.current) return; // prevent double init
+    if (!mapContainer.current || mapRef.current) return;
 
+    // Initialize Mapbox map
     mapRef.current = new mapboxgl.Map({
-      container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-93.5, 42], // default center (Midwest-ish)
-      zoom: 4,
-      projection: "mercator", // ✅ force Mercator projection
+      container: mapContainer.current,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [-93.5, 41.5], // Midwest-centered
+      zoom: 4.5,
+      projection: "mercator", // Force Mercator
     });
 
-    mapRef.current.on("load", async () => {
-      const data = await loadRetailers();
+    // Load retailers.geojson from /public
+    fetch("/retailers.geojson")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mapRef.current) return;
 
-      if (!mapRef.current) return;
+        mapRef.current.on("load", () => {
+          if (!mapRef.current) return;
 
-      // ✅ Add source
-      mapRef.current.addSource("retailers", {
-        type: "geojson",
-        data,
-      });
+          // Add GeoJSON source
+          if (!mapRef.current.getSource("retailers")) {
+            mapRef.current.addSource("retailers", {
+              type: "geojson",
+              data: data,
+            });
+          }
 
-      // ✅ Add layer for points
-      mapRef.current.addLayer({
-        id: "retailer-points",
-        type: "circle",
-        source: "retailers",
-        paint: {
-          "circle-radius": 6,
-          "circle-color": "#007cbf",
-          "circle-stroke-width": 2,
-          "circle-stroke-color": "#ffffff",
-        },
-      });
+          // Add circle layer for waypoints
+          if (!mapRef.current.getLayer("retailers-layer")) {
+            mapRef.current.addLayer({
+              id: "retailers-layer",
+              type: "circle",
+              source: "retailers",
+              paint: {
+                "circle-radius": 6,
+                "circle-color": "#007cbf",
+                "circle-stroke-width": 1,
+                "circle-stroke-color": "#ffffff",
+              },
+            });
+          }
 
-      // ✅ Fit bounds to all points
-      if (data.features && data.features.length > 0) {
-        const bounds = new mapboxgl.LngLatBounds();
-        data.features.forEach((f: any) => {
-          if (f.geometry?.coordinates) {
-            bounds.extend(f.geometry.coordinates as [number, number]);
+          // Fit map to all points
+          const bounds = new mapboxgl.LngLatBounds();
+          for (const feature of data.features) {
+            if (feature.geometry.type === "Point") {
+              bounds.extend(feature.geometry.coordinates as [number, number]);
+            }
+          }
+          if (!bounds.isEmpty()) {
+            mapRef.current.fitBounds(bounds, { padding: 40 });
           }
         });
-        mapRef.current.fitBounds(bounds, { padding: 50 });
-      }
-    });
+      })
+      .catch((err) => console.error("Error loading retailers.geojson:", err));
   }, []);
 
-  return <div ref={mapContainer} className="w-full h-full" />;
+  // Later: apply filters with selectedCategories & selectedSuppliers
+  // For now, just ensure baseline map + points render.
+
+  return <div ref={mapContainer} className="map" />;
 }
