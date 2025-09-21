@@ -10,18 +10,54 @@ export default function CertisMap() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   useEffect(() => {
-    if (mapRef.current) return;
+    if (mapRef.current) return; // prevent reinit
 
-    mapRef.current = new mapboxgl.Map({
+    const map = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12", // hybrid (satellite + streets)
-      center: [-93.5, 41.6], // Midwest default
+      style: "mapbox://styles/mapbox/satellite-streets-v12", // hybrid
+      center: [-93.5, 41.5], // Midwest-ish
       zoom: 4,
-      projection: "mercator",
+      projection: { name: "mercator" }, // enforce mercator
     });
 
-    mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    mapRef.current = map;
+
+    // Load GeoJSON waypoints
+    map.on("load", async () => {
+      try {
+        const response = await fetch("/retailers.geojson");
+        const data = await response.json();
+
+        map.addSource("retailers", {
+          type: "geojson",
+          data,
+        });
+
+        map.addLayer({
+          id: "retailer-points",
+          type: "circle",
+          source: "retailers",
+          paint: {
+            "circle-radius": 6,
+            "circle-color": "#2563eb", // blue markers
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 2,
+          },
+        });
+
+        // Fit map to all points
+        const bounds = new mapboxgl.LngLatBounds();
+        data.features.forEach((f: any) =>
+          bounds.extend(f.geometry.coordinates)
+        );
+        if (!bounds.isEmpty()) {
+          map.fitBounds(bounds, { padding: 50, duration: 1000 });
+        }
+      } catch (err) {
+        console.error("Failed to load retailers.geojson", err);
+      }
+    });
   }, []);
 
-  return <div ref={mapContainer} className="w-full h-full" />;
+  return <div ref={mapContainer} className="map-container" />;
 }

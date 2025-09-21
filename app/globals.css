@@ -2,26 +2,123 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===========================
+   Global Styles & Resets
+   =========================== */
 html,
 body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-#__next,
-:root {
-  height: 100%;
+  @apply h-full w-full m-0 p-0;
+  font-family: theme('fontFamily.sans');
 }
 
 body {
-  @apply bg-black text-white;
+  @apply bg-gray-50 text-gray-900;
 }
 
-aside {
-  overflow-y: auto;
+.dark body {
+  @apply bg-gray-900 text-gray-100;
 }
 
-main {
-  height: 100%;
+a {
+  @apply text-blue-600 hover:underline;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  @apply font-bold;
+}
+
+/* ===========================
+   Layout Utilities
+   =========================== */
+.layout {
+  @apply flex h-screen;
+}
+
+.sidebar {
+  @apply w-80 bg-white dark:bg-gray-800 shadow-lg flex-shrink-0 overflow-y-auto;
+}
+
+.main-content {
+  @apply flex-1 relative;
+}
+
+/* ===========================
+   Sidebar / Cards
+   =========================== */
+.card {
+  @apply bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 mb-4;
+}
+
+.card h2 {
+  @apply text-lg font-semibold mb-2;
+}
+
+.clear-btn {
+  @apply bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-3 py-1 rounded;
+}
+
+/* ===========================
+   Map Container
+   =========================== */
+.map-container {
+  @apply w-full h-full;
+}
+
+/* ===========================
+   Theming
+   =========================== */
+.light-mode {
+  --bg: theme('colors.gray.50');
+  --text: theme('colors.gray.900');
+}
+
+.dark-mode {
+  --bg: theme('colors.gray.900');
+  --text: theme('colors.gray.100');
+}
+
+/* ===========================
+   Scrollbar Styling
+   =========================== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 dark:bg-gray-600 rounded;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-200 dark:bg-gray-700;
+}
+
+/* ===========================
+   Buttons
+   =========================== */
+button {
+  @apply px-4 py-2 rounded-md font-medium transition;
+}
+
+button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* ===========================
+   Inputs
+   =========================== */
+input,
+select {
+  @apply w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+label {
+  @apply block text-sm font-medium mb-1;
 }
