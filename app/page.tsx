@@ -1,78 +1,69 @@
+// app/page.tsx
 "use client";
 
 import { useState } from "react";
-import CertisMap from "@/components/CertisMap";
+import CertisMap from "../components/CertisMap";
 
 export default function HomePage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
 
-  const toggleValue = (value: string, current: string[], setter: (val: string[]) => void) => {
-    setter(
-      current.includes(value)
-        ? current.filter((v) => v !== value)
-        : [...current, value]
+  const categories = ["Agronomy", "Grain", "Agronomy/Grain", "Office/Service", "Kingpin"];
+  const suppliers = ["Growmark", "CHS", "Helena", "Winfield", "Nutrien"];
+
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    );
+  };
+
+  const toggleSupplier = (sup: string) => {
+    setSelectedSuppliers((prev) =>
+      prev.includes(sup) ? prev.filter((s) => s !== sup) : [...prev, sup]
     );
   };
 
   return (
     <main className="flex h-screen">
       {/* Sidebar */}
-      <aside className="w-64 bg-gray-100 dark:bg-gray-900 border-r overflow-y-auto p-4">
-        <h1 className="text-xl font-bold mb-4">Filters</h1>
+      <div className="w-64 bg-black text-white p-4 overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4">Filters</h2>
 
-        {/* Category Filter */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Category</h2>
-          {["Agronomy", "Grain", "Agronomy/Grain", "Office/Service", "Kingpin"].map((cat) => (
-            <label key={cat} className="flex items-center space-x-2 mb-1">
+        <h3 className="text-lg font-semibold mt-4 mb-2">Categories</h3>
+        <div className="space-y-2">
+          {categories.map((cat) => (
+            <label key={cat} className="block">
               <input
                 type="checkbox"
+                className="mr-2"
                 checked={selectedCategories.includes(cat)}
-                onChange={() => toggleValue(cat, selectedCategories, setSelectedCategories)}
+                onChange={() => toggleCategory(cat)}
               />
-              <span>{cat}</span>
+              {cat}
             </label>
           ))}
         </div>
 
-        {/* State Filter */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">State</h2>
-          {["IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI"].map((state) => (
-            <label key={state} className="flex items-center space-x-2 mb-1">
+        <h3 className="text-lg font-semibold mt-4 mb-2">Suppliers</h3>
+        <div className="space-y-2">
+          {suppliers.map((sup) => (
+            <label key={sup} className="block">
               <input
                 type="checkbox"
-                checked={selectedStates.includes(state)}
-                onChange={() => toggleValue(state, selectedStates, setSelectedStates)}
-              />
-              <span>{state}</span>
-            </label>
-          ))}
-        </div>
-
-        {/* Supplier Filter */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Supplier</h2>
-          {["Growmark", "CHS", "Helena", "Nutrien", "Winfield", "Certis"].map((sup) => (
-            <label key={sup} className="flex items-center space-x-2 mb-1">
-              <input
-                type="checkbox"
+                className="mr-2"
                 checked={selectedSuppliers.includes(sup)}
-                onChange={() => toggleValue(sup, selectedSuppliers, setSelectedSuppliers)}
+                onChange={() => toggleSupplier(sup)}
               />
-              <span>{sup}</span>
+              {sup}
             </label>
           ))}
         </div>
-      </aside>
+      </div>
 
       {/* Map */}
       <div className="flex-1">
         <CertisMap
           selectedCategories={selectedCategories}
-          selectedStates={selectedStates}
           selectedSuppliers={selectedSuppliers}
         />
       </div>
