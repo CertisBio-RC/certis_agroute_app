@@ -1,13 +1,13 @@
 // next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export", // ✅ required for Next.js 15 static export
+  output: "export", // ✅ static export for GitHub Pages
   images: {
-    unoptimized: true, // ✅ makes next/image work with gh-pages
+    unoptimized: true, // ✅ so next/image works without optimization server
   },
   experimental: {
     typedRoutes: true,
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig; // ✅ ESM export
