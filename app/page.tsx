@@ -1,32 +1,40 @@
 "use client";
 
-import CertisMap from "@/components/CertisMap";
+import CertisMap from "../components/CertisMap";
 
 export default function HomePage() {
   return (
-    <div className="flex h-screen bg-black text-white">
+    <div className="flex h-screen">
       {/* Sidebar */}
-      <aside className="w-80 bg-gray-900 p-4 flex flex-col space-y-4 overflow-y-auto">
-        {/* Logo + Title */}
-        <div className="flex flex-col items-center">
-          <a href="https://www.certisbio.com" target="_blank" rel="noopener noreferrer">
-            <img
-              src="/certis_logo.png"
-              alt="Certis Biologicals Logo"
-              className="h-[150px] object-contain"
-            />
-          </a>
-          <h1 className="text-2xl font-bold mt-2 text-center">Certis AgRoute Planner</h1>
-        </div>
+      <aside className="w-72 bg-black text-white flex flex-col p-4 space-y-4">
+        {/* Logo (150px, clickable) */}
+        <a
+          href="https://www.certisbio.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img
+            src="/certislogo.png"
+            alt="Certis Biologicals Logo"
+            className="w-[150px] mx-auto"
+          />
+        </a>
 
-        {/* Sidebar Cards */}
-        <div className="bg-gray-800 p-4 rounded-lg">Card 1</div>
-        <div className="bg-gray-800 p-4 rounded-lg">Card 2</div>
-        <div className="bg-gray-800 p-4 rounded-lg">Card 3</div>
-        <div className="bg-gray-800 p-4 rounded-lg">Card 4</div>
-        <div className="bg-gray-800 p-4 rounded-lg">Card 5</div>
-        <div className="bg-gray-800 p-4 rounded-lg">Card 6</div>
-        <div className="bg-gray-800 p-4 rounded-lg">Card 7</div>
+        {/* Title */}
+        <h1 className="text-xl font-bold text-center">
+          Certis AgRoute Planner
+        </h1>
+
+        {/* Sidebar cards (7 placeholders) */}
+        <div className="space-y-2">
+          <div className="p-2 bg-neutral-900 rounded">Card 1</div>
+          <div className="p-2 bg-neutral-900 rounded">Card 2</div>
+          <div className="p-2 bg-neutral-900 rounded">Card 3</div>
+          <div className="p-2 bg-neutral-900 rounded">Card 4</div>
+          <div className="p-2 bg-neutral-900 rounded">Card 5</div>
+          <div className="p-2 bg-neutral-900 rounded">Card 6</div>
+          <div className="p-2 bg-neutral-900 rounded">Card 7</div>
+        </div>
       </aside>
 
       {/* Map */}
