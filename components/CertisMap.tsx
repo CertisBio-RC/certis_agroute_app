@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css"; // ✅ Ensure Mapbox CSS is loaded
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -21,23 +20,23 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ Hybrid view
+      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ hybrid default
       center: [-93.5, 41.5],
       zoom: 5,
       projection: "mercator",
     });
 
     mapRef.current.on("load", () => {
-      const geojsonUrl = `${basePath}/data/retailers.geojson?cacheBust=${Date.now()}`;
-      console.log("🌐 Fetching GeoJSON from:", geojsonUrl);
+      const geoPath = `${basePath}/data/retailers.geojson?cacheBust=${Date.now()}`;
+      console.log("🌍 Fetching GeoJSON from:", geoPath);
 
-      fetch(geojsonUrl)
+      fetch(geoPath)
         .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status} for ${geojsonUrl}`);
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
           return res.json();
         })
         .then((data) => {
-          console.log("✅ Loaded GeoJSON:", data);
+          console.log("✅ GeoJSON loaded, features:", data.features?.length || 0);
 
           if (!mapRef.current) return;
 
@@ -63,7 +62,9 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
             },
           });
         })
-        .catch((err) => console.error("❌ Failed to load GeoJSON:", err));
+        .catch((err) => {
+          console.error("❌ Failed to load GeoJSON:", err);
+        });
     });
   }, []);
 
