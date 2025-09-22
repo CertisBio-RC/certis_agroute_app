@@ -20,13 +20,12 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/streets-v12",
+      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ restore hybrid view
       center: [-93.5, 41.5],
       zoom: 5,
-      projection: "mercator", // ✅ enforce Mercator
+      projection: "mercator",
     });
 
-    // Load retailers.geojson with basePath
     fetch(`${basePath}/data/retailers.geojson?cacheBust=${Date.now()}`)
       .then((res) => res.json())
       .then((data) => {
@@ -48,9 +47,9 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
               source: "retailers",
               paint: {
                 "circle-radius": 5,
-                "circle-color": "#FF6600",
+                "circle-color": "#FFCC00",
                 "circle-stroke-width": 1,
-                "circle-stroke-color": "#fff",
+                "circle-stroke-color": "#000",
               },
             });
           });
