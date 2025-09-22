@@ -28,7 +28,7 @@ export default function Page() {
       </aside>
 
       {/* Map Column */}
-      <main className="map-container flex-1">
+      <main className="map-container flex-1 h-full">
         {/* Pass required prop */}
         <CertisMap selectedCategories={[]} />
       </main>
