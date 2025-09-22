@@ -1,6 +1,5 @@
 "use client";
 
-import Sidebar from "@/components/Sidebar";
 import CertisMap from "@/components/CertisMap";
 import { useState } from "react";
 import Image from "next/image";
@@ -16,7 +15,7 @@ export default function Page() {
       <div className="w-64 bg-gray-900 text-white flex flex-col">
         <div className="flex flex-col items-center p-4">
           <Image
-            src="/certis-logo.png"   // ✅ safe filename with hyphen
+            src="/certis-logo.png"   // ✅ safe filename
             alt="Certis Logo"
             width={160}
             height={50}
