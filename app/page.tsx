@@ -4,21 +4,23 @@ import Image from "next/image";
 import CertisMap from "../components/CertisMap";
 
 export default function Page() {
+  // Build the logo path so it always works under GitHub Pages subfolder
+  const logoPath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/certislogo.png`;
+
   return (
     <div className="app-container grid grid-rows-[1fr_auto] h-screen">
       {/* Main Content Row */}
       <div className="flex">
         {/* Sidebar */}
         <aside className="sidebar w-80 bg-gray-900 text-white flex flex-col p-4">
-          <div className="logo">
-            <Image
-              src="/certislogo.png"
-              alt="Certis Biologicals Logo"
-              width={180}
-              height={60}
-              priority
-            />
-          </div>
+          <Image
+            src={logoPath}
+            alt="Certis Biologicals Logo"
+            width={180}
+            height={60}
+            priority
+            className="mb-4"
+          />
           <h1 className="text-xl font-bold mb-4">Certis AgRoute Planner</h1>
           <button className="mb-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
             Clear All
@@ -40,7 +42,7 @@ export default function Page() {
       </div>
 
       {/* Footer Row */}
-      <footer className="footer">
+      <footer className="footer bg-gray-800 text-white flex justify-between items-center p-4">
         <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
           Optimize Trip & Export
         </button>
