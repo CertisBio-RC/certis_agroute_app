@@ -9,11 +9,11 @@
     "start:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next start",
     "deploy:local": "%USERPROFILE%\\node-portable\\node.exe node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages",
 
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "deploy": "npm run build && gh-pages -d out",
-    "ci:deploy": "gh-pages -d out -b gh-pages"
+    "dev": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next dev",
+    "build": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next build",
+    "start": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next start",
+    "deploy": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next build && %USERPROFILE%\\node-portable\\node.exe node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages",
+    "ci:deploy": "%USERPROFILE%\\node-portable\\node.exe node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages"
   },
   "dependencies": {
     "@types/mapbox-gl": "^3.4.1",
