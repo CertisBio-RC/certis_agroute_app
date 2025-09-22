@@ -1,3 +1,4 @@
+// components/CertisMap.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -5,31 +6,55 @@ import mapboxgl from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-export default function CertisMap() {
+export interface CertisMapProps {
+  selectedCategories: string[];
+  onAddStop?: (stop: string) => void;
+}
+
+export default function CertisMap({ selectedCategories, onAddStop }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
-  useEffect(() => {
-    if (mapRef.current || !mapContainer.current) return;
+  // Load retailers.geojson from public/retailers.geojson
+  async function loadRetailers() {
+    const res = await fetch("/retailers.geojson");
+    if (!res.ok) {
+      console.error("❌ Failed to load retailers.geojson");
+      return null;
+    }
+    return res.json();
+  }
 
-    // ✅ Initialize map with stable Mercator hybrid baseline
+  useEffect(() => {
+    if (mapRef.current) return;
+
     mapRef.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/satellite-streets-v12", // hybrid default
-      center: [-98.5795, 39.8283], // USA center
+      container: mapContainer.current as HTMLElement,
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
+      center: [-98, 39], // continental USA
       zoom: 4,
-      projection: { name: "mercator" }, // ✅ explicit object format
+      projection: "mercator",
     });
 
-    // ✅ Add basic navigation controls
-    mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    mapRef.current.on("load", async () => {
+      const retailers = await loadRetailers();
+      if (!retailers) return;
 
-    // Cleanup on unmount
-    return () => {
-      mapRef.current?.remove();
-      mapRef.current = null;
-    };
+      // Add retailer points as markers
+      for (const feature of retailers.features) {
+        const coords = feature.geometry.coordinates;
+        const name = feature.properties?.name || "Retailer";
+
+        const marker = new mapboxgl.Marker({ color: "#00853e" })
+          .setLngLat(coords)
+          .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(name));
+
+        marker.addTo(mapRef.current!);
+      }
+
+      console.log("✅ Retailer markers loaded:", retailers.features.length);
+    });
   }, []);
 
-  return <div ref={mapContainer} className="map-container" />;
+  return <div ref={mapContainer} className="w-full h-full" />;
 }
