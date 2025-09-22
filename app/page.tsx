@@ -1,53 +1,69 @@
 "use client";
 
 import Image from "next/image";
-import CertisMap from "../components/CertisMap";
+import dynamic from "next/dynamic";
+import { useState } from "react";
+
+const CertisMap = dynamic(() => import("../components/CertisMap"), {
+  ssr: false,
+});
 
 export default function Page() {
-  // Build the logo path so it always works under GitHub Pages subfolder
-  const logoPath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/certislogo.png`;
+  const [selectedCards, setSelectedCards] = useState<string[]>([]);
+
+  const toggleCard = (card: string) => {
+    setSelectedCards((prev) =>
+      prev.includes(card) ? prev.filter((c) => c !== card) : [...prev, card]
+    );
+  };
+
+  const clearAll = () => setSelectedCards([]);
 
   return (
-    <div className="app-container grid grid-rows-[1fr_auto] h-screen">
-      {/* Main Content Row */}
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="sidebar w-80 bg-gray-900 text-white flex flex-col p-4">
+    <div className="flex h-screen">
+      {/* Sidebar */}
+      <div className="w-64 bg-slate-900 text-white p-4 flex flex-col">
+        <div className="flex items-center space-x-2 mb-6">
           <Image
-            src={logoPath}
-            alt="Certis Biologicals Logo"
-            width={180}
-            height={60}
+            src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/certislogo.png`}
+            alt="Certis Logo"
+            width={40}
+            height={40}
             priority
-            className="mb-4"
           />
-          <h1 className="text-xl font-bold mb-4">Certis AgRoute Planner</h1>
-          <button className="mb-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-            Clear All
-          </button>
-          <div className="flex-1 overflow-y-auto">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <div
-                key={i}
-                className="card bg-gray-800 p-2 mb-2 rounded"
-              >{`Card ${i + 1}`}</div>
-            ))}
-          </div>
-        </aside>
+          <h1 className="text-lg font-bold">Certis AgRoute Planner</h1>
+        </div>
 
-        {/* Map Column */}
-        <main className="map-container flex-1 h-full">
-          <CertisMap selectedCategories={[]} />
-        </main>
+        <button
+          onClick={clearAll}
+          className="mb-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
+        >
+          Clear All
+        </button>
+
+        <div className="space-y-2">
+          {["Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"].map(
+            (card) => (
+              <button
+                key={card}
+                onClick={() => toggleCard(card)}
+                className={`w-full text-left px-3 py-2 rounded ${
+                  selectedCards.includes(card)
+                    ? "bg-blue-500 text-white"
+                    : "bg-slate-800 hover:bg-slate-700"
+                }`}
+              >
+                {card}
+              </button>
+            )
+          )}
+        </div>
       </div>
 
-      {/* Footer Row */}
-      <footer className="footer bg-gray-800 text-white flex justify-between items-center p-4">
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-          Optimize Trip & Export
-        </button>
-        <div>Status: 0 Kingpins, 0 Agronomy Locations, 0 Retailers</div>
-      </footer>
+      {/* Map */}
+      <div className="flex-1 relative">
+        <CertisMap selectedCategories={selectedCards} />
+      </div>
     </div>
   );
 }
