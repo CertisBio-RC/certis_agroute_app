@@ -20,32 +20,39 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-93, 41], // Midwest-centered
+      center: [-93.5, 41.5], // Midwest default
       zoom: 4,
-      projection: { name: "mercator" },
+      projection: "mercator", // ✅ enforce Mercator
     });
 
-    mapRef.current.addControl(new mapboxgl.NavigationControl());
+    const map = mapRef.current;
 
-    mapRef.current.on("load", () => {
-      mapRef.current?.addSource("retailers", {
+    // ✅ Build correct GeoJSON URL with cache-busting
+    const geoUrl = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/retailers.geojson?${Date.now()}`;
+
+    map.on("load", () => {
+      map.addSource("retailers", {
         type: "geojson",
-        data: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/data/retailers.geojson?cb=${Date.now()}`,
+        data: geoUrl,
       });
 
-      mapRef.current?.addLayer({
+      map.addLayer({
         id: "retailers-layer",
         type: "circle",
         source: "retailers",
         paint: {
           "circle-radius": 5,
-          "circle-color": "#FFD700",
+          "circle-color": "#FFD700", // gold markers
           "circle-stroke-width": 1,
-          "circle-stroke-color": "#000",
+          "circle-stroke-color": "#333",
         },
       });
     });
-  }, []);
+
+    return () => {
+      map.remove();
+    };
+  }, [selectedCategories, onAddStop]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
