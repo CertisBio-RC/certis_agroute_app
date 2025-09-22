@@ -18,30 +18,29 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
   useEffect(() => {
     if (mapRef.current) return;
 
-    mapRef.current = new mapboxgl.Map({
+    const map = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ restore hybrid view
+      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ Hybrid default
       center: [-93.5, 41.5],
       zoom: 5,
       projection: "mercator",
     });
 
-    fetch(`${basePath}/data/retailers.geojson?cacheBust=${Date.now()}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (mapRef.current) {
-          mapRef.current.on("load", () => {
-            if (mapRef.current?.getSource("retailers")) {
-              mapRef.current.removeLayer("retailer-points");
-              mapRef.current.removeSource("retailers");
-            }
+    map.on("load", () => {
+      console.log("✅ Map loaded, now fetching GeoJSON...");
 
-            mapRef.current.addSource("retailers", {
+      fetch(`${basePath}/data/retailers.geojson?cacheBust=${Date.now()}`)
+        .then((res) => res.json())
+        .then((data) => {
+          console.log("✅ GeoJSON loaded, adding source/layer...", data);
+
+          if (!map.getSource("retailers")) {
+            map.addSource("retailers", {
               type: "geojson",
               data,
             });
 
-            mapRef.current.addLayer({
+            map.addLayer({
               id: "retailer-points",
               type: "circle",
               source: "retailers",
@@ -52,9 +51,12 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
                 "circle-stroke-color": "#000",
               },
             });
-          });
-        }
-      });
+          }
+        })
+        .catch((err) => console.error("❌ Failed to load GeoJSON:", err));
+    });
+
+    mapRef.current = map;
   }, []);
 
   return <div ref={mapContainer} className="w-full h-full" />;
