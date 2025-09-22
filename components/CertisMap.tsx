@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 export interface CertisMapProps {
   selectedCategories: string[];
@@ -19,40 +20,43 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-93.5, 41.5], // Midwest default
-      zoom: 4,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [-93.5, 41.5],
+      zoom: 5,
       projection: "mercator", // ✅ enforce Mercator
     });
 
-    const map = mapRef.current;
+    // Load retailers.geojson with basePath
+    fetch(`${basePath}/data/retailers.geojson?cacheBust=${Date.now()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (mapRef.current) {
+          mapRef.current.on("load", () => {
+            if (mapRef.current?.getSource("retailers")) {
+              mapRef.current.removeLayer("retailer-points");
+              mapRef.current.removeSource("retailers");
+            }
 
-    // ✅ Build correct GeoJSON URL with cache-busting
-    const geoUrl = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/retailers.geojson?${Date.now()}`;
+            mapRef.current.addSource("retailers", {
+              type: "geojson",
+              data,
+            });
 
-    map.on("load", () => {
-      map.addSource("retailers", {
-        type: "geojson",
-        data: geoUrl,
+            mapRef.current.addLayer({
+              id: "retailer-points",
+              type: "circle",
+              source: "retailers",
+              paint: {
+                "circle-radius": 5,
+                "circle-color": "#FF6600",
+                "circle-stroke-width": 1,
+                "circle-stroke-color": "#fff",
+              },
+            });
+          });
+        }
       });
-
-      map.addLayer({
-        id: "retailers-layer",
-        type: "circle",
-        source: "retailers",
-        paint: {
-          "circle-radius": 5,
-          "circle-color": "#FFD700", // gold markers
-          "circle-stroke-width": 1,
-          "circle-stroke-color": "#333",
-        },
-      });
-    });
-
-    return () => {
-      map.remove();
-    };
-  }, [selectedCategories, onAddStop]);
+  }, []);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
