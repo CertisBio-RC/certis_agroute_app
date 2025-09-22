@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css"; // ✅ Ensure Mapbox CSS is loaded
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -18,45 +19,52 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
   useEffect(() => {
     if (mapRef.current) return;
 
-    const map = new mapboxgl.Map({
+    mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ Hybrid default
+      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ Hybrid view
       center: [-93.5, 41.5],
       zoom: 5,
       projection: "mercator",
     });
 
-    map.on("load", () => {
-      console.log("✅ Map loaded, now fetching GeoJSON...");
+    mapRef.current.on("load", () => {
+      const geojsonUrl = `${basePath}/data/retailers.geojson?cacheBust=${Date.now()}`;
+      console.log("🌐 Fetching GeoJSON from:", geojsonUrl);
 
-      fetch(`${basePath}/data/retailers.geojson?cacheBust=${Date.now()}`)
-        .then((res) => res.json())
+      fetch(geojsonUrl)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status} for ${geojsonUrl}`);
+          return res.json();
+        })
         .then((data) => {
-          console.log("✅ GeoJSON loaded, adding source/layer...", data);
+          console.log("✅ Loaded GeoJSON:", data);
 
-          if (!map.getSource("retailers")) {
-            map.addSource("retailers", {
-              type: "geojson",
-              data,
-            });
+          if (!mapRef.current) return;
 
-            map.addLayer({
-              id: "retailer-points",
-              type: "circle",
-              source: "retailers",
-              paint: {
-                "circle-radius": 5,
-                "circle-color": "#FFCC00",
-                "circle-stroke-width": 1,
-                "circle-stroke-color": "#000",
-              },
-            });
+          if (mapRef.current.getSource("retailers")) {
+            mapRef.current.removeLayer("retailer-points");
+            mapRef.current.removeSource("retailers");
           }
+
+          mapRef.current.addSource("retailers", {
+            type: "geojson",
+            data,
+          });
+
+          mapRef.current.addLayer({
+            id: "retailer-points",
+            type: "circle",
+            source: "retailers",
+            paint: {
+              "circle-radius": 5,
+              "circle-color": "#FFCC00",
+              "circle-stroke-width": 1,
+              "circle-stroke-color": "#000",
+            },
+          });
         })
         .catch((err) => console.error("❌ Failed to load GeoJSON:", err));
     });
-
-    mapRef.current = map;
   }, []);
 
   return <div ref={mapContainer} className="w-full h-full" />;

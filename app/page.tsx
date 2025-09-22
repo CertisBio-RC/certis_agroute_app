@@ -3,18 +3,18 @@
 import Image from "next/image";
 import CertisMap from "../components/CertisMap";
 
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-
 export default function Page() {
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
   return (
-    <div className="app-container grid grid-rows-[1fr_auto] h-screen">
-      {/* Main Content Row */}
-      <div className="flex">
-        {/* Sidebar */}
+    <div className="app-container flex flex-col h-screen">
+      {/* Main Content: Sidebar + Map */}
+      <div className="flex flex-1">
+        {/* Sidebar Column */}
         <aside className="sidebar w-80 bg-gray-900 text-white flex flex-col p-4">
           <Image
             src={`${basePath}/certislogo.png`}
-            alt="Certis Logo"
+            alt="Certis Biologicals Logo"
             width={180}
             height={60}
             className="mb-4"
@@ -34,16 +34,20 @@ export default function Page() {
         </aside>
 
         {/* Map Column */}
-        <main className="map-container flex-1 h-full">
-          <CertisMap selectedCategories={[]} />
+        <main className="map-container flex-1 flex flex-col">
+          <div className="flex-1">
+            <CertisMap selectedCategories={[]} />
+          </div>
         </main>
       </div>
 
-      {/* Footer Row */}
-      <footer className="footer bg-gray-800 text-white flex justify-between items-center p-4">
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-          Optimize Trip & Export
-        </button>
+      {/* Footer: Optimize button (left) + Status summary (right) */}
+      <footer className="bg-gray-800 text-white p-3 flex justify-between items-center text-sm">
+        <div>
+          <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
+            Optimize Trip & Export
+          </button>
+        </div>
         <div>Status: 0 Kingpins, 0 Agronomy Locations, 0 Retailers</div>
       </footer>
     </div>
