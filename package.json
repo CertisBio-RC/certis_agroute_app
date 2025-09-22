@@ -12,6 +12,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "deploy": "npm run build && gh-pages -d out",
     "ci:deploy": "gh-pages -d out -b gh-pages"
   },
   "dependencies": {
