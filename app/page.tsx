@@ -16,7 +16,7 @@ export default function Page() {
           className="logo"
         >
           <Image
-            src="/certis-logo.png" // ✅ Correct filename
+            src="/certislogo.png" // ✅ Correct filename
             alt="Certis Biologicals Logo "
             width={150} // ✅ Fixed width
             height={50} // keeps aspect ratio, CSS ensures no stretch
