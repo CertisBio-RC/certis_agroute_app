@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import CertisMap from "../components/CertisMap";
 
 export default function Page() {
@@ -8,19 +7,18 @@ export default function Page() {
     <div className="layout">
       {/* Sidebar */}
       <aside className="sidebar">
-        {/* Logo (locked at 150px, clickable, not expandable) */}
+        {/* Logo */}
         <a
           href="https://www.certisbio.com"
           target="_blank"
           rel="noopener noreferrer"
           className="logo"
         >
-          <Image
-            src="/certislogo.png" // ✅ Correct filename
-            alt="Certis Biologicals Logo "
-            width={150} // ✅ Fixed width
-            height={50} // keeps aspect ratio, CSS ensures no stretch
-            priority
+          <img
+            src="/certis_agroute_app/certislogo.png" // ✅ explicit GH Pages path
+            alt="Certis Biologicals Logo"
+            width="150"
+            style={{ height: "auto" }}
           />
         </a>
 
