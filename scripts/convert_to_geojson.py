@@ -13,15 +13,18 @@ CACHE_FILE = os.path.join("data", "geocode-cache.json")
 # 🔑 Load Geocodio API key
 GEOCODIO_KEY = os.environ.get("GEOCODIO_API_KEY")
 
+
 def load_cache():
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
+
 def save_cache(cache):
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2)
+
 
 def geocode_address(address, cache):
     """Return (lat, lon) for an address, using cache + Geocodio API if needed."""
@@ -48,6 +51,7 @@ def geocode_address(address, cache):
     cache[address] = [lat, lon]
     return [lat, lon]
 
+
 def main():
     print("📂 Loading Excel with lat/long...")
     df = pd.read_excel(INPUT_FILE)
@@ -59,12 +63,17 @@ def main():
 
     cache = load_cache()
     features = []
+    categories_seen = set()
 
     for _, row in df.iterrows():
         name = str(row.get("Name", ""))
         address = str(row.get("Address", ""))
         lat = row.get("Latitude")
         lon = row.get("Longitude")
+        category = str(row.get("Category", "")).strip()
+
+        if category:
+            categories_seen.add(category)
 
         # ✅ If lat/lon already exist → use them
         if pd.notna(lat) and pd.notna(lon):
@@ -87,7 +96,7 @@ def main():
             "properties": {
                 "name": name,
                 "address": address,
-                "category": str(row.get("Category", "")),  # include category if present
+                "category": category,  # ✅ forced lowercase key
             },
         }
         features.append(feature)
@@ -99,6 +108,8 @@ def main():
 
     save_cache(cache)
     print(f"✅ Wrote {len(features)} features to {OUTPUT_FILE}")
+    print("📊 Categories found:", sorted(categories_seen))
+
 
 if __name__ == "__main__":
     main()
