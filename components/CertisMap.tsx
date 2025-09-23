@@ -6,23 +6,28 @@ import mapboxgl from "mapbox-gl";
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-// 🎨 Category color palette (color-blind safe)
-export const categoryColors: Record<string, string> = {
-  Agronomy: "#1f77b4", // blue
-  "Agronomy/Grain": "#1f77b4", // blue
-  Kingpin: "#ff0000", // red (special formatting below)
-  "Office/Service": "#20b2aa", // teal green
-  Grain: "#ffd700", // bright yellow
-  "Grain/Feed": "#ffd700", // bright yellow
-  Distribution: "#000000", // black
-};
-
 export interface CertisMapProps {
   selectedCategories: string[];
   onAddStop?: (stop: string) => void;
 }
 
-export default function CertisMap({ selectedCategories, onAddStop }: CertisMapProps) {
+export const categoryColors: Record<
+  string,
+  { color: string; stroke: string; size: number }
+> = {
+  Agronomy: { color: "#1f77b4", stroke: "#ffffff", size: 5 }, // blue
+  "Agronomy/Grain": { color: "#1f77b4", stroke: "#ffffff", size: 5 }, // blue
+  Kingpin: { color: "#ff0000", stroke: "#ffff00", size: 7 }, // bright red, yellow border, larger
+  "Office/Service": { color: "#008080", stroke: "#ffffff", size: 5 }, // teal
+  Grain: { color: "#ffd700", stroke: "#000000", size: 5 }, // bright yellow
+  "Grain/Feed": { color: "#ffd700", stroke: "#000000", size: 5 }, // bright yellow
+  Distribution: { color: "#000000", stroke: "#ffffff", size: 5 }, // black w/ white border
+};
+
+export default function CertisMap({
+  selectedCategories,
+  onAddStop,
+}: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
@@ -31,7 +36,7 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ hybrid
+      style: "mapbox://styles/mapbox/satellite-streets-v12", // hybrid
       center: [-93.5, 41.5],
       zoom: 5,
       projection: "mercator",
@@ -53,7 +58,6 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
             data,
           });
 
-          // 🖌 Circle style with category-based colors
           mapRef.current.addLayer({
             id: "retailer-points",
             type: "circle",
@@ -61,36 +65,68 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
             paint: {
               "circle-radius": [
                 "case",
-                ["==", ["get", "category"], "Kingpin"], 7, // larger size
-                5,
+                ["==", ["get", "category"], "Kingpin"],
+                categoryColors["Kingpin"].size,
+                [
+                  "match",
+                  ["get", "category"],
+                  "Agronomy",
+                  categoryColors["Agronomy"].size,
+                  "Agronomy/Grain",
+                  categoryColors["Agronomy/Grain"].size,
+                  "Office/Service",
+                  categoryColors["Office/Service"].size,
+                  "Grain",
+                  categoryColors["Grain"].size,
+                  "Grain/Feed",
+                  categoryColors["Grain/Feed"].size,
+                  "Distribution",
+                  categoryColors["Distribution"].size,
+                  5,
+                ],
               ],
               "circle-color": [
-                "case",
-                ["==", ["get", "category"], "Kingpin"], "#ff0000", // bright red
-                ["==", ["get", "category"], "Agronomy"], categoryColors["Agronomy"],
-                ["==", ["get", "category"], "Agronomy/Grain"], categoryColors["Agronomy/Grain"],
-                ["==", ["get", "category"], "Office/Service"], categoryColors["Office/Service"],
-                ["==", ["get", "category"], "Grain"], categoryColors["Grain"],
-                ["==", ["get", "category"], "Grain/Feed"], categoryColors["Grain/Feed"],
-                ["==", ["get", "category"], "Distribution"], categoryColors["Distribution"],
-                "#aaaaaa", // fallback gray
-              ],
-              "circle-stroke-width": [
-                "case",
-                ["==", ["get", "category"], "Kingpin"], 2,
-                ["==", ["get", "category"], "Distribution"], 2,
-                1,
+                "match",
+                ["get", "category"],
+                "Kingpin",
+                categoryColors["Kingpin"].color,
+                "Agronomy",
+                categoryColors["Agronomy"].color,
+                "Agronomy/Grain",
+                categoryColors["Agronomy/Grain"].color,
+                "Office/Service",
+                categoryColors["Office/Service"].color,
+                "Grain",
+                categoryColors["Grain"].color,
+                "Grain/Feed",
+                categoryColors["Grain/Feed"].color,
+                "Distribution",
+                categoryColors["Distribution"].color,
+                "#cccccc",
               ],
               "circle-stroke-color": [
-                "case",
-                ["==", ["get", "category"], "Kingpin"], "#ffff00", // yellow border
-                ["==", ["get", "category"], "Distribution"], "#ffffff", // white border
-                "#000000", // default black border
+                "match",
+                ["get", "category"],
+                "Kingpin",
+                categoryColors["Kingpin"].stroke,
+                "Agronomy",
+                categoryColors["Agronomy"].stroke,
+                "Agronomy/Grain",
+                categoryColors["Agronomy/Grain"].stroke,
+                "Office/Service",
+                categoryColors["Office/Service"].stroke,
+                "Grain",
+                categoryColors["Grain"].stroke,
+                "Grain/Feed",
+                categoryColors["Grain/Feed"].stroke,
+                "Distribution",
+                categoryColors["Distribution"].stroke,
+                "#000000",
               ],
+              "circle-stroke-width": 2,
             },
           });
-        })
-        .catch((err) => console.error("❌ Failed to load GeoJSON:", err));
+        });
     });
   }, []);
 
