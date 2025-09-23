@@ -26,16 +26,18 @@ interface RetailerFeature {
   };
 }
 
-// ✅ Exported so page.tsx can import it
-export const categoryColors: { [key: string]: string } = {
-  Agronomy: "#1f77b4",
-  "Agronomy/Grain": "#17becf",
-  "Office/Service": "#8c564b",
-  Grain: "#ff7f0e",
-  "Grain/Feed": "#bcbd22",
-  Distribution: "#000000",
-  Feed: "#9467bd",
-  Kingpin: "#ff0000", // red base, stroke applied separately
+// ✅ Export richer metadata so page.tsx can use style.color and style.outline
+export const categoryColors: {
+  [key: string]: { color: string; outline?: string };
+} = {
+  Agronomy: { color: "#1f77b4" },
+  "Agronomy/Grain": { color: "#17becf" },
+  "Office/Service": { color: "#8c564b" },
+  Grain: { color: "#ff7f0e" },
+  "Grain/Feed": { color: "#bcbd22" },
+  Distribution: { color: "#000000" },
+  Feed: { color: "#9467bd" },
+  Kingpin: { color: "#ff0000", outline: "#ffff00" }, // red with yellow outline
 };
 
 export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisMapProps) {
@@ -99,13 +101,16 @@ export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisM
         "circle-color": [
           "match",
           ["get", "category"],
-          ...Object.entries(categoryColors).flat(),
+          ...Object.entries(categoryColors).flatMap(([cat, style]) => [cat, style.color]),
           "#cccccc",
         ],
         "circle-stroke-color": [
-          "case",
-          ["==", ["get", "category"], "Kingpin"],
-          "#ffff00", // yellow border for Kingpins
+          "match",
+          ["get", "category"],
+          ...Object.entries(categoryColors).flatMap(([cat, style]) => [
+            cat,
+            style.outline || "#ffffff",
+          ]),
           "#ffffff",
         ],
         "circle-stroke-width": [
@@ -124,7 +129,6 @@ export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisM
         filters.push(["==", ["get", "category"], cat]);
       });
     }
-    // Kingpins bypass filter
     filters.push(["==", ["get", "category"], "Kingpin"]);
 
     map.setFilter("retailer-points", filters);
@@ -136,7 +140,8 @@ export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisM
     );
   };
 
-  const handleSelectAll = () => setSelectedCategories(Object.keys(categoryColors).filter(c => c !== "Kingpin"));
+  const handleSelectAll = () =>
+    setSelectedCategories(Object.keys(categoryColors).filter((c) => c !== "Kingpin"));
   const handleClearAll = () => setSelectedCategories([]);
 
   return (
@@ -160,7 +165,7 @@ export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisM
           </button>
         </div>
         <ul>
-          {Object.entries(categoryColors).map(([cat, color]) => (
+          {Object.entries(categoryColors).map(([cat, style]) => (
             <li key={cat} className="flex items-center gap-2 mb-2">
               <input
                 type="checkbox"
@@ -173,8 +178,8 @@ export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisM
                 <span
                   className="inline-block w-4 h-4 rounded"
                   style={{
-                    backgroundColor: color,
-                    border: cat === "Kingpin" ? "2px solid yellow" : "1px solid white",
+                    backgroundColor: style.color,
+                    border: `2px solid ${style.outline || "white"}`,
                   }}
                 />
                 {cat}
