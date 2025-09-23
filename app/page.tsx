@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import CertisMap, { categoryColors } from "@/components/CertisMap";
+import CertisMap from "@/components/CertisMap"; // ✅ removed { categoryColors }
 import Image from "next/image";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -11,6 +11,16 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const stateList = [
   "IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI"
 ];
+
+// ✅ Hardcoded category colors (local copy)
+const categoryColors: Record<string, { color: string; outline: string }> = {
+  Dealer: { color: "#1f77b4", outline: "#0d3d66" },
+  Retailer: { color: "#ff7f0e", outline: "#a64e00" },
+  Supplier: { color: "#2ca02c", outline: "#145214" },
+  Warehouse: { color: "#d62728", outline: "#7f1d1d" },
+  Other: { color: "#9467bd", outline: "#4a2a7f" },
+  Kingpin: { color: "#ff0000", outline: "#ffff00" },
+};
 
 export default function Page() {
   // ========================================
@@ -225,8 +235,8 @@ export default function Page() {
                 ? selectedCategories.join(", ")
                 : "None"}
             </div>
-            <div>
-              <strong>Kingpins:</strong> Always visible (🔴 red, 🟡 yellow border)
+            <div className="text-red-600 dark:text-yellow-400 font-semibold">
+              Kingpins are always visible (bright red, yellow border).
             </div>
           </div>
         </div>
