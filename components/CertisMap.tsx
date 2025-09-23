@@ -29,6 +29,7 @@ const categoryColors: Record<string, { color: string; outline: string }> = {
 export default function CertisMap({ selectedCategories, selectedStates }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -66,7 +67,9 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
 
         // Clean old sources/layers
         if (mapRef.current!.getSource("retailers")) {
-          mapRef.current!.removeLayer("retailer-points");
+          if (mapRef.current!.getLayer("retailer-points")) {
+            mapRef.current!.removeLayer("retailer-points");
+          }
           if (mapRef.current!.getLayer("kingpins")) {
             mapRef.current!.removeLayer("kingpins");
           }
@@ -116,14 +119,21 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           },
         });
 
-        // Popup for non-kingpins
+        // Hover popup for non-kingpins
         mapRef.current!.on("mouseenter", "retailer-points", (e) => {
           mapRef.current!.getCanvas().style.cursor = "pointer";
+
           const coords = (e.features?.[0].geometry as any).coordinates.slice();
           const props = e.features?.[0].properties;
           if (!props) return;
 
-          new mapboxgl.Popup()
+          // Close old popup if it exists
+          if (popupRef.current) {
+            popupRef.current.remove();
+          }
+
+          // Create new popup
+          popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false })
             .setLngLat(coords)
             .setHTML(`
               <div style="font-weight:bold; margin-bottom:4px;">${props["name"] || ""}</div>
@@ -138,6 +148,10 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
 
         mapRef.current!.on("mouseleave", "retailer-points", () => {
           mapRef.current!.getCanvas().style.cursor = "";
+          if (popupRef.current) {
+            popupRef.current.remove();
+            popupRef.current = null;
+          }
         });
       } catch (err) {
         console.error("❌ Error loading geojson:", err);
