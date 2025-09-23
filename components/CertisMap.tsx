@@ -16,8 +16,8 @@ export let availableStates: string[] = [];
 
 // ✅ Grouped category colors
 const categoryColors: Record<string, { color: string; outline: string }> = {
-  Agronomy: { color: "#ffd700", outline: "#a67c00" },       // yellow
-  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },   // bright mint green
+  Agronomy: { color: "#ffd700", outline: "#a67c00" },        // yellow
+  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },    // bright mint green
   "Office/Service": { color: "#1f78ff", outline: "#0d3d99" } // bright blue
   // 🚨 Kingpins handled separately
 };
@@ -153,7 +153,6 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
               closeButton: false,
               closeOnClick: false,
               offset: 10,
-              trackPointer: true,
             });
           }
 
