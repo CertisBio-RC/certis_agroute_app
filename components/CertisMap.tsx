@@ -14,29 +14,17 @@ export interface CertisMapProps {
 // ✅ Exportable state list for sidebar filter
 export let availableStates: string[] = [];
 
-// ✅ Known category colors
+// ✅ Actual dataset categories
 const categoryColors: Record<string, { color: string; outline: string }> = {
-  Dealer: { color: "#1f77b4", outline: "#0d3d66" },
-  Retailer: { color: "#ff7f0e", outline: "#a64e00" },
-  Supplier: { color: "#2ca02c", outline: "#145214" },
-  Warehouse: { color: "#d62728", outline: "#7f1d1d" },
-  Other: { color: "#9467bd", outline: "#4a2a7f" },
-  Kingpin: { color: "#ff0000", outline: "#ffff00" }, // reserved styling
+  "Agronomy":       { color: "#1f77b4", outline: "#0d3d66" }, // blue
+  "Agronomy/Grain": { color: "#17becf", outline: "#0e5c66" }, // cyan
+  "Distribution":   { color: "#2ca02c", outline: "#145214" }, // green
+  "Feed":           { color: "#ff7f0e", outline: "#a64e00" }, // orange
+  "Grain":          { color: "#9467bd", outline: "#4a2a7f" }, // purple
+  "Grain/Feed":     { color: "#8c564b", outline: "#40291f" }, // brown
+  "Office/Service": { color: "#d62728", outline: "#7f1d1d" }, // red
+  // 🚨 Kingpins handled separately
 };
-
-// 🎨 Rainbow fallback for unknown categories
-const rainbowPalette = [
-  "#1f77b4", // blue
-  "#ff7f0e", // orange
-  "#2ca02c", // green
-  "#d62728", // red
-  "#9467bd", // purple
-  "#8c564b", // brown
-  "#e377c2", // pink
-  "#7f7f7f", // gray
-  "#bcbd22", // olive
-  "#17becf", // cyan
-];
 
 export default function CertisMap({ selectedCategories, selectedStates }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
@@ -68,27 +56,13 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           return;
         }
 
-        // Collect unique states + categories
+        // Collect unique states
         const states = new Set<string>();
-        const categories = new Set<string>();
         geojson.features.forEach((f: any) => {
           if (f.properties?.State) states.add(f.properties.State);
-          if (f.properties?.Category) categories.add(f.properties.Category);
         });
         availableStates = Array.from(states).sort();
         console.log("📍 Available states:", availableStates);
-        console.log("🎨 Unique categories found in GeoJSON:", Array.from(categories));
-
-        // Assign fallback rainbow colors to unknown categories
-        const unknownCategories = Array.from(categories).filter(
-          (c) => !Object.keys(categoryColors).includes(c)
-        );
-        console.log("🌈 Assigning fallback colors to:", unknownCategories);
-
-        unknownCategories.forEach((cat, i) => {
-          const color = rainbowPalette[i % rainbowPalette.length];
-          categoryColors[cat] = { color, outline: "#000000" };
-        });
 
         // Clean old sources/layers
         if (mapRef.current!.getSource("retailers")) {
@@ -105,14 +79,14 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         });
 
         // Build explicit match arrays
-        const colorMatch: any[] = ["match", ["get", "Category"]];
-        const outlineMatch: any[] = ["match", ["get", "Category"]];
+        const colorMatch: (string | any)[] = ["match", ["get", "Category"]];
+        const outlineMatch: (string | any)[] = ["match", ["get", "Category"]];
         for (const [cat, style] of Object.entries(categoryColors)) {
           colorMatch.push(cat, style.color);
           outlineMatch.push(cat, style.outline);
         }
-        colorMatch.push("#cccccc"); // default
-        outlineMatch.push("#000000"); // default
+        colorMatch.push("#cccccc"); // default color
+        outlineMatch.push("#000000"); // default outline
 
         // Retailer points (filterable)
         mapRef.current!.addLayer({
@@ -122,8 +96,8 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           filter: ["all", ["!=", ["get", "Category"], "Kingpin"]],
           paint: {
             "circle-radius": 5,
-            "circle-color": colorMatch,
-            "circle-stroke-color": outlineMatch,
+            "circle-color": colorMatch as any,
+            "circle-stroke-color": outlineMatch as any,
             "circle-stroke-width": 1,
           },
         });
