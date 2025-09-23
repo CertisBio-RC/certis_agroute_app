@@ -1,115 +1,61 @@
-﻿import pandas as pd
+﻿# scripts/convert_to_geojson.py
+import sys
+import pandas as pd
 import json
 import os
-import requests
 
-# ================================
-# 📂 Input / Output file paths
-# ================================
-INPUT_FILE = os.path.join("data", "retailers_latlong.xlsx")
-OUTPUT_FILE = os.path.join("data", "retailers.geojson")
-CACHE_FILE = os.path.join("data", "geocode-cache.json")
+def excel_to_geojson(excel_file: str, output_file: str = "public/retailers.geojson"):
+    try:
+        # Read the first sheet automatically
+        df = pd.read_excel(excel_file, sheet_name=0)
+        print(f"✅ Loaded sheet: {df.columns.tolist()}")
 
-# 🔑 Load Geocodio API key
-GEOCODIO_KEY = os.environ.get("GEOCODIO_API_KEY")
+        features = []
 
-
-def load_cache():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-
-def save_cache(cache):
-    with open(CACHE_FILE, "w", encoding="utf-8") as f:
-        json.dump(cache, f, indent=2)
-
-
-def geocode_address(address, cache):
-    """Return (lat, lon) for an address, using cache + Geocodio API if needed."""
-    if address in cache:
-        return cache[address]
-
-    if not GEOCODIO_KEY:
-        print(f"❌ Missing GEOCODIO_API_KEY. Cannot geocode: {address}")
-        return None
-
-    url = f"https://api.geocod.io/v1.7/geocode?q={address}&api_key={GEOCODIO_KEY}"
-    resp = requests.get(url)
-    if resp.status_code != 200:
-        print(f"⚠️ Geocode failed for {address}: {resp.text}")
-        return None
-
-    data = resp.json()
-    if "results" not in data or not data["results"]:
-        print(f"⚠️ No geocode result for {address}")
-        return None
-
-    lat = data["results"][0]["location"]["lat"]
-    lon = data["results"][0]["location"]["lng"]
-    cache[address] = [lat, lon]
-    return [lat, lon]
-
-
-def main():
-    print("📂 Loading Excel with lat/long...")
-    df = pd.read_excel(INPUT_FILE)
-
-    required_cols = {"Name", "Address"}
-    missing = required_cols - set(df.columns)
-    if missing:
-        raise ValueError(f"❌ Missing required columns: {missing}")
-
-    cache = load_cache()
-    features = []
-    categories_seen = set()
-
-    for _, row in df.iterrows():
-        name = str(row.get("Name", ""))
-        address = str(row.get("Address", ""))
-        lat = row.get("Latitude")
-        lon = row.get("Longitude")
-        category = str(row.get("Category", "")).strip()
-
-        if category:
-            categories_seen.add(category)
-
-        # ✅ If lat/lon already exist → use them
-        if pd.notna(lat) and pd.notna(lon):
-            lat, lon = float(lat), float(lon)
-        else:
-            # 🌍 Geocode missing coordinates
-            coords = geocode_address(address, cache)
-            if coords:
-                lat, lon = coords
-            else:
-                print(f"⚠️ Skipping {name} (no coordinates)")
+        for _, row in df.iterrows():
+            # Ensure we have lat/long
+            if pd.isna(row.get("Longitude")) or pd.isna(row.get("Latitude")):
                 continue
 
-        feature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [lon, lat],  # ✅ GeoJSON = [lon, lat]
-            },
-            "properties": {
-                "name": name,
-                "address": address,
-                "category": category,  # ✅ forced lowercase key
-            },
+            feature = {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [float(row["Longitude"]), float(row["Latitude"])],
+                },
+                "properties": {
+                    "name": row.get("Name", ""),
+                    "address": row.get("Address", ""),
+                    "city": row.get("City", ""),
+                    "state": row.get("State", ""),
+                    "zip": str(row.get("Zip", "")),
+                    "category": row.get("Category", "Unknown"),
+                },
+            }
+            features.append(feature)
+
+        geojson = {
+            "type": "FeatureCollection",
+            "features": features,
         }
-        features.append(feature)
 
-    geojson = {"type": "FeatureCollection", "features": features}
+        # Ensure public directory exists
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(geojson, f, indent=2)
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(geojson, f, indent=2)
 
-    save_cache(cache)
-    print(f"✅ Wrote {len(features)} features to {OUTPUT_FILE}")
-    print("📊 Categories found:", sorted(categories_seen))
+        print(f"🎉 GeoJSON successfully written to {output_file} ({len(features)} features).")
+
+    except Exception as e:
+        print(f"❌ Error converting Excel to GeoJSON: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print("Usage: python scripts/convert_to_geojson.py <excel_file>")
+        sys.exit(1)
+
+    excel_file = sys.argv[1]
+    excel_to_geojson(excel_file)
