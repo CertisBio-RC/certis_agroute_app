@@ -26,23 +26,24 @@ interface RetailerFeature {
   };
 }
 
+// ✅ Exported so page.tsx can import it
+export const categoryColors: { [key: string]: string } = {
+  Agronomy: "#1f77b4",
+  "Agronomy/Grain": "#17becf",
+  "Office/Service": "#8c564b",
+  Grain: "#ff7f0e",
+  "Grain/Feed": "#bcbd22",
+  Distribution: "#000000",
+  Feed: "#9467bd",
+  Kingpin: "#ff0000", // red base, stroke applied separately
+};
+
 export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   const [data, setData] = useState<GeoJSON.FeatureCollection | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-
-  const categories: { [key: string]: string } = {
-    Agronomy: "#1f77b4",
-    "Agronomy/Grain": "#17becf",
-    "Office/Service": "#8c564b",
-    Grain: "#ff7f0e",
-    "Grain/Feed": "#bcbd22",
-    Distribution: "#000000",
-    Feed: "#9467bd",
-    Kingpin: "#ff0000", // red base, stroke applied separately
-  };
 
   // Load GeoJSON once
   useEffect(() => {
@@ -98,7 +99,7 @@ export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisM
         "circle-color": [
           "match",
           ["get", "category"],
-          ...Object.entries(categories).flat(),
+          ...Object.entries(categoryColors).flat(),
           "#cccccc",
         ],
         "circle-stroke-color": [
@@ -135,7 +136,7 @@ export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisM
     );
   };
 
-  const handleSelectAll = () => setSelectedCategories(Object.keys(categories).filter(c => c !== "Kingpin"));
+  const handleSelectAll = () => setSelectedCategories(Object.keys(categoryColors).filter(c => c !== "Kingpin"));
   const handleClearAll = () => setSelectedCategories([]);
 
   return (
@@ -159,7 +160,7 @@ export default function CertisMap({ geojsonUrl = "/retailers.geojson" }: CertisM
           </button>
         </div>
         <ul>
-          {Object.entries(categories).map(([cat, color]) => (
+          {Object.entries(categoryColors).map(([cat, color]) => (
             <li key={cat} className="flex items-center gap-2 mb-2">
               <input
                 type="checkbox"
