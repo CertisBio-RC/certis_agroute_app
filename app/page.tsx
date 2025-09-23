@@ -1,3 +1,4 @@
+// app/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -98,7 +99,8 @@ export default function Page() {
           🗺️ Map Area
       ======================================== */}
       <main className="flex-1 relative">
-        <CertisMap selectedCategories={selectedCategories} />
+        {/* ❌ Removed invalid prop: selectedCategories={selectedCategories} */}
+        <CertisMap />
       </main>
     </div>
   );
