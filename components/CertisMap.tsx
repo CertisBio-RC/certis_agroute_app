@@ -16,8 +16,8 @@ export let availableStates: string[] = [];
 
 // ✅ Grouped category colors
 const categoryColors: Record<string, { color: string; outline: string }> = {
-  Agronomy: { color: "#ffd700", outline: "#a67c00" },        // yellow
-  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },    // bright mint green
+  Agronomy: { color: "#ffd700", outline: "#a67c00" },       // yellow
+  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },   // bright mint green
   "Office/Service": { color: "#1f78ff", outline: "#0d3d99" } // bright blue
   // 🚨 Kingpins handled separately
 };
@@ -142,8 +142,8 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           },
         });
 
-        // Hover popup for non-kingpins
-        mapRef.current!.on("mousemove", "retailer-points", (e) => {
+        // Shared popup logic
+        function showPopup(e: mapboxgl.MapMouseEvent & mapboxgl.EventData) {
           const coords = (e.features?.[0].geometry as any).coordinates.slice();
           const props = e.features?.[0].properties;
           if (!props) return;
@@ -159,20 +159,29 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           popupRef.current
             .setLngLat(coords)
             .setHTML(`
-              <div style="font-weight:bold; margin-bottom:4px;">${props["name"] || ""}</div>
+              <div style="font-weight:bold; margin-bottom:4px;">${props["retailer"] || ""}</div>
+              <div style="font-style:italic; margin-bottom:4px;">${props["name"] || ""}</div>
+              <div>${props["address"] || ""}</div>
               <div>${props["city"] || ""}, ${props["state"] || ""} ${props["zip"] || ""}</div>
               <div><b>Category:</b> ${props["groupedCategory"] || "N/A"}</div>
               <div><b>Suppliers:</b> ${props["suppliers"] || "N/A"}</div>
             `)
             .addTo(mapRef.current!);
-        });
+        }
 
-        mapRef.current!.on("mouseleave", "retailer-points", () => {
+        function hidePopup() {
           if (popupRef.current) {
             popupRef.current.remove();
             popupRef.current = null;
           }
-        });
+        }
+
+        // Attach to both layers
+        mapRef.current!.on("mousemove", "retailer-points", showPopup);
+        mapRef.current!.on("mouseleave", "retailer-points", hidePopup);
+
+        mapRef.current!.on("mousemove", "kingpins", showPopup);
+        mapRef.current!.on("mouseleave", "kingpins", hidePopup);
       } catch (err) {
         console.error("❌ Error loading geojson:", err);
       }
