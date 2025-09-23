@@ -3,12 +3,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css"; // ✅ ensure Mapbox CSS loads
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 export interface CertisMapProps {
-  selectedCategories: string[];
   geojsonUrl?: string; // defaults to retailers.geojson
+  selectedCategories?: string[]; // passed in from page.tsx
 }
 
 interface RetailerFeature {
@@ -27,7 +28,7 @@ interface RetailerFeature {
   };
 }
 
-// ✅ Exported so page.tsx can build its legend
+// ✅ Export color map so page.tsx can render checkboxes
 export const categoryColors: {
   [key: string]: { color: string; outline?: string };
 } = {
@@ -42,23 +43,31 @@ export const categoryColors: {
 };
 
 export default function CertisMap({
-  selectedCategories,
   geojsonUrl = "/retailers.geojson",
+  selectedCategories = [],
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   const [data, setData] = useState<GeoJSON.FeatureCollection | null>(null);
 
-  // Load GeoJSON once
-  useEffect(() => {
-    fetch(geojsonUrl)
-      .then((res) => res.json())
-      .then((json) => setData(json))
-      .catch((err) => console.error("Error loading geojson:", err));
-  }, [geojsonUrl]);
+  // ✅ Resolve basePath for GH Pages
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const resolvedUrl = `${basePath}${geojsonUrl}`;
 
-  // Initialize map once
+  // ✅ Load GeoJSON once
+  useEffect(() => {
+    console.log("[CertisMap] Fetching GeoJSON:", resolvedUrl);
+    fetch(resolvedUrl)
+      .then((res) => res.json())
+      .then((json) => {
+        console.log("[CertisMap] GeoJSON loaded. Feature count:", json.features?.length || 0);
+        setData(json);
+      })
+      .catch((err) => console.error("[CertisMap] Error loading geojson:", err));
+  }, [resolvedUrl]);
+
+  // ✅ Initialize map once
   useEffect(() => {
     if (mapRef.current || !mapContainer.current) return;
 
@@ -67,26 +76,35 @@ export default function CertisMap({
       style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [-94.5, 42.0], // Midwest center
       zoom: 4,
-      projection: "mercator", // ✅ force mercator
+      projection: "mercator", // ✅ force Mercator
     });
 
     mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    console.log("[CertisMap] Map initialized (Mercator).");
+
+    // ✅ Add temporary debug marker at Midwest center
+    new mapboxgl.Marker({ color: "red" })
+      .setLngLat([-94.5, 42.0])
+      .setPopup(new mapboxgl.Popup().setText("Debug Marker: Center of Map"))
+      .addTo(mapRef.current);
+
+    console.log("[CertisMap] Debug marker added at center.");
   }, []);
 
-  // Update layers when data or filters change
+  // ✅ Add/update source & layer whenever data or filters change
   useEffect(() => {
     if (!mapRef.current || !data) return;
-
     const map = mapRef.current;
 
-    // Remove old source/layer if exists
+    // Remove old layers/sources safely
+    if (map.getLayer("retailer-points")) {
+      map.removeLayer("retailer-points");
+    }
     if (map.getSource("retailers")) {
-      if (map.getLayer("retailer-points")) {
-        map.removeLayer("retailer-points");
-      }
       map.removeSource("retailers");
     }
 
+    console.log("[CertisMap] Adding source + layer with", data.features.length, "features.");
     map.addSource("retailers", {
       type: "geojson",
       data,
@@ -100,16 +118,13 @@ export default function CertisMap({
         "circle-radius": [
           "case",
           ["==", ["get", "category"], "Kingpin"],
-          9, // larger for Kingpins
+          9, // Kingpins larger
           6,
         ],
         "circle-color": [
           "match",
           ["get", "category"],
-          ...Object.entries(categoryColors).flatMap(([cat, style]) => [
-            cat,
-            style.color,
-          ]),
+          ...Object.entries(categoryColors).flatMap(([cat, style]) => [cat, style.color]),
           "#cccccc",
         ],
         "circle-stroke-color": [
@@ -130,8 +145,8 @@ export default function CertisMap({
       },
     });
 
-    // ✅ Apply category filter (except Kingpins always visible)
-    const filters: any[] = ["any"];
+    // ✅ Apply filter: Kingpins always visible, others per selectedCategories
+    let filters: any[] = ["any"];
     if (selectedCategories.length > 0) {
       selectedCategories.forEach((cat) => {
         filters.push(["==", ["get", "category"], cat]);
@@ -139,40 +154,9 @@ export default function CertisMap({
     }
     filters.push(["==", ["get", "category"], "Kingpin"]);
 
+    console.log("[CertisMap] Applying filter:", JSON.stringify(filters));
     map.setFilter("retailer-points", filters);
   }, [data, selectedCategories]);
 
-  return (
-    <div className="flex h-full w-full">
-      {/* Map container */}
-      <div ref={mapContainer} className="flex-1" />
-
-      {/* ✅ Restore Left Side Retailer Tiles */}
-      {data && (
-        <div className="w-80 bg-gray-900 text-white p-4 overflow-y-auto">
-          <h2 className="text-lg font-bold mb-2">Retailers</h2>
-          <div className="space-y-2 max-h-[90vh] overflow-y-auto pr-1">
-            {(data.features as RetailerFeature[])
-              .filter(
-                (f) =>
-                  selectedCategories.includes(f.properties.category) ||
-                  f.properties.category === "Kingpin"
-              )
-              .map((f, i) => (
-                <div
-                  key={i}
-                  className="bg-gray-800 p-2 rounded shadow text-sm"
-                >
-                  <div className="font-bold">{f.properties.name}</div>
-                  <div>
-                    {f.properties.city}, {f.properties.state}
-                  </div>
-                  {f.properties.address && <div>{f.properties.address}</div>}
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return <div ref={mapContainer} className="w-full h-full" />;
 }
