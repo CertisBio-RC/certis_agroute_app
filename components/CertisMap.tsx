@@ -14,7 +14,7 @@ export interface CertisMapProps {
 // ✅ Exportable state list for sidebar filter
 export let availableStates: string[] = [];
 
-// ✅ Actual dataset categories
+// ✅ Actual dataset categories (your list)
 const categoryColors: Record<string, { color: string; outline: string }> = {
   "Agronomy":       { color: "#1f77b4", outline: "#0d3d66" }, // blue
   "Agronomy/Grain": { color: "#17becf", outline: "#0e5c66" }, // cyan
@@ -59,7 +59,7 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         // Collect unique states
         const states = new Set<string>();
         geojson.features.forEach((f: any) => {
-          if (f.properties?.State) states.add(f.properties.State);
+          if (f.properties?.state) states.add(f.properties.state);
         });
         availableStates = Array.from(states).sort();
         console.log("📍 Available states:", availableStates);
@@ -79,8 +79,8 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         });
 
         // Build explicit match arrays
-        const colorMatch: (string | any)[] = ["match", ["get", "Category"]];
-        const outlineMatch: (string | any)[] = ["match", ["get", "Category"]];
+        const colorMatch: (string | any)[] = ["match", ["get", "category"]];
+        const outlineMatch: (string | any)[] = ["match", ["get", "category"]];
         for (const [cat, style] of Object.entries(categoryColors)) {
           colorMatch.push(cat, style.color);
           outlineMatch.push(cat, style.outline);
@@ -93,7 +93,7 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           id: "retailer-points",
           type: "circle",
           source: "retailers",
-          filter: ["all", ["!=", ["get", "Category"], "Kingpin"]],
+          filter: ["all", ["!=", ["get", "category"], "Kingpin"]],
           paint: {
             "circle-radius": 5,
             "circle-color": colorMatch as any,
@@ -107,7 +107,7 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           id: "kingpins",
           type: "circle",
           source: "retailers",
-          filter: ["==", ["get", "Category"], "Kingpin"],
+          filter: ["==", ["get", "category"], "Kingpin"],
           paint: {
             "circle-radius": 6,
             "circle-color": "#ff0000",
@@ -117,7 +117,8 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         });
 
         // Popup for non-kingpins
-        mapRef.current!.on("click", "retailer-points", (e) => {
+        mapRef.current!.on("mouseenter", "retailer-points", (e) => {
+          mapRef.current!.getCanvas().style.cursor = "pointer";
           const coords = (e.features?.[0].geometry as any).coordinates.slice();
           const props = e.features?.[0].properties;
           if (!props) return;
@@ -125,13 +126,18 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           new mapboxgl.Popup()
             .setLngLat(coords)
             .setHTML(`
-              <div style="font-weight:bold; margin-bottom:4px;">${props["Long Name"] || props["Name"]}</div>
-              <div>${props["Address"] || ""}</div>
-              <div>${props["City"] || ""}, ${props["State"] || ""} ${props["Zip"] || ""}</div>
-              <div><b>Category:</b> ${props["Category"] || "N/A"}</div>
-              <div><b>Suppliers:</b> ${props["Suppliers"] || "N/A"}</div>
+              <div style="font-weight:bold; margin-bottom:4px;">${props["name"] || ""}</div>
+              <div>${props["address"] || ""}</div>
+              <div>${props["city"] || ""}, ${props["state"] || ""} ${props["zip"] || ""}</div>
+              <div><b>Category:</b> ${props["category"] || "N/A"}</div>
+              <div><b>Retailer:</b> ${props["retailer"] || "N/A"}</div>
+              <div><b>Suppliers:</b> ${props["suppliers"] || "N/A"}</div>
             `)
             .addTo(mapRef.current!);
+        });
+
+        mapRef.current!.on("mouseleave", "retailer-points", () => {
+          mapRef.current!.getCanvas().style.cursor = "";
         });
       } catch (err) {
         console.error("❌ Error loading geojson:", err);
@@ -145,17 +151,17 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
 
     const categoryFilter =
       selectedCategories.length > 0
-        ? ["in", ["get", "Category"], ["literal", selectedCategories]]
+        ? ["in", ["get", "category"], ["literal", selectedCategories]]
         : true;
 
     const stateFilter =
       selectedStates.length > 0
-        ? ["in", ["get", "State"], ["literal", selectedStates]]
+        ? ["in", ["get", "state"], ["literal", selectedStates]]
         : true;
 
     mapRef.current.setFilter("retailer-points", [
       "all",
-      ["!=", ["get", "Category"], "Kingpin"],
+      ["!=", ["get", "category"], "Kingpin"],
       categoryFilter,
       stateFilter,
     ]);
