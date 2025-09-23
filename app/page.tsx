@@ -8,7 +8,9 @@ import Image from "next/image";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 // ✅ States represented in your dataset
-const stateList = ["IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI"];
+const stateList = [
+  "IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI"
+];
 
 export default function Page() {
   // ========================================
@@ -222,6 +224,9 @@ export default function Page() {
               {selectedCategories.length > 0
                 ? selectedCategories.join(", ")
                 : "None"}
+            </div>
+            <div>
+              <strong>Kingpins:</strong> Always visible (🔴 red, 🟡 yellow border)
             </div>
           </div>
         </div>
