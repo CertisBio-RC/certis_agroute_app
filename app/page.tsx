@@ -14,10 +14,10 @@ const stateList = [
 
 // ✅ Grouped categories and colors (must match CertisMap.tsx)
 const categoryColors: Record<string, { color: string; outline: string }> = {
-  Agronomy: { color: "#ffd700", outline: "#a67c00" },        // yellow
-  "Grain/Feed": { color: "#ff7f0e", outline: "#a64e00" },    // orange
-  "Office/Service": { color: "#1f78ff", outline: "#0d3d99" },// bright blue
-  Kingpin: { color: "#ff0000", outline: "#ffff00" },         // special layer
+  Agronomy: { color: "#ffd700", outline: "#a67c00" },          // yellow
+  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },     // bright mint green
+  "Office/Service": { color: "#1f78ff", outline: "#0d3d99" }, // bright blue
+  Kingpin: { color: "#ff0000", outline: "#ffff00" },          // special layer
 };
 
 export default function Page() {

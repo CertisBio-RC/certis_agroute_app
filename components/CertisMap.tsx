@@ -16,8 +16,8 @@ export let availableStates: string[] = [];
 
 // ✅ Grouped category colors
 const categoryColors: Record<string, { color: string; outline: string }> = {
-  "Agronomy": { color: "#ffd700", outline: "#a67c00" },      // yellow
-  "Grain/Feed": { color: "#ff7f0e", outline: "#a64e00" },   // orange
+  Agronomy: { color: "#ffd700", outline: "#a67c00" },       // yellow
+  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },   // bright mint green
   "Office/Service": { color: "#1f78ff", outline: "#0d3d99" } // bright blue
   // 🚨 Kingpins handled separately
 };
@@ -143,32 +143,32 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         });
 
         // Hover popup for non-kingpins
-        mapRef.current!.on("mouseenter", "retailer-points", (e) => {
-          mapRef.current!.getCanvas().style.cursor = "pointer";
-
+        mapRef.current!.on("mousemove", "retailer-points", (e) => {
           const coords = (e.features?.[0].geometry as any).coordinates.slice();
           const props = e.features?.[0].properties;
           if (!props) return;
 
-          if (popupRef.current) {
-            popupRef.current.remove();
+          if (!popupRef.current) {
+            popupRef.current = new mapboxgl.Popup({
+              closeButton: false,
+              closeOnClick: false,
+              offset: 10,
+              trackPointer: true,
+            });
           }
 
-          popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false })
+          popupRef.current
             .setLngLat(coords)
             .setHTML(`
               <div style="font-weight:bold; margin-bottom:4px;">${props["name"] || ""}</div>
-              <div>${props["address"] || ""}</div>
               <div>${props["city"] || ""}, ${props["state"] || ""} ${props["zip"] || ""}</div>
               <div><b>Category:</b> ${props["groupedCategory"] || "N/A"}</div>
-              <div><b>Retailer:</b> ${props["retailer"] || "N/A"}</div>
               <div><b>Suppliers:</b> ${props["suppliers"] || "N/A"}</div>
             `)
             .addTo(mapRef.current!);
         });
 
         mapRef.current!.on("mouseleave", "retailer-points", () => {
-          mapRef.current!.getCanvas().style.cursor = "";
           if (popupRef.current) {
             popupRef.current.remove();
             popupRef.current = null;
@@ -184,12 +184,18 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
   useEffect(() => {
     if (!mapRef.current || !mapRef.current.getLayer("retailer-points")) return;
 
-    const categoryFilter =
+    // Require at least one state and one category for non-Kingpin points
+    if (selectedStates.length === 0 || selectedCategories.length === 0) {
+      mapRef.current.setFilter("retailer-points", ["==", ["get", "groupedCategory"], ""]); // hide all
+      return;
+    }
+
+    const categoryFilter: any =
       selectedCategories.length > 0
         ? ["in", ["get", "groupedCategory"], ["literal", selectedCategories]]
         : true;
 
-    const stateFilter =
+    const stateFilter: any =
       selectedStates.length > 0
         ? ["in", ["get", "state"], ["literal", selectedStates]]
         : true;
