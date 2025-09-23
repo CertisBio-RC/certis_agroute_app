@@ -115,11 +115,12 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         outlineMatch.push("#000000"); // default outline
 
         // Retailer points (all non-Kingpin categories)
+        // 👇 Start hidden until filters are selected
         mapRef.current!.addLayer({
           id: "retailer-points",
           type: "circle",
           source: "retailers",
-          filter: ["all", ["!=", ["get", "groupedCategory"], "Kingpin"]],
+          filter: ["==", ["get", "groupedCategory"], ""], // hide all initially
           paint: {
             "circle-radius": 5,
             "circle-color": colorMatch as any,
