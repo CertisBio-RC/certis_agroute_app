@@ -143,7 +143,7 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         });
 
         // Shared popup logic
-        function showPopup(e: mapboxgl.MapMouseEvent & mapboxgl.EventData) {
+        function showPopup(e: mapboxgl.MapMouseEvent & { features?: any[] }) {
           const coords = (e.features?.[0].geometry as any).coordinates.slice();
           const props = e.features?.[0].properties;
           if (!props) return;
@@ -161,7 +161,6 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
             .setHTML(`
               <div style="font-weight:bold; margin-bottom:4px;">${props["retailer"] || ""}</div>
               <div style="font-style:italic; margin-bottom:4px;">${props["name"] || ""}</div>
-              <div>${props["address"] || ""}</div>
               <div>${props["city"] || ""}, ${props["state"] || ""} ${props["zip"] || ""}</div>
               <div><b>Category:</b> ${props["groupedCategory"] || "N/A"}</div>
               <div><b>Suppliers:</b> ${props["suppliers"] || "N/A"}</div>
