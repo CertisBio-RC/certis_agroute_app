@@ -96,11 +96,10 @@ export default function Page() {
       </aside>
 
       {/* ========================================
-          🗺️ Map Area
+          🗺️ Map + Retailer Tiles
       ======================================== */}
       <main className="flex-1 relative">
-        {/* ❌ Removed invalid prop: selectedCategories={selectedCategories} */}
-        <CertisMap />
+        <CertisMap selectedCategories={selectedCategories} />
       </main>
     </div>
   );
