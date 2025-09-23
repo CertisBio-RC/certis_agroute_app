@@ -3,160 +3,111 @@
 
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css"; // ✅ ensure Mapbox CSS loads
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
+// ✅ Match the base path used in page.tsx
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 export interface CertisMapProps {
-  geojsonUrl?: string; // defaults to retailers.geojson
-  selectedCategories?: string[]; // passed in from page.tsx
+  selectedCategories: string[];
 }
 
-interface RetailerFeature {
-  type: "Feature";
-  geometry: {
-    type: "Point";
-    coordinates: [number, number];
-  };
-  properties: {
-    name: string;
-    address?: string;
-    city?: string;
-    state?: string;
-    zip?: string;
-    category: string;
-  };
-}
-
-// ✅ Export color map so page.tsx can render checkboxes
-export const categoryColors: {
-  [key: string]: { color: string; outline?: string };
-} = {
+export const categoryColors: Record<
+  string,
+  { color: string; outline?: string }
+> = {
   Agronomy: { color: "#1f77b4" },
   "Agronomy/Grain": { color: "#17becf" },
-  "Office/Service": { color: "#8c564b" },
-  Grain: { color: "#ff7f0e" },
+  "Office/Service": { color: "#ff7f0e" },
+  Grain: { color: "#ffbb78" },
   "Grain/Feed": { color: "#bcbd22" },
-  Distribution: { color: "#000000" },
+  Distribution: { color: "#2ca02c" },
   Feed: { color: "#9467bd" },
-  Kingpin: { color: "#ff0000", outline: "#ffff00" }, // red with yellow outline
+  Kingpin: { color: "#d62728" },
 };
 
-export default function CertisMap({
-  geojsonUrl = "/retailers.geojson",
-  selectedCategories = [],
-}: CertisMapProps) {
+export default function CertisMap({ selectedCategories }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   const [data, setData] = useState<GeoJSON.FeatureCollection | null>(null);
 
-  // ✅ Resolve basePath for GH Pages
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-  const resolvedUrl = `${basePath}${geojsonUrl}`;
-
-  // ✅ Load GeoJSON once
   useEffect(() => {
-    console.log("[CertisMap] Fetching GeoJSON:", resolvedUrl);
-    fetch(resolvedUrl)
-      .then((res) => res.json())
-      .then((json) => {
-        console.log("[CertisMap] GeoJSON loaded. Feature count:", json.features?.length || 0);
-        setData(json);
-      })
-      .catch((err) => console.error("[CertisMap] Error loading geojson:", err));
-  }, [resolvedUrl]);
-
-  // ✅ Initialize map once
-  useEffect(() => {
-    if (mapRef.current || !mapContainer.current) return;
+    if (mapRef.current) return; // prevent double init
 
     mapRef.current = new mapboxgl.Map({
-      container: mapContainer.current,
+      container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-94.5, 42.0], // Midwest center
+      center: [-93.5, 41.5], // Midwest center
       zoom: 4,
-      projection: "mercator", // ✅ force Mercator
     });
 
-    mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
-    console.log("[CertisMap] Map initialized (Mercator).");
+    // ✅ Fetch retailers.geojson with basePath awareness
+    fetch(`${basePath}/retailers.geojson`)
+      .then((res) => res.json())
+      .then((geojson) => {
+        setData(geojson);
 
-    // ✅ Add temporary debug marker at Midwest center
-    new mapboxgl.Marker({ color: "red" })
-      .setLngLat([-94.5, 42.0])
-      .setPopup(new mapboxgl.Popup().setText("Debug Marker: Center of Map"))
-      .addTo(mapRef.current);
+        if (mapRef.current && geojson.features) {
+          mapRef.current.on("load", () => {
+            if (!mapRef.current?.getSource("retailers")) {
+              mapRef.current?.addSource("retailers", {
+                type: "geojson",
+                data: geojson,
+              });
 
-    console.log("[CertisMap] Debug marker added at center.");
+              mapRef.current?.addLayer({
+                id: "retailers-circle",
+                type: "circle",
+                source: "retailers",
+                paint: {
+                  "circle-radius": 5,
+                  "circle-color": [
+                    "match",
+                    ["get", "Category"],
+                    ...Object.entries(categoryColors).flatMap(([cat, style]) => [
+                      cat,
+                      style.color,
+                    ]),
+                    "#ccc", // default
+                  ],
+                  "circle-stroke-color": "#000",
+                  "circle-stroke-width": 0.5,
+                },
+              });
+            }
+          });
+        }
+      })
+      .catch((err) =>
+        console.error("❌ Error loading retailers.geojson:", err)
+      );
   }, []);
 
-  // ✅ Add/update source & layer whenever data or filters change
+  // ✅ Update visibility when categories change
   useEffect(() => {
     if (!mapRef.current || !data) return;
-    const map = mapRef.current;
 
-    // Remove old layers/sources safely
-    if (map.getLayer("retailer-points")) {
-      map.removeLayer("retailer-points");
-    }
-    if (map.getSource("retailers")) {
-      map.removeSource("retailers");
-    }
+    const visibilityFilter = [
+      "in",
+      ["get", "Category"],
+      ["literal", selectedCategories],
+    ];
 
-    console.log("[CertisMap] Adding source + layer with", data.features.length, "features.");
-    map.addSource("retailers", {
-      type: "geojson",
-      data,
-    });
-
-    map.addLayer({
-      id: "retailer-points",
-      type: "circle",
-      source: "retailers",
-      paint: {
-        "circle-radius": [
-          "case",
-          ["==", ["get", "category"], "Kingpin"],
-          9, // Kingpins larger
-          6,
-        ],
-        "circle-color": [
+    if (mapRef.current.getLayer("retailers-circle")) {
+      mapRef.current.setFilter("retailers-circle", [
+        "any",
+        [
           "match",
-          ["get", "category"],
-          ...Object.entries(categoryColors).flatMap(([cat, style]) => [cat, style.color]),
-          "#cccccc",
+          ["get", "Category"],
+          selectedCategories,
+          true,
+          false,
         ],
-        "circle-stroke-color": [
-          "match",
-          ["get", "category"],
-          ...Object.entries(categoryColors).flatMap(([cat, style]) => [
-            cat,
-            style.outline || "#ffffff",
-          ]),
-          "#ffffff",
-        ],
-        "circle-stroke-width": [
-          "case",
-          ["==", ["get", "category"], "Kingpin"],
-          2,
-          1,
-        ],
-      },
-    });
-
-    // ✅ Apply filter: Kingpins always visible, others per selectedCategories
-    let filters: any[] = ["any"];
-    if (selectedCategories.length > 0) {
-      selectedCategories.forEach((cat) => {
-        filters.push(["==", ["get", "category"], cat]);
-      });
+      ]);
     }
-    filters.push(["==", ["get", "category"], "Kingpin"]);
-
-    console.log("[CertisMap] Applying filter:", JSON.stringify(filters));
-    map.setFilter("retailer-points", filters);
-  }, [data, selectedCategories]);
+  }, [selectedCategories, data]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
