@@ -14,15 +14,11 @@ export interface CertisMapProps {
 // ✅ Exportable state list for sidebar filter
 export let availableStates: string[] = [];
 
-// ✅ Actual dataset categories (your list)
+// ✅ Grouped category colors
 const categoryColors: Record<string, { color: string; outline: string }> = {
-  "Agronomy":       { color: "#1f77b4", outline: "#0d3d66" }, // blue
-  "Agronomy/Grain": { color: "#17becf", outline: "#0e5c66" }, // cyan
-  "Distribution":   { color: "#2ca02c", outline: "#145214" }, // green
-  "Feed":           { color: "#ff7f0e", outline: "#a64e00" }, // orange
-  "Grain":          { color: "#9467bd", outline: "#4a2a7f" }, // purple
-  "Grain/Feed":     { color: "#8c564b", outline: "#40291f" }, // brown
-  "Office/Service": { color: "#d62728", outline: "#7f1d1d" }, // red
+  "Agronomy": { color: "#ffd700", outline: "#a67c00" },      // yellow
+  "Grain/Feed": { color: "#ff7f0e", outline: "#a64e00" },   // orange
+  "Office/Service": { color: "#1f78ff", outline: "#0d3d99" } // bright blue
   // 🚨 Kingpins handled separately
 };
 
@@ -50,16 +46,43 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
       try {
         const response = await fetch(`${basePath}/retailers.geojson`);
         if (!response.ok) throw new Error(`Failed to fetch GeoJSON: ${response.status}`);
-        const geojson = await response.json();
+        const rawGeojson = await response.json();
 
-        if (!geojson || !geojson.features) {
+        if (!rawGeojson || !rawGeojson.features) {
           console.warn("⚠️ No valid features found in retailers.geojson");
           return;
         }
 
+        // Normalize categories into groups
+        const normalizedGeojson = {
+          ...rawGeojson,
+          features: rawGeojson.features.map((f: any) => {
+            const rawCat = f.properties?.category || "";
+            let grouped = "Other";
+
+            if (rawCat === "Kingpin") {
+              grouped = "Kingpin";
+            } else if (rawCat === "Agronomy" || rawCat === "Agronomy/Grain") {
+              grouped = "Agronomy";
+            } else if (["Grain", "Feed", "Grain/Feed"].includes(rawCat)) {
+              grouped = "Grain/Feed";
+            } else if (rawCat === "Office/Service") {
+              grouped = "Office/Service";
+            }
+
+            return {
+              ...f,
+              properties: {
+                ...f.properties,
+                groupedCategory: grouped,
+              },
+            };
+          }),
+        };
+
         // Collect unique states
         const states = new Set<string>();
-        geojson.features.forEach((f: any) => {
+        normalizedGeojson.features.forEach((f: any) => {
           if (f.properties?.state) states.add(f.properties.state);
         });
         availableStates = Array.from(states).sort();
@@ -78,12 +101,12 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
 
         mapRef.current!.addSource("retailers", {
           type: "geojson",
-          data: geojson,
+          data: normalizedGeojson,
         });
 
-        // Build explicit match arrays
-        const colorMatch: (string | any)[] = ["match", ["get", "category"]];
-        const outlineMatch: (string | any)[] = ["match", ["get", "category"]];
+        // Build explicit match arrays based on groupedCategory
+        const colorMatch: (string | any)[] = ["match", ["get", "groupedCategory"]];
+        const outlineMatch: (string | any)[] = ["match", ["get", "groupedCategory"]];
         for (const [cat, style] of Object.entries(categoryColors)) {
           colorMatch.push(cat, style.color);
           outlineMatch.push(cat, style.outline);
@@ -91,12 +114,12 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         colorMatch.push("#cccccc"); // default color
         outlineMatch.push("#000000"); // default outline
 
-        // Retailer points (filterable)
+        // Retailer points (all non-Kingpin categories)
         mapRef.current!.addLayer({
           id: "retailer-points",
           type: "circle",
           source: "retailers",
-          filter: ["all", ["!=", ["get", "category"], "Kingpin"]],
+          filter: ["all", ["!=", ["get", "groupedCategory"], "Kingpin"]],
           paint: {
             "circle-radius": 5,
             "circle-color": colorMatch as any,
@@ -110,7 +133,7 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           id: "kingpins",
           type: "circle",
           source: "retailers",
-          filter: ["==", ["get", "category"], "Kingpin"],
+          filter: ["==", ["get", "groupedCategory"], "Kingpin"],
           paint: {
             "circle-radius": 6,
             "circle-color": "#ff0000",
@@ -127,19 +150,17 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           const props = e.features?.[0].properties;
           if (!props) return;
 
-          // Close old popup if it exists
           if (popupRef.current) {
             popupRef.current.remove();
           }
 
-          // Create new popup
           popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false })
             .setLngLat(coords)
             .setHTML(`
               <div style="font-weight:bold; margin-bottom:4px;">${props["name"] || ""}</div>
               <div>${props["address"] || ""}</div>
               <div>${props["city"] || ""}, ${props["state"] || ""} ${props["zip"] || ""}</div>
-              <div><b>Category:</b> ${props["category"] || "N/A"}</div>
+              <div><b>Category:</b> ${props["groupedCategory"] || "N/A"}</div>
               <div><b>Retailer:</b> ${props["retailer"] || "N/A"}</div>
               <div><b>Suppliers:</b> ${props["suppliers"] || "N/A"}</div>
             `)
@@ -165,7 +186,7 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
 
     const categoryFilter =
       selectedCategories.length > 0
-        ? ["in", ["get", "category"], ["literal", selectedCategories]]
+        ? ["in", ["get", "groupedCategory"], ["literal", selectedCategories]]
         : true;
 
     const stateFilter =
@@ -175,7 +196,7 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
 
     mapRef.current.setFilter("retailer-points", [
       "all",
-      ["!=", ["get", "category"], "Kingpin"],
+      ["!=", ["get", "groupedCategory"], "Kingpin"],
       categoryFilter,
       stateFilter,
     ]);

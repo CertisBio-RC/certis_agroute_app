@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import CertisMap from "@/components/CertisMap"; // ✅ removed { categoryColors }
+import CertisMap from "@/components/CertisMap";
 import Image from "next/image";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -12,14 +12,12 @@ const stateList = [
   "IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI",
 ];
 
-// ✅ Hardcoded category colors (local copy)
+// ✅ Grouped categories and colors (must match CertisMap.tsx)
 const categoryColors: Record<string, { color: string; outline: string }> = {
-  Dealer: { color: "#1f77b4", outline: "#0d3d66" },
-  Retailer: { color: "#ff7f0e", outline: "#a64e00" },
-  Supplier: { color: "#2ca02c", outline: "#145214" },
-  Warehouse: { color: "#d62728", outline: "#7f1d1d" },
-  Other: { color: "#9467bd", outline: "#4a2a7f" },
-  Kingpin: { color: "#ff0000", outline: "#ffff00" },
+  Agronomy: { color: "#ffd700", outline: "#a67c00" },        // yellow
+  "Grain/Feed": { color: "#ff7f0e", outline: "#a64e00" },    // orange
+  "Office/Service": { color: "#1f78ff", outline: "#0d3d99" },// bright blue
+  Kingpin: { color: "#ff0000", outline: "#ffff00" },         // special layer
 };
 
 export default function Page() {
@@ -41,7 +39,9 @@ export default function Page() {
   };
 
   const handleSelectAllCategories = () => {
-    setSelectedCategories(Object.keys(categoryColors));
+    setSelectedCategories(
+      Object.keys(categoryColors).filter((c) => c !== "Kingpin")
+    );
   };
 
   const handleClearAllCategories = () => {
@@ -203,7 +203,6 @@ export default function Page() {
             ))}
           </ul>
 
-          {/* ✅ Kingpin note moved here */}
           <p className="mt-3 text-sm text-red-600 dark:text-yellow-400 font-semibold">
             Kingpins are always visible (bright red, yellow border).
           </p>
