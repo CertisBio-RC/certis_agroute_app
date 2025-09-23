@@ -1,258 +1,163 @@
-// app/page.tsx
+// components/CertisMap.tsx
 "use client";
 
-import { useState } from "react";
-import CertisMap, { categoryColors } from "@/components/CertisMap";
-import Image from "next/image";
+import { useEffect, useRef } from "react";
+import mapboxgl from "mapbox-gl";
 
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-// ✅ States represented in your dataset
-const stateList = [
-  "IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI"
-];
+export interface CertisMapProps {
+  selectedCategories: string[];
+  selectedStates: string[];
+}
 
-export default function Page() {
-  // ========================================
-  // 🎛️ Filter States
-  // ========================================
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+// ✅ Exportable state list for sidebar filter
+export let availableStates: string[] = [];
 
-  // ========================================
-  // 🔘 Category Handlers
-  // ========================================
-  const handleToggleCategory = (category: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(category)
-        ? prev.filter((c) => c !== category)
-        : [...prev, category]
-    );
-  };
+// ✅ categoryColors is INTERNAL ONLY (not exported)
+const categoryColors: Record<string, { color: string; outline: string }> = {
+  Dealer: { color: "#1f77b4", outline: "#0d3d66" },
+  Retailer: { color: "#ff7f0e", outline: "#a64e00" },
+  Supplier: { color: "#2ca02c", outline: "#145214" },
+  Warehouse: { color: "#d62728", outline: "#7f1d1d" },
+  Other: { color: "#9467bd", outline: "#4a2a7f" },
+  Kingpin: { color: "#ff0000", outline: "#ffff00" }, // reserved styling
+};
 
-  const handleSelectAllCategories = () => {
-    setSelectedCategories(Object.keys(categoryColors));
-  };
+export default function CertisMap({ selectedCategories, selectedStates }: CertisMapProps) {
+  const mapContainer = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
 
-  const handleClearAllCategories = () => {
-    setSelectedCategories([]);
-  };
+  useEffect(() => {
+    if (mapRef.current) return;
 
-  // ========================================
-  // 🔘 State Handlers
-  // ========================================
-  const handleToggleState = (state: string) => {
-    setSelectedStates((prev) =>
-      prev.includes(state)
-        ? prev.filter((s) => s !== state)
-        : [...prev, state]
-    );
-  };
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-  const handleSelectAllStates = () => {
-    setSelectedStates([...stateList]);
-  };
+    mapRef.current = new mapboxgl.Map({
+      container: mapContainer.current as HTMLElement,
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
+      center: [-93.5, 41.7],
+      zoom: 4.2,
+      projection: { name: "mercator" }, // ✅ keep mercator
+    });
 
-  const handleClearAllStates = () => {
-    setSelectedStates([]);
-  };
+    mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
 
-  return (
-    <div className="flex h-screen w-screen">
-      {/* ========================================
-          📌 Sidebar with Tiles
-      ======================================== */}
-      <aside className="w-80 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto">
-        {/* ✅ Logo */}
-        <div className="flex items-center justify-center mb-6">
-          <Image
-            src={`${basePath}/certis-logo.png`}
-            alt="Certis Logo"
-            width={180}
-            height={60}
-            priority
-          />
-        </div>
+    mapRef.current.on("load", async () => {
+      try {
+        const response = await fetch(`${basePath}/retailers.geojson`);
+        if (!response.ok) throw new Error(`Failed to fetch GeoJSON: ${response.status}`);
+        const geojson = await response.json();
 
-        {/* ========================================
-            🟦 Tile 1: Home Zip Code
-        ======================================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Home Zip Code
-          </h2>
-          <input
-            type="text"
-            placeholder="Enter ZIP"
-            className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-          />
-        </div>
+        if (!geojson || !geojson.features) {
+          console.warn("⚠️ No valid features found in retailers.geojson");
+          return;
+        }
 
-        {/* ========================================
-            🟦 Tile 2: State Filter
-        ======================================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            State Filter
-          </h2>
+        // Collect unique states for export
+        const states = new Set<string>();
+        geojson.features.forEach((f: any) => {
+          if (f.properties?.State) states.add(f.properties.State);
+        });
+        availableStates = Array.from(states).sort();
+        console.log("📍 Available states:", availableStates);
 
-          {/* Select All / Clear All buttons */}
-          <div className="flex space-x-2 mb-3">
-            <button
-              onClick={handleSelectAllStates}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-            >
-              Select All
-            </button>
-            <button
-              onClick={handleClearAllStates}
-              className="px-2 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-            >
-              Clear All
-            </button>
-          </div>
+        // Clean old sources/layers
+        if (mapRef.current!.getSource("retailers")) {
+          mapRef.current!.removeLayer("retailer-points");
+          if (mapRef.current!.getLayer("kingpins")) {
+            mapRef.current!.removeLayer("kingpins");
+          }
+          mapRef.current!.removeSource("retailers");
+        }
 
-          <div className="grid grid-cols-3 gap-2">
-            {stateList.map((state) => (
-              <label key={state} className="flex items-center space-x-1">
-                <input
-                  type="checkbox"
-                  checked={selectedStates.includes(state)}
-                  onChange={() => handleToggleState(state)}
-                  className="mr-1"
-                />
-                <span className="text-gray-700 dark:text-gray-300 text-sm">
-                  {state}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
+        mapRef.current!.addSource("retailers", {
+          type: "geojson",
+          data: geojson,
+        });
 
-        {/* ========================================
-            🟦 Tile 3: Retailer Filter
-        ======================================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Retailer Filter
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Filter by retailer name
-          </p>
-        </div>
+        // Retailer points (filterable)
+        mapRef.current!.addLayer({
+          id: "retailer-points",
+          type: "circle",
+          source: "retailers",
+          filter: ["all", ["!=", ["get", "Category"], "Kingpin"]],
+          paint: {
+            "circle-radius": 5,
+            "circle-color": [
+              "match",
+              ["get", "Category"],
+              ...Object.entries(categoryColors).flatMap(([cat, style]) => [cat, style.color]),
+              "#cccccc",
+            ],
+            "circle-stroke-color": [
+              "match",
+              ["get", "Category"],
+              ...Object.entries(categoryColors).flatMap(([cat, style]) => [cat, style.outline]),
+              "#000000",
+            ],
+            "circle-stroke-width": 1,
+          },
+        });
 
-        {/* ========================================
-            🟦 Tile 4: Category Filter + Legend
-        ======================================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Categories
-          </h2>
+        // Kingpins (always visible, bigger, bright red/yellow)
+        mapRef.current!.addLayer({
+          id: "kingpins",
+          type: "circle",
+          source: "retailers",
+          filter: ["==", ["get", "Category"], "Kingpin"],
+          paint: {
+            "circle-radius": 6,
+            "circle-color": "#ff0000",
+            "circle-stroke-color": "#ffff00",
+            "circle-stroke-width": 2,
+          },
+        });
 
-          {/* Select All / Clear All buttons */}
-          <div className="flex space-x-2 mb-4">
-            <button
-              onClick={handleSelectAllCategories}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-            >
-              Select All
-            </button>
-            <button
-              onClick={handleClearAllCategories}
-              className="px-2 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-            >
-              Clear All
-            </button>
-          </div>
+        // Popup for non-kingpins
+        mapRef.current!.on("click", "retailer-points", (e) => {
+          const coords = (e.features?.[0].geometry as any).coordinates.slice();
+          const props = e.features?.[0].properties;
+          if (!props) return;
 
-          <ul className="space-y-2">
-            {Object.entries(categoryColors).map(([cat, style]) => (
-              <li key={cat} className="flex items-center">
-                <input
-                  type="checkbox"
-                  id={`filter-${cat}`}
-                  checked={selectedCategories.includes(cat)}
-                  onChange={() => handleToggleCategory(cat)}
-                  className="mr-2"
-                  disabled={cat === "Kingpin"} // Kingpins always visible
-                />
-                <label
-                  htmlFor={`filter-${cat}`}
-                  className="flex items-center text-gray-700 dark:text-gray-300"
-                >
-                  <span
-                    className="inline-block w-4 h-4 mr-2 rounded-full border"
-                    style={{
-                      backgroundColor: style.color,
-                      borderColor: style.outline || "#000",
-                    }}
-                  ></span>
-                  {cat}
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
+          new mapboxgl.Popup()
+            .setLngLat(coords)
+            .setHTML(`
+              <div style="font-weight:bold; margin-bottom:4px;">${props["Long Name"] || props["Name"]}</div>
+              <div>${props["Address"] || ""}</div>
+              <div>${props["City"] || ""}, ${props["State"] || ""} ${props["Zip"] || ""}</div>
+              <div><b>Category:</b> ${props["Category"] || "N/A"}</div>
+              <div><b>Suppliers:</b> ${props["Suppliers"] || "N/A"}</div>
+            `)
+            .addTo(mapRef.current!);
+        });
+      } catch (err) {
+        console.error("❌ Error loading geojson:", err);
+      }
+    });
+  }, []);
 
-        {/* ========================================
-            🟦 Tile 5: Supplier Filter
-        ======================================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Supplier Filter
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Filter by supplier
-          </p>
-        </div>
+  // Apply filters dynamically
+  useEffect(() => {
+    if (!mapRef.current || !mapRef.current.getLayer("retailer-points")) return;
 
-        {/* ========================================
-            🟦 Tile 6: Debug Card
-        ======================================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Debug Info
-          </h2>
+    const categoryFilter =
+      selectedCategories.length > 0
+        ? ["in", ["get", "Category"], ["literal", selectedCategories]]
+        : true;
 
-          <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
-            <div>
-              <strong>Selected States:</strong>{" "}
-              {selectedStates.length > 0 ? selectedStates.join(", ") : "None"}
-            </div>
-            <div>
-              <strong>Selected Categories:</strong>{" "}
-              {selectedCategories.length > 0
-                ? selectedCategories.join(", ")
-                : "None"}
-            </div>
-            <div className="text-red-600 dark:text-yellow-400 font-semibold">
-              Kingpins are always visible (bright red, yellow border).
-            </div>
-          </div>
-        </div>
+    const stateFilter =
+      selectedStates.length > 0
+        ? ["in", ["get", "State"], ["literal", selectedStates]]
+        : true;
 
-        {/* ========================================
-            🟦 Tile 7: Trip Optimization
-        ======================================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Trip Optimization
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Collect points and optimize route
-          </p>
-        </div>
-      </aside>
+    mapRef.current.setFilter("retailer-points", [
+      "all",
+      ["!=", ["get", "Category"], "Kingpin"],
+      categoryFilter,
+      stateFilter,
+    ]);
+  }, [selectedCategories, selectedStates]);
 
-      {/* ========================================
-          🗺️ Map Area
-      ======================================== */}
-      <main className="flex-1 relative">
-        <CertisMap
-          selectedCategories={selectedCategories}
-          selectedStates={selectedStates}
-        />
-      </main>
-    </div>
-  );
+  return <div ref={mapContainer} className="w-full h-full" />;
 }
