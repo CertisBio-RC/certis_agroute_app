@@ -9,7 +9,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 // ✅ States represented in your dataset
 const stateList = [
-  "IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI"
+  "IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI",
 ];
 
 // ✅ Hardcoded category colors (local copy)
@@ -202,6 +202,11 @@ export default function Page() {
               </li>
             ))}
           </ul>
+
+          {/* ✅ Kingpin note moved here */}
+          <p className="mt-3 text-sm text-red-600 dark:text-yellow-400 font-semibold">
+            Kingpins are always visible (bright red, yellow border).
+          </p>
         </div>
 
         {/* ========================================
@@ -234,9 +239,6 @@ export default function Page() {
               {selectedCategories.length > 0
                 ? selectedCategories.join(", ")
                 : "None"}
-            </div>
-            <div className="text-red-600 dark:text-yellow-400 font-semibold">
-              Kingpins are always visible (bright red, yellow border).
             </div>
           </div>
         </div>

@@ -141,15 +141,16 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
   useEffect(() => {
     if (!mapRef.current || !mapRef.current.getLayer("retailer-points")) return;
 
+    // ✅ Mapbox requires ["literal", []] not `true` for "no filter"
     const categoryFilter =
       selectedCategories.length > 0
         ? ["in", ["get", "Category"], ["literal", selectedCategories]]
-        : true;
+        : ["literal", true];
 
     const stateFilter =
       selectedStates.length > 0
         ? ["in", ["get", "State"], ["literal", selectedStates]]
-        : true;
+        : ["literal", true];
 
     mapRef.current.setFilter("retailer-points", [
       "all",
