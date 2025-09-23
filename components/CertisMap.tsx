@@ -2,10 +2,20 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+// 🎨 Category color palette (color-blind safe)
+export const categoryColors: Record<string, string> = {
+  Agronomy: "#1f77b4", // blue
+  "Agronomy/Grain": "#1f77b4", // blue
+  Kingpin: "#ff0000", // red (special formatting below)
+  "Office/Service": "#20b2aa", // teal green
+  Grain: "#ffd700", // bright yellow
+  "Grain/Feed": "#ffd700", // bright yellow
+  Distribution: "#000000", // black
+};
 
 export interface CertisMapProps {
   selectedCategories: string[];
@@ -21,15 +31,13 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ Hybrid view
+      style: "mapbox://styles/mapbox/satellite-streets-v12", // ✅ hybrid
       center: [-93.5, 41.5],
       zoom: 5,
       projection: "mercator",
     });
 
     mapRef.current.on("load", () => {
-      console.log("✅ Map loaded, now fetching GeoJSON…");
-
       fetch(`${basePath}/data/retailers.geojson?cacheBust=${Date.now()}`)
         .then((res) => res.json())
         .then((data) => {
@@ -45,7 +53,7 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
             data,
           });
 
-          // 🎨 Add category-based styles
+          // 🖌 Circle style with category-based colors
           mapRef.current.addLayer({
             id: "retailer-points",
             type: "circle",
@@ -53,51 +61,36 @@ export default function CertisMap({ selectedCategories, onAddStop }: CertisMapPr
             paint: {
               "circle-radius": [
                 "case",
-                ["==", ["get", "category"], "Kingpin"],
-                7, // 🔴 Kingpin: larger
-                5, // default size
+                ["==", ["get", "category"], "Kingpin"], 7, // larger size
+                5,
               ],
               "circle-color": [
-                "match",
-                ["get", "category"],
-                "Agronomy",
-                "#0072B2", // blue
-                "Agronomy/Grain",
-                "#0072B2", // blue
-                "Kingpin",
-                "#D55E00", // bright red
-                "Office/Service",
-                "#009E73", // teal green
-                "Grain",
-                "#F0E442", // bright yellow
-                "Grain/Feed",
-                "#F0E442", // bright yellow
-                "Distribution",
-                "#000000", // black
-                "#999999", // fallback grey
+                "case",
+                ["==", ["get", "category"], "Kingpin"], "#ff0000", // bright red
+                ["==", ["get", "category"], "Agronomy"], categoryColors["Agronomy"],
+                ["==", ["get", "category"], "Agronomy/Grain"], categoryColors["Agronomy/Grain"],
+                ["==", ["get", "category"], "Office/Service"], categoryColors["Office/Service"],
+                ["==", ["get", "category"], "Grain"], categoryColors["Grain"],
+                ["==", ["get", "category"], "Grain/Feed"], categoryColors["Grain/Feed"],
+                ["==", ["get", "category"], "Distribution"], categoryColors["Distribution"],
+                "#aaaaaa", // fallback gray
               ],
               "circle-stroke-width": [
                 "case",
-                ["==", ["get", "category"], "Kingpin"],
-                2, // Kingpin: thick yellow border
-                ["==", ["get", "category"], "Distribution"],
-                2, // Distribution: white border
-                1, // default
+                ["==", ["get", "category"], "Kingpin"], 2,
+                ["==", ["get", "category"], "Distribution"], 2,
+                1,
               ],
               "circle-stroke-color": [
                 "case",
-                ["==", ["get", "category"], "Kingpin"],
-                "#FFFF00", // Kingpin border yellow
-                ["==", ["get", "category"], "Distribution"],
-                "#FFFFFF", // Distribution border white
+                ["==", ["get", "category"], "Kingpin"], "#ffff00", // yellow border
+                ["==", ["get", "category"], "Distribution"], "#ffffff", // white border
                 "#000000", // default black border
               ],
             },
           });
         })
-        .catch((err) => {
-          console.error("❌ Failed to load GeoJSON:", err);
-        });
+        .catch((err) => console.error("❌ Failed to load GeoJSON:", err));
     });
   }, []);
 
