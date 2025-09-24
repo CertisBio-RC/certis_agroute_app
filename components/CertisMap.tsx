@@ -62,7 +62,7 @@ export default function CertisMap({
         );
         const data = await response.json();
 
-        // Extract states & retailers
+        // Extract states & retailers (for sidebar)
         const stateSet = new Set<string>();
         const retailerSet = new Set<string>();
 
@@ -138,13 +138,13 @@ export default function CertisMap({
     fetch(process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson")
       .then((res) => res.json())
       .then((data) => {
+        // ✅ Keep Kingpins always visible, filter others
         const filtered = {
           type: "FeatureCollection" as const,
           features: data.features.filter((f: any) => {
             const props = f.properties || {};
 
-            // ✅ Kingpins are never filtered out
-            if (props.Category === "Kingpin") return true;
+            if (props.Category === "Kingpin") return true; // Kingpins bypass filters
 
             const stateMatch =
               selectedStates.length === 0 ||
