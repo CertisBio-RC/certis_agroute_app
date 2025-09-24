@@ -4,6 +4,7 @@
 import { useState } from "react";
 import CertisMap, { categoryColors } from "@/components/CertisMap";
 import Image from "next/image";
+import { Menu, X } from "lucide-react"; // icons for hamburger
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
@@ -26,6 +27,9 @@ export default function Page() {
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
+
+  // ✅ Mobile sidebar toggle
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // ========================================
   // 🔘 Category Handlers
@@ -98,11 +102,25 @@ export default function Page() {
   };
 
   return (
-    <div className="flex h-screen w-screen">
+    <div className="flex h-screen w-screen relative">
+      {/* ========================================
+          📱 Mobile Hamburger Button
+      ======================================== */}
+      <button
+        className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle sidebar"
+      >
+        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
+
       {/* ========================================
           📌 Sidebar with Tiles
       ======================================== */}
-      <aside className="w-80 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto">
+      <aside
+        className={`fixed md:static top-0 left-0 h-full w-72 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+      >
         {/* ✅ Logo */}
         <div className="flex items-center justify-center mb-6">
           <Image
@@ -307,7 +325,9 @@ export default function Page() {
             </div>
             <div>
               <strong>Selected Retailers:</strong>{" "}
-              {selectedRetailers.length > 0 ? selectedRetailers.join(", ") : "None"}
+              {selectedRetailers.length > 0
+                ? selectedRetailers.join(", ")
+                : "None"}
             </div>
             <div>
               <strong>Selected Categories:</strong>{" "}
