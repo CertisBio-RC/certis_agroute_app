@@ -221,7 +221,8 @@ export default function CertisMap({
       .then((res) => res.json())
       .then((data) => {
         // ✅ Normalize strings for comparisons
-        const norm = (val: string) => (val || "").toString().trim().toLowerCase();
+        const norm = (val: string) =>
+          (val || "").toString().trim().toLowerCase();
 
         const filtered = {
           type: "FeatureCollection" as const,
@@ -244,7 +245,12 @@ export default function CertisMap({
               selectedSuppliers.length === 0 ||
               selectedSuppliers.map(norm).includes(norm(props.Suppliers));
 
-            return stateMatch && retailerMatch && categoryMatch && supplierMatch;
+            return (
+              stateMatch &&
+              retailerMatch &&
+              categoryMatch &&
+              supplierMatch
+            );
           }),
         };
 
