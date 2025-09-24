@@ -82,7 +82,7 @@ export default function CertisMap({
           data,
         });
 
-        // Add retailer circles
+        // ✅ Main retailer circles (EXCLUDES Kingpins)
         mapRef.current?.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -98,23 +98,26 @@ export default function CertisMap({
               categoryColors["Grain/Feed"].color,
               "Office/Service",
               categoryColors["Office/Service"].color,
-              "Kingpin",
-              categoryColors.Kingpin.color,
               "#1d4ed8", // fallback
             ],
-            "circle-stroke-width": [
-              "case",
-              ["==", ["get", "Category"], "Kingpin"],
-              2,
-              1,
-            ],
-            "circle-stroke-color": [
-              "case",
-              ["==", ["get", "Category"], "Kingpin"],
-              categoryColors.Kingpin.outline!,
-              "#fff",
-            ],
+            "circle-stroke-width": 1,
+            "circle-stroke-color": "#fff",
           },
+          filter: ["!=", ["get", "Category"], "Kingpin"], // ✅ exclude Kingpins
+        });
+
+        // ✅ Separate Kingpin layer (always visible)
+        mapRef.current?.addLayer({
+          id: "kingpins-layer",
+          type: "circle",
+          source: "retailers",
+          paint: {
+            "circle-radius": 8,
+            "circle-color": categoryColors.Kingpin.color,
+            "circle-stroke-width": 2,
+            "circle-stroke-color": categoryColors.Kingpin.outline!,
+          },
+          filter: ["==", ["get", "Category"], "Kingpin"],
         });
       } catch (err) {
         console.error("Failed to load GeoJSON", err);
@@ -139,6 +142,10 @@ export default function CertisMap({
           type: "FeatureCollection" as const,
           features: data.features.filter((f: any) => {
             const props = f.properties || {};
+
+            // ✅ Kingpins are never filtered out
+            if (props.Category === "Kingpin") return true;
+
             const stateMatch =
               selectedStates.length === 0 ||
               selectedStates.includes(props.State);
@@ -151,6 +158,7 @@ export default function CertisMap({
             const supplierMatch =
               selectedSuppliers.length === 0 ||
               selectedSuppliers.includes(props.Supplier);
+
             return stateMatch && retailerMatch && categoryMatch && supplierMatch;
           }),
         };
@@ -180,7 +188,13 @@ export default function CertisMap({
           onRetailerSummary(Array.from(summaryMap.values()));
         }
       });
-  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+    onRetailerSummary,
+  ]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
