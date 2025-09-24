@@ -15,7 +15,7 @@ export interface CertisMapProps {
 export let availableStates: string[] = [];
 
 // ✅ Grouped category colors
-const categoryColors: Record<string, { color: string; outline: string }> = {
+export const categoryColors: Record<string, { color: string; outline: string }> = {
   Agronomy: { color: "#ffd700", outline: "#a67c00" },       // yellow
   "Grain/Feed": { color: "#98ff98", outline: "#228b22" },   // bright mint green
   "Office/Service": { color: "#1f78ff", outline: "#0d3d99" } // bright blue
@@ -160,11 +160,24 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           popupRef.current
             .setLngLat(coords)
             .setHTML(`
-              <div style="font-weight:bold; margin-bottom:4px;">${props["retailer"] || ""}</div>
-              <div style="font-style:italic; margin-bottom:4px;">${props["name"] || ""}</div>
-              <div>${props["city"] || ""}, ${props["state"] || ""} ${props["zip"] || ""}</div>
-              <div><b>Category:</b> ${props["groupedCategory"] || "N/A"}</div>
-              <div><b>Suppliers:</b> ${props["suppliers"] || "N/A"}</div>
+              <div style="font-weight:bold; font-size:14px; margin-bottom:4px;">
+                ${props["retailer"] || ""}
+              </div>
+              <div style="font-style:italic; font-size:14px; margin-bottom:4px;">
+                ${props["name"] || ""}
+              </div>
+              <div style="font-size:14px; margin-bottom:4px;">
+                ${props["address"] || ""}
+              </div>
+              <div style="font-size:14px; margin-bottom:4px;">
+                ${props["city"] || ""}, ${props["state"] || ""} ${props["zip"] || ""}
+              </div>
+              <div style="font-size:14px;">
+                <b>Category:</b> ${props["groupedCategory"] || "N/A"}
+              </div>
+              <div style="font-size:14px;">
+                <b>Suppliers:</b> ${props["suppliers"] || "N/A"}
+              </div>
             `)
             .addTo(mapRef.current!);
         }
