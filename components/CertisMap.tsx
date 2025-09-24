@@ -139,7 +139,7 @@ export default function CertisMap({
               <strong>${props.Retailer || "Unknown"}</strong><br/>
               <em>${props.Name || ""}</em><br/>
               ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
-              Supplier: ${props.Suppliers || "N/A"}
+              Suppliers: ${props.Suppliers || "N/A"}
             </div>
           `;
         }
@@ -266,8 +266,11 @@ export default function CertisMap({
           >();
 
           for (const f of filtered.features) {
-            const state = f.properties?.State || "Unknown";
-            const retailer = f.properties?.Retailer || "Unknown";
+            const props = f.properties || {};
+            if (props.Category === "Kingpin") continue; // 🚫 skip Kingpins
+
+            const state = props.State || "Unknown";
+            const retailer = props.Retailer || "Unknown";
             const key = `${state}-${retailer}`;
 
             if (!summaryMap.has(key)) {
