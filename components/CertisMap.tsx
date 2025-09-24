@@ -41,6 +41,11 @@ export default function CertisMap({
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
+  // ✅ Build correct path for local + GitHub Pages
+  const geojsonPath =
+    process.env.NEXT_PUBLIC_GEOJSON_URL ||
+    `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/retailers.geojson`;
+
   // ========================================
   // 🌍 Initialize Map
   // ========================================
@@ -57,9 +62,7 @@ export default function CertisMap({
 
     mapRef.current.on("load", async () => {
       try {
-        const response = await fetch(
-          process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson"
-        );
+        const response = await fetch(geojsonPath);
         const data = await response.json();
 
         // Extract states & retailers (for sidebar)
@@ -123,7 +126,7 @@ export default function CertisMap({
         console.error("Failed to load GeoJSON", err);
       }
     });
-  }, [onStatesLoaded, onRetailersLoaded]);
+  }, [geojsonPath, onStatesLoaded, onRetailersLoaded]);
 
   // ========================================
   // 🔄 Apply filters dynamically
@@ -135,7 +138,7 @@ export default function CertisMap({
     const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!source) return;
 
-    fetch(process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson")
+    fetch(geojsonPath)
       .then((res) => res.json())
       .then((data) => {
         // ✅ Keep Kingpins always visible, filter others
@@ -189,6 +192,7 @@ export default function CertisMap({
         }
       });
   }, [
+    geojsonPath,
     selectedStates,
     selectedRetailers,
     selectedCategories,
