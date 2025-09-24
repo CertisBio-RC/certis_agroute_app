@@ -137,17 +137,16 @@ export default function CertisMap({
         map.on("mouseenter", "retailers-layer", (e) => {
           map.getCanvas().style.cursor = "pointer";
 
-          const coords = e.features?.[0].geometry?.coordinates.slice();
+          const geom = e.features?.[0].geometry as GeoJSON.Point;
+          const coords = geom?.coordinates.slice() as [number, number];
           const props = e.features?.[0].properties;
 
           if (coords && props) {
             const html = `
-              <div style="font-size: 13px; background: #111; color: #eee; padding: 6px; border-radius: 4px;">
+              <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px;">
                 <strong>${props.Retailer || "Unknown"}</strong><br/>
                 <em>${props.Name || ""}</em><br/>
-                ${props.Address || ""}<br/>
-                Category: ${props.Category || "N/A"}<br/>
-                Supplier: ${props.Supplier || "N/A"}
+                ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}
               </div>
             `;
 
@@ -162,17 +161,16 @@ export default function CertisMap({
 
         // Click (mobile fallback)
         map.on("click", "retailers-layer", (e) => {
-          const coords = e.features?.[0].geometry?.coordinates.slice();
+          const geom = e.features?.[0].geometry as GeoJSON.Point;
+          const coords = geom?.coordinates.slice() as [number, number];
           const props = e.features?.[0].properties;
 
           if (coords && props) {
             const html = `
-              <div style="font-size: 13px; background: #111; color: #eee; padding: 6px; border-radius: 4px;">
+              <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px;">
                 <strong>${props.Retailer || "Unknown"}</strong><br/>
                 <em>${props.Name || ""}</em><br/>
-                ${props.Address || ""}<br/>
-                Category: ${props.Category || "N/A"}<br/>
-                Supplier: ${props.Supplier || "N/A"}
+                ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}
               </div>
             `;
             new mapboxgl.Popup().setLngLat(coords).setHTML(html).addTo(map);
