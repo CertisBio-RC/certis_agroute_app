@@ -10,7 +10,6 @@ def excel_to_geojson(excel_file: str, sheet_name: str = None, output_file: str =
         df = pd.read_excel(excel_file, sheet_name=sheet_name)
         print(f"✅ Loaded sheet: {sheet_name}")
     else:
-        # Default to first sheet if not provided
         df = pd.read_excel(excel_file, sheet_name=0)
         print(f"✅ Loaded first sheet: {df.columns.tolist()}")
 
@@ -30,23 +29,23 @@ def excel_to_geojson(excel_file: str, sheet_name: str = None, output_file: str =
             skipped += 1
             continue
 
-        # ✅ Keep only U.S. bounding box
         if not (24.0 <= lat <= 49.5 and -125.0 <= lon <= -66.0):
             skipped += 1
             continue
 
+        # ✅ Capitalized property keys (match your map + Excel)
         feature = {
             "type": "Feature",
             "geometry": {"type": "Point", "coordinates": [lon, lat]},
             "properties": {
-                "name": str(row.get("Name", "")),
-                "address": str(row.get("Address", "")),
-                "city": str(row.get("City", "")),
-                "state": str(row.get("State", "")),
-                "zip": str(row.get("Zip", "")),
-                "category": str(row.get("Category", "")),
-                "retailer": str(row.get("Retailer", "")) if "Retailer" in row else "",
-                "suppliers": str(row.get("Suppliers", "")) if "Suppliers" in row else "",
+                "Retailer": str(row.get("Retailer", "")),
+                "Name": str(row.get("Name", "")),
+                "Address": str(row.get("Address", "")),
+                "City": str(row.get("City", "")),
+                "State": str(row.get("State", "")),
+                "Zip": str(row.get("Zip", "")),
+                "Category": str(row.get("Category", "")),
+                "Suppliers": str(row.get("Suppliers", "")),
             },
         }
         features.append(feature)
@@ -60,13 +59,12 @@ def excel_to_geojson(excel_file: str, sheet_name: str = None, output_file: str =
     print(f"✅ Loaded {len(df)} rows, wrote {len(features)} valid U.S. features, skipped {skipped} rows.")
     print(f"🎉 GeoJSON successfully written to {output_file}")
 
-    # 🟢 Sanity check: print first 5 coordinates
     print("\n🔎 Sample of first 5 points:")
     for f in features[:5]:
         coords = f["geometry"]["coordinates"]
-        name = f["properties"]["name"]
-        city = f["properties"]["city"]
-        state = f["properties"]["state"]
+        name = f["properties"]["Name"]
+        city = f["properties"]["City"]
+        state = f["properties"]["State"]
         print(f"   {name} – {city}, {state}  ({coords[1]}, {coords[0]})")
 
 if __name__ == "__main__":

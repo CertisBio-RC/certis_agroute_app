@@ -17,6 +17,9 @@ const supplierList = [
   "Syngenta",
 ];
 
+// ✅ Normalizer function (matches CertisMap)
+const norm = (val: string) => (val || "").toString().trim().toLowerCase();
+
 export default function Page() {
   // ========================================
   // 🎛️ State Hooks
@@ -30,7 +33,7 @@ export default function Page() {
 
   // ✅ New: Retailer Summary from CertisMap
   const [retailerSummary, setRetailerSummary] = useState<
-    { state: string; retailer: string; count: number }[]
+    { state: string; retailer: string; count: number; category?: string }[]
   >([]);
 
   // ✅ Mobile sidebar toggle
@@ -40,16 +43,19 @@ export default function Page() {
   // 🔘 Category Handlers
   // ========================================
   const handleToggleCategory = (category: string) => {
+    const normalized = norm(category);
     setSelectedCategories((prev) =>
-      prev.includes(category)
-        ? prev.filter((c) => c !== category)
-        : [...prev, category]
+      prev.includes(normalized)
+        ? prev.filter((c) => c !== normalized)
+        : [...prev, normalized]
     );
   };
 
   const handleSelectAllCategories = () => {
     setSelectedCategories(
-      Object.keys(categoryColors).filter((c) => c !== "Kingpin")
+      Object.keys(categoryColors)
+        .filter((c) => c !== "Kingpin")
+        .map(norm)
     );
   };
 
@@ -61,15 +67,16 @@ export default function Page() {
   // 🔘 State Handlers
   // ========================================
   const handleToggleState = (state: string) => {
+    const normalized = norm(state);
     setSelectedStates((prev) =>
-      prev.includes(state)
-        ? prev.filter((s) => s !== state)
-        : [...prev, state]
+      prev.includes(normalized)
+        ? prev.filter((s) => s !== normalized)
+        : [...prev, normalized]
     );
   };
 
   const handleSelectAllStates = () => {
-    setSelectedStates([...availableStates]);
+    setSelectedStates(availableStates.map(norm));
   };
 
   const handleClearAllStates = () => {
@@ -80,10 +87,11 @@ export default function Page() {
   // 🔘 Supplier Handlers
   // ========================================
   const handleToggleSupplier = (supplier: string) => {
+    const normalized = norm(supplier);
     setSelectedSuppliers((prev) =>
-      prev.includes(supplier)
-        ? prev.filter((s) => s !== supplier)
-        : [...prev, supplier]
+      prev.includes(normalized)
+        ? prev.filter((s) => s !== normalized)
+        : [...prev, normalized]
     );
   };
 
@@ -95,16 +103,27 @@ export default function Page() {
   // 🔘 Retailer Handlers
   // ========================================
   const handleToggleRetailer = (retailer: string) => {
+    const normalized = norm(retailer);
     setSelectedRetailers((prev) =>
-      prev.includes(retailer)
-        ? prev.filter((r) => r !== retailer)
-        : [...prev, retailer]
+      prev.includes(normalized)
+        ? prev.filter((r) => r !== normalized)
+        : [...prev, normalized]
     );
   };
 
   const handleClearAllRetailers = () => {
     setSelectedRetailers([]);
   };
+
+  // ========================================
+  // 🟦 Derived summaries
+  // ========================================
+  const kingpinSummary = retailerSummary.filter(
+    (s) => norm(s.retailer) === "kingpin" || norm(s.category || "") === "kingpin"
+  );
+  const normalSummary = retailerSummary.filter(
+    (s) => norm(s.retailer) !== "kingpin" && norm(s.category || "") !== "kingpin"
+  );
 
   return (
     <div className="flex h-screen w-screen relative">
@@ -180,7 +199,7 @@ export default function Page() {
               <label key={state} className="flex items-center space-x-1">
                 <input
                   type="checkbox"
-                  checked={selectedStates.includes(state)}
+                  checked={selectedStates.includes(norm(state))}
                   onChange={() => handleToggleState(state)}
                   className="mr-1"
                 />
@@ -214,7 +233,7 @@ export default function Page() {
               <label key={retailer} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
-                  checked={selectedRetailers.includes(retailer)}
+                  checked={selectedRetailers.includes(norm(retailer))}
                   onChange={() => handleToggleRetailer(retailer)}
                 />
                 <span className="text-gray-700 dark:text-gray-300 text-sm">
@@ -255,7 +274,7 @@ export default function Page() {
                 <input
                   type="checkbox"
                   id={`filter-${cat}`}
-                  checked={selectedCategories.includes(cat)}
+                  checked={selectedCategories.includes(norm(cat))}
                   onChange={() => handleToggleCategory(cat)}
                   className="mr-2"
                   disabled={cat === "Kingpin"} // Kingpins always visible
@@ -283,7 +302,7 @@ export default function Page() {
         </div>
 
         {/* ========================================
-            🟦 Tile 6: Channel Summary (renamed)
+            🟦 Tile 6: Channel Summary
         ======================================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
@@ -293,7 +312,9 @@ export default function Page() {
           <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
             <div>
               <strong>Selected States ({selectedStates.length}):</strong>{" "}
-              {selectedStates.length > 0 ? selectedStates.join(", ") : "None"}
+              {selectedStates.length > 0
+                ? selectedStates.join(", ")
+                : "None"}
             </div>
             <div>
               <strong>Selected Retailers ({selectedRetailers.length}):</strong>{" "}
@@ -301,11 +322,26 @@ export default function Page() {
                 ? selectedRetailers.join(", ")
                 : "None"}
             </div>
+
+            {/* ✅ Always show Kingpins */}
+            {kingpinSummary.length > 0 && (
+              <div>
+                <strong>Kingpins:</strong>
+                <ul className="list-disc ml-5">
+                  {kingpinSummary.map((s, i) => (
+                    <li key={i}>
+                      {s.state}, {s.retailer} – {s.count} locations
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div>
               <strong>Retailer Summary:</strong>{" "}
-              {retailerSummary.length > 0 ? (
+              {normalSummary.length > 0 ? (
                 <ul className="list-disc ml-5">
-                  {retailerSummary.map((s, i) => (
+                  {normalSummary.map((s, i) => (
                     <li key={i}>
                       {s.state}, {s.retailer} – {s.count} locations
                     </li>
