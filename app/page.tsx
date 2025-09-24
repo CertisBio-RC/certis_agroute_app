@@ -157,6 +157,7 @@ export default function Page() {
             State Filter
           </h2>
 
+          {/* Select All / Clear All buttons */}
           <div className="flex space-x-2 mb-3">
             <button
               onClick={handleSelectAllStates}
@@ -223,13 +224,14 @@ export default function Page() {
         </div>
 
         {/* ========================================
-            🟦 Tile 4: Category Filter
+            🟦 Tile 4: Category Filter + Legend
         ======================================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Categories
           </h2>
 
+          {/* Select All / Clear All buttons */}
           <div className="flex space-x-2 mb-4">
             <button
               onClick={handleSelectAllCategories}
@@ -254,7 +256,7 @@ export default function Page() {
                   checked={selectedCategories.includes(cat)}
                   onChange={() => handleToggleCategory(cat)}
                   className="mr-2"
-                  disabled={cat === "Kingpin"}
+                  disabled={cat === "Kingpin"} // Kingpins always visible
                 />
                 <label
                   htmlFor={`filter-${cat}`}
@@ -321,24 +323,25 @@ export default function Page() {
 
           <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
             <div>
-              <strong>States Selected ({selectedStates.length}):</strong>{" "}
+              <strong>Selected States ({selectedStates.length}):</strong>{" "}
               {selectedStates.length > 0 ? selectedStates.join(", ") : "None"}
             </div>
             <div>
-              <strong>Retailers Selected ({selectedRetailers.length}):</strong>{" "}
+              <strong>Selected Retailers ({selectedRetailers.length}):</strong>{" "}
               {selectedRetailers.length > 0
                 ? selectedRetailers.join(", ")
                 : "None"}
             </div>
 
-            {/* ✅ Retailer summary with location counts */}
+            {/* ✅ Dynamic summary list */}
             {retailerSummary.length > 0 && (
-              <div>
-                <strong>Locations:</strong>
-                <ul className="list-disc list-inside">
-                  {retailerSummary.map((r, idx) => (
+              <div className="mt-2">
+                <strong>Retailer Locations:</strong>
+                <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                  {retailerSummary.map((item, idx) => (
                     <li key={idx}>
-                      {r.state}, {r.retailer} - {r.locations} locations
+                      {item.state}, {item.retailer} — {item.locations}{" "}
+                      locations
                     </li>
                   ))}
                 </ul>
@@ -371,7 +374,7 @@ export default function Page() {
           selectedRetailers={selectedRetailers}
           onStatesLoaded={setAvailableStates}
           onRetailersLoaded={setAvailableRetailers}
-          onRetailerSummary={setRetailerSummary} // ✅ connect summary
+          onRetailerSummary={setRetailerSummary} // ✅ New callback
         />
       </main>
     </div>

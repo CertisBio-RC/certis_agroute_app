@@ -3,7 +3,6 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
-import type { FeatureCollection, Feature, Geometry } from "geojson";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -48,7 +47,7 @@ export default function CertisMap({
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-98.5795, 39.8283],
+      center: [-98.5795, 39.8283], // ✅ Flat Mercator, not globe
       zoom: 3,
     });
 
@@ -57,7 +56,7 @@ export default function CertisMap({
         const response = await fetch(
           process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson"
         );
-        const data: FeatureCollection = await response.json();
+        const data = await response.json();
 
         // Extract states & retailers
         const stateSet = new Set<string>();
@@ -70,6 +69,7 @@ export default function CertisMap({
           if (retailer) retailerSet.add(retailer as string);
         }
 
+        // ✅ Cast explicitly to string[]
         const states = Array.from(stateSet) as string[];
         const retailers = Array.from(retailerSet) as string[];
 
@@ -110,10 +110,10 @@ export default function CertisMap({
 
     fetch(process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson")
       .then((res) => res.json())
-      .then((data: FeatureCollection) => {
-        const filtered: FeatureCollection<Geometry, any> = {
-          type: "FeatureCollection",
-          features: data.features.filter((f: Feature) => {
+      .then((data) => {
+        const filtered = {
+          type: "FeatureCollection" as const,
+          features: data.features.filter((f: any) => {
             const props = f.properties || {};
             const stateMatch =
               selectedStates.length === 0 ||
@@ -153,7 +153,14 @@ export default function CertisMap({
             summaryMap.get(key)!.locations += 1;
           }
 
-          onRetailerSummary(Array.from(summaryMap.values()));
+          // ✅ Improvement: sort results before sending
+          const sortedSummary = Array.from(summaryMap.values()).sort((a, b) =>
+            a.state === b.state
+              ? a.retailer.localeCompare(b.retailer)
+              : a.state.localeCompare(b.state)
+          );
+
+          onRetailerSummary(sortedSummary);
         }
       });
   }, [
