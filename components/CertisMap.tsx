@@ -52,7 +52,7 @@ export default function CertisMap({
   useEffect(() => {
     if (mapRef.current) return;
 
-    mapRef.current = new mapboxgl.Map({
+    const map = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [-98.5795, 39.8283], // center on US
@@ -60,7 +60,9 @@ export default function CertisMap({
       projection: "mercator", // ✅ force flat map
     });
 
-    mapRef.current.on("load", async () => {
+    mapRef.current = map;
+
+    map.on("load", async () => {
       try {
         const response = await fetch(geojsonPath);
         const data = await response.json();
@@ -80,13 +82,13 @@ export default function CertisMap({
         onRetailersLoaded?.(Array.from(retailerSet).sort());
 
         // Add GeoJSON source
-        mapRef.current?.addSource("retailers", {
+        map.addSource("retailers", {
           type: "geojson",
           data,
         });
 
         // ✅ Main retailer circles (EXCLUDES Kingpins)
-        mapRef.current?.addLayer({
+        map.addLayer({
           id: "retailers-layer",
           type: "circle",
           source: "retailers",
@@ -110,7 +112,7 @@ export default function CertisMap({
         });
 
         // ✅ Separate Kingpin layer (always visible)
-        mapRef.current?.addLayer({
+        map.addLayer({
           id: "kingpins-layer",
           type: "circle",
           source: "retailers",
@@ -121,6 +123,60 @@ export default function CertisMap({
             "circle-stroke-color": categoryColors.Kingpin.outline!,
           },
           filter: ["==", ["get", "Category"], "Kingpin"],
+        });
+
+        // ========================================
+        // 🖱️ Hover + Mobile Popups
+        // ========================================
+        const popup = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+        });
+
+        // Hover (desktop)
+        map.on("mouseenter", "retailers-layer", (e) => {
+          map.getCanvas().style.cursor = "pointer";
+
+          const coords = e.features?.[0].geometry?.coordinates.slice();
+          const props = e.features?.[0].properties;
+
+          if (coords && props) {
+            const html = `
+              <div style="font-size: 13px; background: #111; color: #eee; padding: 6px; border-radius: 4px;">
+                <strong>${props.Retailer || "Unknown"}</strong><br/>
+                <em>${props.Name || ""}</em><br/>
+                ${props.Address || ""}<br/>
+                Category: ${props.Category || "N/A"}<br/>
+                Supplier: ${props.Supplier || "N/A"}
+              </div>
+            `;
+
+            popup.setLngLat(coords).setHTML(html).addTo(map);
+          }
+        });
+
+        map.on("mouseleave", "retailers-layer", () => {
+          map.getCanvas().style.cursor = "";
+          popup.remove();
+        });
+
+        // Click (mobile fallback)
+        map.on("click", "retailers-layer", (e) => {
+          const coords = e.features?.[0].geometry?.coordinates.slice();
+          const props = e.features?.[0].properties;
+
+          if (coords && props) {
+            const html = `
+              <div style="font-size: 13px; background: #111; color: #eee; padding: 6px; border-radius: 4px;">
+                <strong>${props.Retailer || "Unknown"}</strong><br/>
+                <em>${props.Name || ""}</em><br/>
+                ${props.Address || ""}<br/>
+                Category: ${props.Category || "N/A"}<br/>
+                Supplier: ${props.Supplier || "N/A"}
+              </div>
+            `;
+            new mapboxgl.Popup().setLngLat(coords).setHTML(html).addTo(map);
+          }
         });
       } catch (err) {
         console.error("Failed to load GeoJSON", err);
@@ -141,26 +197,29 @@ export default function CertisMap({
     fetch(geojsonPath)
       .then((res) => res.json())
       .then((data) => {
-        // ✅ Keep Kingpins always visible, filter others
+        // ✅ Normalize strings for comparisons
+        const norm = (val: string) => (val || "").toString().trim().toLowerCase();
+
         const filtered = {
           type: "FeatureCollection" as const,
           features: data.features.filter((f: any) => {
             const props = f.properties || {};
 
-            if (props.Category === "Kingpin") return true; // Kingpins bypass filters
+            // Kingpins always bypass filters
+            if (props.Category === "Kingpin") return true;
 
             const stateMatch =
               selectedStates.length === 0 ||
-              selectedStates.includes(props.State);
+              selectedStates.map(norm).includes(norm(props.State));
             const retailerMatch =
               selectedRetailers.length === 0 ||
-              selectedRetailers.includes(props.Retailer);
+              selectedRetailers.map(norm).includes(norm(props.Retailer));
             const categoryMatch =
               selectedCategories.length === 0 ||
-              selectedCategories.includes(props.Category);
+              selectedCategories.map(norm).includes(norm(props.Category));
             const supplierMatch =
               selectedSuppliers.length === 0 ||
-              selectedSuppliers.includes(props.Supplier);
+              selectedSuppliers.map(norm).includes(norm(props.Supplier));
 
             return stateMatch && retailerMatch && categoryMatch && supplierMatch;
           }),
