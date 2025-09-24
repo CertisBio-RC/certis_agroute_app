@@ -6,6 +6,17 @@ import mapboxgl from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
+// ✅ Exported category colors for legend in page.tsx
+export const categoryColors: Record<
+  string,
+  { color: string; outline?: string }
+> = {
+  Agronomy: { color: "#FFD700", outline: "#000" }, // yellow
+  "Grain/Feed": { color: "#228B22", outline: "#000" }, // green
+  "Office/Service": { color: "#1E90FF", outline: "#000" }, // blue
+  Kingpin: { color: "#FF0000", outline: "#FFFF00" }, // red w/ yellow border
+};
+
 export interface CertisMapProps {
   selectedCategories: string[];
   selectedStates: string[];
@@ -30,64 +41,146 @@ export default function CertisMap({
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
+  // ========================================
+  // 🌍 Initialize Map
+  // ========================================
   useEffect(() => {
     if (mapRef.current) return;
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-98, 39],
+      center: [-98.5795, 39.8283], // center on US
       zoom: 4,
-      projection: "mercator",
+      projection: "mercator", // ✅ force flat map
     });
 
-    // TODO: Load your GeoJSON here
-    // Example: fetch retailers, set states/retailers lists
-    // fetch("/retailers.geojson").then(res => res.json()).then(data => { ... })
-  }, []);
+    mapRef.current.on("load", async () => {
+      try {
+        const response = await fetch(
+          process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson"
+        );
+        const data = await response.json();
 
+        // Extract states & retailers
+        const stateSet = new Set<string>();
+        const retailerSet = new Set<string>();
+
+        for (const feature of data.features) {
+          const state = feature.properties?.State;
+          const retailer = feature.properties?.Retailer;
+          if (state) stateSet.add(state as string);
+          if (retailer) retailerSet.add(retailer as string);
+        }
+
+        onStatesLoaded?.(Array.from(stateSet).sort());
+        onRetailersLoaded?.(Array.from(retailerSet).sort());
+
+        // Add GeoJSON source
+        mapRef.current?.addSource("retailers", {
+          type: "geojson",
+          data,
+        });
+
+        // Add retailer circles
+        mapRef.current?.addLayer({
+          id: "retailers-layer",
+          type: "circle",
+          source: "retailers",
+          paint: {
+            "circle-radius": 6,
+            "circle-color": [
+              "match",
+              ["get", "Category"],
+              "Agronomy",
+              categoryColors.Agronomy.color,
+              "Grain/Feed",
+              categoryColors["Grain/Feed"].color,
+              "Office/Service",
+              categoryColors["Office/Service"].color,
+              "Kingpin",
+              categoryColors.Kingpin.color,
+              "#1d4ed8", // fallback
+            ],
+            "circle-stroke-width": [
+              "case",
+              ["==", ["get", "Category"], "Kingpin"],
+              2,
+              1,
+            ],
+            "circle-stroke-color": [
+              "case",
+              ["==", ["get", "Category"], "Kingpin"],
+              categoryColors.Kingpin.outline!,
+              "#fff",
+            ],
+          },
+        });
+      } catch (err) {
+        console.error("Failed to load GeoJSON", err);
+      }
+    });
+  }, [onStatesLoaded, onRetailersLoaded]);
+
+  // ========================================
+  // 🔄 Apply filters dynamically
+  // ========================================
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Fake data placeholder until real dataset is wired in
-    const fakeFeatures = [
-      { properties: { state: "SD", retailer: "AgTegra", category: "Agronomy" } },
-      { properties: { state: "SD", retailer: "AgTegra", category: "Office/Service" } },
-      { properties: { state: "IA", retailer: "CHS", category: "Agronomy" } },
-    ];
+    const map = mapRef.current;
+    const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
+    if (!source) return;
 
-    // Filter features by selections
-    const filtered = fakeFeatures.filter((f) => {
-      const s = f.properties.state;
-      const r = f.properties.retailer;
-      const c = f.properties.category;
+    fetch(process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson")
+      .then((res) => res.json())
+      .then((data) => {
+        const filtered = {
+          type: "FeatureCollection" as const,
+          features: data.features.filter((f: any) => {
+            const props = f.properties || {};
+            const stateMatch =
+              selectedStates.length === 0 ||
+              selectedStates.includes(props.State);
+            const retailerMatch =
+              selectedRetailers.length === 0 ||
+              selectedRetailers.includes(props.Retailer);
+            const categoryMatch =
+              selectedCategories.length === 0 ||
+              selectedCategories.includes(props.Category);
+            const supplierMatch =
+              selectedSuppliers.length === 0 ||
+              selectedSuppliers.includes(props.Supplier);
+            return stateMatch && retailerMatch && categoryMatch && supplierMatch;
+          }),
+        };
 
-      const stateOk =
-        selectedStates.length === 0 || selectedStates.includes(s);
-      const retailerOk =
-        selectedRetailers.length === 0 || selectedRetailers.includes(r);
-      const categoryOk =
-        selectedCategories.length === 0 || selectedCategories.includes(c);
+        source.setData(filtered);
 
-      return stateOk && retailerOk && categoryOk;
-    });
+        // ========================================
+        // 📊 Summarize locations by state + retailer
+        // ========================================
+        if (onRetailerSummary) {
+          const summaryMap = new Map<
+            string,
+            { state: string; retailer: string; count: number }
+          >();
 
-    // Build summary for each selected retailer
-    if (onRetailerSummary) {
-      const summaries: { state: string; retailer: string; count: number }[] = [];
-      selectedRetailers.forEach((r) => {
-        selectedStates.forEach((st) => {
-          const matches = filtered.filter(
-            (f) => f.properties.retailer === r && f.properties.state === st
-          );
-          if (matches.length > 0) {
-            summaries.push({ state: st, retailer: r, count: matches.length });
+          for (const f of filtered.features) {
+            const state = f.properties?.State || "Unknown";
+            const retailer = f.properties?.Retailer || "Unknown";
+            const key = `${state}-${retailer}`;
+
+            if (!summaryMap.has(key)) {
+              summaryMap.set(key, { state, retailer, count: 0 });
+            }
+            summaryMap.get(key)!.count += 1;
           }
-        });
+
+          onRetailerSummary(Array.from(summaryMap.values()));
+        }
       });
-      onRetailerSummary(summaries);
-    }
-  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
+  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
