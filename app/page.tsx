@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import CertisMap from "@/components/CertisMap";
+import CertisMap, { categoryColors } from "@/components/CertisMap";
 import Image from "next/image";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -11,14 +11,6 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const stateList = [
   "IA", "IL", "IN", "MI", "MN", "ND", "NE", "OH", "SD", "WI",
 ];
-
-// ✅ Grouped categories and colors (must match CertisMap.tsx)
-const categoryColors: Record<string, { color: string; outline: string }> = {
-  Agronomy: { color: "#ffd700", outline: "#a67c00" },         // yellow
-  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },    // bright mint green
-  "Office/Service": { color: "#1f78ff", outline: "#0d3d99" },// bright blue
-  Kingpin: { color: "#ff0000", outline: "#ffff00" },         // special layer
-};
 
 export default function Page() {
   // ========================================
