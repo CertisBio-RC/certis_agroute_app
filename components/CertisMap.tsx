@@ -133,24 +133,25 @@ export default function CertisMap({
           closeOnClick: false,
         });
 
-        // Hover (desktop)
+        function buildPopupHTML(props: any) {
+          return `
+            <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px;">
+              <strong>${props.Retailer || "Unknown"}</strong><br/>
+              <em>${props.Name || ""}</em><br/>
+              ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
+              Supplier: ${props.Suppliers || "N/A"}
+            </div>
+          `;
+        }
+
+        // Hover (desktop) for retailers
         map.on("mouseenter", "retailers-layer", (e) => {
           map.getCanvas().style.cursor = "pointer";
-
           const geom = e.features?.[0].geometry as GeoJSON.Point;
           const coords = geom?.coordinates.slice() as [number, number];
           const props = e.features?.[0].properties;
-
           if (coords && props) {
-            const html = `
-              <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px;">
-                <strong>${props.Retailer || "Unknown"}</strong><br/>
-                <em>${props.Name || ""}</em><br/>
-                ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}
-              </div>
-            `;
-
-            popup.setLngLat(coords).setHTML(html).addTo(map);
+            popup.setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
           }
         });
 
@@ -159,21 +160,45 @@ export default function CertisMap({
           popup.remove();
         });
 
-        // Click (mobile fallback)
+        // Hover (desktop) for kingpins
+        map.on("mouseenter", "kingpins-layer", (e) => {
+          map.getCanvas().style.cursor = "pointer";
+          const geom = e.features?.[0].geometry as GeoJSON.Point;
+          const coords = geom?.coordinates.slice() as [number, number];
+          const props = e.features?.[0].properties;
+          if (coords && props) {
+            popup.setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
+          }
+        });
+
+        map.on("mouseleave", "kingpins-layer", () => {
+          map.getCanvas().style.cursor = "";
+          popup.remove();
+        });
+
+        // Click (mobile fallback) for retailers
         map.on("click", "retailers-layer", (e) => {
           const geom = e.features?.[0].geometry as GeoJSON.Point;
           const coords = geom?.coordinates.slice() as [number, number];
           const props = e.features?.[0].properties;
-
           if (coords && props) {
-            const html = `
-              <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px;">
-                <strong>${props.Retailer || "Unknown"}</strong><br/>
-                <em>${props.Name || ""}</em><br/>
-                ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}
-              </div>
-            `;
-            new mapboxgl.Popup().setLngLat(coords).setHTML(html).addTo(map);
+            new mapboxgl.Popup()
+              .setLngLat(coords)
+              .setHTML(buildPopupHTML(props))
+              .addTo(map);
+          }
+        });
+
+        // Click (mobile fallback) for kingpins
+        map.on("click", "kingpins-layer", (e) => {
+          const geom = e.features?.[0].geometry as GeoJSON.Point;
+          const coords = geom?.coordinates.slice() as [number, number];
+          const props = e.features?.[0].properties;
+          if (coords && props) {
+            new mapboxgl.Popup()
+              .setLngLat(coords)
+              .setHTML(buildPopupHTML(props))
+              .addTo(map);
           }
         });
       } catch (err) {
@@ -217,7 +242,7 @@ export default function CertisMap({
               selectedCategories.map(norm).includes(norm(props.Category));
             const supplierMatch =
               selectedSuppliers.length === 0 ||
-              selectedSuppliers.map(norm).includes(norm(props.Supplier));
+              selectedSuppliers.map(norm).includes(norm(props.Suppliers));
 
             return stateMatch && retailerMatch && categoryMatch && supplierMatch;
           }),
