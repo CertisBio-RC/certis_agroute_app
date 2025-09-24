@@ -311,7 +311,7 @@ export default function Page() {
         </div>
 
         {/* ========================================
-            🟦 Tile 6: Debug Card
+            🟦 Tile 6: Debug Card (with counts)
         ======================================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
@@ -320,23 +320,23 @@ export default function Page() {
 
           <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
             <div>
-              <strong>Selected States:</strong>{" "}
+              <strong>Selected States ({selectedStates.length}):</strong>{" "}
               {selectedStates.length > 0 ? selectedStates.join(", ") : "None"}
             </div>
             <div>
-              <strong>Selected Retailers:</strong>{" "}
+              <strong>Selected Retailers ({selectedRetailers.length}):</strong>{" "}
               {selectedRetailers.length > 0
                 ? selectedRetailers.join(", ")
                 : "None"}
             </div>
             <div>
-              <strong>Selected Categories:</strong>{" "}
+              <strong>Selected Categories ({selectedCategories.length}):</strong>{" "}
               {selectedCategories.length > 0
                 ? selectedCategories.join(", ")
                 : "None"}
             </div>
             <div>
-              <strong>Selected Suppliers:</strong>{" "}
+              <strong>Selected Suppliers ({selectedSuppliers.length}):</strong>{" "}
               {selectedSuppliers.length > 0
                 ? selectedSuppliers.join(", ")
                 : "None"}
