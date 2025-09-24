@@ -11,18 +11,15 @@ export interface CertisMapProps {
   selectedStates: string[];
   selectedSuppliers: string[];
   selectedRetailers: string[];
+  onStatesLoaded?: (states: string[]) => void;
+  onRetailersLoaded?: (retailers: string[]) => void;
 }
-
-// ✅ Exportable lists for sidebar filters
-export let availableStates: string[] = [];
-export let availableSuppliers: string[] = [];
-export let availableRetailers: string[] = [];
 
 // ✅ Grouped category colors
 export const categoryColors: Record<string, { color: string; outline: string }> = {
   Agronomy: { color: "#ffd700", outline: "#a67c00" },       // yellow
-  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },   // bright mint green
-  "Office/Service": { color: "#1f78ff", outline: "#0d3d99" } // bright blue
+  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },   // mint green
+  "Office/Service": { color: "#1f78ff", outline: "#0d3d99" } // blue
   // 🚨 Kingpins handled separately
 };
 
@@ -31,6 +28,8 @@ export default function CertisMap({
   selectedStates,
   selectedSuppliers,
   selectedRetailers,
+  onStatesLoaded,
+  onRetailersLoaded,
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -62,7 +61,7 @@ export default function CertisMap({
           return;
         }
 
-        // Normalize categories into groups
+        // Normalize categories
         const normalizedGeojson = {
           ...rawGeojson,
           features: rawGeojson.features.map((f: any) => {
@@ -89,28 +88,18 @@ export default function CertisMap({
           }),
         };
 
-        // Collect unique filters
+        // Collect unique states + retailers
         const states = new Set<string>();
-        const suppliers = new Set<string>();
         const retailers = new Set<string>();
-
         normalizedGeojson.features.forEach((f: any) => {
           if (f.properties?.state) states.add(f.properties.state);
-          if (f.properties?.suppliers) {
-            f.properties.suppliers.split(",").forEach((s: string) => suppliers.add(s.trim()));
-          }
           if (f.properties?.retailer) retailers.add(f.properties.retailer);
         });
 
-        availableStates = Array.from(states).sort();
-        availableSuppliers = Array.from(suppliers).sort();
-        availableRetailers = Array.from(retailers).sort();
+        if (onStatesLoaded) onStatesLoaded(Array.from(states).sort());
+        if (onRetailersLoaded) onRetailersLoaded(Array.from(retailers).sort());
 
-        console.log("📍 Available states:", availableStates);
-        console.log("🏭 Available suppliers:", availableSuppliers);
-        console.log("🏪 Available retailers:", availableRetailers);
-
-        // Clean old sources/layers
+        // Clean old layers/sources
         if (mapRef.current!.getSource("retailers")) {
           if (mapRef.current!.getLayer("retailer-points")) {
             mapRef.current!.removeLayer("retailer-points");
@@ -126,22 +115,22 @@ export default function CertisMap({
           data: normalizedGeojson,
         });
 
-        // Build explicit match arrays based on groupedCategory
+        // Build category match
         const colorMatch: (string | any)[] = ["match", ["get", "groupedCategory"]];
         const outlineMatch: (string | any)[] = ["match", ["get", "groupedCategory"]];
         for (const [cat, style] of Object.entries(categoryColors)) {
           colorMatch.push(cat, style.color);
           outlineMatch.push(cat, style.outline);
         }
-        colorMatch.push("#cccccc"); // default color
-        outlineMatch.push("#000000"); // default outline
+        colorMatch.push("#cccccc"); // fallback
+        outlineMatch.push("#000000");
 
-        // Retailer points (all non-Kingpin categories)
+        // Retailer points
         mapRef.current!.addLayer({
           id: "retailer-points",
           type: "circle",
           source: "retailers",
-          filter: ["==", ["get", "groupedCategory"], ""], // hidden initially
+          filter: ["==", ["get", "groupedCategory"], ""], // start hidden
           paint: {
             "circle-radius": 5,
             "circle-color": colorMatch as any,
@@ -150,7 +139,7 @@ export default function CertisMap({
           },
         });
 
-        // Kingpins (always visible)
+        // Kingpins
         mapRef.current!.addLayer({
           id: "kingpins",
           type: "circle",
@@ -164,7 +153,7 @@ export default function CertisMap({
           },
         });
 
-        // Shared popup logic
+        // Shared popup
         function showPopup(e: mapboxgl.MapMouseEvent & { features?: any[] }) {
           const coords = (e.features?.[0].geometry as any).coordinates.slice();
           const props = e.features?.[0].properties;
@@ -221,7 +210,7 @@ export default function CertisMap({
     });
   }, []);
 
-  // Apply filters dynamically
+  // Apply filters
   useEffect(() => {
     if (!mapRef.current || !mapRef.current.getLayer("retailer-points")) return;
 
