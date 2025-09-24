@@ -27,10 +27,8 @@ export default function Page() {
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
-
-  // ✅ New: Retailer Summary from CertisMap
   const [retailerSummary, setRetailerSummary] = useState<
-    { state: string; retailer: string; count: number }[]
+    { state: string; retailer: string; locations: number }[]
   >([]);
 
   // ✅ Mobile sidebar toggle
@@ -159,7 +157,6 @@ export default function Page() {
             State Filter
           </h2>
 
-          {/* Select All / Clear All buttons */}
           <div className="flex space-x-2 mb-3">
             <button
               onClick={handleSelectAllStates}
@@ -226,14 +223,13 @@ export default function Page() {
         </div>
 
         {/* ========================================
-            🟦 Tile 4: Category Filter + Legend
+            🟦 Tile 4: Category Filter
         ======================================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Categories
           </h2>
 
-          {/* Select All / Clear All buttons */}
           <div className="flex space-x-2 mb-4">
             <button
               onClick={handleSelectAllCategories}
@@ -258,7 +254,7 @@ export default function Page() {
                   checked={selectedCategories.includes(cat)}
                   onChange={() => handleToggleCategory(cat)}
                   className="mr-2"
-                  disabled={cat === "Kingpin"} // Kingpins always visible
+                  disabled={cat === "Kingpin"}
                 />
                 <label
                   htmlFor={`filter-${cat}`}
@@ -283,7 +279,40 @@ export default function Page() {
         </div>
 
         {/* ========================================
-            🟦 Tile 6: Channel Summary (was Debug Info)
+            🟦 Tile 5: Supplier Filter
+        ======================================== */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Supplier Filter
+          </h2>
+
+          <div className="flex space-x-2 mb-3">
+            <button
+              onClick={handleClearAllSuppliers}
+              className="px-2 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
+            >
+              Clear All
+            </button>
+          </div>
+
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {supplierList.map((supplier) => (
+              <label key={supplier} className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedSuppliers.includes(supplier)}
+                  onChange={() => handleToggleSupplier(supplier)}
+                />
+                <span className="text-gray-700 dark:text-gray-300 text-sm">
+                  {supplier}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* ========================================
+            🟦 Tile 6: Channel Summary
         ======================================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
@@ -292,29 +321,29 @@ export default function Page() {
 
           <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
             <div>
-              <strong>Selected States ({selectedStates.length}):</strong>{" "}
+              <strong>States Selected ({selectedStates.length}):</strong>{" "}
               {selectedStates.length > 0 ? selectedStates.join(", ") : "None"}
             </div>
             <div>
-              <strong>Selected Retailers ({selectedRetailers.length}):</strong>{" "}
+              <strong>Retailers Selected ({selectedRetailers.length}):</strong>{" "}
               {selectedRetailers.length > 0
                 ? selectedRetailers.join(", ")
                 : "None"}
             </div>
-            <div>
-              <strong>Retailer Summary:</strong>{" "}
-              {retailerSummary.length > 0 ? (
-                <ul className="list-disc ml-5">
-                  {retailerSummary.map((s, i) => (
-                    <li key={i}>
-                      {s.state}, {s.retailer} – {s.count} locations
+
+            {/* ✅ Retailer summary with location counts */}
+            {retailerSummary.length > 0 && (
+              <div>
+                <strong>Locations:</strong>
+                <ul className="list-disc list-inside">
+                  {retailerSummary.map((r, idx) => (
+                    <li key={idx}>
+                      {r.state}, {r.retailer} - {r.locations} locations
                     </li>
                   ))}
                 </ul>
-              ) : (
-                "None"
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -342,7 +371,7 @@ export default function Page() {
           selectedRetailers={selectedRetailers}
           onStatesLoaded={setAvailableStates}
           onRetailersLoaded={setAvailableRetailers}
-          onRetailerSummary={setRetailerSummary} // ✅ New callback
+          onRetailerSummary={setRetailerSummary} // ✅ connect summary
         />
       </main>
     </div>

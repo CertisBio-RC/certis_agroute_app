@@ -6,6 +6,19 @@ import mapboxgl from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
+export interface CategoryStyle {
+  color: string;
+  outline?: string;
+}
+
+export const categoryColors: Record<string, CategoryStyle> = {
+  Agronomy: { color: "#1f77b4" },
+  "Office/Service": { color: "#ff7f0e" },
+  "Retail/Storefront": { color: "#2ca02c" },
+  Warehouse: { color: "#9467bd" },
+  Kingpin: { color: "#ff0000", outline: "#ffff00" }, // Always visible
+};
+
 export interface CertisMapProps {
   selectedCategories: string[];
   selectedStates: string[];
@@ -13,15 +26,11 @@ export interface CertisMapProps {
   selectedRetailers: string[];
   onStatesLoaded?: (states: string[]) => void;
   onRetailersLoaded?: (retailers: string[]) => void;
+  onRetailerSummary?: (
+    summary: { state: string; retailer: string; locations: number }[]
+  ) => void; // ✅ new callback
+  geojsonUrl?: string;
 }
-
-// ✅ Grouped category colors
-export const categoryColors: Record<string, { color: string; outline: string }> = {
-  Agronomy: { color: "#ffd700", outline: "#a67c00" },       // yellow
-  "Grain/Feed": { color: "#98ff98", outline: "#228b22" },   // mint green
-  "Office/Service": { color: "#1f78ff", outline: "#0d3d99" } // blue
-  // 🚨 Kingpins handled separately
-};
 
 export default function CertisMap({
   selectedCategories,
@@ -30,224 +39,150 @@ export default function CertisMap({
   selectedRetailers,
   onStatesLoaded,
   onRetailersLoaded,
+  onRetailerSummary,
+  geojsonUrl = "/retailers.geojson",
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const popupRef = useRef<mapboxgl.Popup | null>(null);
 
+  // ========================================
+  // 🗺️ Initialize Map
+  // ========================================
   useEffect(() => {
     if (mapRef.current) return;
-
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-93.5, 41.7],
-      zoom: 4.2,
-      projection: { name: "mercator" },
+      center: [-96, 40],
+      zoom: 3.5,
     });
-
-    mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     mapRef.current.on("load", async () => {
       try {
-        const response = await fetch(`${basePath}/retailers.geojson`);
-        if (!response.ok) throw new Error(`Failed to fetch GeoJSON: ${response.status}`);
-        const rawGeojson = await response.json();
+        const res = await fetch(geojsonUrl);
+        const data = await res.json();
 
-        if (!rawGeojson || !rawGeojson.features) {
-          console.warn("⚠️ No valid features found in retailers.geojson");
-          return;
-        }
+        // Extract unique states & retailers for sidebar filters
+        const states = Array.from(
+          new Set(
+            data.features
+              .map((f: any) => f.properties.State)
+              .filter(Boolean)
+          )
+        ).sort();
+        const retailers = Array.from(
+          new Set(
+            data.features
+              .map((f: any) => f.properties.Retailer)
+              .filter(Boolean)
+          )
+        ).sort();
 
-        // Normalize categories
-        const normalizedGeojson = {
-          ...rawGeojson,
-          features: rawGeojson.features.map((f: any) => {
-            const rawCat = f.properties?.category || "";
-            let grouped = "Other";
+        onStatesLoaded?.(states);
+        onRetailersLoaded?.(retailers);
 
-            if (rawCat === "Kingpin") {
-              grouped = "Kingpin";
-            } else if (rawCat === "Agronomy" || rawCat === "Agronomy/Grain") {
-              grouped = "Agronomy";
-            } else if (["Grain", "Feed", "Grain/Feed"].includes(rawCat)) {
-              grouped = "Grain/Feed";
-            } else if (rawCat === "Office/Service") {
-              grouped = "Office/Service";
-            }
-
-            return {
-              ...f,
-              properties: {
-                ...f.properties,
-                groupedCategory: grouped,
-              },
-            };
-          }),
-        };
-
-        // Collect unique states + retailers
-        const states = new Set<string>();
-        const retailers = new Set<string>();
-        normalizedGeojson.features.forEach((f: any) => {
-          if (f.properties?.state) states.add(f.properties.state);
-          if (f.properties?.retailer) retailers.add(f.properties.retailer);
-        });
-
-        if (onStatesLoaded) onStatesLoaded(Array.from(states).sort());
-        if (onRetailersLoaded) onRetailersLoaded(Array.from(retailers).sort());
-
-        // Clean old layers/sources
-        if (mapRef.current!.getSource("retailers")) {
-          if (mapRef.current!.getLayer("retailer-points")) {
-            mapRef.current!.removeLayer("retailer-points");
-          }
-          if (mapRef.current!.getLayer("kingpins")) {
-            mapRef.current!.removeLayer("kingpins");
-          }
-          mapRef.current!.removeSource("retailers");
-        }
-
-        mapRef.current!.addSource("retailers", {
+        mapRef.current?.addSource("retailers", {
           type: "geojson",
-          data: normalizedGeojson,
+          data,
         });
 
-        // Build category match
-        const colorMatch: (string | any)[] = ["match", ["get", "groupedCategory"]];
-        const outlineMatch: (string | any)[] = ["match", ["get", "groupedCategory"]];
-        for (const [cat, style] of Object.entries(categoryColors)) {
-          colorMatch.push(cat, style.color);
-          outlineMatch.push(cat, style.outline);
-        }
-        colorMatch.push("#cccccc"); // fallback
-        outlineMatch.push("#000000");
-
-        // Retailer points
-        mapRef.current!.addLayer({
-          id: "retailer-points",
+        mapRef.current?.addLayer({
+          id: "retailers-layer",
           type: "circle",
           source: "retailers",
-          filter: ["==", ["get", "groupedCategory"], ""], // start hidden
-          paint: {
-            "circle-radius": 5,
-            "circle-color": colorMatch as any,
-            "circle-stroke-color": outlineMatch as any,
-            "circle-stroke-width": 1,
-          },
-        });
-
-        // Kingpins
-        mapRef.current!.addLayer({
-          id: "kingpins",
-          type: "circle",
-          source: "retailers",
-          filter: ["==", ["get", "groupedCategory"], "Kingpin"],
           paint: {
             "circle-radius": 6,
-            "circle-color": "#ff0000",
-            "circle-stroke-color": "#ffff00",
-            "circle-stroke-width": 2,
+            "circle-color": [
+              "match",
+              ["get", "Category"],
+              ...Object.entries(categoryColors).flatMap(([key, val]) => [
+                key,
+                val.color,
+              ]),
+              "#ccc",
+            ],
+            "circle-stroke-color": [
+              "case",
+              ["==", ["get", "Category"], "Kingpin"],
+              "#ffff00",
+              "#000000",
+            ],
+            "circle-stroke-width": [
+              "case",
+              ["==", ["get", "Category"], "Kingpin"],
+              3,
+              1,
+            ],
           },
         });
-
-        // Shared popup
-        function showPopup(e: mapboxgl.MapMouseEvent & { features?: any[] }) {
-          const coords = (e.features?.[0].geometry as any).coordinates.slice();
-          const props = e.features?.[0].properties;
-          if (!props) return;
-
-          if (!popupRef.current) {
-            popupRef.current = new mapboxgl.Popup({
-              closeButton: false,
-              closeOnClick: false,
-              offset: 10,
-            });
-          }
-
-          popupRef.current
-            .setLngLat(coords)
-            .setHTML(`
-              <div style="font-weight:bold; font-size:14px; margin-bottom:4px;">
-                ${props["retailer"] || ""}
-              </div>
-              <div style="font-style:italic; font-size:14px; margin-bottom:4px;">
-                ${props["name"] || ""}
-              </div>
-              <div style="font-size:14px; margin-bottom:4px;">
-                ${props["address"] || ""}
-              </div>
-              <div style="font-size:14px; margin-bottom:4px;">
-                ${props["city"] || ""}, ${props["state"] || ""} ${props["zip"] || ""}
-              </div>
-              <div style="font-size:14px;">
-                <b>Category:</b> ${props["groupedCategory"] || "N/A"}
-              </div>
-              <div style="font-size:14px;">
-                <b>Suppliers:</b> ${props["suppliers"] || "N/A"}
-              </div>
-            `)
-            .addTo(mapRef.current!);
-        }
-
-        function hidePopup() {
-          if (popupRef.current) {
-            popupRef.current.remove();
-            popupRef.current = null;
-          }
-        }
-
-        mapRef.current!.on("mousemove", "retailer-points", showPopup);
-        mapRef.current!.on("mouseleave", "retailer-points", hidePopup);
-
-        mapRef.current!.on("mousemove", "kingpins", showPopup);
-        mapRef.current!.on("mouseleave", "kingpins", hidePopup);
       } catch (err) {
-        console.error("❌ Error loading geojson:", err);
+        console.error("Error loading GeoJSON:", err);
       }
     });
-  }, []);
+  }, [geojsonUrl, onStatesLoaded, onRetailersLoaded]);
 
-  // Apply filters
+  // ========================================
+  // 🎛️ Apply Filters + Compute Retailer Summary
+  // ========================================
   useEffect(() => {
-    if (!mapRef.current || !mapRef.current.getLayer("retailer-points")) return;
+    const map = mapRef.current;
+    if (!map?.getSource("retailers")) return;
 
-    if (selectedStates.length === 0 || selectedCategories.length === 0) {
-      mapRef.current.setFilter("retailer-points", ["==", ["get", "groupedCategory"], ""]);
-      return;
-    }
+    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource;
 
-    const categoryFilter: any =
-      selectedCategories.length > 0
-        ? ["in", ["get", "groupedCategory"], ["literal", selectedCategories]]
-        : true;
+    fetch(geojsonUrl)
+      .then((res) => res.json())
+      .then((data) => {
+        const filtered = data.features.filter((f: any) => {
+          const { State, Retailer, Category } = f.properties;
 
-    const stateFilter: any =
-      selectedStates.length > 0
-        ? ["in", ["get", "state"], ["literal", selectedStates]]
-        : true;
+          const stateOk =
+            selectedStates.length === 0 || selectedStates.includes(State);
+          const retailerOk =
+            selectedRetailers.length === 0 ||
+            selectedRetailers.includes(Retailer);
+          const categoryOk =
+            Category === "Kingpin" ||
+            selectedCategories.length === 0 ||
+            selectedCategories.includes(Category);
 
-    const supplierFilter: any =
-      selectedSuppliers.length > 0
-        ? ["in", ["get", "suppliers"], ["literal", selectedSuppliers]]
-        : true;
+          return stateOk && retailerOk && categoryOk;
+        });
 
-    const retailerFilter: any =
-      selectedRetailers.length > 0
-        ? ["in", ["get", "retailer"], ["literal", selectedRetailers]]
-        : true;
+        // ✅ Update the map
+        src.setData({
+          type: "FeatureCollection",
+          features: filtered,
+        });
 
-    mapRef.current.setFilter("retailer-points", [
-      "all",
-      ["!=", ["get", "groupedCategory"], "Kingpin"],
-      categoryFilter,
-      stateFilter,
-      supplierFilter,
-      retailerFilter,
-    ]);
-  }, [selectedCategories, selectedStates, selectedSuppliers, selectedRetailers]);
+        // ✅ Compute retailer summary (state + retailer + total count)
+        if (onRetailerSummary) {
+          const summaryMap = new Map<string, number>();
+          for (const f of filtered) {
+            const { State, Retailer } = f.properties;
+            const key = `${State}||${Retailer}`;
+            summaryMap.set(key, (summaryMap.get(key) || 0) + 1);
+          }
 
-  return <div ref={mapContainer} className="w-full h-full" />;
+          const summary = Array.from(summaryMap.entries()).map(
+            ([key, count]) => {
+              const [state, retailer] = key.split("||");
+              return { state, retailer, locations: count };
+            }
+          );
+
+          onRetailerSummary(summary);
+        }
+      })
+      .catch((err) => console.error("Filter error:", err));
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    geojsonUrl,
+    onRetailerSummary,
+  ]);
+
+  return <div ref={mapContainer} className="map-container w-full h-full" />;
 }
