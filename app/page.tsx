@@ -28,6 +28,11 @@ export default function Page() {
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
 
+  // ✅ New: Retailer Summary from CertisMap
+  const [retailerSummary, setRetailerSummary] = useState<
+    { state: string; retailer: string; count: number }[]
+  >([]);
+
   // ✅ Mobile sidebar toggle
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -278,44 +283,11 @@ export default function Page() {
         </div>
 
         {/* ========================================
-            🟦 Tile 5: Supplier Filter
+            🟦 Tile 6: Channel Summary (was Debug Info)
         ======================================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Supplier Filter
-          </h2>
-
-          <div className="flex space-x-2 mb-3">
-            <button
-              onClick={handleClearAllSuppliers}
-              className="px-2 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-            >
-              Clear All
-            </button>
-          </div>
-
-          <div className="space-y-2 max-h-32 overflow-y-auto">
-            {supplierList.map((supplier) => (
-              <label key={supplier} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={selectedSuppliers.includes(supplier)}
-                  onChange={() => handleToggleSupplier(supplier)}
-                />
-                <span className="text-gray-700 dark:text-gray-300 text-sm">
-                  {supplier}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* ========================================
-            🟦 Tile 6: Debug Card (with counts)
-        ======================================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Debug Info
+            Channel Summary
           </h2>
 
           <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
@@ -330,16 +302,18 @@ export default function Page() {
                 : "None"}
             </div>
             <div>
-              <strong>Selected Categories ({selectedCategories.length}):</strong>{" "}
-              {selectedCategories.length > 0
-                ? selectedCategories.join(", ")
-                : "None"}
-            </div>
-            <div>
-              <strong>Selected Suppliers ({selectedSuppliers.length}):</strong>{" "}
-              {selectedSuppliers.length > 0
-                ? selectedSuppliers.join(", ")
-                : "None"}
+              <strong>Retailer Summary:</strong>{" "}
+              {retailerSummary.length > 0 ? (
+                <ul className="list-disc ml-5">
+                  {retailerSummary.map((s, i) => (
+                    <li key={i}>
+                      {s.state}, {s.retailer} – {s.count} locations
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                "None"
+              )}
             </div>
           </div>
         </div>
@@ -368,6 +342,7 @@ export default function Page() {
           selectedRetailers={selectedRetailers}
           onStatesLoaded={setAvailableStates}
           onRetailersLoaded={setAvailableRetailers}
+          onRetailerSummary={setRetailerSummary} // ✅ New callback
         />
       </main>
     </div>
