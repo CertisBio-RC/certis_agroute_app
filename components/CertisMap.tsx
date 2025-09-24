@@ -3,6 +3,7 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
+import type { FeatureCollection, Feature, Geometry } from "geojson";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -56,7 +57,7 @@ export default function CertisMap({
         const response = await fetch(
           process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson"
         );
-        const data = await response.json();
+        const data: FeatureCollection = await response.json();
 
         // Extract states & retailers
         const stateSet = new Set<string>();
@@ -69,7 +70,6 @@ export default function CertisMap({
           if (retailer) retailerSet.add(retailer as string);
         }
 
-        // ✅ Cast explicitly to string[]
         const states = Array.from(stateSet) as string[];
         const retailers = Array.from(retailerSet) as string[];
 
@@ -110,10 +110,10 @@ export default function CertisMap({
 
     fetch(process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson")
       .then((res) => res.json())
-      .then((data) => {
-        const filtered = {
+      .then((data: FeatureCollection) => {
+        const filtered: FeatureCollection<Geometry, any> = {
           type: "FeatureCollection",
-          features: data.features.filter((f: any) => {
+          features: data.features.filter((f: Feature) => {
             const props = f.properties || {};
             const stateMatch =
               selectedStates.length === 0 ||
@@ -137,7 +137,10 @@ export default function CertisMap({
         // 📊 Summarize locations by state + retailer
         // ========================================
         if (onRetailerSummary) {
-          const summaryMap = new Map<string, { state: string; retailer: string; locations: number }>();
+          const summaryMap = new Map<
+            string,
+            { state: string; retailer: string; locations: number }
+          >();
 
           for (const f of filtered.features) {
             const state = f.properties?.State || "Unknown";
@@ -153,7 +156,13 @@ export default function CertisMap({
           onRetailerSummary(Array.from(summaryMap.values()));
         }
       });
-  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+    onRetailerSummary,
+  ]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
