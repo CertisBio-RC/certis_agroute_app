@@ -6,19 +6,6 @@ import mapboxgl from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-export interface CategoryStyle {
-  color: string;
-  outline?: string;
-}
-
-export const categoryColors: Record<string, CategoryStyle> = {
-  Agronomy: { color: "#1f77b4" },
-  "Office/Service": { color: "#ff7f0e" },
-  "Retail/Storefront": { color: "#2ca02c" },
-  Warehouse: { color: "#9467bd" },
-  Kingpin: { color: "#ff0000", outline: "#ffff00" }, // Always visible
-};
-
 export interface CertisMapProps {
   selectedCategories: string[];
   selectedStates: string[];
@@ -28,8 +15,7 @@ export interface CertisMapProps {
   onRetailersLoaded?: (retailers: string[]) => void;
   onRetailerSummary?: (
     summary: { state: string; retailer: string; locations: number }[]
-  ) => void; // ✅ new callback
-  geojsonUrl?: string;
+  ) => void;
 }
 
 export default function CertisMap({
@@ -40,47 +26,44 @@ export default function CertisMap({
   onStatesLoaded,
   onRetailersLoaded,
   onRetailerSummary,
-  geojsonUrl = "/retailers.geojson",
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
-  // ========================================
-  // 🗺️ Initialize Map
-  // ========================================
   useEffect(() => {
     if (mapRef.current) return;
 
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-96, 40],
-      zoom: 3.5,
+      center: [-98.5795, 39.8283],
+      zoom: 3,
     });
 
     mapRef.current.on("load", async () => {
       try {
-        const res = await fetch(geojsonUrl);
-        const data = await res.json();
+        const response = await fetch(
+          process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson"
+        );
+        const data = await response.json();
 
-        // Extract unique states & retailers for sidebar filters
-        const states = Array.from(
-          new Set(
-            data.features
-              .map((f: any) => f.properties.State)
-              .filter(Boolean)
-          )
-        ).sort();
-        const retailers = Array.from(
-          new Set(
-            data.features
-              .map((f: any) => f.properties.Retailer)
-              .filter(Boolean)
-          )
-        ).sort();
+        // Extract states & retailers
+        const stateSet = new Set<string>();
+        const retailerSet = new Set<string>();
 
-        onStatesLoaded?.(states);
-        onRetailersLoaded?.(retailers);
+        for (const feature of data.features) {
+          const state = feature.properties?.State;
+          const retailer = feature.properties?.Retailer;
+          if (state) stateSet.add(state as string);
+          if (retailer) retailerSet.add(retailer as string);
+        }
+
+        // ✅ Cast explicitly to string[]
+        const states = Array.from(stateSet) as string[];
+        const retailers = Array.from(retailerSet) as string[];
+
+        onStatesLoaded?.(states.sort());
+        onRetailersLoaded?.(retailers.sort());
 
         mapRef.current?.addSource("retailers", {
           type: "geojson",
@@ -93,96 +76,73 @@ export default function CertisMap({
           source: "retailers",
           paint: {
             "circle-radius": 6,
-            "circle-color": [
-              "match",
-              ["get", "Category"],
-              ...Object.entries(categoryColors).flatMap(([key, val]) => [
-                key,
-                val.color,
-              ]),
-              "#ccc",
-            ],
-            "circle-stroke-color": [
-              "case",
-              ["==", ["get", "Category"], "Kingpin"],
-              "#ffff00",
-              "#000000",
-            ],
-            "circle-stroke-width": [
-              "case",
-              ["==", ["get", "Category"], "Kingpin"],
-              3,
-              1,
-            ],
+            "circle-color": "#1d4ed8",
+            "circle-stroke-width": 1,
+            "circle-stroke-color": "#fff",
           },
         });
       } catch (err) {
-        console.error("Error loading GeoJSON:", err);
+        console.error("Failed to load GeoJSON", err);
       }
     });
-  }, [geojsonUrl, onStatesLoaded, onRetailersLoaded]);
+  }, [onStatesLoaded, onRetailersLoaded]);
 
   // ========================================
-  // 🎛️ Apply Filters + Compute Retailer Summary
+  // 🔄 Apply filters dynamically
   // ========================================
   useEffect(() => {
+    if (!mapRef.current) return;
+
     const map = mapRef.current;
-    if (!map?.getSource("retailers")) return;
+    const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
+    if (!source) return;
 
-    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource;
-
-    fetch(geojsonUrl)
+    fetch(process.env.NEXT_PUBLIC_GEOJSON_URL || "/retailers.geojson")
       .then((res) => res.json())
       .then((data) => {
-        const filtered = data.features.filter((f: any) => {
-          const { State, Retailer, Category } = f.properties;
-
-          const stateOk =
-            selectedStates.length === 0 || selectedStates.includes(State);
-          const retailerOk =
-            selectedRetailers.length === 0 ||
-            selectedRetailers.includes(Retailer);
-          const categoryOk =
-            Category === "Kingpin" ||
-            selectedCategories.length === 0 ||
-            selectedCategories.includes(Category);
-
-          return stateOk && retailerOk && categoryOk;
-        });
-
-        // ✅ Update the map
-        src.setData({
+        const filtered = {
           type: "FeatureCollection",
-          features: filtered,
-        });
+          features: data.features.filter((f: any) => {
+            const props = f.properties || {};
+            const stateMatch =
+              selectedStates.length === 0 ||
+              selectedStates.includes(props.State);
+            const retailerMatch =
+              selectedRetailers.length === 0 ||
+              selectedRetailers.includes(props.Retailer);
+            const categoryMatch =
+              selectedCategories.length === 0 ||
+              selectedCategories.includes(props.Category);
+            const supplierMatch =
+              selectedSuppliers.length === 0 ||
+              selectedSuppliers.includes(props.Supplier);
+            return stateMatch && retailerMatch && categoryMatch && supplierMatch;
+          }),
+        };
 
-        // ✅ Compute retailer summary (state + retailer + total count)
+        source.setData(filtered);
+
+        // ========================================
+        // 📊 Summarize locations by state + retailer
+        // ========================================
         if (onRetailerSummary) {
-          const summaryMap = new Map<string, number>();
-          for (const f of filtered) {
-            const { State, Retailer } = f.properties;
-            const key = `${State}||${Retailer}`;
-            summaryMap.set(key, (summaryMap.get(key) || 0) + 1);
+          const summaryMap = new Map<string, { state: string; retailer: string; locations: number }>();
+
+          for (const f of filtered.features) {
+            const state = f.properties?.State || "Unknown";
+            const retailer = f.properties?.Retailer || "Unknown";
+            const key = `${state}-${retailer}`;
+
+            if (!summaryMap.has(key)) {
+              summaryMap.set(key, { state, retailer, locations: 0 });
+            }
+            summaryMap.get(key)!.locations += 1;
           }
 
-          const summary = Array.from(summaryMap.entries()).map(
-            ([key, count]) => {
-              const [state, retailer] = key.split("||");
-              return { state, retailer, locations: count };
-            }
-          );
-
-          onRetailerSummary(summary);
+          onRetailerSummary(Array.from(summaryMap.values()));
         }
-      })
-      .catch((err) => console.error("Filter error:", err));
-  }, [
-    selectedStates,
-    selectedRetailers,
-    selectedCategories,
-    geojsonUrl,
-    onRetailerSummary,
-  ]);
+      });
+  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
 
-  return <div ref={mapContainer} className="map-container w-full h-full" />;
+  return <div ref={mapContainer} className="w-full h-full" />;
 }
