@@ -9,10 +9,14 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 export interface CertisMapProps {
   selectedCategories: string[];
   selectedStates: string[];
+  selectedSuppliers: string[];
+  selectedRetailers: string[];
 }
 
-// ✅ Exportable state list for sidebar filter
+// ✅ Exportable lists for sidebar filters
 export let availableStates: string[] = [];
+export let availableSuppliers: string[] = [];
+export let availableRetailers: string[] = [];
 
 // ✅ Grouped category colors
 export const categoryColors: Record<string, { color: string; outline: string }> = {
@@ -22,7 +26,12 @@ export const categoryColors: Record<string, { color: string; outline: string }> 
   // 🚨 Kingpins handled separately
 };
 
-export default function CertisMap({ selectedCategories, selectedStates }: CertisMapProps) {
+export default function CertisMap({
+  selectedCategories,
+  selectedStates,
+  selectedSuppliers,
+  selectedRetailers,
+}: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
@@ -80,13 +89,26 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           }),
         };
 
-        // Collect unique states
+        // Collect unique filters
         const states = new Set<string>();
+        const suppliers = new Set<string>();
+        const retailers = new Set<string>();
+
         normalizedGeojson.features.forEach((f: any) => {
           if (f.properties?.state) states.add(f.properties.state);
+          if (f.properties?.suppliers) {
+            f.properties.suppliers.split(",").forEach((s: string) => suppliers.add(s.trim()));
+          }
+          if (f.properties?.retailer) retailers.add(f.properties.retailer);
         });
+
         availableStates = Array.from(states).sort();
+        availableSuppliers = Array.from(suppliers).sort();
+        availableRetailers = Array.from(retailers).sort();
+
         console.log("📍 Available states:", availableStates);
+        console.log("🏭 Available suppliers:", availableSuppliers);
+        console.log("🏪 Available retailers:", availableRetailers);
 
         // Clean old sources/layers
         if (mapRef.current!.getSource("retailers")) {
@@ -115,12 +137,11 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         outlineMatch.push("#000000"); // default outline
 
         // Retailer points (all non-Kingpin categories)
-        // 👇 Start hidden until filters are selected
         mapRef.current!.addLayer({
           id: "retailer-points",
           type: "circle",
           source: "retailers",
-          filter: ["==", ["get", "groupedCategory"], ""], // hide all initially
+          filter: ["==", ["get", "groupedCategory"], ""], // hidden initially
           paint: {
             "circle-radius": 5,
             "circle-color": colorMatch as any,
@@ -129,7 +150,7 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           },
         });
 
-        // Kingpins (always visible, 6px, bright red/yellow)
+        // Kingpins (always visible)
         mapRef.current!.addLayer({
           id: "kingpins",
           type: "circle",
@@ -189,7 +210,6 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
           }
         }
 
-        // Attach to both layers
         mapRef.current!.on("mousemove", "retailer-points", showPopup);
         mapRef.current!.on("mouseleave", "retailer-points", hidePopup);
 
@@ -205,9 +225,8 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
   useEffect(() => {
     if (!mapRef.current || !mapRef.current.getLayer("retailer-points")) return;
 
-    // Require at least one state and one category for non-Kingpin points
     if (selectedStates.length === 0 || selectedCategories.length === 0) {
-      mapRef.current.setFilter("retailer-points", ["==", ["get", "groupedCategory"], ""]); // hide all
+      mapRef.current.setFilter("retailer-points", ["==", ["get", "groupedCategory"], ""]);
       return;
     }
 
@@ -221,13 +240,25 @@ export default function CertisMap({ selectedCategories, selectedStates }: Certis
         ? ["in", ["get", "state"], ["literal", selectedStates]]
         : true;
 
+    const supplierFilter: any =
+      selectedSuppliers.length > 0
+        ? ["in", ["get", "suppliers"], ["literal", selectedSuppliers]]
+        : true;
+
+    const retailerFilter: any =
+      selectedRetailers.length > 0
+        ? ["in", ["get", "retailer"], ["literal", selectedRetailers]]
+        : true;
+
     mapRef.current.setFilter("retailer-points", [
       "all",
       ["!=", ["get", "groupedCategory"], "Kingpin"],
       categoryFilter,
       stateFilter,
+      supplierFilter,
+      retailerFilter,
     ]);
-  }, [selectedCategories, selectedStates]);
+  }, [selectedCategories, selectedStates, selectedSuppliers, selectedRetailers]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
