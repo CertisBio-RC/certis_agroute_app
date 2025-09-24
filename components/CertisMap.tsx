@@ -6,6 +6,17 @@ import mapboxgl from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
+// ✅ Exported category colors (used in page.tsx legend)
+export const categoryColors: Record<
+  string,
+  { color: string; outline?: string }
+> = {
+  Agronomy: { color: "#FFD700", outline: "#000" }, // yellow
+  "Grain/Feed": { color: "#228B22", outline: "#000" }, // green
+  "Office/Service": { color: "#1E90FF", outline: "#000" }, // blue
+  Kingpin: { color: "#FF0000", outline: "#FFFF00" }, // red w/ yellow border
+};
+
 export interface CertisMapProps {
   selectedCategories: string[];
   selectedStates: string[];
