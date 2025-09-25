@@ -1,295 +1,381 @@
-// components/CertisMap.tsx
+// app/page.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
-import mapboxgl from "mapbox-gl";
+import { useState } from "react";
+import CertisMap, { categoryColors } from "@/components/CertisMap";
+import Image from "next/image";
+import { Menu, X } from "lucide-react";
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-// ✅ Exported category colors for legend in page.tsx
-export const categoryColors: Record<
-  string,
-  { color: string; outline?: string }
-> = {
-  Agronomy: { color: "#FFD700", outline: "#000" }, // yellow
-  "Grain/Feed": { color: "#228B22", outline: "#000" }, // green
-  "Office/Service": { color: "#1E90FF", outline: "#000" }, // blue
-  Kingpin: { color: "#FF0000", outline: "#FFFF00" }, // red w/ yellow border
-};
+// ✅ Normalizer (for states/retailers/categories only)
+const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 
-export interface CertisMapProps {
-  selectedCategories: string[];
-  selectedStates: string[];
-  selectedSuppliers: string[];
-  selectedRetailers: string[];
-  onStatesLoaded?: (states: string[]) => void;
-  onRetailersLoaded?: (retailers: string[]) => void;
-  onRetailerSummary?: (
-    summaries: { state: string; retailer: string; count: number }[]
-  ) => void;
-}
+export default function Page() {
+  // ========================================
+  // 🎛️ State Hooks
+  // ========================================
+  const [availableStates, setAvailableStates] = useState<string[]>([]);
+  const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
 
-export default function CertisMap({
-  selectedCategories,
-  selectedStates,
-  selectedSuppliers,
-  selectedRetailers,
-  onStatesLoaded,
-  onRetailersLoaded,
-  onRetailerSummary,
-}: CertisMapProps) {
-  const mapContainer = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
 
-  // ✅ Build correct path for local + GitHub Pages
-  const geojsonPath =
-    process.env.NEXT_PUBLIC_GEOJSON_URL ||
-    `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/retailers.geojson`;
+  const [retailerSummary, setRetailerSummary] = useState<
+    { state: string; retailer: string; count: number; suppliers: string[]; category?: string }[]
+  >([]);
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ✅ Trip Optimization
+  const [tripStops, setTripStops] = useState<string[]>([]);
+  const handleAddStop = (stop: string) => {
+    if (!tripStops.includes(stop)) {
+      setTripStops((prev) => [...prev, stop]);
+    }
+  };
+  const handleClearStops = () => setTripStops([]);
 
   // ========================================
-  // 🌍 Initialize Map
+  // 🔘 Category Handlers
   // ========================================
-  useEffect(() => {
-    if (mapRef.current) return;
+  const handleToggleCategory = (category: string) => {
+    const normalized = norm(category);
+    setSelectedCategories((prev) =>
+      prev.includes(normalized)
+        ? prev.filter((c) => c !== normalized)
+        : [...prev, normalized]
+    );
+  };
 
-    const map = new mapboxgl.Map({
-      container: mapContainer.current as HTMLElement,
-      style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-98.5795, 39.8283], // center on US
-      zoom: 4,
-      projection: "mercator", // ✅ force flat map
-    });
+  const handleSelectAllCategories = () => {
+    setSelectedCategories(
+      Object.keys(categoryColors)
+        .filter((c) => c !== "Kingpin")
+        .map(norm)
+    );
+  };
 
-    mapRef.current = map;
+  const handleClearAllCategories = () => {
+    setSelectedCategories([]);
+  };
 
-    map.on("load", async () => {
-      try {
-        const response = await fetch(geojsonPath);
-        const data = await response.json();
+  // ========================================
+  // 🔘 State Handlers
+  // ========================================
+  const handleToggleState = (state: string) => {
+    const normalized = norm(state);
+    setSelectedStates((prev) =>
+      prev.includes(normalized)
+        ? prev.filter((s) => s !== normalized)
+        : [...prev, normalized]
+    );
+  };
 
-        // Extract states & retailers (for sidebar)
-        const stateSet = new Set<string>();
-        const retailerSet = new Set<string>();
+  const handleSelectAllStates = () => {
+    setSelectedStates(availableStates.map(norm));
+  };
 
-        for (const feature of data.features) {
-          const state = feature.properties?.State;
-          const retailer = feature.properties?.Retailer;
-          if (state) stateSet.add(state as string);
-          if (retailer) retailerSet.add(retailer as string);
-        }
+  const handleClearAllStates = () => {
+    setSelectedStates([]);
+  };
 
-        onStatesLoaded?.(Array.from(stateSet).sort());
-        onRetailersLoaded?.(Array.from(retailerSet).sort());
+  // ========================================
+  // 🔘 Supplier Handlers (standardized names)
+  // ========================================
+  const handleToggleSupplier = (supplier: string) => {
+    setSelectedSuppliers((prev) =>
+      prev.includes(supplier)
+        ? prev.filter((s) => s !== supplier)
+        : [...prev, supplier]
+    );
+  };
 
-        // Add GeoJSON source
-        map.addSource("retailers", {
-          type: "geojson",
-          data,
-        });
+  const handleClearAllSuppliers = () => {
+    setSelectedSuppliers([]);
+  };
 
-        // ✅ Main retailer circles (EXCLUDES Kingpins)
-        map.addLayer({
-          id: "retailers-layer",
-          type: "circle",
-          source: "retailers",
-          paint: {
-            "circle-radius": 6,
-            "circle-color": [
-              "match",
-              ["get", "Category"],
-              "Agronomy",
-              categoryColors.Agronomy.color,
-              "Grain/Feed",
-              categoryColors["Grain/Feed"].color,
-              "Office/Service",
-              categoryColors["Office/Service"].color,
-              "#1d4ed8", // fallback
-            ],
-            "circle-stroke-width": 1,
-            "circle-stroke-color": "#fff",
-          },
-          filter: ["!=", ["get", "Category"], "Kingpin"], // ✅ exclude Kingpins
-        });
+  // ========================================
+  // 🔘 Retailer Handlers (use Long Name)
+  // ========================================
+  const handleToggleRetailer = (retailer: string) => {
+    const normalized = norm(retailer);
+    setSelectedRetailers((prev) =>
+      prev.includes(normalized)
+        ? prev.filter((r) => r !== normalized)
+        : [...prev, normalized]
+    );
+  };
 
-        // ✅ Separate Kingpin layer (always visible)
-        map.addLayer({
-          id: "kingpins-layer",
-          type: "circle",
-          source: "retailers",
-          paint: {
-            "circle-radius": 8,
-            "circle-color": categoryColors.Kingpin.color,
-            "circle-stroke-width": 2,
-            "circle-stroke-color": categoryColors.Kingpin.outline!,
-          },
-          filter: ["==", ["get", "Category"], "Kingpin"],
-        });
+  const handleClearAllRetailers = () => {
+    setSelectedRetailers([]);
+  };
 
-        // ========================================
-        // 🖱️ Hover + Mobile Popups
-        // ========================================
-        const popup = new mapboxgl.Popup({
-          closeButton: false,
-          closeOnClick: false,
-        });
+  // ========================================
+  // 🟦 Derived summaries
+  // ========================================
+  const kingpinSummary = retailerSummary.filter(
+    (s) => norm(s.retailer) === "kingpin" || norm(s.category || "") === "kingpin"
+  );
+  const normalSummary = retailerSummary.filter(
+    (s) => norm(s.retailer) !== "kingpin" && norm(s.category || "") !== "kingpin"
+  );
 
-        function buildPopupHTML(props: any) {
-          return `
-            <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px;">
-              <strong>${props.Retailer || "Unknown"}</strong><br/>
-              <em>${props.Name || ""}</em><br/>
-              ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
-              Suppliers: ${props.Suppliers || "N/A"}
+  return (
+    <div className="flex h-screen w-screen relative">
+      {/* 📱 Mobile Hamburger Button */}
+      <button
+        className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle sidebar"
+      >
+        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
+
+      {/* 📌 Sidebar */}
+      <aside
+        className={`fixed md:static top-0 left-0 h-full w-72 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+      >
+        {/* Logo */}
+        <div className="flex items-center justify-center mb-6">
+          <Image
+            src={`${basePath}/certis-logo.png`}
+            alt="Certis Logo"
+            width={180}
+            height={60}
+            priority
+          />
+        </div>
+
+        {/* 🟦 Tile 1: Home Zip Code */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Home Zip Code
+          </h2>
+          <input
+            type="text"
+            placeholder="Enter ZIP"
+            className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+
+        {/* 🟦 Tile 2: State Filter */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            State Filter
+          </h2>
+          <div className="flex space-x-2 mb-3">
+            <button onClick={handleSelectAllStates} className="px-2 py-1 bg-blue-600 text-white rounded text-sm">
+              Select All
+            </button>
+            <button onClick={handleClearAllStates} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
+              Clear All
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {availableStates.map((state) => (
+              <label key={state} className="flex items-center space-x-1">
+                <input
+                  type="checkbox"
+                  checked={selectedStates.includes(norm(state))}
+                  onChange={() => handleToggleState(state)}
+                  className="mr-1"
+                />
+                <span className="text-gray-700 dark:text-gray-300 text-sm">{state}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* 🟦 Tile 3: Retailer Filter */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Retailer Filter
+          </h2>
+          <div className="flex space-x-2 mb-3">
+            <button onClick={handleClearAllRetailers} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
+              Clear All
+            </button>
+          </div>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {availableRetailers.map((longName) => (
+              <label key={longName} className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedRetailers.includes(norm(longName))}
+                  onChange={() => handleToggleRetailer(longName)}
+                />
+                <span className="text-gray-700 dark:text-gray-300 text-sm">{longName}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* 🟦 Tile 4: Supplier Filter (Dynamic) */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Supplier Filter
+          </h2>
+          <div className="flex space-x-2 mb-3">
+            <button onClick={handleClearAllSuppliers} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
+              Clear All
+            </button>
+          </div>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {availableSuppliers.map((supplier) => (
+              <label key={supplier} className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedSuppliers.includes(supplier)}
+                  onChange={() => handleToggleSupplier(supplier)}
+                />
+                <span className="text-gray-700 dark:text-gray-300 text-sm">{supplier}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* 🟦 Tile 5: Categories */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Categories</h2>
+          <div className="flex space-x-2 mb-4">
+            <button onClick={handleSelectAllCategories} className="px-2 py-1 bg-blue-600 text-white rounded text-sm">
+              Select All
+            </button>
+            <button onClick={handleClearAllCategories} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
+              Clear All
+            </button>
+          </div>
+          <ul className="space-y-2">
+            {Object.entries(categoryColors).map(([cat, style]) => (
+              <li key={cat} className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`filter-${cat}`}
+                  checked={selectedCategories.includes(norm(cat))}
+                  onChange={() => handleToggleCategory(cat)}
+                  className="mr-2"
+                  disabled={cat === "Kingpin"}
+                />
+                <label htmlFor={`filter-${cat}`} className="flex items-center text-gray-700 dark:text-gray-300">
+                  <span
+                    className="inline-block w-4 h-4 mr-2 rounded-full border"
+                    style={{ backgroundColor: style.color, borderColor: style.outline || "#000" }}
+                  ></span>
+                  {cat}
+                </label>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-sm text-red-600 dark:text-yellow-400 font-semibold">
+            Kingpins are always visible (bright red, yellow border).
+          </p>
+        </div>
+
+        {/* 🟦 Tile 6: Channel Summary */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Channel Summary</h2>
+          <div className="text-sm text-gray-700 dark:text-gray-300 space-y-3">
+            {/* States Selected */}
+            <div>
+              <strong>States Selected ({selectedStates.length}):</strong>{" "}
+              {selectedStates.length > 0 ? selectedStates.join(", ") : "None"}
             </div>
-          `;
-        }
 
-        // Hover (desktop) for retailers
-        map.on("mouseenter", "retailers-layer", (e) => {
-          map.getCanvas().style.cursor = "pointer";
-          const geom = e.features?.[0].geometry as GeoJSON.Point;
-          const coords = geom?.coordinates.slice() as [number, number];
-          const props = e.features?.[0].properties;
-          if (coords && props) {
-            popup.setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
-          }
-        });
+            {/* Retailers Selected */}
+            <div>
+              <strong>Retailers Selected ({selectedRetailers.length}):</strong>
+              {selectedRetailers.length > 0 ? (
+                <ul className="list-disc ml-5">
+                  {availableRetailers
+                    .filter((r) => selectedRetailers.includes(norm(r)))
+                    .map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                </ul>
+              ) : (
+                " None"
+              )}
+            </div>
 
-        map.on("mouseleave", "retailers-layer", () => {
-          map.getCanvas().style.cursor = "";
-          popup.remove();
-        });
+            {/* Location Summaries */}
+            <div>
+              <strong>Location Summaries:</strong>
+              {normalSummary.length > 0 ? (
+                <ul className="list-disc ml-5">
+                  {normalSummary.map((s, i) => (
+                    <li key={i}>
+                      {s.retailer} – {s.count} locations
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                " None"
+              )}
+            </div>
 
-        // Hover (desktop) for kingpins
-        map.on("mouseenter", "kingpins-layer", (e) => {
-          map.getCanvas().style.cursor = "pointer";
-          const geom = e.features?.[0].geometry as GeoJSON.Point;
-          const coords = geom?.coordinates.slice() as [number, number];
-          const props = e.features?.[0].properties;
-          if (coords && props) {
-            popup.setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
-          }
-        });
+            {/* Supplier Summaries */}
+            <div>
+              <strong>Supplier Summaries:</strong>
+              {normalSummary.length > 0 ? (
+                <ul className="list-disc ml-5">
+                  {normalSummary.map((s, i) => (
+                    <li key={i}>
+                      {s.retailer} – {s.suppliers && s.suppliers.length > 0 ? s.suppliers.join(", ") : "N/A"}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                " None"
+              )}
+            </div>
+          </div>
+        </div>
 
-        map.on("mouseleave", "kingpins-layer", () => {
-          map.getCanvas().style.cursor = "";
-          popup.remove();
-        });
+        {/* 🟦 Tile 7: Trip Optimization */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Trip Optimization</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            Collect points and optimize route
+          </p>
+          {tripStops.length > 0 ? (
+            <div className="space-y-1">
+              <ul className="list-disc ml-5 text-sm text-gray-700 dark:text-gray-300">
+                {tripStops.map((stop, i) => (
+                  <li key={i}>{stop}</li>
+                ))}
+              </ul>
+              <button
+                onClick={handleClearStops}
+                className="mt-2 px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+              >
+                Clear All
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
+          )}
+        </div>
+      </aside>
 
-        // Click (mobile fallback) for retailers
-        map.on("click", "retailers-layer", (e) => {
-          const geom = e.features?.[0].geometry as GeoJSON.Point;
-          const coords = geom?.coordinates.slice() as [number, number];
-          const props = e.features?.[0].properties;
-          if (coords && props) {
-            new mapboxgl.Popup()
-              .setLngLat(coords)
-              .setHTML(buildPopupHTML(props))
-              .addTo(map);
-          }
-        });
-
-        // Click (mobile fallback) for kingpins
-        map.on("click", "kingpins-layer", (e) => {
-          const geom = e.features?.[0].geometry as GeoJSON.Point;
-          const coords = geom?.coordinates.slice() as [number, number];
-          const props = e.features?.[0].properties;
-          if (coords && props) {
-            new mapboxgl.Popup()
-              .setLngLat(coords)
-              .setHTML(buildPopupHTML(props))
-              .addTo(map);
-          }
-        });
-      } catch (err) {
-        console.error("Failed to load GeoJSON", err);
-      }
-    });
-  }, [geojsonPath, onStatesLoaded, onRetailersLoaded]);
-
-  // ========================================
-  // 🔄 Apply filters dynamically
-  // ========================================
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    const map = mapRef.current;
-    const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
-    if (!source) return;
-
-    fetch(geojsonPath)
-      .then((res) => res.json())
-      .then((data) => {
-        // ✅ Normalize strings for comparisons
-        const norm = (val: string) =>
-          (val || "").toString().trim().toLowerCase();
-
-        const filtered = {
-          type: "FeatureCollection" as const,
-          features: data.features.filter((f: any) => {
-            const props = f.properties || {};
-
-            // Kingpins always bypass filters
-            if (props.Category === "Kingpin") return true;
-
-            const stateMatch =
-              selectedStates.length === 0 ||
-              selectedStates.map(norm).includes(norm(props.State));
-            const retailerMatch =
-              selectedRetailers.length === 0 ||
-              selectedRetailers.map(norm).includes(norm(props.Retailer));
-            const categoryMatch =
-              selectedCategories.length === 0 ||
-              selectedCategories.map(norm).includes(norm(props.Category));
-            const supplierMatch =
-              selectedSuppliers.length === 0 ||
-              selectedSuppliers.map(norm).includes(norm(props.Suppliers));
-
-            return (
-              stateMatch &&
-              retailerMatch &&
-              categoryMatch &&
-              supplierMatch
-            );
-          }),
-        };
-
-        source.setData(filtered);
-
-        // ========================================
-        // 📊 Summarize locations by state + retailer
-        // ========================================
-        if (onRetailerSummary) {
-          const summaryMap = new Map<
-            string,
-            { state: string; retailer: string; count: number }
-          >();
-
-          for (const f of filtered.features) {
-            const props = f.properties || {};
-            if (props.Category === "Kingpin") continue; // 🚫 skip Kingpins
-
-            const state = props.State || "Unknown";
-            const retailer = props.Retailer || "Unknown";
-            const key = `${state}-${retailer}`;
-
-            if (!summaryMap.has(key)) {
-              summaryMap.set(key, { state, retailer, count: 0 });
-            }
-            summaryMap.get(key)!.count += 1;
-          }
-
-          onRetailerSummary(Array.from(summaryMap.values()));
-        }
-      });
-  }, [
-    geojsonPath,
-    selectedStates,
-    selectedRetailers,
-    selectedCategories,
-    selectedSuppliers,
-    onRetailerSummary,
-  ]);
-
-  return <div ref={mapContainer} className="w-full h-full" />;
+      {/* 🗺️ Map Area */}
+      <main className="flex-1 relative">
+        <CertisMap
+          selectedCategories={selectedCategories}
+          selectedStates={selectedStates}
+          selectedSuppliers={selectedSuppliers}
+          selectedRetailers={selectedRetailers}
+          onStatesLoaded={setAvailableStates}
+          onRetailersLoaded={setAvailableRetailers}
+          onSuppliersLoaded={setAvailableSuppliers}
+          onRetailerSummary={setRetailerSummary}
+          onAddStop={handleAddStop}
+        />
+      </main>
+    </div>
+  );
 }

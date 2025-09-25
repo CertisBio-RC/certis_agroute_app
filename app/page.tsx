@@ -4,20 +4,11 @@
 import { useState } from "react";
 import CertisMap, { categoryColors } from "@/components/CertisMap";
 import Image from "next/image";
-import { Menu, X } from "lucide-react"; // icons for hamburger
+import { Menu, X } from "lucide-react";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-// ✅ Temporary supplier list (static placeholder)
-const supplierList = [
-  "Certis Biologicals",
-  "BASF",
-  "Bayer",
-  "Corteva",
-  "Syngenta",
-];
-
-// ✅ Normalizer function (matches CertisMap)
+// ✅ Normalizer (for states/retailers/categories only)
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 
 export default function Page() {
@@ -26,18 +17,27 @@ export default function Page() {
   // ========================================
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
 
-  // ✅ Retailer Summary from CertisMap
   const [retailerSummary, setRetailerSummary] = useState<
     { state: string; retailer: string; count: number; suppliers?: string; category?: string }[]
   >([]);
 
-  // ✅ Mobile sidebar toggle
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ✅ Trip Optimization
+  const [tripStops, setTripStops] = useState<string[]>([]);
+  const handleAddStop = (stop: string) => {
+    if (!tripStops.includes(stop)) {
+      setTripStops((prev) => [...prev, stop]);
+    }
+  };
+  const handleClearStops = () => setTripStops([]);
 
   // ========================================
   // 🔘 Category Handlers
@@ -84,14 +84,13 @@ export default function Page() {
   };
 
   // ========================================
-  // 🔘 Supplier Handlers
+  // 🔘 Supplier Handlers (use standardized names directly)
   // ========================================
   const handleToggleSupplier = (supplier: string) => {
-    const normalized = norm(supplier);
     setSelectedSuppliers((prev) =>
-      prev.includes(normalized)
-        ? prev.filter((s) => s !== normalized)
-        : [...prev, normalized]
+      prev.includes(supplier)
+        ? prev.filter((s) => s !== supplier)
+        : [...prev, supplier]
     );
   };
 
@@ -127,9 +126,7 @@ export default function Page() {
 
   return (
     <div className="flex h-screen w-screen relative">
-      {/* ========================================
-          📱 Mobile Hamburger Button
-      ======================================== */}
+      {/* 📱 Mobile Hamburger Button */}
       <button
         className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -138,14 +135,12 @@ export default function Page() {
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-      {/* ========================================
-          📌 Sidebar with Tiles
-      ======================================== */}
+      {/* 📌 Sidebar */}
       <aside
         className={`fixed md:static top-0 left-0 h-full w-72 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
-        {/* ✅ Logo */}
+        {/* Logo */}
         <div className="flex items-center justify-center mb-6">
           <Image
             src={`${basePath}/certis-logo.png`}
@@ -156,9 +151,7 @@ export default function Page() {
           />
         </div>
 
-        {/* ========================================
-            🟦 Tile 1: Home Zip Code
-        ======================================== */}
+        {/* 🟦 Tile 1: Home Zip Code */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Home Zip Code
@@ -170,30 +163,19 @@ export default function Page() {
           />
         </div>
 
-        {/* ========================================
-            🟦 Tile 2: State Filter
-        ======================================== */}
+        {/* 🟦 Tile 2: State Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             State Filter
           </h2>
-
-          {/* Select All / Clear All buttons */}
           <div className="flex space-x-2 mb-3">
-            <button
-              onClick={handleSelectAllStates}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-            >
+            <button onClick={handleSelectAllStates} className="px-2 py-1 bg-blue-600 text-white rounded text-sm">
               Select All
             </button>
-            <button
-              onClick={handleClearAllStates}
-              className="px-2 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-            >
+            <button onClick={handleClearAllStates} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
               Clear All
             </button>
           </div>
-
           <div className="grid grid-cols-3 gap-2">
             {availableStates.map((state) => (
               <label key={state} className="flex items-center space-x-1">
@@ -203,31 +185,22 @@ export default function Page() {
                   onChange={() => handleToggleState(state)}
                   className="mr-1"
                 />
-                <span className="text-gray-700 dark:text-gray-300 text-sm">
-                  {state}
-                </span>
+                <span className="text-gray-700 dark:text-gray-300 text-sm">{state}</span>
               </label>
             ))}
           </div>
         </div>
 
-        {/* ========================================
-            🟦 Tile 3: Retailer Filter (Long Name)
-        ======================================== */}
+        {/* 🟦 Tile 3: Retailer Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Retailer Filter
           </h2>
-
           <div className="flex space-x-2 mb-3">
-            <button
-              onClick={handleClearAllRetailers}
-              className="px-2 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-            >
+            <button onClick={handleClearAllRetailers} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
               Clear All
             </button>
           </div>
-
           <div className="space-y-2 max-h-32 overflow-y-auto">
             {availableRetailers.map((longName) => (
               <label key={longName} className="flex items-center space-x-2">
@@ -236,38 +209,47 @@ export default function Page() {
                   checked={selectedRetailers.includes(norm(longName))}
                   onChange={() => handleToggleRetailer(longName)}
                 />
-                <span className="text-gray-700 dark:text-gray-300 text-sm">
-                  {longName}
-                </span>
+                <span className="text-gray-700 dark:text-gray-300 text-sm">{longName}</span>
               </label>
             ))}
           </div>
         </div>
 
-        {/* ========================================
-            🟦 Tile 4: Category Filter + Legend
-        ======================================== */}
+        {/* 🟦 Tile 4: Supplier Filter (Dynamic) */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Categories
+            Supplier Filter
           </h2>
-
-          {/* Select All / Clear All buttons */}
-          <div className="flex space-x-2 mb-4">
-            <button
-              onClick={handleSelectAllCategories}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-            >
-              Select All
-            </button>
-            <button
-              onClick={handleClearAllCategories}
-              className="px-2 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-            >
+          <div className="flex space-x-2 mb-3">
+            <button onClick={handleClearAllSuppliers} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
               Clear All
             </button>
           </div>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {availableSuppliers.map((supplier) => (
+              <label key={supplier} className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedSuppliers.includes(supplier)}
+                  onChange={() => handleToggleSupplier(supplier)}
+                />
+                <span className="text-gray-700 dark:text-gray-300 text-sm">{supplier}</span>
+              </label>
+            ))}
+          </div>
+        </div>
 
+        {/* 🟦 Tile 5: Categories */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Categories</h2>
+          <div className="flex space-x-2 mb-4">
+            <button onClick={handleSelectAllCategories} className="px-2 py-1 bg-blue-600 text-white rounded text-sm">
+              Select All
+            </button>
+            <button onClick={handleClearAllCategories} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
+              Clear All
+            </button>
+          </div>
           <ul className="space-y-2">
             {Object.entries(categoryColors).map(([cat, style]) => (
               <li key={cat} className="flex items-center">
@@ -277,38 +259,26 @@ export default function Page() {
                   checked={selectedCategories.includes(norm(cat))}
                   onChange={() => handleToggleCategory(cat)}
                   className="mr-2"
-                  disabled={cat === "Kingpin"} // Kingpins always visible
+                  disabled={cat === "Kingpin"}
                 />
-                <label
-                  htmlFor={`filter-${cat}`}
-                  className="flex items-center text-gray-700 dark:text-gray-300"
-                >
+                <label htmlFor={`filter-${cat}`} className="flex items-center text-gray-700 dark:text-gray-300">
                   <span
                     className="inline-block w-4 h-4 mr-2 rounded-full border"
-                    style={{
-                      backgroundColor: style.color,
-                      borderColor: style.outline || "#000",
-                    }}
+                    style={{ backgroundColor: style.color, borderColor: style.outline || "#000" }}
                   ></span>
                   {cat}
                 </label>
               </li>
             ))}
           </ul>
-
           <p className="mt-3 text-sm text-red-600 dark:text-yellow-400 font-semibold">
             Kingpins are always visible (bright red, yellow border).
           </p>
         </div>
 
-        {/* ========================================
-            🟦 Tile 6: Channel Summary
-        ======================================== */}
+        {/* 🟦 Tile 6: Channel Summary */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Channel Summary
-          </h2>
-
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Channel Summary</h2>
           <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
             <div>
               <strong>Selected States ({selectedStates.length}):</strong>{" "}
@@ -317,13 +287,9 @@ export default function Page() {
             <div>
               <strong>Selected Retailers ({selectedRetailers.length}):</strong>{" "}
               {selectedRetailers.length > 0
-                ? availableRetailers
-                    .filter((r) => selectedRetailers.includes(norm(r)))
-                    .join(", ")
+                ? availableRetailers.filter((r) => selectedRetailers.includes(norm(r))).join(", ")
                 : "None"}
             </div>
-
-            {/* ✅ Always show Kingpins */}
             {kingpinSummary.length > 0 && (
               <div>
                 <strong>Kingpins:</strong>
@@ -331,13 +297,11 @@ export default function Page() {
                   {kingpinSummary.map((s, i) => (
                     <li key={i}>
                       {s.state}, {s.retailer} – {s.count} locations
-                      {s.suppliers ? ` (Suppliers: ${s.suppliers})` : ""}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-
             <div>
               <strong>Retailer Summary:</strong>{" "}
               {normalSummary.length > 0 ? (
@@ -345,7 +309,6 @@ export default function Page() {
                   {normalSummary.map((s, i) => (
                     <li key={i}>
                       {s.state}, {s.retailer} – {s.count} locations
-                      {s.suppliers ? ` (Suppliers: ${s.suppliers})` : ""}
                     </li>
                   ))}
                 </ul>
@@ -356,22 +319,33 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ========================================
-            🟦 Tile 7: Trip Optimization
-        ======================================== */}
+        {/* 🟦 Tile 7: Trip Optimization */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Trip Optimization
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Trip Optimization</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
             Collect points and optimize route
           </p>
+          {tripStops.length > 0 ? (
+            <div className="space-y-1">
+              <ul className="list-disc ml-5 text-sm text-gray-700 dark:text-gray-300">
+                {tripStops.map((stop, i) => (
+                  <li key={i}>{stop}</li>
+                ))}
+              </ul>
+              <button
+                onClick={handleClearStops}
+                className="mt-2 px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+              >
+                Clear All
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
+          )}
         </div>
       </aside>
 
-      {/* ========================================
-          🗺️ Map Area
-      ======================================== */}
+      {/* 🗺️ Map Area */}
       <main className="flex-1 relative">
         <CertisMap
           selectedCategories={selectedCategories}
@@ -380,7 +354,9 @@ export default function Page() {
           selectedRetailers={selectedRetailers}
           onStatesLoaded={setAvailableStates}
           onRetailersLoaded={setAvailableRetailers}
+          onSuppliersLoaded={setAvailableSuppliers}
           onRetailerSummary={setRetailerSummary}
+          onAddStop={handleAddStop}
         />
       </main>
     </div>
