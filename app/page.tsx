@@ -341,15 +341,15 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Trip Optimization</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            Collect points and optimize route
+            Selected stops will appear below:
           </p>
           {tripStops.length > 0 ? (
-            <div className="space-y-1">
-              <ul className="list-disc ml-5 text-sm text-gray-700 dark:text-gray-300">
+            <div className="space-y-2">
+              <ol className="list-decimal ml-5 text-sm text-gray-700 dark:text-gray-300">
                 {tripStops.map((stop, i) => (
                   <li key={i}>{stop}</li>
                 ))}
-              </ul>
+              </ol>
               <button
                 onClick={handleClearStops}
                 className="mt-2 px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"

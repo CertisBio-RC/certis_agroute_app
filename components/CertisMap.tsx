@@ -56,6 +56,15 @@ function standardizeSupplier(raw: string): string {
     .join(" ");
 }
 
+function splitAndStandardizeSuppliers(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .map(standardizeSupplier);
+}
+
 export interface CertisMapProps {
   selectedCategories: string[];
   selectedStates: string[];
@@ -118,15 +127,18 @@ export default function CertisMap({
         for (const feature of data.features) {
           const state = feature.properties?.State;
           const longName = feature.properties?.["Long Name"];
-          const supplier = feature.properties?.Suppliers;
+          const suppliersRaw = feature.properties?.Suppliers;
 
           if (state) stateSet.add(state as string);
           if (longName) {
             retailerSetAll.add(longName as string);
-            if (!retailerMap.has(state)) retailerMap.set(state, new Set());
-            retailerMap.get(state)!.add(longName as string);
+            if (state) {
+              if (!retailerMap.has(state)) retailerMap.set(state, new Set());
+              retailerMap.get(state)!.add(longName as string);
+            }
           }
-          if (supplier) supplierSet.add(standardizeSupplier(supplier as string));
+
+          splitAndStandardizeSuppliers(suppliersRaw).forEach((s) => supplierSet.add(s));
         }
 
         onStatesLoaded?.(Array.from(stateSet).sort());
@@ -197,15 +209,19 @@ export default function CertisMap({
         const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
 
         function buildPopupHTML(props: any) {
-          const stopName = props["Long Name"] || props.Retailer || "Unknown";
+          const longName = props["Long Name"] || props.Retailer || "Unknown";
+          const siteName = props.Name || "";
+          const stopLabel = siteName ? `${longName} – ${siteName}` : longName;
+
+          const suppliers = splitAndStandardizeSuppliers(props.Suppliers).join(", ") || "N/A";
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
           const html = `
             <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px;">
-              <strong>${stopName}</strong><br/>
-              <em>${props.Name || ""}</em><br/>
+              <strong>${longName}</strong><br/>
+              <em>${siteName}</em><br/>
               ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
-              Suppliers: ${props.Suppliers || "N/A"}<br/>
+              Suppliers: ${suppliers}<br/>
               <button id="${btnId}" style="margin-top:4px; padding:2px 6px; background:#2563eb; color:#fff; border:none; border-radius:3px; font-size:11px; cursor:pointer;">
                 ➕ Add to Trip
               </button>
@@ -215,7 +231,7 @@ export default function CertisMap({
           setTimeout(() => {
             const btn = document.getElementById(btnId);
             if (btn && onAddStop) {
-              btn.addEventListener("click", () => onAddStop(stopName));
+              btn.addEventListener("click", () => onAddStop(stopLabel));
             }
           }, 0);
 
@@ -289,11 +305,10 @@ export default function CertisMap({
               selectedCategories
                 .map(normalizeCategory)
                 .includes(normalizeCategory(props.Category));
+            const supplierList = splitAndStandardizeSuppliers(props.Suppliers).map(norm);
             const supplierMatch =
               selectedSuppliers.length === 0 ||
-              selectedSuppliers
-                .map(norm)
-                .includes(norm(standardizeSupplier(props.Suppliers)));
+              selectedSuppliers.map(norm).some((s) => supplierList.includes(s));
 
             return stateMatch && retailerMatch && categoryMatch && supplierMatch;
           }),
@@ -314,7 +329,7 @@ export default function CertisMap({
 
             const state = props.State || "Unknown";
             const retailer = props["Long Name"] || props.Retailer || "Unknown";
-            const supplier = props.Suppliers ? standardizeSupplier(props.Suppliers) : "N/A";
+            const suppliers = splitAndStandardizeSuppliers(props.Suppliers);
             const key = `${state}-${retailer}`;
 
             if (!summaryMap.has(key)) {
@@ -322,8 +337,8 @@ export default function CertisMap({
             }
             const entry = summaryMap.get(key)!;
             entry.count += 1;
-            if (supplier && supplier !== "N/A" && !entry.suppliers.includes(supplier)) {
-              entry.suppliers.push(supplier);
+            for (const s of suppliers) {
+              if (s && !entry.suppliers.includes(s)) entry.suppliers.push(s);
             }
           }
 
