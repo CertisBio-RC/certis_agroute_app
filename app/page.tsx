@@ -31,9 +31,9 @@ export default function Page() {
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
 
-  // ✅ New: Retailer Summary from CertisMap
+  // ✅ Retailer Summary from CertisMap
   const [retailerSummary, setRetailerSummary] = useState<
-    { state: string; retailer: string; count: number; category?: string }[]
+    { state: string; retailer: string; count: number; suppliers?: string; category?: string }[]
   >([]);
 
   // ✅ Mobile sidebar toggle
@@ -100,7 +100,7 @@ export default function Page() {
   };
 
   // ========================================
-  // 🔘 Retailer Handlers
+  // 🔘 Retailer Handlers (use Long Name)
   // ========================================
   const handleToggleRetailer = (retailer: string) => {
     const normalized = norm(retailer);
@@ -212,7 +212,7 @@ export default function Page() {
         </div>
 
         {/* ========================================
-            🟦 Tile 3: Retailer Filter
+            🟦 Tile 3: Retailer Filter (Long Name)
         ======================================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
@@ -229,15 +229,15 @@ export default function Page() {
           </div>
 
           <div className="space-y-2 max-h-32 overflow-y-auto">
-            {availableRetailers.map((retailer) => (
-              <label key={retailer} className="flex items-center space-x-2">
+            {availableRetailers.map((longName) => (
+              <label key={longName} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
-                  checked={selectedRetailers.includes(norm(retailer))}
-                  onChange={() => handleToggleRetailer(retailer)}
+                  checked={selectedRetailers.includes(norm(longName))}
+                  onChange={() => handleToggleRetailer(longName)}
                 />
                 <span className="text-gray-700 dark:text-gray-300 text-sm">
-                  {retailer}
+                  {longName}
                 </span>
               </label>
             ))}
@@ -312,14 +312,14 @@ export default function Page() {
           <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
             <div>
               <strong>Selected States ({selectedStates.length}):</strong>{" "}
-              {selectedStates.length > 0
-                ? selectedStates.join(", ")
-                : "None"}
+              {selectedStates.length > 0 ? selectedStates.join(", ") : "None"}
             </div>
             <div>
               <strong>Selected Retailers ({selectedRetailers.length}):</strong>{" "}
               {selectedRetailers.length > 0
-                ? selectedRetailers.join(", ")
+                ? availableRetailers
+                    .filter((r) => selectedRetailers.includes(norm(r)))
+                    .join(", ")
                 : "None"}
             </div>
 
@@ -331,6 +331,7 @@ export default function Page() {
                   {kingpinSummary.map((s, i) => (
                     <li key={i}>
                       {s.state}, {s.retailer} – {s.count} locations
+                      {s.suppliers ? ` (Suppliers: ${s.suppliers})` : ""}
                     </li>
                   ))}
                 </ul>
@@ -344,6 +345,7 @@ export default function Page() {
                   {normalSummary.map((s, i) => (
                     <li key={i}>
                       {s.state}, {s.retailer} – {s.count} locations
+                      {s.suppliers ? ` (Suppliers: ${s.suppliers})` : ""}
                     </li>
                   ))}
                 </ul>
@@ -378,7 +380,7 @@ export default function Page() {
           selectedRetailers={selectedRetailers}
           onStatesLoaded={setAvailableStates}
           onRetailersLoaded={setAvailableRetailers}
-          onRetailerSummary={setRetailerSummary} // ✅ New callback
+          onRetailerSummary={setRetailerSummary}
         />
       </main>
     </div>
