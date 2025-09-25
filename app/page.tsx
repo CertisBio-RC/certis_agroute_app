@@ -25,7 +25,7 @@ export default function Page() {
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
 
   const [retailerSummary, setRetailerSummary] = useState<
-    { state: string; retailer: string; count: number; suppliers?: string; category?: string }[]
+    { state: string; retailer: string; count: number; suppliers: string[]; category?: string }[]
   >([]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -279,41 +279,59 @@ export default function Page() {
         {/* 🟦 Tile 6: Channel Summary */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Channel Summary</h2>
-          <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+          <div className="text-sm text-gray-700 dark:text-gray-300 space-y-3">
+            {/* States Selected */}
             <div>
-              <strong>Selected States ({selectedStates.length}):</strong>{" "}
+              <strong>States Selected ({selectedStates.length}):</strong>{" "}
               {selectedStates.length > 0 ? selectedStates.join(", ") : "None"}
             </div>
+
+            {/* Retailers Selected */}
             <div>
-              <strong>Selected Retailers ({selectedRetailers.length}):</strong>{" "}
-              {selectedRetailers.length > 0
-                ? availableRetailers.filter((r) => selectedRetailers.includes(norm(r))).join(", ")
-                : "None"}
-            </div>
-            {kingpinSummary.length > 0 && (
-              <div>
-                <strong>Kingpins:</strong>
+              <strong>Retailers Selected ({selectedRetailers.length}):</strong>
+              {selectedRetailers.length > 0 ? (
                 <ul className="list-disc ml-5">
-                  {kingpinSummary.map((s, i) => (
-                    <li key={i}>
-                      {s.state}, {s.retailer} – {s.count} locations
-                    </li>
-                  ))}
+                  {availableRetailers
+                    .filter((r) => selectedRetailers.includes(norm(r)))
+                    .map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
                 </ul>
-              </div>
-            )}
+              ) : (
+                " None"
+              )}
+            </div>
+
+            {/* Location Summaries */}
             <div>
-              <strong>Retailer Summary:</strong>{" "}
+              <strong>Location Summaries:</strong>
               {normalSummary.length > 0 ? (
                 <ul className="list-disc ml-5">
                   {normalSummary.map((s, i) => (
                     <li key={i}>
-                      {s.state}, {s.retailer} – {s.count} locations
+                      {s.retailer} – {s.count} locations
                     </li>
                   ))}
                 </ul>
               ) : (
-                "None"
+                " None"
+              )}
+            </div>
+
+            {/* Supplier Summaries */}
+            <div>
+              <strong>Supplier Summaries:</strong>
+              {normalSummary.length > 0 ? (
+                <ul className="list-disc ml-5">
+                  {normalSummary.map((s, i) => (
+                    <li key={i}>
+                      {s.retailer} –{" "}
+                      {s.suppliers && s.suppliers.length > 0 ? s.suppliers.join(", ") : "N/A"}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                " None"
               )}
             </div>
           </div>
