@@ -32,6 +32,9 @@ const normalizeCategory = (cat: string) => {
   }
 };
 
+// ✅ Helper normalizer
+const norm = (val: string) => (val || "").toString().trim().toLowerCase();
+
 // ✅ Standardized supplier names dictionary
 const SUPPLIER_NAME_MAP: Record<string, string> = {
   "growmark fs": "Growmark FS",
@@ -133,8 +136,9 @@ export default function CertisMap({
           if (longName) {
             retailerSetAll.add(longName as string);
             if (state) {
-              if (!retailerMap.has(state)) retailerMap.set(state, new Set());
-              retailerMap.get(state)!.add(longName as string);
+              const stateKey = norm(state);
+              if (!retailerMap.has(stateKey)) retailerMap.set(stateKey, new Set());
+              retailerMap.get(stateKey)!.add(longName as string);
             }
           }
 
@@ -144,18 +148,16 @@ export default function CertisMap({
         onStatesLoaded?.(Array.from(stateSet).sort());
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
 
-        // ✅ Retailers (Long Name)
+        // ✅ Retailers (Long Name, filtered by state)
         if (onRetailersLoaded) {
           let visibleRetailers: string[];
           if (selectedStates.length === 0) {
             visibleRetailers = Array.from(retailerSetAll).sort();
           } else {
-            const norm = (val: string) => (val || "").toString().trim().toLowerCase();
             const selStatesNorm = selectedStates.map(norm);
-
             const subset = new Set<string>();
-            for (const [state, rset] of retailerMap.entries()) {
-              if (selStatesNorm.includes(norm(state))) {
+            for (const [stateKey, rset] of retailerMap.entries()) {
+              if (selStatesNorm.includes(stateKey)) {
                 for (const r of rset) subset.add(r);
               }
             }
@@ -210,8 +212,13 @@ export default function CertisMap({
 
         function buildPopupHTML(props: any) {
           const longName = props["Long Name"] || props.Retailer || "Unknown";
+          const state = props.State || "";
           const siteName = props.Name || "";
-          const stopLabel = siteName ? `${longName} – ${siteName}` : longName;
+
+          // ✅ Updated stop label format
+          let stopLabel = `${longName}`;
+          if (state) stopLabel += ` – ${state}`;
+          if (siteName) stopLabel += ` – ${siteName}`;
 
           const suppliers = splitAndStandardizeSuppliers(props.Suppliers).join(", ") || "N/A";
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
@@ -286,8 +293,6 @@ export default function CertisMap({
     fetch(geojsonPath)
       .then((res) => res.json())
       .then((data) => {
-        const norm = (val: string) => (val || "").toString().trim().toLowerCase();
-
         const filtered = {
           type: "FeatureCollection" as const,
           features: data.features.filter((f: any) => {
@@ -295,16 +300,13 @@ export default function CertisMap({
             if (props.Category === "Kingpin") return true;
 
             const stateMatch =
-              selectedStates.length === 0 ||
-              selectedStates.map(norm).includes(norm(props.State));
+              selectedStates.length === 0 || selectedStates.map(norm).includes(norm(props.State));
             const retailerMatch =
               selectedRetailers.length === 0 ||
               selectedRetailers.map(norm).includes(norm(props["Long Name"]));
             const categoryMatch =
               selectedCategories.length === 0 ||
-              selectedCategories
-                .map(normalizeCategory)
-                .includes(normalizeCategory(props.Category));
+              selectedCategories.map(normalizeCategory).includes(normalizeCategory(props.Category));
             const supplierList = splitAndStandardizeSuppliers(props.Suppliers).map(norm);
             const supplierMatch =
               selectedSuppliers.length === 0 ||
