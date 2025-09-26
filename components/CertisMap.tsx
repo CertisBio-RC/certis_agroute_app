@@ -43,6 +43,7 @@ const SUPPLIER_NAME_MAP: Record<string, string> = {
   rosens: "Rosens",
   growmark: "Growmark",
   iap: "IAP",
+  "wilbur-ellis": "Wilbur-Ellis", // 👈 force correct case
 };
 
 function standardizeSupplier(raw: string): string {
@@ -121,7 +122,7 @@ export default function CertisMap({
         const response = await fetch(geojsonPath);
         const data = await response.json();
 
-        // Extract unique sets
+        // Extract unique sets (load once)
         const stateSet = new Set<string>();
         const retailerSetAll = new Set<string>();
         const supplierSet = new Set<string>();
@@ -141,7 +142,7 @@ export default function CertisMap({
 
         onStatesLoaded?.(Array.from(stateSet).sort());
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
-        onRetailersLoaded?.(Array.from(retailerSetAll).sort());
+        onRetailersLoaded?.(Array.from(retailerSetAll).sort()); // 👈 full set only once
 
         // Map layers
         map.addSource("retailers", { type: "geojson", data });
@@ -186,7 +187,7 @@ export default function CertisMap({
         const popup = new mapboxgl.Popup({
           closeButton: false,
           closeOnClick: false,
-          maxWidth: "400px", // ✅ widened popup
+          maxWidth: "500px", // ✅ widen hover popup
         });
 
         function buildPopupHTML(props: any) {
@@ -216,10 +217,13 @@ export default function CertisMap({
             </div>
           `;
 
-          setTimeout(() => {
+          // ✅ Bind Add to Trip when popup opens
+          popup.on("open", () => {
             const btn = document.getElementById(btnId);
-            if (btn && onAddStop) btn.addEventListener("click", () => onAddStop(stopLabel));
-          }, 0);
+            if (btn && onAddStop) {
+              btn.addEventListener("click", () => onAddStop(stopLabel));
+            }
+          });
 
           return html;
         }
@@ -242,7 +246,7 @@ export default function CertisMap({
               ?.coordinates.slice() as [number, number];
             const props = e.features?.[0].properties;
             if (coords && props) {
-              new mapboxgl.Popup({ maxWidth: "400px" }) // ✅ widened click popup too
+              new mapboxgl.Popup({ maxWidth: "500px" }) // ✅ widen click popup
                 .setLngLat(coords)
                 .setHTML(buildPopupHTML(props))
                 .addTo(map);
@@ -258,7 +262,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering
+  // ✅ Dynamic filtering (does NOT shrink retailer list anymore)
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -323,16 +327,6 @@ export default function CertisMap({
           }
           onRetailerSummary(Array.from(summaryMap.values()));
         }
-
-        // ✅ Dynamic retailer list
-        if (onRetailersLoaded) {
-          const filteredRetailers = new Set<string>();
-          for (const f of filtered.features) {
-            const r = f.properties?.["Long Name"];
-            if (r) filteredRetailers.add(r);
-          }
-          onRetailersLoaded(Array.from(filteredRetailers).sort());
-        }
       });
   }, [
     geojsonPath,
@@ -341,7 +335,6 @@ export default function CertisMap({
     selectedCategories,
     selectedSuppliers,
     onRetailerSummary,
-    onRetailersLoaded,
   ]);
 
   return <div ref={mapContainer} className="w-full h-full" />;

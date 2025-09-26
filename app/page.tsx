@@ -289,14 +289,14 @@ export default function Page() {
               )}
             </div>
 
-            {/* Location Summaries */}
+            {/* Site Summaries */}
             <div>
-              <strong>Location Summaries:</strong>
+              <strong>Site Summaries:</strong>
               {normalSummary.length > 0 ? (
                 <ul className="list-disc ml-5">
                   {normalSummary.map((s, i) => (
                     <li key={i}>
-                      {s.retailer} – {s.count} locations
+                      {s.retailer} – {s.count} sites
                     </li>
                   ))}
                 </ul>
