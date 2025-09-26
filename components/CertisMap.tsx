@@ -209,7 +209,8 @@ export default function CertisMap({
         function bindPopup(layerId: string) {
           map.on("mouseenter", layerId, (e) => {
             map.getCanvas().style.cursor = "pointer";
-            const coords = (e.features?.[0].geometry as GeoJSON.Point)?.coordinates.slice();
+            const coords = (e.features?.[0].geometry as GeoJSON.Point)
+              ?.coordinates.slice() as [number, number];
             const props = e.features?.[0].properties;
             if (coords && props) popup.setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
           });
@@ -218,7 +219,8 @@ export default function CertisMap({
             popup.remove();
           });
           map.on("click", layerId, (e) => {
-            const coords = (e.features?.[0].geometry as GeoJSON.Point)?.coordinates.slice();
+            const coords = (e.features?.[0].geometry as GeoJSON.Point)
+              ?.coordinates.slice() as [number, number];
             const props = e.features?.[0].properties;
             if (coords && props) {
               new mapboxgl.Popup().setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
