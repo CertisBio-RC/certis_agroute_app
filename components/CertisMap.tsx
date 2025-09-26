@@ -43,7 +43,7 @@ const SUPPLIER_NAME_MAP: Record<string, string> = {
   rosens: "Rosens",
   growmark: "Growmark",
   iap: "IAP",
-  "wilbur-ellis": "Wilbur-Ellis", // 👈 force correct case
+  "wilbur-ellis": "Wilbur-Ellis",
 };
 
 function standardizeSupplier(raw: string): string {
@@ -122,7 +122,7 @@ export default function CertisMap({
         const response = await fetch(geojsonPath);
         const data = await response.json();
 
-        // Extract unique sets (load once)
+        // Extract unique sets
         const stateSet = new Set<string>();
         const retailerSetAll = new Set<string>();
         const supplierSet = new Set<string>();
@@ -142,7 +142,7 @@ export default function CertisMap({
 
         onStatesLoaded?.(Array.from(stateSet).sort());
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
-        onRetailersLoaded?.(Array.from(retailerSetAll).sort()); // 👈 load full list once
+        onRetailersLoaded?.(Array.from(retailerSetAll).sort());
 
         // Map layers
         map.addSource("retailers", { type: "geojson", data });
@@ -205,9 +205,13 @@ export default function CertisMap({
                         padding:6px; border-radius:4px; position:relative;">
               <button id="${btnId}"
                 style="position:absolute; top:4px; right:4px; padding:2px 6px;
-                       background:#2563eb; color:#fff; border:none; border-radius:3px;
-                       font-size:11px; cursor:pointer;">
-                ➕ Add to Trip
+                       background:#166534; color:#fff; border:none; border-radius:3px;
+                       font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px; font-weight:600;">
+                <span style="background:#fff; color:#166534; border-radius:50%; width:14px; height:14px;
+                             display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold;">
+                  +
+                </span>
+                Add to Trip
               </button>
               <strong>${longName}</strong><br/>
               <em>${siteName}</em><br/>
@@ -262,7 +266,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering (map only, keep retailer list broad)
+  // ✅ Dynamic filtering
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -328,7 +332,7 @@ export default function CertisMap({
           onRetailerSummary(Array.from(summaryMap.values()));
         }
 
-        // ✅ Keep retailer list state-only, don’t shrink by selectedRetailers
+        // ✅ Keep retailer list state-only
         if (onRetailersLoaded) {
           const visibleRetailers = new Set<string>();
           for (const f of data.features) {
