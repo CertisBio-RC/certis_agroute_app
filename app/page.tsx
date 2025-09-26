@@ -8,7 +8,7 @@ import { Menu, X } from "lucide-react";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-// ✅ Normalizer (for states/retailers/categories only)
+// ✅ Normalizer
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 
 export default function Page() {
@@ -45,23 +45,15 @@ export default function Page() {
   const handleToggleCategory = (category: string) => {
     const normalized = norm(category);
     setSelectedCategories((prev) =>
-      prev.includes(normalized)
-        ? prev.filter((c) => c !== normalized)
-        : [...prev, normalized]
+      prev.includes(normalized) ? prev.filter((c) => c !== normalized) : [...prev, normalized]
     );
   };
 
   const handleSelectAllCategories = () => {
-    setSelectedCategories(
-      Object.keys(categoryColors)
-        .filter((c) => c !== "Kingpin")
-        .map(norm)
-    );
+    setSelectedCategories(Object.keys(categoryColors).filter((c) => c !== "Kingpin").map(norm));
   };
 
-  const handleClearAllCategories = () => {
-    setSelectedCategories([]);
-  };
+  const handleClearAllCategories = () => setSelectedCategories([]);
 
   // ========================================
   // 🔘 State Handlers
@@ -69,34 +61,22 @@ export default function Page() {
   const handleToggleState = (state: string) => {
     const normalized = norm(state);
     setSelectedStates((prev) =>
-      prev.includes(normalized)
-        ? prev.filter((s) => s !== normalized)
-        : [...prev, normalized]
+      prev.includes(normalized) ? prev.filter((s) => s !== normalized) : [...prev, normalized]
     );
   };
 
-  const handleSelectAllStates = () => {
-    setSelectedStates(availableStates.map(norm));
-  };
-
-  const handleClearAllStates = () => {
-    setSelectedStates([]);
-  };
+  const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
+  const handleClearAllStates = () => setSelectedStates([]);
 
   // ========================================
   // 🔘 Supplier Handlers
   // ========================================
   const handleToggleSupplier = (supplier: string) => {
     setSelectedSuppliers((prev) =>
-      prev.includes(supplier)
-        ? prev.filter((s) => s !== supplier)
-        : [...prev, supplier]
+      prev.includes(supplier) ? prev.filter((s) => s !== supplier) : [...prev, supplier]
     );
   };
-
-  const handleClearAllSuppliers = () => {
-    setSelectedSuppliers([]);
-  };
+  const handleClearAllSuppliers = () => setSelectedSuppliers([]);
 
   // ========================================
   // 🔘 Retailer Handlers
@@ -104,15 +84,10 @@ export default function Page() {
   const handleToggleRetailer = (retailer: string) => {
     const normalized = norm(retailer);
     setSelectedRetailers((prev) =>
-      prev.includes(normalized)
-        ? prev.filter((r) => r !== normalized)
-        : [...prev, normalized]
+      prev.includes(normalized) ? prev.filter((r) => r !== normalized) : [...prev, normalized]
     );
   };
-
-  const handleClearAllRetailers = () => {
-    setSelectedRetailers([]);
-  };
+  const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // ========================================
   // 🟦 Derived summaries
@@ -153,9 +128,7 @@ export default function Page() {
 
         {/* 🟦 Tile 1: Home Zip Code */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Home Zip Code
-          </h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home Zip Code</h2>
           <input
             type="text"
             placeholder="Enter ZIP"
@@ -165,9 +138,7 @@ export default function Page() {
 
         {/* 🟦 Tile 2: State Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            State Filter
-          </h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">State Filter</h2>
           <div className="flex space-x-2 mb-3">
             <button onClick={handleSelectAllStates} className="px-2 py-1 bg-blue-600 text-white rounded text-sm">
               Select All
@@ -193,15 +164,13 @@ export default function Page() {
 
         {/* 🟦 Tile 3: Retailer Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Retailer Filter
-          </h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Retailer Filter</h2>
           <div className="flex space-x-2 mb-3">
             <button onClick={handleClearAllRetailers} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
               Clear All
             </button>
           </div>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
+          <div className="space-y-1 max-h-32 overflow-y-auto">
             {availableRetailers.map((longName) => (
               <label key={longName} className="flex items-center space-x-2">
                 <input
@@ -217,15 +186,13 @@ export default function Page() {
 
         {/* 🟦 Tile 4: Supplier Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Supplier Filter
-          </h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Supplier Filter</h2>
           <div className="flex space-x-2 mb-3">
             <button onClick={handleClearAllSuppliers} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
               Clear All
             </button>
           </div>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
+          <div className="space-y-1 max-h-32 overflow-y-auto">
             {availableSuppliers.map((supplier) => (
               <label key={supplier} className="flex items-center space-x-2">
                 <input
@@ -271,12 +238,12 @@ export default function Page() {
                     </label>
                   </>
                 ) : (
-                  <div className="legend-kingpin">
-                    <div
-                      className="color-box"
+                  <div className="flex items-center text-gray-700 dark:text-gray-300 ml-1">
+                    <span
+                      className="inline-block w-4 h-4 mr-2 rounded-full border"
                       style={{ backgroundColor: style.color, borderColor: style.outline || "#000" }}
-                    ></div>
-                    <span>{cat}</span>
+                    ></span>
+                    {cat}
                   </div>
                 )}
               </li>
@@ -336,8 +303,7 @@ export default function Page() {
                 <ul className="list-disc ml-5">
                   {normalSummary.map((s, i) => (
                     <li key={i}>
-                      {s.retailer} –{" "}
-                      {s.suppliers && s.suppliers.length > 0 ? s.suppliers.join(", ") : "N/A"}
+                      {s.retailer} – {s.suppliers && s.suppliers.length > 0 ? s.suppliers.join(", ") : "N/A"}
                     </li>
                   ))}
                 </ul>
