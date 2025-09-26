@@ -200,7 +200,7 @@ export default function CertisMap({
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
           const html = `
-            <div style="font-size: 13px; width:500px; background:#1a1a1a; color:#f5f5f5;
+            <div style="font-size: 13px; width:420px; background:#1a1a1a; color:#f5f5f5;
                         padding:6px; border-radius:4px; position:relative;">
               <button id="${btnId}"
                 style="position:absolute; top:4px; right:4px; padding:2px 6px;
@@ -327,6 +327,22 @@ export default function CertisMap({
           }
           onRetailerSummary(Array.from(summaryMap.values()));
         }
+
+        // ✅ Keep retailer list broad (all in selected states, not just selected ones)
+        if (onRetailersLoaded) {
+          const visibleRetailers = new Set<string>();
+          for (const f of data.features) {
+            const props = f.properties || {};
+            if (props.Category === "Kingpin") continue;
+            if (
+              selectedStates.length === 0 ||
+              selectedStates.map(norm).includes(norm(props.State))
+            ) {
+              if (props["Long Name"]) visibleRetailers.add(props["Long Name"]);
+            }
+          }
+          onRetailersLoaded(Array.from(visibleRetailers).sort());
+        }
       });
   }, [
     geojsonPath,
@@ -335,6 +351,7 @@ export default function CertisMap({
     selectedCategories,
     selectedSuppliers,
     onRetailerSummary,
+    onRetailersLoaded,
   ]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
