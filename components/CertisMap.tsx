@@ -142,7 +142,7 @@ export default function CertisMap({
 
         onStatesLoaded?.(Array.from(stateSet).sort());
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
-        onRetailersLoaded?.(Array.from(retailerSetAll).sort()); // 👈 full set only once
+        onRetailersLoaded?.(Array.from(retailerSetAll).sort()); // 👈 load full list once
 
         // Map layers
         map.addSource("retailers", { type: "geojson", data });
@@ -187,7 +187,7 @@ export default function CertisMap({
         const popup = new mapboxgl.Popup({
           closeButton: false,
           closeOnClick: false,
-          maxWidth: "none", // allow custom width
+          maxWidth: "none",
         });
 
         function buildPopupHTML(props: any) {
@@ -200,7 +200,7 @@ export default function CertisMap({
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
           const html = `
-            <div style="font-size: 13px; width:420px; background:#1a1a1a; color:#f5f5f5;
+            <div style="font-size: 13px; width:360px; background:#1a1a1a; color:#f5f5f5;
                         padding:6px; border-radius:4px; position:relative;">
               <button id="${btnId}"
                 style="position:absolute; top:4px; right:4px; padding:2px 6px;
@@ -210,14 +210,12 @@ export default function CertisMap({
               </button>
               <strong>${longName}</strong><br/>
               <em>${siteName}</em><br/>
-              ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${
-            props.Zip || ""
-          }<br/>
+              ${props.Address || ""}<br/>
+              ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
               Suppliers: ${suppliers}
             </div>
           `;
 
-          // ✅ Bind Add to Trip when popup opens
           popup.on("open", () => {
             const btn = document.getElementById(btnId);
             if (btn && onAddStop) {
@@ -246,7 +244,7 @@ export default function CertisMap({
               ?.coordinates.slice() as [number, number];
             const props = e.features?.[0].properties;
             if (coords && props) {
-              new mapboxgl.Popup({ maxWidth: "none" }) // force custom width
+              new mapboxgl.Popup({ maxWidth: "none" })
                 .setLngLat(coords)
                 .setHTML(buildPopupHTML(props))
                 .addTo(map);
@@ -262,7 +260,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering (map only, not the retailer list)
+  // ✅ Dynamic filtering (map only, keep retailer list broad)
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -328,7 +326,7 @@ export default function CertisMap({
           onRetailerSummary(Array.from(summaryMap.values()));
         }
 
-        // ✅ Keep retailer list broad (all in selected states, not just selected ones)
+        // ✅ Keep retailer list state-only, don’t shrink by selectedRetailers
         if (onRetailersLoaded) {
           const visibleRetailers = new Set<string>();
           for (const f of data.features) {
