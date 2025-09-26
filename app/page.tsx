@@ -84,7 +84,7 @@ export default function Page() {
   };
 
   // ========================================
-  // 🔘 Supplier Handlers (use standardized names directly)
+  // 🔘 Supplier Handlers
   // ========================================
   const handleToggleSupplier = (supplier: string) => {
     setSelectedSuppliers((prev) =>
@@ -99,7 +99,7 @@ export default function Page() {
   };
 
   // ========================================
-  // 🔘 Retailer Handlers (use Long Name)
+  // 🔘 Retailer Handlers
   // ========================================
   const handleToggleRetailer = (retailer: string) => {
     const normalized = norm(retailer);
@@ -215,7 +215,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 4: Supplier Filter (Dynamic) */}
+        {/* 🟦 Tile 4: Supplier Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Supplier Filter
@@ -239,7 +239,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 5: Categories */}
+        {/* 🟦 Tile 5: Categories (Legend) */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Categories</h2>
           <div className="flex space-x-2 mb-4">
@@ -253,21 +253,32 @@ export default function Page() {
           <ul className="space-y-2">
             {Object.entries(categoryColors).map(([cat, style]) => (
               <li key={cat} className="flex items-center">
-                <input
-                  type="checkbox"
-                  id={`filter-${cat}`}
-                  checked={selectedCategories.includes(norm(cat))}
-                  onChange={() => handleToggleCategory(cat)}
-                  className="mr-2"
-                  disabled={cat === "Kingpin"}
-                />
-                <label htmlFor={`filter-${cat}`} className="flex items-center text-gray-700 dark:text-gray-300">
-                  <span
-                    className="inline-block w-4 h-4 mr-2 rounded-full border"
-                    style={{ backgroundColor: style.color, borderColor: style.outline || "#000" }}
-                  ></span>
-                  {cat}
-                </label>
+                {cat !== "Kingpin" ? (
+                  <>
+                    <input
+                      type="checkbox"
+                      id={`filter-${cat}`}
+                      checked={selectedCategories.includes(norm(cat))}
+                      onChange={() => handleToggleCategory(cat)}
+                      className="mr-2"
+                    />
+                    <label htmlFor={`filter-${cat}`} className="flex items-center text-gray-700 dark:text-gray-300">
+                      <span
+                        className="inline-block w-4 h-4 mr-2 rounded-full border"
+                        style={{ backgroundColor: style.color, borderColor: style.outline || "#000" }}
+                      ></span>
+                      {cat}
+                    </label>
+                  </>
+                ) : (
+                  <div className="flex items-center text-gray-700 dark:text-gray-300 ml-1">
+                    <span
+                      className="inline-block w-4 h-4 mr-2 rounded-full border"
+                      style={{ backgroundColor: style.color, borderColor: style.outline || "#000" }}
+                    ></span>
+                    {cat}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

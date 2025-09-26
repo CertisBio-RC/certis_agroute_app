@@ -37,16 +37,12 @@ const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 
 // ✅ Standardized supplier names dictionary
 const SUPPLIER_NAME_MAP: Record<string, string> = {
-  "growmark fs": "Growmark FS",
-  "chs": "CHS",
-  "agtegra": "Agtegra",
-  "helena agri-enterprises": "Helena Agri-Enterprises",
-  "nutrien ag solutions": "Nutrien Ag Solutions",
-  "bayer": "Bayer",
-  "basf": "BASF",
-  "corteva": "Corteva",
-  "syngenta": "Syngenta",
-  "certis biologicals": "Certis Biologicals",
+  chs: "CHS",
+  winfield: "Winfield",
+  helena: "Helena",
+  rosens: "Rosens",
+  growmark: "Growmark",
+  iap: "IAP",
 };
 
 function standardizeSupplier(raw: string): string {
@@ -148,7 +144,7 @@ export default function CertisMap({
         onStatesLoaded?.(Array.from(stateSet).sort());
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
 
-        // ✅ Retailers (Long Name, filtered by state)
+        // ✅ Retailers (Long Name), filtered by selected states
         if (onRetailersLoaded) {
           let visibleRetailers: string[];
           if (selectedStates.length === 0) {
@@ -174,7 +170,7 @@ export default function CertisMap({
           type: "circle",
           source: "retailers",
           paint: {
-            "circle-radius": 6,
+            "circle-radius": 4,
             "circle-color": [
               "match",
               ["get", "Category"],
@@ -186,7 +182,7 @@ export default function CertisMap({
               categoryColors["Office/Service"].color,
               "#1d4ed8",
             ],
-            "circle-stroke-width": 1,
+            "circle-stroke-width": 2,
             "circle-stroke-color": "#fff",
           },
           filter: ["!=", ["get", "Category"], "Kingpin"],
@@ -197,7 +193,7 @@ export default function CertisMap({
           type: "circle",
           source: "retailers",
           paint: {
-            "circle-radius": 8,
+            "circle-radius": 7,
             "circle-color": categoryColors.Kingpin.color,
             "circle-stroke-width": 2,
             "circle-stroke-color": categoryColors.Kingpin.outline!,
@@ -206,32 +202,27 @@ export default function CertisMap({
         });
 
         // ========================================
-        // 🖱️ Popups with Add-to-Trip Button
+        // 🖱️ Popups with Add-to-Trip Button (top right)
         // ========================================
         const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
 
         function buildPopupHTML(props: any) {
           const longName = props["Long Name"] || props.Retailer || "Unknown";
-          const state = props.State || "";
           const siteName = props.Name || "";
-
-          // ✅ Updated stop label format
-          let stopLabel = `${longName}`;
-          if (state) stopLabel += ` – ${state}`;
-          if (siteName) stopLabel += ` – ${siteName}`;
+          const stopLabel = siteName ? `${longName} – ${siteName}` : longName;
 
           const suppliers = splitAndStandardizeSuppliers(props.Suppliers).join(", ") || "N/A";
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
           const html = `
-            <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px;">
+            <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px; position:relative;">
+              <button id="${btnId}" style="position:absolute; top:4px; right:4px; padding:2px 6px; background:#2563eb; color:#fff; border:none; border-radius:3px; font-size:11px; cursor:pointer;">
+                ➕ Add to Trip
+              </button>
               <strong>${longName}</strong><br/>
               <em>${siteName}</em><br/>
               ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
-              Suppliers: ${suppliers}<br/>
-              <button id="${btnId}" style="margin-top:4px; padding:2px 6px; background:#2563eb; color:#fff; border:none; border-radius:3px; font-size:11px; cursor:pointer;">
-                ➕ Add to Trip
-              </button>
+              Suppliers: ${suppliers}
             </div>
           `;
 
