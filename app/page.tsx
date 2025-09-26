@@ -99,13 +99,14 @@ export default function Page() {
     (s) => norm(s.retailer) !== "kingpin" && norm(s.category || "") !== "kingpin"
   );
 
-  // ✅ Retailers filtered by selected states
+  // ✅ Retailers filtered by selected states only (not by selectedRetailers)
   const filteredRetailers = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
     return retailerSummary
       .filter((s) => selectedStates.includes(norm(s.state)))
       .map((s) => s.retailer)
-      .filter((r, i, arr) => arr.indexOf(r) === i); // unique
+      .filter((r, i, arr) => arr.indexOf(r) === i) // unique
+      .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
 
   return (

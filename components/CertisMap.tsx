@@ -187,7 +187,7 @@ export default function CertisMap({
         const popup = new mapboxgl.Popup({
           closeButton: false,
           closeOnClick: false,
-          maxWidth: "500px", // ✅ widen hover popup
+          maxWidth: "none", // allow custom width
         });
 
         function buildPopupHTML(props: any) {
@@ -200,7 +200,7 @@ export default function CertisMap({
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
           const html = `
-            <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5;
+            <div style="font-size: 13px; width:500px; background:#1a1a1a; color:#f5f5f5;
                         padding:6px; border-radius:4px; position:relative;">
               <button id="${btnId}"
                 style="position:absolute; top:4px; right:4px; padding:2px 6px;
@@ -246,7 +246,7 @@ export default function CertisMap({
               ?.coordinates.slice() as [number, number];
             const props = e.features?.[0].properties;
             if (coords && props) {
-              new mapboxgl.Popup({ maxWidth: "500px" }) // ✅ widen click popup
+              new mapboxgl.Popup({ maxWidth: "none" }) // force custom width
                 .setLngLat(coords)
                 .setHTML(buildPopupHTML(props))
                 .addTo(map);
@@ -262,7 +262,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering (does NOT shrink retailer list anymore)
+  // ✅ Dynamic filtering (map only, not the retailer list)
   useEffect(() => {
     if (!mapRef.current) return;
 
