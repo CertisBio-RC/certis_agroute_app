@@ -544,7 +544,7 @@
         "State": "IA",
         "Zip": 51002,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -565,7 +565,7 @@
         "State": "IA",
         "Zip": 51003,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -586,7 +586,7 @@
         "State": "IA",
         "Zip": 51005,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -607,7 +607,7 @@
         "State": "IA",
         "Zip": 51006,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -628,7 +628,7 @@
         "State": "IA",
         "Zip": 51009,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -649,7 +649,7 @@
         "State": "IA",
         "Zip": 51012,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -691,7 +691,7 @@
         "State": "IA",
         "Zip": 51014,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -712,7 +712,7 @@
         "State": "IA",
         "Zip": 50536,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -733,7 +733,7 @@
         "State": "IA",
         "Zip": 50540,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -754,7 +754,7 @@
         "State": "IA",
         "Zip": 51022,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -775,7 +775,7 @@
         "State": "IA",
         "Zip": 51346,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -796,7 +796,7 @@
         "State": "IA",
         "Zip": 51025,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -817,7 +817,7 @@
         "State": "IA",
         "Zip": 51028,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -838,7 +838,7 @@
         "State": "IA",
         "Zip": 50554,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -859,7 +859,7 @@
         "State": "IA",
         "Zip": 50565,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -880,7 +880,7 @@
         "State": "IA",
         "Zip": 51035,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -901,7 +901,7 @@
         "State": "IA",
         "Zip": 51046,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -922,7 +922,7 @@
         "State": "IA",
         "Zip": 50576,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -943,7 +943,7 @@
         "State": "IA",
         "Zip": 51053,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -964,7 +964,7 @@
         "State": "IA",
         "Zip": 51201,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -985,7 +985,7 @@
         "State": "IA",
         "Zip": 51366,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -1089,7 +1089,7 @@
         "City": "Aberdeen",
         "State": "SD",
         "Zip": 57401,
-        "Category": "Agronomy",
+        "Category": "Kingpin",
         "Suppliers": "Winfield, Rosens"
       }
     },
@@ -1110,7 +1110,7 @@
         "City": "Aberdeen",
         "State": "SD",
         "Zip": 57401,
-        "Category": "Agronomy",
+        "Category": "Kingpin",
         "Suppliers": "Winfield, Rosens"
       }
     },
@@ -3400,7 +3400,7 @@
         "State": "MN",
         "Zip": 56085,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3442,7 +3442,7 @@
         "State": "MN",
         "Zip": 56228,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3484,7 +3484,7 @@
         "State": "MN",
         "Zip": 55335,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3505,7 +3505,7 @@
         "State": "MN",
         "Zip": 56041,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3526,7 +3526,7 @@
         "State": "MN",
         "Zip": 55342,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3547,7 +3547,7 @@
         "State": "MN",
         "Zip": 56073,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3588,8 +3588,8 @@
         "City": "Sleepy Eye",
         "State": "MN",
         "Zip": 56085,
-        "Category": "Grain",
-        "Suppliers": "WinField"
+        "Category": "Kingpin",
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3610,7 +3610,7 @@
         "State": "MN",
         "Zip": 56085,
         "Category": "Office/Service",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3631,7 +3631,7 @@
         "State": "MN",
         "Zip": 56085,
         "Category": "Office/Service",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3652,7 +3652,7 @@
         "State": "MN",
         "Zip": 55912,
         "Category": "Agronomy",
-        "Suppliers": "CV Coop"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3673,7 +3673,7 @@
         "State": "MN",
         "Zip": 55917,
         "Category": "Agronomy",
-        "Suppliers": "CV Coop"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3694,7 +3694,7 @@
         "State": "MN",
         "Zip": 55940,
         "Category": "Agronomy",
-        "Suppliers": "CV Coop"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3715,7 +3715,7 @@
         "State": "MN",
         "Zip": 55019,
         "Category": "Office/Service",
-        "Suppliers": "CV Coop"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3736,7 +3736,7 @@
         "State": "MN",
         "Zip": 55057,
         "Category": "Office/Service",
-        "Suppliers": "CV Coop"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3756,8 +3756,8 @@
         "City": "Owatonna",
         "State": "MN",
         "Zip": 55060,
-        "Category": "Office/Service",
-        "Suppliers": "CV Coop"
+        "Category": "Kingpin",
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3778,7 +3778,7 @@
         "State": "IA",
         "Zip": 51024,
         "Category": "Office/Service",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3799,7 +3799,7 @@
         "State": "NE",
         "Zip": 69210,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3820,7 +3820,7 @@
         "State": "NE",
         "Zip": 69210,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3835,13 +3835,13 @@
       "properties": {
         "Retailer": "Central Valley Ag",
         "Long Name": "Central Valley Ag - NE",
-        "Name": "Bee",
+        "Name": "Bee Agronomy",
         "Address": "120 Elm St",
         "City": "Bee",
         "State": "NE",
         "Zip": 68314,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3862,7 +3862,7 @@
         "State": "NE",
         "Zip": 68601,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3883,7 +3883,7 @@
         "State": "NE",
         "Zip": 68338,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3904,7 +3904,7 @@
         "State": "NE",
         "Zip": 68636,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3925,7 +3925,7 @@
         "State": "NE",
         "Zip": 68638,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3946,7 +3946,7 @@
         "State": "NE",
         "Zip": 68739,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3967,7 +3967,7 @@
         "State": "NE",
         "Zip": 68371,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -3988,7 +3988,7 @@
         "State": "NE",
         "Zip": 68371,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4009,7 +4009,7 @@
         "State": "NE",
         "Zip": 68031,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4030,7 +4030,7 @@
         "State": "NE",
         "Zip": 68846,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4051,7 +4051,7 @@
         "State": "NE",
         "Zip": 68642,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4072,7 +4072,7 @@
         "State": "NE",
         "Zip": 68745,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4093,7 +4093,7 @@
         "State": "NE",
         "Zip": 68647,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4114,7 +4114,7 @@
         "State": "NE",
         "Zip": 68647,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4135,7 +4135,7 @@
         "State": "NE",
         "Zip": 68045,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4156,7 +4156,7 @@
         "State": "NE",
         "Zip": 68763,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4177,7 +4177,7 @@
         "State": "NE",
         "Zip": 68763,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4198,7 +4198,7 @@
         "State": "NE",
         "Zip": 68764,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4219,7 +4219,7 @@
         "State": "NE",
         "Zip": 68652,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4240,7 +4240,7 @@
         "State": "NE",
         "Zip": 68654,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4255,13 +4255,13 @@
       "properties": {
         "Retailer": "Central Valley Ag",
         "Long Name": "Central Valley Ag - NE",
-        "Name": "81-20 (Randolph)",
+        "Name": "Randolph ",
         "Address": "86524 Hwy 81",
         "City": "Randolph",
         "State": "NE",
         "Zip": 68771,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4282,7 +4282,7 @@
         "State": "NE",
         "Zip": 68658,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4303,7 +4303,7 @@
         "State": "NE",
         "Zip": 68057,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4324,7 +4324,7 @@
         "State": "NE",
         "Zip": 68057,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4345,7 +4345,7 @@
         "State": "NE",
         "Zip": 68662,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4366,7 +4366,7 @@
         "State": "NE",
         "Zip": 68660,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4387,7 +4387,7 @@
         "State": "NE",
         "Zip": 68666,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4408,7 +4408,7 @@
         "State": "NE",
         "Zip": 68456,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4429,7 +4429,7 @@
         "State": "NE",
         "Zip": 69201,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4450,7 +4450,7 @@
         "State": "NE",
         "Zip": 68460,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4471,7 +4471,7 @@
         "State": "NE",
         "Zip": 68460,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4492,7 +4492,7 @@
         "State": "NE",
         "Zip": 68784,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4513,7 +4513,7 @@
         "State": "NE",
         "Zip": 68784,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4534,7 +4534,7 @@
         "State": "NE",
         "Zip": 68788,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4555,7 +4555,7 @@
         "State": "NE",
         "Zip": 68788,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4576,7 +4576,7 @@
         "State": "NE",
         "Zip": 68791,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4597,7 +4597,7 @@
         "State": "NE",
         "Zip": 68467,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4617,8 +4617,8 @@
         "City": "York",
         "State": "NE",
         "Zip": 68467,
-        "Category": "Office/Service",
-        "Suppliers": "WinField"
+        "Category": "Kingpin",
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -4927,7 +4927,7 @@
       "properties": {
         "Retailer": "CHS Ag Services",
         "Long Name": "CHS Ag Services - MN",
-        "Name": "Hazel (Thief River Falls)",
+        "Name": "Theif River Falls",
         "Address": "17273 Center St E",
         "City": "Thief River Falls",
         "State": "MN",
@@ -5767,7 +5767,7 @@
       "properties": {
         "Retailer": "CHS Dakota Plains Ag",
         "Long Name": "CHS - Dakota Plains - ND",
-        "Name": "CHS Dakota Plains Ag – Comstock Agronomy",
+        "Name": "Comstock Agronomy",
         "Address": "16214 18th St S",
         "City": "Comstock",
         "State": "MN",
@@ -5893,7 +5893,7 @@
       "properties": {
         "Retailer": "CHS Dakota Plains Ag",
         "Long Name": "CHS - Dakota Plains - ND",
-        "Name": "Englevale Agronomy (Fort Ransom)",
+        "Name": "Englevale Agronomy",
         "Address": "12090 ND-27",
         "City": "Fort Ransom",
         "State": "ND",
@@ -5977,7 +5977,7 @@
       "properties": {
         "Retailer": "CHS Dakota Plains Ag",
         "Long Name": "CHS - Dakota Plains - ND",
-        "Name": "CHS Dakota Plains Ag – Kindred Office",
+        "Name": "Kindred Office",
         "Address": "5324 165th Ave SE",
         "City": "Kindred",
         "State": "ND",
@@ -7305,7 +7305,7 @@
         "City": "Garrison",
         "State": "ND",
         "Zip": 58540,
-        "Category": "Agronomy",
+        "Category": "Kingpin",
         "Suppliers": "CHS"
       }
     },
@@ -7578,7 +7578,7 @@
         "City": "Herman",
         "State": "MN",
         "Zip": 56248,
-        "Category": "Office/Service",
+        "Category": "Kingpin",
         "Suppliers": "CHS"
       }
     },
@@ -8880,7 +8880,7 @@
         "City": "Grand Meadow",
         "State": "MN",
         "Zip": 55936,
-        "Category": "Agronomy",
+        "Category": "Kingpin",
         "Suppliers": "CHS"
       }
     },
@@ -9027,7 +9027,7 @@
         "City": "St. Charles",
         "State": "MN",
         "Zip": 55972,
-        "Category": "Agronomy",
+        "Category": "Office/Service",
         "Suppliers": "CHS"
       }
     },
@@ -9631,7 +9631,7 @@
       "properties": {
         "Retailer": "CHS West Central",
         "Long Name": "CHS - West Central - MN",
-        "Name": "Mahnomen Agronomy (US-59 S)",
+        "Name": "Mahnomen Agronomy",
         "Address": "2360 US Hwy 59 S",
         "City": "Mahnomen",
         "State": "MN",
@@ -9972,7 +9972,7 @@
         "City": "St. Charles",
         "State": "IL",
         "Zip": 60174,
-        "Category": "Agronomy",
+        "Category": "Office/Service",
         "Suppliers": "Growmark"
       }
     },
@@ -10014,7 +10014,7 @@
         "City": "Waterman",
         "State": "IL",
         "Zip": 60556,
-        "Category": "Agronomy",
+        "Category": "Office/Service",
         "Suppliers": "Growmark"
       }
     },
@@ -10056,7 +10056,7 @@
         "City": "Woodstock",
         "State": "IL",
         "Zip": 60098,
-        "Category": "Office/Service",
+        "Category": "Kingpin",
         "Suppliers": "Growmark"
       }
     },
@@ -11149,7 +11149,7 @@
         "State": "MN",
         "Zip": 55040,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -13913,7 +13913,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Adair Retail (IA)",
         "Address": "100 Hillcrest St",
@@ -13921,7 +13921,7 @@
         "State": "IA",
         "Zip": 50002,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -13934,7 +13934,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Adair Retail",
         "Address": "100 Hillcrest St, PO Box 308",
@@ -13942,7 +13942,7 @@
         "State": "IA",
         "Zip": 50002,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -13955,7 +13955,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Ankeny Wholesale",
         "Address": "728 SE Creek View Dr",
@@ -13963,7 +13963,7 @@
         "State": "IA",
         "Zip": 50021,
         "Category": "Office/Service",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -13976,7 +13976,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Creston Retail",
         "Address": "1308 E Howard St",
@@ -13984,7 +13984,7 @@
         "State": "IA",
         "Zip": 50801,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -13997,7 +13997,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Guthrie Center Agronomy",
         "Address": "705 N 1st St",
@@ -14005,7 +14005,7 @@
         "State": "IA",
         "Zip": 50115,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14018,7 +14018,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Mason City Retail",
         "Address": "16725 245th St",
@@ -14026,7 +14026,7 @@
         "State": "IA",
         "Zip": 50401,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14039,7 +14039,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Northwood Retail",
         "Address": "1809 Central Ave",
@@ -14047,7 +14047,7 @@
         "State": "IA",
         "Zip": 50459,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14060,7 +14060,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Osage Retail",
         "Address": "1820 State St",
@@ -14068,7 +14068,7 @@
         "State": "IA",
         "Zip": 50461,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14081,7 +14081,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Rockwell Retail",
         "Address": "21822 160th St",
@@ -14089,7 +14089,7 @@
         "State": "IA",
         "Zip": 50469,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14102,7 +14102,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Rockwell Agronomy",
         "Address": "21823 160th St",
@@ -14110,7 +14110,7 @@
         "State": "IA",
         "Zip": 50469,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14123,7 +14123,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "Seymour Retail",
         "Address": "120 S 4th St",
@@ -14131,7 +14131,7 @@
         "State": "IA",
         "Zip": 52590,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14144,7 +14144,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IA",
         "Name": "West Central Division Office",
         "Address": "4546 Corporate Dr, Suite 170",
@@ -14152,7 +14152,7 @@
         "State": "IA",
         "Zip": 50266,
         "Category": "Kingpin",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14165,7 +14165,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Adair Retail",
         "Address": "100 E Hillcrest St",
@@ -14173,7 +14173,7 @@
         "State": "IL",
         "Zip": 61411,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14186,7 +14186,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Adair Retail",
         "Address": "9960 E 2100th St",
@@ -14194,7 +14194,7 @@
         "State": "IL",
         "Zip": 61411,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14207,7 +14207,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Allerton Retail",
         "Address": "309 E Yates",
@@ -14215,7 +14215,7 @@
         "State": "IL",
         "Zip": 61810,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14228,7 +14228,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Camp Point Retail",
         "Address": "1899 E 2500th St",
@@ -14236,7 +14236,7 @@
         "State": "IL",
         "Zip": 62320,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14249,7 +14249,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Casey Retail",
         "Address": "601 W Main St",
@@ -14257,7 +14257,7 @@
         "State": "IL",
         "Zip": 62420,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14270,7 +14270,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Decatur Specialty",
         "Address": "1695 N 21st St",
@@ -14278,7 +14278,7 @@
         "State": "IL",
         "Zip": 62526,
         "Category": "Office/Service",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14291,7 +14291,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Kirkland Retail/Depot",
         "Address": "4440 IL Route 72",
@@ -14299,7 +14299,7 @@
         "State": "IL",
         "Zip": 60146,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14312,7 +14312,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Mattoon (Retail)",
         "Address": "3559 E County Road 1000N",
@@ -14320,7 +14320,7 @@
         "State": "IL",
         "Zip": 61938,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14333,7 +14333,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Meredosia Agronomy",
         "Address": "1992 Old Grace Rd",
@@ -14341,7 +14341,7 @@
         "State": "IL",
         "Zip": 62665,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14354,7 +14354,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Minonk Retail/Depot",
         "Address": "50 W Chestnut St",
@@ -14362,7 +14362,7 @@
         "State": "IL",
         "Zip": 61760,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14375,7 +14375,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Newman Retail",
         "Address": "2800 E US Hwy 36 N",
@@ -14383,7 +14383,7 @@
         "State": "IL",
         "Zip": 61942,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14396,7 +14396,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Newman Agronomy",
         "Address": "2800 E US Hwy 36",
@@ -14404,7 +14404,7 @@
         "State": "IL",
         "Zip": 61942,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14417,7 +14417,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Orion Retail",
         "Address": "2929 N 1300th Ave",
@@ -14425,7 +14425,7 @@
         "State": "IL",
         "Zip": 61273,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14438,7 +14438,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Orion Retail",
         "Address": "2929 N 1300 Ave",
@@ -14446,7 +14446,7 @@
         "State": "IL",
         "Zip": 61273,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14459,7 +14459,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Princeton Wholesale",
         "Address": "1870 Backbone Rd W",
@@ -14467,7 +14467,7 @@
         "State": "IL",
         "Zip": 61356,
         "Category": "Kingpin",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14480,7 +14480,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IL",
         "Name": "Ridge Farm Retail",
         "Address": "3742 State Route 1",
@@ -14488,7 +14488,7 @@
         "State": "IL",
         "Zip": 61870,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14501,7 +14501,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Atlanta Retail",
         "Address": "311 N Walnut St",
@@ -14509,7 +14509,7 @@
         "State": "IN",
         "Zip": 46031,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14522,7 +14522,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Berne Retail",
         "Address": "205 E Parr Rd",
@@ -14530,7 +14530,7 @@
         "State": "IN",
         "Zip": 46711,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14543,7 +14543,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Bluffton Retail/Depot",
         "Address": "2875 W 300 N",
@@ -14551,7 +14551,7 @@
         "State": "IN",
         "Zip": 46714,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14564,7 +14564,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Camden Retail",
         "Address": "75 W 200 N",
@@ -14572,7 +14572,7 @@
         "State": "IN",
         "Zip": 46917,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14585,7 +14585,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Craigville Retail/Depot",
         "Address": "2300 N 700 E",
@@ -14593,7 +14593,7 @@
         "State": "IN",
         "Zip": 46731,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14606,7 +14606,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Huntington Terminal",
         "Address": "321 Thurman Poe Way",
@@ -14614,7 +14614,7 @@
         "State": "IN",
         "Zip": 46750,
         "Category": "Kingpin",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14627,7 +14627,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Lafayette Agronomy",
         "Address": "10004 S 100 E",
@@ -14635,7 +14635,7 @@
         "State": "IN",
         "Zip": 47909,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14648,7 +14648,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Ligonier (Kimmel) Agronomy",
         "Address": "3113 N 650 W",
@@ -14656,7 +14656,7 @@
         "State": "IN",
         "Zip": 46767,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14669,7 +14669,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Markle Agronomy",
         "Address": "325 E Logan St",
@@ -14677,7 +14677,7 @@
         "State": "IN",
         "Zip": 46770,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14690,7 +14690,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "New Carlisle Retail",
         "Address": "54300 Walnut Rd",
@@ -14698,7 +14698,7 @@
         "State": "IN",
         "Zip": 46552,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14711,7 +14711,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - IN",
         "Name": "Otterbein Retail",
         "Address": "502 W Oxford St",
@@ -14719,7 +14719,7 @@
         "State": "IN",
         "Zip": 47970,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14732,7 +14732,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - MI",
         "Name": "Bay City Retail",
         "Address": "4640 7 Mile Rd",
@@ -14740,7 +14740,7 @@
         "State": "MI",
         "Zip": 48706,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14753,7 +14753,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - MI",
         "Name": "Croswell Agronomy",
         "Address": "5146 Peck Rd",
@@ -14761,7 +14761,7 @@
         "State": "MI",
         "Zip": 48422,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14774,7 +14774,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - MI",
         "Name": "Dansville (Retail)",
         "Address": "1261 S Jackson St",
@@ -14782,7 +14782,7 @@
         "State": "MI",
         "Zip": 48819,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14795,7 +14795,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - MI",
         "Name": "Imlay City Retail/Depot",
         "Address": "2272 N Van Dyke Rd",
@@ -14803,7 +14803,7 @@
         "State": "MI",
         "Zip": 48444,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14816,7 +14816,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - MI",
         "Name": "Saginaw (Wholesale)",
         "Address": "3477 S Graham Rd (M-52)",
@@ -14824,7 +14824,7 @@
         "State": "MI",
         "Zip": 48609,
         "Category": "Kingpin",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14837,7 +14837,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - MI",
         "Name": "Shelby Agronomy",
         "Address": "37 W 3rd St",
@@ -14845,7 +14845,7 @@
         "State": "MI",
         "Zip": 49455,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14858,7 +14858,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - MI",
         "Name": "Standish Retail/Depot",
         "Address": "4250 S Huron Rd",
@@ -14866,7 +14866,7 @@
         "State": "MI",
         "Zip": 48658,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14879,7 +14879,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - MI",
         "Name": "Vestaburg Agronomy",
         "Address": "7460 N Crystal Rd",
@@ -14887,7 +14887,7 @@
         "State": "MI",
         "Zip": 48891,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14900,7 +14900,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - MI",
         "Name": "Watervliet Retail/Depot",
         "Address": "125 N M 140",
@@ -14908,7 +14908,7 @@
         "State": "MI",
         "Zip": 49098,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14921,7 +14921,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - ND-MN",
         "Name": "Royalton Retail",
         "Address": "16250 Highway 10 NW",
@@ -14929,7 +14929,7 @@
         "State": "MN",
         "Zip": 56373,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14942,7 +14942,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - ND-MN",
         "Name": "Dickinson Agronomy",
         "Address": "2804 E Villard St",
@@ -14950,7 +14950,7 @@
         "State": "ND",
         "Zip": 58601,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14963,7 +14963,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - ND-MN",
         "Name": "Jamestown Agronomy",
         "Address": "3552 81st Ave SE",
@@ -14971,7 +14971,7 @@
         "State": "ND",
         "Zip": 58401,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -14984,7 +14984,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - ND-MN",
         "Name": "New England Retail",
         "Address": "103 McKenzie Ave",
@@ -14992,7 +14992,7 @@
         "State": "ND",
         "Zip": 58647,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15005,7 +15005,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - ND-MN",
         "Name": "Rugby Agronomy",
         "Address": "6470 28th Ave NE",
@@ -15013,7 +15013,7 @@
         "State": "ND",
         "Zip": 58368,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15026,7 +15026,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - ND-MN",
         "Name": "Watford City Agronomy",
         "Address": "1164 Highway 1806 W",
@@ -15034,7 +15034,7 @@
         "State": "ND",
         "Zip": 58854,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15047,7 +15047,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - ND-MN",
         "Name": "West Fargo Office",
         "Address": "1800 Main Ave E",
@@ -15055,7 +15055,7 @@
         "State": "ND",
         "Zip": 58078,
         "Category": "Kingpin",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15068,7 +15068,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - NE",
         "Name": "Brunswick Retail",
         "Address": "52345 Hwy 20",
@@ -15076,7 +15076,7 @@
         "State": "NE",
         "Zip": 68720,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15089,7 +15089,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - NE",
         "Name": "Norfolk Retail",
         "Address": "700 E Eisenhower Ave",
@@ -15097,7 +15097,7 @@
         "State": "NE",
         "Zip": 68701,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15110,7 +15110,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - NE",
         "Name": "Oakland Retail",
         "Address": "900 N Charde Ave",
@@ -15118,7 +15118,7 @@
         "State": "NE",
         "Zip": 68045,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15131,7 +15131,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - NE",
         "Name": "Omaha Specialty",
         "Address": "10301 S 152nd St Ste 1",
@@ -15139,7 +15139,7 @@
         "State": "NE",
         "Zip": 68138,
         "Category": "Kingpin",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15152,7 +15152,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - NE",
         "Name": "Osmond Retail",
         "Address": "104 N Main St",
@@ -15160,7 +15160,7 @@
         "State": "NE",
         "Zip": 68765,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15173,7 +15173,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - OH",
         "Name": "Bellevue OH Retail",
         "Address": "16601 E Twp Rd 178",
@@ -15181,7 +15181,7 @@
         "State": "OH",
         "Zip": 44811,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15194,7 +15194,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - OH",
         "Name": "Bowling Green Wholesale",
         "Address": "7978 Bowling Green Rd E",
@@ -15202,7 +15202,7 @@
         "State": "OH",
         "Zip": 43402,
         "Category": "Kingpin",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15215,7 +15215,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - OH",
         "Name": "Coldwater (Retail)",
         "Address": "3971 Burkettsville St. Henry Rd",
@@ -15223,7 +15223,7 @@
         "State": "OH",
         "Zip": 45828,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15236,7 +15236,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - OH",
         "Name": "Coldwater Retail/Depot",
         "Address": "3971 Burkettsville Saint Hen Rd",
@@ -15244,7 +15244,7 @@
         "State": "OH",
         "Zip": 45828,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15257,7 +15257,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - OH",
         "Name": "Coldwater Agronomy",
         "Address": "3971 Burkettsville Saint Henry Rd",
@@ -15265,7 +15265,7 @@
         "State": "OH",
         "Zip": 45828,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15278,7 +15278,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - OH",
         "Name": "Martin (Retail)",
         "Address": "3014 N Martin Williston Rd",
@@ -15286,7 +15286,7 @@
         "State": "OH",
         "Zip": 43445,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15299,7 +15299,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - SD",
         "Name": "Alexandria Wholesale",
         "Address": "531 Spruce St",
@@ -15307,7 +15307,7 @@
         "State": "SD",
         "Zip": 57311,
         "Category": "Kingpin",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15320,7 +15320,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - SD",
         "Name": "Clear Lake Agronomy",
         "Address": "300 Railroad Ave S",
@@ -15328,7 +15328,7 @@
         "State": "SD",
         "Zip": 57226,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15341,7 +15341,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - SD",
         "Name": "Hurley (Retail)",
         "Address": "28662 452nd Ave",
@@ -15349,7 +15349,7 @@
         "State": "SD",
         "Zip": 57036,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15362,7 +15362,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - SD",
         "Name": "Iroquois Agronomy",
         "Address": "110 E Neosho St",
@@ -15370,7 +15370,7 @@
         "State": "SD",
         "Zip": 57353,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15383,7 +15383,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - SD",
         "Name": "Madison Agronomy",
         "Address": "620 SW 3rd St",
@@ -15391,7 +15391,7 @@
         "State": "SD",
         "Zip": 57042,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15404,7 +15404,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - SD",
         "Name": "Pierre Agronomy",
         "Address": "2301 293rd Ave",
@@ -15412,7 +15412,7 @@
         "State": "SD",
         "Zip": 57501,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15425,7 +15425,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - SD",
         "Name": "Plankinton Agronomy",
         "Address": "38731 US Hwy 16",
@@ -15433,7 +15433,7 @@
         "State": "SD",
         "Zip": 57368,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -15446,7 +15446,7 @@
         ]
       },
       "properties": {
-        "Retailer": "Helena Agri-Enterprises",
+        "Retailer": "Helena",
         "Long Name": "Helena - SD",
         "Name": "Tripp",
         "Address": "514 SD Hwy. 37",
@@ -15454,7 +15454,7 @@
         "State": "SD",
         "Zip": 57376,
         "Category": "Agronomy",
-        "Suppliers": "Helena Agri-Enterprises"
+        "Suppliers": "Helena"
       }
     },
     {
@@ -19276,7 +19276,7 @@
         "State": "OH",
         "Zip": 44807,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -19297,7 +19297,7 @@
         "State": "OH",
         "Zip": 45306,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -19318,7 +19318,7 @@
         "State": "OH",
         "Zip": 43410,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -19423,7 +19423,7 @@
         "State": "OH",
         "Zip": 44857,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -19528,7 +19528,7 @@
         "State": "OH",
         "Zip": 45368,
         "Category": "Agronomy",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -19549,7 +19549,7 @@
         "State": "OH",
         "Zip": 45368,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -19591,7 +19591,7 @@
         "State": "OH",
         "Zip": 44889,
         "Category": "Grain",
-        "Suppliers": "WinField"
+        "Suppliers": "Winfield"
       }
     },
     {
