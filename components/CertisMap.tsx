@@ -193,6 +193,7 @@ export default function CertisMap({
         function buildPopupHTML(props: any) {
           const longName = props["Long Name"] || props.Retailer || "Unknown";
           const siteName = props.Name || "";
+          const category = props.Category || "N/A";
           const stopLabel = siteName ? `${longName} – ${siteName}` : longName;
 
           const suppliers =
@@ -212,6 +213,7 @@ export default function CertisMap({
               <em>${siteName}</em><br/>
               ${props.Address || ""}<br/>
               ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
+              <strong>Category:</strong> ${category}<br/>
               Suppliers: ${suppliers}
             </div>
           `;
