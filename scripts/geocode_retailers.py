@@ -1,71 +1,73 @@
-﻿import os
+﻿# scripts/geocode_retailers.py
+
+import os
+import sys
 import pandas as pd
 import requests
-from dotenv import load_dotenv
+import subprocess
 
-# Paths
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-INPUT_FILE = os.path.join(BASE_DIR, "data", "retailers.xlsx")
-OUTPUT_FILE = os.path.join(BASE_DIR, "data", "retailers_latlong.xlsx")
-
-# Load environment variables from .env.local
-dotenv_path = os.path.join(BASE_DIR, ".env.local")
-if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path)
-
-MAPBOX_TOKEN = os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN")
-
-# Fallback to public/mapbox-token.txt
-if not MAPBOX_TOKEN:
-    token_file = os.path.join(BASE_DIR, "public", "mapbox-token.txt")
-    if os.path.exists(token_file):
-        with open(token_file, "r") as f:
-            MAPBOX_TOKEN = f.read().strip()
+# Config
+INPUT_XLSX = os.path.join("data", "retailers.xlsx")
+OUTPUT_XLSX = os.path.join("data", "retailers_latlong.xlsx")
+MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN") or os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN")
+CONVERTER_SCRIPT = os.path.join("scripts", "convert_to_geojson.py")
 
 if not MAPBOX_TOKEN:
-    raise RuntimeError("❌ No Mapbox token found. Please check .env.local or public/mapbox-token.txt")
+    print("❌ ERROR: Missing MAPBOX_TOKEN environment variable.")
+    sys.exit(1)
 
-print("📂 Loading retailer Excel file...")
-df = pd.read_excel(INPUT_FILE)
-
-# Ensure lat/long columns
-if "Latitude" not in df.columns:
-    df["Latitude"] = None
-if "Longitude" not in df.columns:
-    df["Longitude"] = None
-
-def geocode(address):
-    """Geocode using Mapbox API"""
+def geocode_address(address: str):
+    """Use Mapbox Geocoding API to get lat/long for a given address."""
     url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{address}.json"
     params = {"access_token": MAPBOX_TOKEN, "limit": 1}
-    response = requests.get(url, params=params, timeout=5)
-    response.raise_for_status()
-    data = response.json()
-    if data["features"]:
-        lon, lat = data["features"][0]["center"]
-        return lat, lon
+    try:
+        resp = requests.get(url, params=params)
+        resp.raise_for_status()
+        data = resp.json()
+        if data["features"]:
+            lon, lat = data["features"][0]["center"]
+            return lat, lon
+    except Exception as e:
+        print(f"⚠️ Geocoding failed for '{address}': {e}")
     return None, None
 
-# Process each row
-for idx, row in df.iterrows():
-    if pd.notna(row.get("Latitude")) and pd.notna(row.get("Longitude")):
-        continue  # already filled
+def main():
+    print("📂 Loading retailer Excel file...")
+    if not os.path.exists(INPUT_XLSX):
+        print(f"❌ ERROR: Input file not found: {INPUT_XLSX}")
+        sys.exit(1)
 
-    address_parts = [str(row.get(c, "")) for c in ["Address", "City", "State", "Zip"] if pd.notna(row.get(c))]
-    address = " ".join(address_parts).strip()
+    df = pd.read_excel(INPUT_XLSX)
 
-    if not address:
-        print(f"⚠️ Skipping row {idx}, no address")
-        continue
+    # Ensure Latitude/Longitude columns exist (wipe old data if present)
+    df["Latitude"] = None
+    df["Longitude"] = None
 
+    # Geocode each row
+    for idx, row in df.iterrows():
+        address_parts = [str(row.get(col, "")) for col in ["Address", "City", "State", "Zip"] if pd.notna(row.get(col))]
+        address = ", ".join(address_parts)
+        if not address.strip():
+            continue
+
+        lat, lon = geocode_address(address)
+        if lat and lon:
+            df.at[idx, "Latitude"] = lat
+            df.at[idx, "Longitude"] = lon
+
+    # Save updated Excel
+    print(f"💾 Saving results to {OUTPUT_XLSX} ...")
+    df.to_excel(OUTPUT_XLSX, index=False)
+
+    print("✅ Done! Geocoded file created.")
+
+    # --- Auto-run convert_to_geojson.py ---
+    print("🔄 Converting to GeoJSON...")
     try:
-        print(f"📍 {idx+1}/{len(df)}: Geocoding '{address}'...")
-        lat, lon = geocode(address)
-        df.at[idx, "Latitude"] = lat
-        df.at[idx, "Longitude"] = lon
+        subprocess.run([sys.executable, CONVERTER_SCRIPT], check=True)
     except Exception as e:
-        print(f"⚠️ Failed to geocode '{address}': {e}")
+        print(f"❌ ERROR: Failed to run {CONVERTER_SCRIPT}: {e}")
+        sys.exit(1)
 
-print(f"💾 Saving results to {OUTPUT_FILE} ...")
-df.to_excel(OUTPUT_FILE, index=False)
-print("✅ Done! Geocoded file created.")
+if __name__ == "__main__":
+    main()

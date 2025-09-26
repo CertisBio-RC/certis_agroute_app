@@ -92,9 +92,8 @@ export default function CertisMap({
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
-  const geojsonPath =
-    process.env.NEXT_PUBLIC_GEOJSON_URL ||
-    `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/retailers.geojson`;
+  // ✅ Always point to /data/retailers.geojson (works with GH Pages basePath)
+  const geojsonPath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/data/retailers.geojson`;
 
   // ========================================
   // 🌍 Initialize Map
@@ -202,7 +201,7 @@ export default function CertisMap({
         });
 
         // ========================================
-        // 🖱️ Popups with Add-to-Trip Button (top right, wider box)
+        // 🖱️ Popups with Add-to-Trip Button
         // ========================================
         const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
 
