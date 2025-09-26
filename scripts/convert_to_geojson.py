@@ -23,7 +23,7 @@ def main():
         sys.exit(1)
 
     # --- Step 3: Validate required columns ---
-    required_columns = ["Name", "Latitude", "Longitude"]
+    required_columns = ["Latitude", "Longitude"]
     missing = [col for col in required_columns if col not in df.columns]
     if missing:
         print(f"❌ ERROR: Missing required columns: {missing}")
@@ -40,15 +40,25 @@ def main():
             print(f"⚠️ Skipping row with invalid lat/long: {row.to_dict()}")
             continue
 
+        properties = {
+            "Retailer": row.get("Retailer"),
+            "Long Name": row.get("Long Name"),
+            "Name": row.get("Site Name") or row.get("Name"),
+            "Address": row.get("Address"),
+            "City": row.get("City"),
+            "State": row.get("State"),
+            "Zip": row.get("Zip"),
+            "Category": row.get("Category"),
+            "Suppliers": row.get("Suppliers"),
+        }
+
         feature = {
             "type": "Feature",
             "geometry": {
                 "type": "Point",
                 "coordinates": [lon, lat],
             },
-            "properties": {
-                "name": row["Name"],
-            },
+            "properties": {k: (v if pd.notna(v) else None) for k, v in properties.items()},
         }
         features.append(feature)
 
