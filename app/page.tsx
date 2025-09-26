@@ -271,12 +271,12 @@ export default function Page() {
                     </label>
                   </>
                 ) : (
-                  <div className="flex items-center text-gray-700 dark:text-gray-300 ml-1">
-                    <span
-                      className="inline-block w-4 h-4 mr-2 rounded-full border"
+                  <div className="legend-kingpin">
+                    <div
+                      className="color-box"
                       style={{ backgroundColor: style.color, borderColor: style.outline || "#000" }}
-                    ></span>
-                    {cat}
+                    ></div>
+                    <span>{cat}</span>
                   </div>
                 )}
               </li>

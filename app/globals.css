@@ -73,7 +73,7 @@ body {
 /* 🌐 Mapbox Popup Overrides */
 /* ========================= */
 .mapboxgl-popup {
-  max-width: 250px;
+  max-width: 350px; /* widened to fit longer text & button */
   z-index: 10;
 }
 
@@ -100,8 +100,6 @@ body {
 /* ========================= */
 /* 📱 Mobile Optimizations   */
 /* ========================= */
-
-/* Sidebar hidden on small screens (toggle later in TSX) */
 @media (max-width: 768px) {
   .sidebar {
     display: none; /* hide sidebar by default on mobile */
@@ -122,6 +120,30 @@ body {
 /* 🎛 Sidebar Filter Labels  */
 /* ========================= */
 .sidebar input[type="checkbox"] + label {
-  font-size: 1rem;     /* larger than default */
-  line-height: 1.4;    /* add breathing room */
+  font-size: 1.05rem;   /* bump size slightly */
+  line-height: 1.5;    /* extra breathing room */
+  margin-top: 4px;
+  margin-bottom: 4px;
+  display: inline-block;
+}
+
+/* ✅ Special: Kingpin legend entry (color + label only, no checkbox) */
+.legend-kingpin {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.legend-kingpin .color-box {
+  width: 16px;
+  height: 16px;
+  background-color: #ff0000;
+  border: 2px solid #ffff00; /* red fill with yellow border */
+  border-radius: 3px;
+}
+
+.legend-kingpin span {
+  font-size: 1.05rem;
+  line-height: 1.5;
 }

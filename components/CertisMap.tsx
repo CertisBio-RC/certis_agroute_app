@@ -144,9 +144,9 @@ export default function CertisMap({
         onStatesLoaded?.(Array.from(stateSet).sort());
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
 
-        // ✅ Retailers (Long Name), filtered by selected states
+        // Initial Retailers load
         if (onRetailersLoaded) {
-          let visibleRetailers: string[];
+          let visibleRetailers: string[] = [];
           if (selectedStates.length === 0) {
             visibleRetailers = Array.from(retailerSetAll).sort();
           } else {
@@ -202,7 +202,7 @@ export default function CertisMap({
         });
 
         // ========================================
-        // 🖱️ Popups with Add-to-Trip Button (top right)
+        // 🖱️ Popups with Add-to-Trip Button (top right, wider box)
         // ========================================
         const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
 
@@ -215,8 +215,12 @@ export default function CertisMap({
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
           const html = `
-            <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; padding:6px; border-radius:4px; position:relative;">
-              <button id="${btnId}" style="position:absolute; top:4px; right:4px; padding:2px 6px; background:#2563eb; color:#fff; border:none; border-radius:3px; font-size:11px; cursor:pointer;">
+            <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5; 
+                        padding:6px; border-radius:4px; position:relative; max-width:350px;">
+              <button id="${btnId}" 
+                style="position:absolute; top:4px; right:4px; padding:2px 6px; 
+                       background:#2563eb; color:#fff; border:none; border-radius:3px; 
+                       font-size:11px; cursor:pointer;">
                 ➕ Add to Trip
               </button>
               <strong>${longName}</strong><br/>
@@ -337,8 +341,26 @@ export default function CertisMap({
 
           onRetailerSummary(Array.from(summaryMap.values()));
         }
+
+        // ✅ Dynamic Retailer List (from filtered features)
+        if (onRetailersLoaded) {
+          const filteredRetailers = new Set<string>();
+          for (const f of filtered.features) {
+            const r = f.properties?.["Long Name"];
+            if (r) filteredRetailers.add(r);
+          }
+          onRetailersLoaded(Array.from(filteredRetailers).sort());
+        }
       });
-  }, [geojsonPath, selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
+  }, [
+    geojsonPath,
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+    onRetailerSummary,
+    onRetailersLoaded,
+  ]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
