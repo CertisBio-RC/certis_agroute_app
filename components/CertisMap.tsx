@@ -73,7 +73,13 @@ export interface CertisMapProps {
   onRetailersLoaded?: (retailers: string[]) => void;
   onSuppliersLoaded?: (suppliers: string[]) => void;
   onRetailerSummary?: (
-    summaries: { state: string; retailer: string; count: number; suppliers: string[]; category?: string }[]
+    summaries: {
+      state: string;
+      retailer: string;
+      count: number;
+      suppliers: string[];
+      category?: string;
+    }[]
   ) => void;
   onAddStop?: (stop: string) => void;
 }
@@ -92,8 +98,10 @@ export default function CertisMap({
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
-  // ✅ Cache-busting query param so deployed site always pulls fresh file
-  const geojsonPath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/data/retailers.geojson?v=${Date.now()}`;
+  // ✅ Always fetch from canonical /public/data folder, bust cache each deploy
+  const geojsonPath = `${
+    process.env.NEXT_PUBLIC_BASE_PATH || ""
+  }/data/retailers.geojson?cacheBust=${Date.now()}`;
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -126,12 +134,14 @@ export default function CertisMap({
           if (state) stateSet.add(state);
           if (longName) retailerSetAll.add(longName);
 
-          splitAndStandardizeSuppliers(suppliersRaw).forEach((s) => supplierSet.add(s));
+          splitAndStandardizeSuppliers(suppliersRaw).forEach((s) =>
+            supplierSet.add(s)
+          );
         }
 
         onStatesLoaded?.(Array.from(stateSet).sort());
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
-        onRetailersLoaded?.(Array.from(retailerSetAll).sort()); // ✅ always load full set
+        onRetailersLoaded?.(Array.from(retailerSetAll).sort());
 
         // Map layers
         map.addSource("retailers", { type: "geojson", data });
@@ -173,19 +183,24 @@ export default function CertisMap({
         });
 
         // Popups
-        const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
+        const popup = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          maxWidth: "400px", // ✅ widened popup
+        });
 
         function buildPopupHTML(props: any) {
           const longName = props["Long Name"] || props.Retailer || "Unknown";
           const siteName = props.Name || "";
           const stopLabel = siteName ? `${longName} – ${siteName}` : longName;
 
-          const suppliers = splitAndStandardizeSuppliers(props.Suppliers).join(", ") || "N/A";
+          const suppliers =
+            splitAndStandardizeSuppliers(props.Suppliers).join(", ") || "N/A";
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
           const html = `
             <div style="font-size: 13px; background:#1a1a1a; color:#f5f5f5;
-                        padding:6px; border-radius:4px; position:relative; max-width:350px;">
+                        padding:6px; border-radius:4px; position:relative;">
               <button id="${btnId}"
                 style="position:absolute; top:4px; right:4px; padding:2px 6px;
                        background:#2563eb; color:#fff; border:none; border-radius:3px;
@@ -194,7 +209,9 @@ export default function CertisMap({
               </button>
               <strong>${longName}</strong><br/>
               <em>${siteName}</em><br/>
-              ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
+              ${props.Address || ""} ${props.City || ""} ${props.State || ""} ${
+            props.Zip || ""
+          }<br/>
               Suppliers: ${suppliers}
             </div>
           `;
@@ -213,7 +230,8 @@ export default function CertisMap({
             const coords = (e.features?.[0].geometry as GeoJSON.Point)
               ?.coordinates.slice() as [number, number];
             const props = e.features?.[0].properties;
-            if (coords && props) popup.setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
+            if (coords && props)
+              popup.setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
           });
           map.on("mouseleave", layerId, () => {
             map.getCanvas().style.cursor = "";
@@ -224,7 +242,10 @@ export default function CertisMap({
               ?.coordinates.slice() as [number, number];
             const props = e.features?.[0].properties;
             if (coords && props) {
-              new mapboxgl.Popup().setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
+              new mapboxgl.Popup({ maxWidth: "400px" }) // ✅ widened click popup too
+                .setLngLat(coords)
+                .setHTML(buildPopupHTML(props))
+                .addTo(map);
             }
           });
         }
@@ -255,13 +276,16 @@ export default function CertisMap({
             if (props.Category === "Kingpin") return true;
 
             const stateMatch =
-              selectedStates.length === 0 || selectedStates.map(norm).includes(norm(props.State));
+              selectedStates.length === 0 ||
+              selectedStates.map(norm).includes(norm(props.State));
             const retailerMatch =
               selectedRetailers.length === 0 ||
               selectedRetailers.map(norm).includes(norm(props["Long Name"]));
             const categoryMatch =
               selectedCategories.length === 0 ||
-              selectedCategories.map(normalizeCategory).includes(normalizeCategory(props.Category));
+              selectedCategories
+                .map(normalizeCategory)
+                .includes(normalizeCategory(props.Category));
             const supplierList = splitAndStandardizeSuppliers(props.Suppliers).map(norm);
             const supplierMatch =
               selectedSuppliers.length === 0 ||
@@ -310,7 +334,15 @@ export default function CertisMap({
           onRetailersLoaded(Array.from(filteredRetailers).sort());
         }
       });
-  }, [geojsonPath, selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary, onRetailersLoaded]);
+  }, [
+    geojsonPath,
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+    onRetailerSummary,
+    onRetailersLoaded,
+  ]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }

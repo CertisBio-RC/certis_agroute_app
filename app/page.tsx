@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import CertisMap, { categoryColors } from "@/components/CertisMap";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
@@ -99,6 +99,15 @@ export default function Page() {
     (s) => norm(s.retailer) !== "kingpin" && norm(s.category || "") !== "kingpin"
   );
 
+  // ✅ Retailers filtered by selected states
+  const filteredRetailers = useMemo(() => {
+    if (selectedStates.length === 0) return availableRetailers;
+    return retailerSummary
+      .filter((s) => selectedStates.includes(norm(s.state)))
+      .map((s) => s.retailer)
+      .filter((r, i, arr) => arr.indexOf(r) === i); // unique
+  }, [availableRetailers, retailerSummary, selectedStates]);
+
   return (
     <div className="flex h-screen w-screen relative">
       {/* 📱 Mobile Hamburger Button */}
@@ -112,7 +121,7 @@ export default function Page() {
 
       {/* 📌 Sidebar */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-72 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
+        className={`fixed md:static top-0 left-0 h-full w-80 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
         {/* Logo */}
@@ -171,7 +180,7 @@ export default function Page() {
             </button>
           </div>
           <div className="space-y-1 max-h-32 overflow-y-auto">
-            {availableRetailers.map((longName) => (
+            {filteredRetailers.map((longName) => (
               <label key={longName} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -269,7 +278,7 @@ export default function Page() {
               <strong>Retailers Selected ({selectedRetailers.length}):</strong>
               {selectedRetailers.length > 0 ? (
                 <ul className="list-disc ml-5">
-                  {availableRetailers
+                  {filteredRetailers
                     .filter((r) => selectedRetailers.includes(norm(r)))
                     .map((r, i) => (
                       <li key={i}>{r}</li>

@@ -5,11 +5,16 @@ import sys
 import pandas as pd
 import json
 
-# Input and output paths
-INPUT_XLSX = os.path.join("data", "retailers_latlong.xlsx")
-OUTPUT_GEOJSON = os.path.join("data", "retailers.geojson")
+# ✅ Canonical paths
+INPUT_XLSX = os.path.join("data", "retailers_latlong.xlsx")   # source of truth
+OUTPUT_GEOJSON = os.path.join("public", "data", "retailers.geojson")  # web-facing
+
 
 def main():
+    print("📂 Certis AgRoute Planner — Excel → GeoJSON Pipeline")
+    print(f"   Input XLSX: {INPUT_XLSX}")
+    print(f"   Output GeoJSON: {OUTPUT_GEOJSON}")
+
     # --- Step 1: Validate input file ---
     if not os.path.exists(INPUT_XLSX):
         print(f"❌ ERROR: Input file not found at {INPUT_XLSX}")
@@ -54,27 +59,33 @@ def main():
 
         feature = {
             "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [lon, lat],
-            },
+            "geometry": {"type": "Point", "coordinates": [lon, lat]},
             "properties": {k: (v if pd.notna(v) else None) for k, v in properties.items()},
         }
         features.append(feature)
 
-    geojson = {
-        "type": "FeatureCollection",
-        "features": features,
-    }
+    geojson = {"type": "FeatureCollection", "features": features}
 
     # --- Step 5: Save output ---
+    os.makedirs(os.path.dirname(OUTPUT_GEOJSON), exist_ok=True)
     try:
         with open(OUTPUT_GEOJSON, "w", encoding="utf-8") as f:
             json.dump(geojson, f, ensure_ascii=False, indent=2)
+
         print(f"✅ Successfully created {OUTPUT_GEOJSON} with {len(features)} features.")
+        if features:
+            print("🔎 Example properties from first feature:")
+            print(json.dumps(features[0]["properties"], indent=2))
     except Exception as e:
         print(f"❌ ERROR: Could not write {OUTPUT_GEOJSON}: {e}")
         sys.exit(1)
+
+    # --- Step 6: Sanity check ---
+    # Warn if a second copy of the Excel exists under /public/data
+    stray_excel = os.path.join("public", "data", "retailers_latlong.xlsx")
+    if os.path.exists(stray_excel):
+        print(f"⚠️ WARNING: Found stray file {stray_excel}. Please delete it to avoid confusion.")
+
 
 if __name__ == "__main__":
     main()
