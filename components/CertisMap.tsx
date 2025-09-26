@@ -92,7 +92,8 @@ export default function CertisMap({
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
-  const geojsonPath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/data/retailers.geojson`;
+  // ✅ Cache-busting query param so deployed site always pulls fresh file
+  const geojsonPath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/data/retailers.geojson?v=${Date.now()}`;
 
   useEffect(() => {
     if (mapRef.current) return;
