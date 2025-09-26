@@ -76,6 +76,7 @@ export default function Page() {
       prev.includes(supplier) ? prev.filter((s) => s !== supplier) : [...prev, supplier]
     );
   };
+  const handleSelectAllSuppliers = () => setSelectedSuppliers(availableSuppliers);
   const handleClearAllSuppliers = () => setSelectedSuppliers([]);
 
   // ========================================
@@ -87,6 +88,7 @@ export default function Page() {
       prev.includes(normalized) ? prev.filter((r) => r !== normalized) : [...prev, normalized]
     );
   };
+  const handleSelectAllRetailers = () => setSelectedRetailers(filteredRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // ========================================
@@ -122,7 +124,7 @@ export default function Page() {
 
       {/* 📌 Sidebar */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-80 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
+        className={`fixed md:static top-0 left-0 h-full w-96 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
         {/* Logo */}
@@ -176,6 +178,9 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Retailer Filter</h2>
           <div className="flex space-x-2 mb-3">
+            <button onClick={handleSelectAllRetailers} className="px-2 py-1 bg-blue-600 text-white rounded text-sm">
+              Select All
+            </button>
             <button onClick={handleClearAllRetailers} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
               Clear All
             </button>
@@ -198,6 +203,9 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Supplier Filter</h2>
           <div className="flex space-x-2 mb-3">
+            <button onClick={handleSelectAllSuppliers} className="px-2 py-1 bg-blue-600 text-white rounded text-sm">
+              Select All
+            </button>
             <button onClick={handleClearAllSuppliers} className="px-2 py-1 bg-gray-600 text-white rounded text-sm">
               Clear All
             </button>
