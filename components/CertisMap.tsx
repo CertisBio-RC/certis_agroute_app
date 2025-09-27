@@ -22,14 +22,30 @@ const normalizeCategory = (cat: string) => {
     case "grain/feed":
     case "grainfeed":
       return "grainfeed";
+    case "grain":
+      return "grain";
+    case "feed":
+      return "feed";
+    case "agronomy/grain":
+      return "agronomy/grain"; // special case, will expand later
     case "office/service":
     case "officeservice":
       return "officeservice";
+    case "distribution":
+      return "distribution";
     case "kingpin":
       return "kingpin";
     default:
       return (cat || "").trim().toLowerCase();
   }
+};
+
+// ✅ Expand combo/alias categories → multiple canonical categories
+const expandCategories = (cat: string): string[] => {
+  const norm = normalizeCategory(cat);
+  if (norm === "agronomy/grain") return ["agronomy", "grain"];
+  if (norm === "grainfeed") return ["grain/feed"];
+  return [norm];
 };
 
 // ✅ Helper normalizer
@@ -283,7 +299,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering
+  // ✅ Dynamic filtering with category expansion
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -305,11 +321,12 @@ export default function CertisMap({
             const retailerMatch =
               selectedRetailers.length === 0 ||
               selectedRetailers.map(norm).includes(norm(props["Long Name"]));
+            const categoryValues = expandCategories(props.Category || "");
             const categoryMatch =
               selectedCategories.length === 0 ||
-              selectedCategories
-                .map(normalizeCategory)
-                .includes(normalizeCategory(props.Category));
+              categoryValues.some((cv) =>
+                selectedCategories.includes(cv)
+              );
             const supplierList = splitAndStandardizeSuppliers(props.Suppliers).map(norm);
             const supplierMatch =
               selectedSuppliers.length === 0 ||

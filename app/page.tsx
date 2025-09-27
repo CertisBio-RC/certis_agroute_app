@@ -15,6 +15,31 @@ const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 // ✅ Capitalizer for state abbreviations
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
+// ✅ Expand categories consistently (Option 2 logic)
+const expandCategories = (raw: string | undefined): string[] => {
+  const cat = (raw || "").trim().toLowerCase();
+  switch (cat) {
+    case "agronomy/grain":
+      return ["agronomy", "grain"];
+    case "grain/feed":
+    case "grainfeed":
+      return ["grain", "feed"];
+    case "feed":
+      return ["feed"];
+    case "grain":
+      return ["grain"];
+    case "agronomy":
+      return ["agronomy"];
+    case "office/service":
+    case "officeservice":
+      return ["office/service"];
+    case "kingpin":
+      return ["kingpin"];
+    default:
+      return cat ? [cat] : [];
+  }
+};
+
 export default function Page() {
   // ========================================
   // 🎛️ State Hooks
@@ -48,7 +73,7 @@ export default function Page() {
     }
   };
 
-  // ✅ NEW: Remove a specific stop
+  // ✅ Remove a specific stop
   const handleRemoveStop = (index: number) => {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
   };
@@ -139,10 +164,15 @@ export default function Page() {
   // 🟦 Derived summaries
   // ========================================
   const kingpinSummary = retailerSummary.filter(
-    (s) => norm(s.retailer) === "kingpin" || norm(s.category || "") === "kingpin"
+    (s) =>
+      expandCategories(s.category).includes("kingpin") ||
+      norm(s.retailer) === "kingpin"
   );
+
   const normalSummary = retailerSummary.filter(
-    (s) => norm(s.retailer) !== "kingpin" && norm(s.category || "") !== "kingpin"
+    (s) =>
+      !expandCategories(s.category).includes("kingpin") &&
+      norm(s.retailer) !== "kingpin"
   );
 
   const filteredRetailersForSummary = useMemo(() => {
@@ -423,6 +453,14 @@ export default function Page() {
         </div>
       </aside>
 
+      {/* 🗺️ Map Area */}
+      <main className="flex-1 relative">
+        <CertisMap
+          selectedCategories={selectedCategories}
+          selectedStates={selectedStates}
+          selectedSuppliers={selectedSuppliers}
+          selectedRetailers={selectedRetailers}
+          onStatesLoaded={setAvailableStates
       {/* 🗺️ Map Area */}
       <main className="flex-1 relative">
         <CertisMap
