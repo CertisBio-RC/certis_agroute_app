@@ -66,7 +66,7 @@ export default function Page() {
         const homeStop: Stop = {
           label: `Home (${homeZip})`,
           address: homeZip,
-          coordinates: [lng, lat],
+          coords: [lng, lat],   // ✅ fixed key
         };
         setTripStops((prev) => {
           // ensure home is always at start, no duplicates
