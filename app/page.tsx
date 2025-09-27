@@ -35,6 +35,8 @@ export default function Page() {
 
   // ✅ Trip Optimization
   const [tripStops, setTripStops] = useState<Stop[]>([]);
+  const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered"); // 👈 new
+
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label && s.address === stop.address)) {
       setTripStops((prev) => [...prev, stop]);
@@ -338,9 +340,33 @@ export default function Page() {
         {/* 🟦 Tile 7: Trip Optimization */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Trip Optimization</h2>
+
+          {/* Mode Toggle */}
+          <div className="flex space-x-4 mb-3 text-sm">
+            <label className="flex items-center space-x-1 cursor-pointer">
+              <input
+                type="radio"
+                value="entered"
+                checked={tripMode === "entered"}
+                onChange={() => setTripMode("entered")}
+              />
+              <span className="text-gray-700 dark:text-gray-300">Map as Entered</span>
+            </label>
+            <label className="flex items-center space-x-1 cursor-pointer">
+              <input
+                type="radio"
+                value="optimize"
+                checked={tripMode === "optimize"}
+                onChange={() => setTripMode("optimize")}
+              />
+              <span className="text-gray-700 dark:text-gray-300">Optimize Route</span>
+            </label>
+          </div>
+
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
             Selected stops will appear below:
           </p>
+
           {tripStops.length > 0 ? (
             <div className="space-y-2">
               <ol className="list-decimal ml-5 text-sm text-gray-700 dark:text-gray-300">
@@ -376,6 +402,8 @@ export default function Page() {
           onSuppliersLoaded={setAvailableSuppliers}
           onRetailerSummary={setRetailerSummary}
           onAddStop={handleAddStop}
+          tripStops={tripStops}           // 👈 NEW
+          tripMode={tripMode}             // 👈 NEW
         />
       </main>
     </div>

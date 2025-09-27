@@ -89,7 +89,9 @@ export interface CertisMapProps {
       category?: string;
     }[]
   ) => void;
-  onAddStop?: (stop: Stop) => void; // 👈 now a structured object
+  onAddStop?: (stop: Stop) => void;
+  tripStops?: Stop[];
+  tripMode?: "entered" | "optimize"; // 👈 NEW prop
 }
 
 export default function CertisMap({
@@ -102,6 +104,8 @@ export default function CertisMap({
   onSuppliersLoaded,
   onRetailerSummary,
   onAddStop,
+  tripStops = [],
+  tripMode = "entered",
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -281,7 +285,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering (unchanged)
+  // ✅ Dynamic filtering
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -372,6 +376,105 @@ export default function CertisMap({
     onRetailerSummary,
     onRetailersLoaded,
   ]);
+
+  // ✅ Trip route + numbered pins
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+
+    if (tripStops.length < 2) {
+      if (map.getLayer("trip-route")) {
+        map.removeLayer("trip-route");
+        map.removeSource("trip-route");
+      }
+      if (map.getLayer("trip-stops")) {
+        map.removeLayer("trip-stops");
+        map.removeSource("trip-stops");
+      }
+      return;
+    }
+
+    // Route ordering
+    let orderedStops = [...tripStops];
+    if (tripMode === "optimize") {
+      const remaining = [...tripStops];
+      orderedStops = [];
+      let current = remaining.shift();
+      while (current) {
+        orderedStops.push(current);
+        if (remaining.length === 0) break;
+        remaining.sort(
+          (a, b) =>
+            Math.hypot(a.coords[0] - current!.coords[0], a.coords[1] - current!.coords[1]) -
+            Math.hypot(b.coords[0] - current!.coords[0], b.coords[1] - current!.coords[1])
+        );
+        current = remaining.shift();
+      }
+    }
+
+    // Line route
+    const routeGeoJSON: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: {
+            type: "LineString",
+            coordinates: orderedStops.map((s) => s.coords),
+          },
+          properties: {},
+        },
+      ],
+    };
+
+    if (map.getLayer("trip-route")) {
+      map.removeLayer("trip-route");
+      map.removeSource("trip-route");
+    }
+    map.addSource("trip-route", { type: "geojson", data: routeGeoJSON });
+    map.addLayer({
+      id: "trip-route",
+      type: "line",
+      source: "trip-route",
+      paint: {
+        "line-color": "#1E90FF",
+        "line-width": 4,
+      },
+    });
+
+    // Numbered pins
+    const stopsGeoJSON: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: orderedStops.map((s, i) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: s.coords },
+        properties: { order: i + 1, label: s.label },
+      })),
+    };
+
+    if (map.getLayer("trip-stops")) {
+      map.removeLayer("trip-stops");
+      map.removeSource("trip-stops");
+    }
+    map.addSource("trip-stops", { type: "geojson", data: stopsGeoJSON });
+    map.addLayer({
+      id: "trip-stops",
+      type: "symbol",
+      source: "trip-stops",
+      layout: {
+        "text-field": ["get", "order"],
+        "text-size": 14,
+        "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+        "text-offset": [0, 0.6],
+        "text-anchor": "top",
+      },
+      paint: {
+        "text-color": "#1E90FF",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2,
+      },
+    });
+  }, [tripStops, tripMode]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
