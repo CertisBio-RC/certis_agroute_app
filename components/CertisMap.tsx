@@ -379,14 +379,23 @@ export default function CertisMap({
         map.removeLayer("trip-route");
         map.removeSource("trip-route");
       }
-      if (map.getLayer("trip-stops")) {
-        map.removeLayer("trip-stops");
+      if (map.getLayer("trip-stops-circle")) {
+        map.removeLayer("trip-stops-circle");
         map.removeSource("trip-stops");
+      }
+      if (map.getLayer("trip-stops-label")) {
+        map.removeLayer("trip-stops-label");
       }
       return;
     }
 
-    const coordsParam = tripStops.map((s) => s.coords.join(",")).join(";");
+    // ✅ Round trip: append home stop to end
+    const stopsForRouting =
+      tripStops.length > 2
+        ? [...tripStops, tripStops[0]]
+        : tripStops;
+
+    const coordsParam = stopsForRouting.map((s) => s.coords.join(",")).join(";");
     const optimizeFlag = tripMode === "optimize" ? "&optimize=true" : "";
     const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsParam}?geometries=geojson${optimizeFlag}&access_token=${mapboxgl.accessToken}`;
 
@@ -400,7 +409,6 @@ export default function CertisMap({
           map.removeLayer("trip-route");
           map.removeSource("trip-route");
         }
-        // ✅ FIXED: wrap route in FeatureCollection + add empty properties
         map.addSource("trip-route", {
           type: "geojson",
           data: {
@@ -426,33 +434,48 @@ export default function CertisMap({
 
         const stopsGeoJSON: GeoJSON.FeatureCollection = {
           type: "FeatureCollection",
-          features: tripStops.map((s, i) => ({
+          features: stopsForRouting.map((s, i) => ({
             type: "Feature",
             geometry: { type: "Point", coordinates: s.coords },
             properties: { order: i + 1, label: s.label },
           })),
         };
 
-        if (map.getLayer("trip-stops")) {
-          map.removeLayer("trip-stops");
+        if (map.getLayer("trip-stops-circle")) {
+          map.removeLayer("trip-stops-circle");
+          map.removeLayer("trip-stops-label");
           map.removeSource("trip-stops");
         }
         map.addSource("trip-stops", { type: "geojson", data: stopsGeoJSON });
+
+        // ✅ Blue circle with white border
         map.addLayer({
-          id: "trip-stops",
+          id: "trip-stops-circle",
+          type: "circle",
+          source: "trip-stops",
+          paint: {
+            "circle-radius": 14,
+            "circle-color": "#1E90FF",
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 3,
+          },
+        });
+
+        // ✅ White number inside
+        map.addLayer({
+          id: "trip-stops-label",
           type: "symbol",
           source: "trip-stops",
           layout: {
             "text-field": ["get", "order"],
-            "text-size": 14,
+            "text-size": 12,
             "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-            "text-offset": [0, 0.6],
-            "text-anchor": "top",
+            "text-anchor": "center",
           },
           paint: {
-            "text-color": "#1E90FF",
-            "text-halo-color": "#ffffff",
-            "text-halo-width": 2,
+            "text-color": "#ffffff",
+            "text-halo-color": "#000000",
+            "text-halo-width": 1,
           },
         });
       })
