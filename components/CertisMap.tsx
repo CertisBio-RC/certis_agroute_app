@@ -400,7 +400,20 @@ export default function CertisMap({
           map.removeLayer("trip-route");
           map.removeSource("trip-route");
         }
-        map.addSource("trip-route", { type: "geojson", data: { type: "Feature", geometry: route } });
+        // ✅ FIXED: wrap route in FeatureCollection + add empty properties
+        map.addSource("trip-route", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                geometry: route,
+                properties: {},
+              },
+            ],
+          },
+        });
         map.addLayer({
           id: "trip-route",
           type: "line",
