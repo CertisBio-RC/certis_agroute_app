@@ -90,6 +90,7 @@ export interface CertisMapProps {
     }[]
   ) => void;
   onAddStop?: (stop: Stop) => void;
+  onRemoveStop?: (index: number) => void; // 👈 hook for later
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
 }
@@ -104,6 +105,7 @@ export default function CertisMap({
   onSuppliersLoaded,
   onRetailerSummary,
   onAddStop,
+  onRemoveStop,
   tripStops = [],
   tripMode = "entered",
 }: CertisMapProps) {
@@ -114,6 +116,7 @@ export default function CertisMap({
     process.env.NEXT_PUBLIC_BASE_PATH || ""
   }/data/retailers.geojson?cacheBust=${Date.now()}`;
 
+  // ✅ Initial map + data load
   useEffect(() => {
     if (mapRef.current) return;
 
@@ -280,7 +283,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering (unchanged)
+  // ✅ Dynamic filtering
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -369,7 +372,7 @@ export default function CertisMap({
     onRetailersLoaded,
   ]);
 
-  // ✅ Trip route with Directions API
+  // ✅ Trip route with Directions API + Optimization API
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -389,21 +392,24 @@ export default function CertisMap({
       return;
     }
 
-    // ✅ Round trip: append home stop to end
-    const stopsForRouting =
-      tripStops.length > 2
-        ? [...tripStops, tripStops[0]]
-        : tripStops;
+    const home = tripStops[0];
+    const middle = tripStops.slice(1);
+    const coordsParam = [home, ...middle, home].map((s) => s.coords.join(",")).join(";");
 
-    const coordsParam = stopsForRouting.map((s) => s.coords.join(",")).join(";");
-    const optimizeFlag = tripMode === "optimize" ? "&optimize=true" : "";
-    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsParam}?geometries=geojson${optimizeFlag}&access_token=${mapboxgl.accessToken}`;
+    const url =
+      tripMode === "optimize"
+        ? `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsParam}?geometries=geojson&roundtrip=true&source=first&destination=last&access_token=${mapboxgl.accessToken}`
+        : `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsParam}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
 
     fetch(url)
       .then((res) => res.json())
       .then((data) => {
-        if (!data.routes || data.routes.length === 0) return;
-        const route = data.routes[0].geometry;
+        const route =
+          tripMode === "optimize"
+            ? data.trips?.[0]?.geometry
+            : data.routes?.[0]?.geometry;
+
+        if (!route) return;
 
         if (map.getLayer("trip-route")) {
           map.removeLayer("trip-route");
@@ -432,9 +438,27 @@ export default function CertisMap({
           },
         });
 
+        // ✅ Waypoints reorder logic (only if optimize)
+        let orderedStops = [home, ...middle, home];
+        if (tripMode === "optimize" && data.waypoints) {
+          const sorted = [...data.waypoints].sort(
+            (a: any, b: any) => a.waypoint_index - b.waypoint_index
+          );
+          orderedStops = sorted.map((wp: any) => {
+            const [lng, lat] = wp.location;
+            return (
+              tripStops.find((s) => s.coords[0] === lng && s.coords[1] === lat) || {
+                label: wp.name || "Stop",
+                address: "",
+                coords: [lng, lat] as [number, number],
+              }
+            );
+          });
+        }
+
         const stopsGeoJSON: GeoJSON.FeatureCollection = {
           type: "FeatureCollection",
-          features: stopsForRouting.map((s, i) => ({
+          features: orderedStops.map((s, i) => ({
             type: "Feature",
             geometry: { type: "Point", coordinates: s.coords },
             properties: { order: i + 1, label: s.label },
@@ -448,7 +472,6 @@ export default function CertisMap({
         }
         map.addSource("trip-stops", { type: "geojson", data: stopsGeoJSON });
 
-        // ✅ Blue circle with white border
         map.addLayer({
           id: "trip-stops-circle",
           type: "circle",
@@ -461,7 +484,6 @@ export default function CertisMap({
           },
         });
 
-        // ✅ White number inside
         map.addLayer({
           id: "trip-stops-label",
           type: "symbol",
@@ -479,7 +501,7 @@ export default function CertisMap({
           },
         });
       })
-      .catch((err) => console.error("Directions API error:", err));
+      .catch((err) => console.error("Directions/Optimization API error:", err));
   }, [tripStops, tripMode]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
