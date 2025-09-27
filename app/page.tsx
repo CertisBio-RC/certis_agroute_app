@@ -7,6 +7,7 @@ import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 // ✅ Normalizer
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
@@ -35,7 +36,11 @@ export default function Page() {
 
   // ✅ Trip Optimization
   const [tripStops, setTripStops] = useState<Stop[]>([]);
-  const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered"); // 👈 new
+  const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
+
+  // ✅ Home Zip
+  const [homeZip, setHomeZip] = useState("");
+  const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label && s.address === stop.address)) {
@@ -43,6 +48,36 @@ export default function Page() {
     }
   };
   const handleClearStops = () => setTripStops([]);
+
+  // ✅ Geocode ZIP → coords
+  const handleGeocodeZip = async () => {
+    if (!homeZip || !mapboxToken) return;
+    try {
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          homeZip
+        )}.json?access_token=${mapboxToken}&limit=1`
+      );
+      const data = await res.json();
+      if (data.features && data.features.length > 0) {
+        const [lng, lat] = data.features[0].center;
+        setHomeCoords([lng, lat]);
+        // Prepend as first stop
+        const homeStop: Stop = {
+          label: `Home (${homeZip})`,
+          address: homeZip,
+          coordinates: [lng, lat],
+        };
+        setTripStops((prev) => {
+          // ensure home is always at start, no duplicates
+          const withoutHome = prev.filter((s) => !s.label.startsWith("Home"));
+          return [homeStop, ...withoutHome];
+        });
+      }
+    } catch (err) {
+      console.error("Error geocoding ZIP:", err);
+    }
+  };
 
   // ========================================
   // 🔘 Category Handlers
@@ -146,11 +181,26 @@ export default function Page() {
         {/* 🟦 Tile 1: Home Zip Code */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home Zip Code</h2>
-          <input
-            type="text"
-            placeholder="Enter ZIP"
-            className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-          />
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={homeZip}
+              onChange={(e) => setHomeZip(e.target.value)}
+              placeholder="Enter ZIP"
+              className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+            <button
+              onClick={handleGeocodeZip}
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Set
+            </button>
+          </div>
+          {homeCoords && (
+            <p className="mt-2 text-sm text-green-600 dark:text-green-400">
+              Home set at {homeZip} ✔
+            </p>
+          )}
         </div>
 
         {/* 🟦 Tile 2: State Filter */}
@@ -402,8 +452,8 @@ export default function Page() {
           onSuppliersLoaded={setAvailableSuppliers}
           onRetailerSummary={setRetailerSummary}
           onAddStop={handleAddStop}
-          tripStops={tripStops}           // 👈 NEW
-          tripMode={tripMode}             // 👈 NEW
+          tripStops={tripStops}           // 👈 includes home if set
+          tripMode={tripMode}
         />
       </main>
     </div>

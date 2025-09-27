@@ -91,7 +91,7 @@ export interface CertisMapProps {
   ) => void;
   onAddStop?: (stop: Stop) => void;
   tripStops?: Stop[];
-  tripMode?: "entered" | "optimize"; // 👈 NEW prop
+  tripMode?: "entered" | "optimize";
 }
 
 export default function CertisMap({
@@ -110,7 +110,6 @@ export default function CertisMap({
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
-  // ✅ Always fetch from canonical /public/data folder, bust cache each deploy
   const geojsonPath = `${
     process.env.NEXT_PUBLIC_BASE_PATH || ""
   }/data/retailers.geojson?cacheBust=${Date.now()}`;
@@ -133,7 +132,6 @@ export default function CertisMap({
         const response = await fetch(geojsonPath);
         const data = await response.json();
 
-        // Extract unique sets
         const stateSet = new Set<string>();
         const retailerSetAll = new Set<string>();
         const supplierSet = new Set<string>();
@@ -155,7 +153,6 @@ export default function CertisMap({
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
         onRetailersLoaded?.(Array.from(retailerSetAll).sort());
 
-        // Map layers
         map.addSource("retailers", { type: "geojson", data });
 
         map.addLayer({
@@ -194,7 +191,6 @@ export default function CertisMap({
           filter: ["==", ["get", "Category"], "Kingpin"],
         });
 
-        // Popups
         const popup = new mapboxgl.Popup({
           closeButton: false,
           closeOnClick: false,
@@ -235,7 +231,6 @@ export default function CertisMap({
             </div>
           `;
 
-          // ✅ Attach handler
           setTimeout(() => {
             const btn = document.getElementById(btnId);
             if (btn && onAddStop) {
@@ -285,10 +280,9 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering
+  // ✅ Dynamic filtering (unchanged)
   useEffect(() => {
     if (!mapRef.current) return;
-
     const map = mapRef.current;
     const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!source) return;
@@ -324,7 +318,6 @@ export default function CertisMap({
 
         source.setData(filtered);
 
-        // Summaries
         if (onRetailerSummary) {
           const summaryMap = new Map<
             string,
@@ -351,7 +344,6 @@ export default function CertisMap({
           onRetailerSummary(Array.from(summaryMap.values()));
         }
 
-        // ✅ Keep retailer list state-only
         if (onRetailersLoaded) {
           const visibleRetailers = new Set<string>();
           for (const f of data.features) {
@@ -377,7 +369,7 @@ export default function CertisMap({
     onRetailersLoaded,
   ]);
 
-  // ✅ Trip route + numbered pins
+  // ✅ Trip route with Directions API
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -394,86 +386,64 @@ export default function CertisMap({
       return;
     }
 
-    // Route ordering
-    let orderedStops = [...tripStops];
-    if (tripMode === "optimize") {
-      const remaining = [...tripStops];
-      orderedStops = [];
-      let current = remaining.shift();
-      while (current) {
-        orderedStops.push(current);
-        if (remaining.length === 0) break;
-        remaining.sort(
-          (a, b) =>
-            Math.hypot(a.coords[0] - current!.coords[0], a.coords[1] - current!.coords[1]) -
-            Math.hypot(b.coords[0] - current!.coords[0], b.coords[1] - current!.coords[1])
-        );
-        current = remaining.shift();
-      }
-    }
+    const coordsParam = tripStops.map((s) => s.coords.join(",")).join(";");
+    const optimizeFlag = tripMode === "optimize" ? "&optimize=true" : "";
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsParam}?geometries=geojson${optimizeFlag}&access_token=${mapboxgl.accessToken}`;
 
-    // Line route
-    const routeGeoJSON: GeoJSON.FeatureCollection = {
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          geometry: {
-            type: "LineString",
-            coordinates: orderedStops.map((s) => s.coords),
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.routes || data.routes.length === 0) return;
+        const route = data.routes[0].geometry;
+
+        if (map.getLayer("trip-route")) {
+          map.removeLayer("trip-route");
+          map.removeSource("trip-route");
+        }
+        map.addSource("trip-route", { type: "geojson", data: { type: "Feature", geometry: route } });
+        map.addLayer({
+          id: "trip-route",
+          type: "line",
+          source: "trip-route",
+          paint: {
+            "line-color": "#1E90FF",
+            "line-width": 4,
           },
-          properties: {},
-        },
-      ],
-    };
+        });
 
-    if (map.getLayer("trip-route")) {
-      map.removeLayer("trip-route");
-      map.removeSource("trip-route");
-    }
-    map.addSource("trip-route", { type: "geojson", data: routeGeoJSON });
-    map.addLayer({
-      id: "trip-route",
-      type: "line",
-      source: "trip-route",
-      paint: {
-        "line-color": "#1E90FF",
-        "line-width": 4,
-      },
-    });
+        const stopsGeoJSON: GeoJSON.FeatureCollection = {
+          type: "FeatureCollection",
+          features: tripStops.map((s, i) => ({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: s.coords },
+            properties: { order: i + 1, label: s.label },
+          })),
+        };
 
-    // Numbered pins
-    const stopsGeoJSON: GeoJSON.FeatureCollection = {
-      type: "FeatureCollection",
-      features: orderedStops.map((s, i) => ({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: s.coords },
-        properties: { order: i + 1, label: s.label },
-      })),
-    };
-
-    if (map.getLayer("trip-stops")) {
-      map.removeLayer("trip-stops");
-      map.removeSource("trip-stops");
-    }
-    map.addSource("trip-stops", { type: "geojson", data: stopsGeoJSON });
-    map.addLayer({
-      id: "trip-stops",
-      type: "symbol",
-      source: "trip-stops",
-      layout: {
-        "text-field": ["get", "order"],
-        "text-size": 14,
-        "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-        "text-offset": [0, 0.6],
-        "text-anchor": "top",
-      },
-      paint: {
-        "text-color": "#1E90FF",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 2,
-      },
-    });
+        if (map.getLayer("trip-stops")) {
+          map.removeLayer("trip-stops");
+          map.removeSource("trip-stops");
+        }
+        map.addSource("trip-stops", { type: "geojson", data: stopsGeoJSON });
+        map.addLayer({
+          id: "trip-stops",
+          type: "symbol",
+          source: "trip-stops",
+          layout: {
+            "text-field": ["get", "order"],
+            "text-size": 14,
+            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+            "text-offset": [0, 0.6],
+            "text-anchor": "top",
+          },
+          paint: {
+            "text-color": "#1E90FF",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 2,
+          },
+        });
+      })
+      .catch((err) => console.error("Directions API error:", err));
   }, [tripStops, tripMode]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
