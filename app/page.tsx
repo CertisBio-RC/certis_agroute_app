@@ -15,31 +15,6 @@ const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 // ✅ Capitalizer for state abbreviations
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
-// ✅ Expand categories consistently (Option 2 logic)
-const expandCategories = (raw: string | undefined): string[] => {
-  const cat = (raw || "").trim().toLowerCase();
-  switch (cat) {
-    case "agronomy/grain":
-      return ["agronomy", "grain"];
-    case "grain/feed":
-    case "grainfeed":
-      return ["grain", "feed"];
-    case "feed":
-      return ["feed"];
-    case "grain":
-      return ["grain"];
-    case "agronomy":
-      return ["agronomy"];
-    case "office/service":
-    case "officeservice":
-      return ["office/service"];
-    case "kingpin":
-      return ["kingpin"];
-    default:
-      return cat ? [cat] : [];
-  }
-};
-
 export default function Page() {
   // ========================================
   // 🎛️ State Hooks
@@ -54,7 +29,7 @@ export default function Page() {
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
 
   const [retailerSummary, setRetailerSummary] = useState<
-    { state: string; retailer: string; count: number; suppliers: string[]; category?: string }[]
+    { state: string; retailer: string; count: number; suppliers: string[]; categories: string[] }[]
   >([]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -164,15 +139,11 @@ export default function Page() {
   // 🟦 Derived summaries
   // ========================================
   const kingpinSummary = retailerSummary.filter(
-    (s) =>
-      expandCategories(s.category).includes("kingpin") ||
-      norm(s.retailer) === "kingpin"
+    (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
   );
 
   const normalSummary = retailerSummary.filter(
-    (s) =>
-      !expandCategories(s.category).includes("kingpin") &&
-      norm(s.retailer) !== "kingpin"
+    (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
   );
 
   const filteredRetailersForSummary = useMemo(() => {
@@ -379,12 +350,13 @@ export default function Page() {
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Channel Summary</h2>
           <div className="text-sm text-gray-700 dark:text-gray-300 max-h-40 overflow-y-auto">
             {normalSummary.map((s, i) => (
-              <div key={i} className="mb-1">
+              <div key={i} className="mb-2">
                 <strong>
                   {s.retailer} – {s.state}
                 </strong>{" "}
                 ({s.count} sites) <br />
-                Suppliers: {s.suppliers.join(", ")}
+                Suppliers: {s.suppliers.join(", ") || "N/A"} <br />
+                Categories: {s.categories.join(", ") || "N/A"}
               </div>
             ))}
             {kingpinSummary.length > 0 && (
@@ -453,14 +425,6 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* 🗺️ Map Area */}
-      <main className="flex-1 relative">
-        <CertisMap
-          selectedCategories={selectedCategories}
-          selectedStates={selectedStates}
-          selectedSuppliers={selectedSuppliers}
-          selectedRetailers={selectedRetailers}
-          onStatesLoaded={setAvailableStates
       {/* 🗺️ Map Area */}
       <main className="flex-1 relative">
         <CertisMap

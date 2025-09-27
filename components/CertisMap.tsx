@@ -8,10 +8,12 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 // ✅ Exported category colors for legend in page.tsx
 export const categoryColors: Record<string, { color: string; outline?: string }> = {
-  Agronomy: { color: "#FFD700", outline: "#000" }, // yellow
-  "Grain/Feed": { color: "#228B22", outline: "#000" }, // green
+  Agronomy: { color: "#FFD700", outline: "#000" },       // yellow
+  "Grain/Feed": { color: "#228B22", outline: "#000" },  // green
+  Feed: { color: "#8B4513", outline: "#000" },          // brown
   "Office/Service": { color: "#1E90FF", outline: "#000" }, // blue
-  Kingpin: { color: "#FF0000", outline: "#FFFF00" }, // red w/ yellow border
+  Distribution: { color: "#FF8C00", outline: "#000" },  // orange
+  Kingpin: { color: "#FF0000", outline: "#FFFF00" },    // red w/ yellow border
 };
 
 // ✅ Normalize categories consistently
@@ -27,7 +29,7 @@ const normalizeCategory = (cat: string) => {
     case "feed":
       return "feed";
     case "agronomy/grain":
-      return "agronomy/grain"; // special case, will expand later
+      return "agronomy/grain"; // special combo
     case "office/service":
     case "officeservice":
       return "officeservice";
@@ -44,8 +46,20 @@ const normalizeCategory = (cat: string) => {
 const expandCategories = (cat: string): string[] => {
   const norm = normalizeCategory(cat);
   if (norm === "agronomy/grain") return ["agronomy", "grain"];
-  if (norm === "grainfeed") return ["grain/feed"];
+  if (norm === "grainfeed") return ["grain", "feed"];
   return [norm];
+};
+
+// ✅ Assign a primary display category for color-coding
+const assignDisplayCategory = (cat: string): string => {
+  const expanded = expandCategories(cat);
+  if (expanded.includes("agronomy")) return "Agronomy";
+  if (expanded.includes("grain")) return "Grain/Feed";
+  if (expanded.includes("feed")) return "Feed";
+  if (expanded.includes("officeservice")) return "Office/Service";
+  if (expanded.includes("distribution")) return "Distribution";
+  if (expanded.includes("kingpin")) return "Kingpin";
+  return "Unknown";
 };
 
 // ✅ Helper normalizer
@@ -102,11 +116,11 @@ export interface CertisMapProps {
       retailer: string;
       count: number;
       suppliers: string[];
-      category?: string;
+      categories: string[];
     }[]
   ) => void;
   onAddStop?: (stop: Stop) => void;
-  onRemoveStop?: (index: number) => void; // 👈 hook for later
+  onRemoveStop?: (index: number) => void;
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
 }
@@ -151,6 +165,13 @@ export default function CertisMap({
         const response = await fetch(geojsonPath);
         const data = await response.json();
 
+        // 👉 Preprocess: assign DisplayCategory to each feature
+        for (const feature of data.features) {
+          feature.properties.DisplayCategory = assignDisplayCategory(
+            feature.properties?.Category || ""
+          );
+        }
+
         const stateSet = new Set<string>();
         const retailerSetAll = new Set<string>();
         const supplierSet = new Set<string>();
@@ -182,19 +203,23 @@ export default function CertisMap({
             "circle-radius": 4,
             "circle-color": [
               "match",
-              ["get", "Category"],
+              ["get", "DisplayCategory"],
               "Agronomy",
               categoryColors.Agronomy.color,
               "Grain/Feed",
               categoryColors["Grain/Feed"].color,
+              "Feed",
+              categoryColors.Feed.color,
               "Office/Service",
               categoryColors["Office/Service"].color,
-              "#1d4ed8",
+              "Distribution",
+              categoryColors.Distribution.color,
+              "#1d4ed8", // fallback
             ],
             "circle-stroke-width": 2,
             "circle-stroke-color": "#fff",
           },
-          filter: ["!=", ["get", "Category"], "Kingpin"],
+          filter: ["!=", ["get", "DisplayCategory"], "Kingpin"],
         });
 
         map.addLayer({
@@ -207,7 +232,7 @@ export default function CertisMap({
             "circle-stroke-width": 2,
             "circle-stroke-color": categoryColors.Kingpin.outline!,
           },
-          filter: ["==", ["get", "Category"], "Kingpin"],
+          filter: ["==", ["get", "DisplayCategory"], "Kingpin"],
         });
 
         const popup = new mapboxgl.Popup({
@@ -219,7 +244,7 @@ export default function CertisMap({
         function buildPopupHTML(props: any, coords: [number, number]) {
           const longName = props["Long Name"] || props.Retailer || "Unknown";
           const siteName = props.Name || "";
-          const category = props.Category || "N/A";
+          const category = props.DisplayCategory || "N/A";
           const stopLabel = siteName ? `${longName} – ${siteName}` : longName;
 
           const suppliers =
@@ -299,7 +324,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering with category expansion
+  // ✅ Dynamic filtering with DisplayCategory
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -309,11 +334,18 @@ export default function CertisMap({
     fetch(geojsonPath)
       .then((res) => res.json())
       .then((data) => {
+        // preprocess again for filtering
+        for (const feature of data.features) {
+          feature.properties.DisplayCategory = assignDisplayCategory(
+            feature.properties?.Category || ""
+          );
+        }
+
         const filtered = {
           type: "FeatureCollection" as const,
           features: data.features.filter((f: any) => {
             const props = f.properties || {};
-            if (props.Category === "Kingpin") return true;
+            if (props.DisplayCategory === "Kingpin") return true;
 
             const stateMatch =
               selectedStates.length === 0 ||
@@ -321,12 +353,9 @@ export default function CertisMap({
             const retailerMatch =
               selectedRetailers.length === 0 ||
               selectedRetailers.map(norm).includes(norm(props["Long Name"]));
-            const categoryValues = expandCategories(props.Category || "");
             const categoryMatch =
               selectedCategories.length === 0 ||
-              categoryValues.some((cv) =>
-                selectedCategories.includes(cv)
-              );
+              selectedCategories.includes(norm(props.DisplayCategory));
             const supplierList = splitAndStandardizeSuppliers(props.Suppliers).map(norm);
             const supplierMatch =
               selectedSuppliers.length === 0 ||
@@ -341,24 +370,28 @@ export default function CertisMap({
         if (onRetailerSummary) {
           const summaryMap = new Map<
             string,
-            { state: string; retailer: string; count: number; suppliers: string[] }
+            { state: string; retailer: string; count: number; suppliers: string[]; categories: string[] }
           >();
           for (const f of filtered.features) {
             const props = f.properties || {};
-            if (props.Category === "Kingpin") continue;
+            if (props.DisplayCategory === "Kingpin") continue;
 
             const state = props.State || "Unknown";
             const retailer = props["Long Name"] || props.Retailer || "Unknown";
             const suppliers = splitAndStandardizeSuppliers(props.Suppliers);
+            const categories = expandCategories(props.Category || "");
             const key = `${state}-${retailer}`;
 
             if (!summaryMap.has(key)) {
-              summaryMap.set(key, { state, retailer, count: 0, suppliers: [] });
+              summaryMap.set(key, { state, retailer, count: 0, suppliers: [], categories: [] });
             }
             const entry = summaryMap.get(key)!;
             entry.count += 1;
             suppliers.forEach((s) => {
               if (s && !entry.suppliers.includes(s)) entry.suppliers.push(s);
+            });
+            categories.forEach((c) => {
+              if (c && !entry.categories.includes(c)) entry.categories.push(c);
             });
           }
           onRetailerSummary(Array.from(summaryMap.values()));
@@ -368,7 +401,7 @@ export default function CertisMap({
           const visibleRetailers = new Set<string>();
           for (const f of data.features) {
             const props = f.properties || {};
-            if (props.Category === "Kingpin") continue;
+            if (props.DisplayCategory === "Kingpin") continue;
             if (
               selectedStates.length === 0 ||
               selectedStates.map(norm).includes(norm(props.State))
