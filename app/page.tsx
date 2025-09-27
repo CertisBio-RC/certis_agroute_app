@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import CertisMap, { categoryColors, Stop } from "@/components/CertisMap"; // 👈 import Stop
+import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
@@ -48,6 +48,7 @@ export default function Page() {
     }
   };
 
+  // ✅ NEW: Remove a specific stop
   const handleRemoveStop = (index: number) => {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
   };
@@ -67,14 +68,12 @@ export default function Page() {
       if (data.features && data.features.length > 0) {
         const [lng, lat] = data.features[0].center;
         setHomeCoords([lng, lat]);
-        // Prepend as first stop
         const homeStop: Stop = {
           label: `Home (${homeZip})`,
           address: homeZip,
-          coords: [lng, lat], // ✅ fixed key
+          coords: [lng, lat],
         };
         setTripStops((prev) => {
-          // ensure home is always at start, no duplicates
           const withoutHome = prev.filter((s) => !s.label.startsWith("Home"));
           return [homeStop, ...withoutHome];
         });
@@ -146,7 +145,6 @@ export default function Page() {
     (s) => norm(s.retailer) !== "kingpin" && norm(s.category || "") !== "kingpin"
   );
 
-  // ✅ Retailers filtered by selected states (for summaries, not for filter checkboxes)
   const filteredRetailersForSummary = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
     return retailerSummary
@@ -208,13 +206,169 @@ export default function Page() {
           )}
         </div>
 
-        {/* 🟦 ... [unchanged filters/summary tiles above] ... */}
+        {/* 🟦 Tile 2: State Filter */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">States</h2>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <button
+              onClick={handleSelectAllStates}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
+              Select All
+            </button>
+            <button
+              onClick={handleClearAllStates}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-1 text-sm">
+            {availableStates.map((state) => {
+              const normalized = norm(state);
+              return (
+                <label key={state} className="flex items-center space-x-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedStates.includes(normalized)}
+                    onChange={() => handleToggleState(state)}
+                  />
+                  <span>{capitalizeState(state)}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 🟦 Tile 3: Retailer Filter */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Retailers</h2>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <button
+              onClick={handleSelectAllRetailers}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
+              Select All
+            </button>
+            <button
+              onClick={handleClearAllRetailers}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="max-h-40 overflow-y-auto text-sm">
+            {availableRetailers.map((retailer) => {
+              const normalized = norm(retailer);
+              return (
+                <label key={retailer} className="flex items-center space-x-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedRetailers.includes(normalized)}
+                    onChange={() => handleToggleRetailer(retailer)}
+                  />
+                  <span>{retailer}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 🟦 Tile 4: Supplier Filter */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Suppliers</h2>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <button
+              onClick={handleSelectAllSuppliers}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
+              Select All
+            </button>
+            <button
+              onClick={handleClearAllSuppliers}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="max-h-40 overflow-y-auto text-sm">
+            {availableSuppliers.map((supplier) => (
+              <label key={supplier} className="flex items-center space-x-1">
+                <input
+                  type="checkbox"
+                  checked={selectedSuppliers.includes(supplier)}
+                  onChange={() => handleToggleSupplier(supplier)}
+                />
+                <span>{supplier}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* 🟦 Tile 5: Categories (Legend) */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Categories</h2>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <button
+              onClick={handleSelectAllCategories}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
+              Select All
+            </button>
+            <button
+              onClick={handleClearAllCategories}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-1 text-sm">
+            {Object.entries(categoryColors)
+              .filter(([key]) => key !== "Kingpin")
+              .map(([key, { color }]) => (
+                <label key={key} className="flex items-center space-x-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(norm(key))}
+                    onChange={() => handleToggleCategory(key)}
+                  />
+                  <span className="flex items-center">
+                    <span
+                      className="inline-block w-3 h-3 rounded-full mr-1"
+                      style={{ backgroundColor: color }}
+                    ></span>
+                    {key}
+                  </span>
+                </label>
+              ))}
+          </div>
+        </div>
+
+        {/* 🟦 Tile 6: Channel Summary */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Channel Summary</h2>
+          <div className="text-sm text-gray-700 dark:text-gray-300 max-h-40 overflow-y-auto">
+            {normalSummary.map((s, i) => (
+              <div key={i} className="mb-1">
+                <strong>
+                  {s.retailer} – {s.state}
+                </strong>{" "}
+                ({s.count} sites) <br />
+                Suppliers: {s.suppliers.join(", ")}
+              </div>
+            ))}
+            {kingpinSummary.length > 0 && (
+              <div className="mt-2 text-red-600 dark:text-red-400">
+                <strong>Kingpins:</strong>{" "}
+                {kingpinSummary.map((s) => s.retailer).join(", ")}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* 🟦 Tile 7: Trip Optimization */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Trip Optimization</h2>
-
-          {/* Mode Toggle */}
           <div className="flex space-x-4 mb-3 text-sm">
             <label className="flex items-center space-x-1 cursor-pointer">
               <input
@@ -236,10 +390,6 @@ export default function Page() {
             </label>
           </div>
 
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            Selected stops will appear below:
-          </p>
-
           {tripStops.length > 0 ? (
             <div className="space-y-2">
               <ol className="list-decimal ml-5 text-sm text-gray-700 dark:text-gray-300">
@@ -249,7 +399,7 @@ export default function Page() {
                       <div className="font-semibold">{stop.label}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">{stop.address}</div>
                     </div>
-                    {i > 0 && ( // 👈 don’t allow removing "Home"
+                    {i > 0 && (
                       <button
                         onClick={() => handleRemoveStop(i)}
                         className="ml-2 text-red-600 hover:text-red-800 text-xs"
@@ -285,8 +435,8 @@ export default function Page() {
           onSuppliersLoaded={setAvailableSuppliers}
           onRetailerSummary={setRetailerSummary}
           onAddStop={handleAddStop}
-          onRemoveStop={handleRemoveStop} // 👈 NEW
-          tripStops={tripStops} // 👈 includes home if set
+          onRemoveStop={handleRemoveStop}
+          tripStops={tripStops}
           tripMode={tripMode}
         />
       </main>
