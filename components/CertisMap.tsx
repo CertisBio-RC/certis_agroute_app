@@ -65,6 +65,13 @@ function splitAndStandardizeSuppliers(raw: string | undefined): string[] {
     .map(standardizeSupplier);
 }
 
+// ✅ Trip Stop structure
+export interface Stop {
+  label: string;
+  address: string;
+  coords: [number, number];
+}
+
 export interface CertisMapProps {
   selectedCategories: string[];
   selectedStates: string[];
@@ -82,7 +89,7 @@ export interface CertisMapProps {
       category?: string;
     }[]
   ) => void;
-  onAddStop?: (stop: string) => void;
+  onAddStop?: (stop: Stop) => void; // 👈 now a structured object
 }
 
 export default function CertisMap({
@@ -190,7 +197,7 @@ export default function CertisMap({
           maxWidth: "none",
         });
 
-        function buildPopupHTML(props: any) {
+        function buildPopupHTML(props: any, coords: [number, number]) {
           const longName = props["Long Name"] || props.Retailer || "Unknown";
           const siteName = props.Name || "";
           const category = props.Category || "N/A";
@@ -199,6 +206,8 @@ export default function CertisMap({
           const suppliers =
             splitAndStandardizeSuppliers(props.Suppliers).join(", ") || "N/A";
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
+
+          const addressLine = `${props.Address || ""}, ${props.City || ""}, ${props.State || ""} ${props.Zip || ""}`;
 
           const html = `
             <div style="font-size: 13px; width:360px; background:#1a1a1a; color:#f5f5f5;
@@ -222,12 +231,18 @@ export default function CertisMap({
             </div>
           `;
 
-          popup.on("open", () => {
+          // ✅ Attach handler
+          setTimeout(() => {
             const btn = document.getElementById(btnId);
             if (btn && onAddStop) {
-              btn.addEventListener("click", () => onAddStop(stopLabel));
+              btn.onclick = () =>
+                onAddStop({
+                  label: stopLabel,
+                  address: addressLine,
+                  coords,
+                });
             }
-          });
+          }, 0);
 
           return html;
         }
@@ -239,7 +254,7 @@ export default function CertisMap({
               ?.coordinates.slice() as [number, number];
             const props = e.features?.[0].properties;
             if (coords && props)
-              popup.setLngLat(coords).setHTML(buildPopupHTML(props)).addTo(map);
+              popup.setLngLat(coords).setHTML(buildPopupHTML(props, coords)).addTo(map);
           });
           map.on("mouseleave", layerId, () => {
             map.getCanvas().style.cursor = "";
@@ -252,7 +267,7 @@ export default function CertisMap({
             if (coords && props) {
               new mapboxgl.Popup({ maxWidth: "none" })
                 .setLngLat(coords)
-                .setHTML(buildPopupHTML(props))
+                .setHTML(buildPopupHTML(props, coords))
                 .addTo(map);
             }
           });
@@ -266,7 +281,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Dynamic filtering
+  // ✅ Dynamic filtering (unchanged)
   useEffect(() => {
     if (!mapRef.current) return;
 

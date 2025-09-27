@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import CertisMap, { categoryColors } from "@/components/CertisMap";
+import CertisMap, { categoryColors, Stop } from "@/components/CertisMap"; // 👈 import Stop
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
@@ -10,6 +10,9 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 // ✅ Normalizer
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
+
+// ✅ Capitalizer for state abbreviations
+const capitalizeState = (val: string) => (val || "").toUpperCase();
 
 export default function Page() {
   // ========================================
@@ -31,9 +34,9 @@ export default function Page() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // ✅ Trip Optimization
-  const [tripStops, setTripStops] = useState<string[]>([]);
-  const handleAddStop = (stop: string) => {
-    if (!tripStops.includes(stop)) {
+  const [tripStops, setTripStops] = useState<Stop[]>([]);
+  const handleAddStop = (stop: Stop) => {
+    if (!tripStops.some((s) => s.label === stop.label && s.address === stop.address)) {
       setTripStops((prev) => [...prev, stop]);
     }
   };
@@ -88,7 +91,7 @@ export default function Page() {
       prev.includes(normalized) ? prev.filter((r) => r !== normalized) : [...prev, normalized]
     );
   };
-  const handleSelectAllRetailers = () => setSelectedRetailers(filteredRetailers.map(norm));
+  const handleSelectAllRetailers = () => setSelectedRetailers(availableRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // ========================================
@@ -101,13 +104,13 @@ export default function Page() {
     (s) => norm(s.retailer) !== "kingpin" && norm(s.category || "") !== "kingpin"
   );
 
-  // ✅ Retailers filtered by selected states only (not by selectedRetailers)
-  const filteredRetailers = useMemo(() => {
+  // ✅ Retailers filtered by selected states (for summaries, not for filter checkboxes)
+  const filteredRetailersForSummary = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
     return retailerSummary
       .filter((s) => selectedStates.includes(norm(s.state)))
       .map((s) => s.retailer)
-      .filter((r, i, arr) => arr.indexOf(r) === i) // unique
+      .filter((r, i, arr) => arr.indexOf(r) === i)
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
 
@@ -168,7 +171,7 @@ export default function Page() {
                   onChange={() => handleToggleState(state)}
                   className="mr-1"
                 />
-                <span className="text-gray-700 dark:text-gray-300 text-sm">{state}</span>
+                <span className="text-gray-700 dark:text-gray-300 text-sm">{capitalizeState(state)}</span>
               </label>
             ))}
           </div>
@@ -186,7 +189,7 @@ export default function Page() {
             </button>
           </div>
           <div className="space-y-1 max-h-32 overflow-y-auto">
-            {filteredRetailers.map((longName) => (
+            {availableRetailers.map((longName) => (
               <label key={longName} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -279,7 +282,7 @@ export default function Page() {
             {/* States Selected */}
             <div>
               <strong>States Selected ({selectedStates.length}):</strong>{" "}
-              {selectedStates.length > 0 ? selectedStates.join(", ") : "None"}
+              {selectedStates.length > 0 ? selectedStates.map(capitalizeState).join(", ") : "None"}
             </div>
 
             {/* Retailers Selected */}
@@ -287,7 +290,7 @@ export default function Page() {
               <strong>Retailers Selected ({selectedRetailers.length}):</strong>
               {selectedRetailers.length > 0 ? (
                 <ul className="list-disc ml-5">
-                  {filteredRetailers
+                  {filteredRetailersForSummary
                     .filter((r) => selectedRetailers.includes(norm(r)))
                     .map((r, i) => (
                       <li key={i}>{r}</li>
@@ -342,7 +345,10 @@ export default function Page() {
             <div className="space-y-2">
               <ol className="list-decimal ml-5 text-sm text-gray-700 dark:text-gray-300">
                 {tripStops.map((stop, i) => (
-                  <li key={i}>{stop}</li>
+                  <li key={i}>
+                    <div className="font-semibold">{stop.label}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{stop.address}</div>
+                  </li>
                 ))}
               </ol>
               <button
