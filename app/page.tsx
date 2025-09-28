@@ -22,6 +22,7 @@ const categoryLabels: Record<string, string> = {
   feed: "Feed",
   "grain/feed": "Grain/Feed",
   "office/service": "Office/Service",
+  officeservice: "Office/Service", // ✅ safeguard
   distribution: "Distribution",
   kingpin: "Kingpin",
 };
@@ -81,6 +82,7 @@ export default function Page() {
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
   const [finalRoute, setFinalRoute] = useState<Stop[]>([]);
+  const [optimizedStops, setOptimizedStops] = useState<Stop[]>([]); // ✅ new state
 
   // ✅ Home Zip
   const [homeZip, setHomeZip] = useState("");
@@ -99,6 +101,7 @@ export default function Page() {
   const handleClearStops = () => {
     setTripStops([]);
     setFinalRoute([]);
+    setOptimizedStops([]); // ✅ clear optimized list too
   };
 
   // ✅ Geocode ZIP → coords
@@ -135,8 +138,12 @@ export default function Page() {
     if (tripMode === "entered") {
       setFinalRoute([...tripStops]);
     } else {
-      // NOTE: Currently just reuses as-entered (needs Mapbox Directions API integration for real optimization)
-      setFinalRoute([...tripStops]);
+      // ✅ use optimized route if available
+      if (optimizedStops.length > 0) {
+        setFinalRoute([...optimizedStops]);
+      } else {
+        setFinalRoute([...tripStops]); // fallback
+      }
     }
   };
 
@@ -211,6 +218,9 @@ export default function Page() {
       .filter((r, i, arr) => arr.indexOf(r) === i)
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
+
+// === PART 1 END ===
+// === PART 2 START ===
 
   return (
     <div className="flex h-screen w-screen relative">
@@ -482,6 +492,7 @@ export default function Page() {
                 ))}
               </ol>
               <div className="flex flex-col gap-2 mt-3">
+                {/* ✅ Button order fixed */}
                 <button
                   onClick={handleBuildRoute}
                   className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
@@ -539,8 +550,12 @@ export default function Page() {
           onRemoveStop={handleRemoveStop}
           tripStops={tripStops}
           tripMode={tripMode}
+          onOptimizedRoute={setOptimizedStops} // ✅ new prop
         />
       </main>
     </div>
   );
 }
+
+// === PART 2 END ===
+

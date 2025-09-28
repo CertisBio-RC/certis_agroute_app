@@ -123,6 +123,7 @@ export interface CertisMapProps {
   onRemoveStop?: (index: number) => void;
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
+  onOptimizedRoute?: (stops: Stop[]) => void; // ✅ NEW
 }
 
 export default function CertisMap({
@@ -138,6 +139,7 @@ export default function CertisMap({
   onRemoveStop,
   tripStops = [],
   tripMode = "entered",
+  onOptimizedRoute,
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -171,6 +173,7 @@ export default function CertisMap({
             feature.properties?.Category || ""
           );
         }
+
         const stateSet = new Set<string>();
         const retailerSetAll = new Set<string>();
         const supplierSet = new Set<string>();
@@ -325,6 +328,9 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
+// === PART 1 END ===
+// === PART 2 START ===
+
   // ✅ Dynamic filtering + retailer summary
   useEffect(() => {
     if (!mapRef.current) return;
@@ -438,6 +444,7 @@ export default function CertisMap({
     onRetailerSummary,
     onRetailersLoaded,
   ]);
+
   // ✅ Trip route logic
   useEffect(() => {
     if (!mapRef.current) return;
@@ -458,13 +465,11 @@ export default function CertisMap({
       return;
     }
 
-    const home = tripStops[0];
-    const middle = tripStops.slice(1);
-    const coordsParam = [home, ...middle, home].map((s) => s.coords.join(",")).join(";");
+    const coordsParam = tripStops.map((s) => s.coords.join(",")).join(";");
 
     const url =
       tripMode === "optimize"
-        ? `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsParam}?geometries=geojson&roundtrip=true&source=first&destination=last&access_token=${mapboxgl.accessToken}`
+        ? `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsParam}?geometries=geojson&roundtrip=false&source=first&destination=last&access_token=${mapboxgl.accessToken}`
         : `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsParam}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
 
     fetch(url)
@@ -504,8 +509,8 @@ export default function CertisMap({
           },
         });
 
-        // waypoints
-        let orderedStops = [home, ...middle, home];
+        // waypoints → ordered stops
+        let orderedStops = [...tripStops];
         if (tripMode === "optimize" && data.waypoints) {
           const sorted = [...data.waypoints].sort(
             (a: any, b: any) => a.waypoint_index - b.waypoint_index
@@ -520,6 +525,11 @@ export default function CertisMap({
               }
             );
           });
+        }
+
+        // ✅ Send back to parent
+        if (onOptimizedRoute) {
+          onOptimizedRoute(orderedStops);
         }
 
         const stopsGeoJSON: GeoJSON.FeatureCollection = {
@@ -568,9 +578,9 @@ export default function CertisMap({
         });
       })
       .catch((err) => console.error("Directions/Optimization API error:", err));
-  }, [tripStops, tripMode]);
+  }, [tripStops, tripMode, onOptimizedRoute]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
 
-
+// === PART 2 END ===
