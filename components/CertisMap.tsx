@@ -112,11 +112,11 @@ export interface CertisMapProps {
   onSuppliersLoaded?: (suppliers: string[]) => void;
   onRetailerSummary?: (
     summaries: {
-      state: string;
       retailer: string;
       count: number;
       suppliers: string[];
       categories: string[];
+      states: string[];
     }[]
   ) => void;
   onAddStop?: (stop: Stop) => void;
@@ -367,10 +367,17 @@ export default function CertisMap({
 
         source.setData(filtered);
 
+        // ✅ Group by retailer, collecting states[]
         if (onRetailerSummary) {
           const summaryMap = new Map<
             string,
-            { state: string; retailer: string; count: number; suppliers: string[]; categories: string[] }
+            {
+              retailer: string;
+              count: number;
+              suppliers: string[];
+              categories: string[];
+              states: string[];
+            }
           >();
           for (const f of filtered.features) {
             const props = f.properties || {};
@@ -380,13 +387,21 @@ export default function CertisMap({
             const retailer = props["Long Name"] || props.Retailer || "Unknown";
             const suppliers = splitAndStandardizeSuppliers(props.Suppliers);
             const categories = expandCategories(props.Category || "");
-            const key = `${state}-${retailer}`;
 
-            if (!summaryMap.has(key)) {
-              summaryMap.set(key, { state, retailer, count: 0, suppliers: [], categories: [] });
+            if (!summaryMap.has(retailer)) {
+              summaryMap.set(retailer, {
+                retailer,
+                count: 0,
+                suppliers: [],
+                categories: [],
+                states: [],
+              });
             }
-            const entry = summaryMap.get(key)!;
+            const entry = summaryMap.get(retailer)!;
             entry.count += 1;
+            if (state && !entry.states.includes(state)) {
+              entry.states.push(state);
+            }
             suppliers.forEach((s) => {
               if (s && !entry.suppliers.includes(s)) entry.suppliers.push(s);
             });
