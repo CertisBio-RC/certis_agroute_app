@@ -29,7 +29,13 @@ export default function Page() {
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
 
   const [retailerSummary, setRetailerSummary] = useState<
-    { state: string; retailer: string; count: number; suppliers: string[]; categories: string[] }[]
+    {
+      retailer: string;
+      count: number;
+      suppliers: string[];
+      categories: string[];
+      states: string[]; // ✅ keep only multi-state field
+    }[]
   >([]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -149,7 +155,7 @@ export default function Page() {
   const filteredRetailersForSummary = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
     return retailerSummary
-      .filter((s) => selectedStates.includes(norm(s.state)))
+      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
       .map((s) => s.retailer)
       .filter((r, i, arr) => arr.indexOf(r) === i)
       .sort();
@@ -347,12 +353,14 @@ export default function Page() {
 
         {/* 🟦 Tile 6: Channel Summary */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Channel Summary</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Channel Summary
+          </h2>
           <div className="text-sm text-gray-700 dark:text-gray-300 max-h-40 overflow-y-auto">
             {normalSummary.map((s, i) => (
               <div key={i} className="mb-2">
                 <strong>
-                  {s.retailer} – {s.state}
+                  {s.retailer} ({s.states.map(capitalizeState).join(", ")})
                 </strong>{" "}
                 ({s.count} sites) <br />
                 Suppliers: {s.suppliers.join(", ") || "N/A"} <br />
@@ -370,7 +378,9 @@ export default function Page() {
 
         {/* 🟦 Tile 7: Trip Optimization */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Trip Optimization</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Trip Optimization
+          </h2>
           <div className="flex space-x-4 mb-3 text-sm">
             <label className="flex items-center space-x-1 cursor-pointer">
               <input
@@ -399,7 +409,9 @@ export default function Page() {
                   <li key={i} className="flex justify-between items-start">
                     <div>
                       <div className="font-semibold">{stop.label}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{stop.address}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {stop.address}
+                      </div>
                     </div>
                     {i > 0 && (
                       <button
@@ -420,7 +432,9 @@ export default function Page() {
               </button>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No stops added yet.
+            </p>
           )}
         </div>
       </aside>
