@@ -15,6 +15,32 @@ const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 // ✅ Capitalizer for state abbreviations
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
+// ✅ Build external map URLs
+function buildGoogleMapsUrl(stops: Stop[]) {
+  if (stops.length < 2) return null;
+  const base = "https://www.google.com/maps/dir/?api=1";
+  const origin = encodeURIComponent(stops[0].address);
+  const destination = encodeURIComponent(stops[stops.length - 1].address);
+  const waypoints = stops
+    .slice(1, -1)
+    .map((s) => encodeURIComponent(s.address))
+    .join("|");
+  return `${base}&origin=${origin}&destination=${destination}${
+    waypoints ? `&waypoints=${waypoints}` : ""
+  }`;
+}
+
+function buildAppleMapsUrl(stops: Stop[]) {
+  if (stops.length < 2) return null;
+  const base = "http://maps.apple.com/?dirflg=d";
+  const origin = encodeURIComponent(stops[0].address);
+  const daddr = stops
+    .slice(1)
+    .map((s) => encodeURIComponent(s.address))
+    .join("+to:");
+  return `${base}&saddr=${origin}&daddr=${daddr}`;
+}
+
 export default function Page() {
   // ========================================
   // 🎛️ State Hooks
@@ -34,7 +60,7 @@ export default function Page() {
       count: number;
       suppliers: string[];
       categories: string[];
-      states: string[]; // ✅ keep only multi-state field
+      states: string[];
     }[]
   >([]);
 
@@ -54,7 +80,6 @@ export default function Page() {
     }
   };
 
-  // ✅ Remove a specific stop
   const handleRemoveStop = (index: number) => {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
   };
@@ -424,12 +449,34 @@ export default function Page() {
                   </li>
                 ))}
               </ol>
-              <button
-                onClick={handleClearStops}
-                className="mt-2 px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
-              >
-                Clear All
-              </button>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleClearStops}
+                  className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                >
+                  Clear All
+                </button>
+                {buildGoogleMapsUrl(tripStops) && (
+                  <a
+                    href={buildGoogleMapsUrl(tripStops) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                  >
+                    Open in Google Maps
+                  </a>
+                )}
+                {buildAppleMapsUrl(tripStops) && (
+                  <a
+                    href={buildAppleMapsUrl(tripStops) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                  >
+                    Open in Apple Maps
+                  </a>
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-gray-500 dark:text-gray-400">
