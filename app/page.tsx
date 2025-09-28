@@ -34,7 +34,7 @@ export default function Page() {
       count: number;
       suppliers: string[];
       categories: string[];
-      states: string[];
+      states: string[]; // ✅ keep only multi-state field
     }[]
   >([]);
 
