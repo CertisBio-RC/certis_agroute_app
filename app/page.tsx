@@ -15,6 +15,17 @@ const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 // ✅ Capitalizer for state abbreviations
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
+// ✅ Category label cleanup
+const categoryLabels: Record<string, string> = {
+  agronomy: "Agronomy",
+  grain: "Grain",
+  feed: "Feed",
+  "grain/feed": "Grain/Feed",
+  "office/service": "Office/Service",
+  distribution: "Distribution",
+  kingpin: "Kingpin",
+};
+
 // ✅ Build external map URLs
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
@@ -69,6 +80,7 @@ export default function Page() {
   // ✅ Trip Optimization
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
+  const [finalRoute, setFinalRoute] = useState<Stop[]>([]);
 
   // ✅ Home Zip
   const [homeZip, setHomeZip] = useState("");
@@ -84,7 +96,10 @@ export default function Page() {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleClearStops = () => setTripStops([]);
+  const handleClearStops = () => {
+    setTripStops([]);
+    setFinalRoute([]);
+  };
 
   // ✅ Geocode ZIP → coords
   const handleGeocodeZip = async () => {
@@ -111,6 +126,17 @@ export default function Page() {
       }
     } catch (err) {
       console.error("Error geocoding ZIP:", err);
+    }
+  };
+
+  // ✅ Build route
+  const handleBuildRoute = () => {
+    if (tripStops.length === 0) return;
+    if (tripMode === "entered") {
+      setFinalRoute([...tripStops]);
+    } else {
+      // NOTE: Currently just reuses as-entered (needs Mapbox Directions API integration for real optimization)
+      setFinalRoute([...tripStops]);
     }
   };
 
@@ -357,22 +383,25 @@ export default function Page() {
           <div className="grid grid-cols-2 gap-1 text-sm">
             {Object.entries(categoryColors)
               .filter(([key]) => key !== "Kingpin")
-              .map(([key, { color }]) => (
-                <label key={key} className="flex items-center space-x-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(norm(key))}
-                    onChange={() => handleToggleCategory(key)}
-                  />
-                  <span className="flex items-center">
-                    <span
-                      className="inline-block w-3 h-3 rounded-full mr-1"
-                      style={{ backgroundColor: color }}
-                    ></span>
-                    {key}
-                  </span>
-                </label>
-              ))}
+              .map(([key, { color }]) => {
+                const label = categoryLabels[norm(key)] || key;
+                return (
+                  <label key={key} className="flex items-center space-x-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.includes(norm(key))}
+                      onChange={() => handleToggleCategory(key)}
+                    />
+                    <span className="flex items-center">
+                      <span
+                        className="inline-block w-3 h-3 rounded-full mr-1"
+                        style={{ backgroundColor: color }}
+                      ></span>
+                      {label}
+                    </span>
+                  </label>
+                );
+              })}
           </div>
         </div>
 
@@ -389,7 +418,10 @@ export default function Page() {
                 </strong>{" "}
                 ({s.count} sites) <br />
                 Suppliers: {s.suppliers.join(", ") || "N/A"} <br />
-                Categories: {s.categories.join(", ") || "N/A"}
+                Categories:{" "}
+                {s.categories
+                  .map((c) => categoryLabels[norm(c)] || c)
+                  .join(", ") || "N/A"}
               </div>
             ))}
             {kingpinSummary.length > 0 && (
@@ -449,32 +481,38 @@ export default function Page() {
                   </li>
                 ))}
               </ol>
-              <div className="flex gap-2 mt-2">
+              <div className="flex flex-col gap-2 mt-3">
                 <button
-                  onClick={handleClearStops}
-                  className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                  onClick={handleBuildRoute}
+                  className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
                 >
-                  Clear All
+                  Build Route
                 </button>
-                {buildGoogleMapsUrl(tripStops) && (
-                  <a
-                    href={buildGoogleMapsUrl(tripStops) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
-                  >
-                    Open in Google Maps
-                  </a>
-                )}
-                {buildAppleMapsUrl(tripStops) && (
-                  <a
-                    href={buildAppleMapsUrl(tripStops) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                  >
-                    Open in Apple Maps
-                  </a>
+                {finalRoute.length > 1 && (
+                  <>
+                    <a
+                      href={buildGoogleMapsUrl(finalRoute) || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 text-center"
+                    >
+                      Open in Google Maps
+                    </a>
+                    <a
+                      href={buildAppleMapsUrl(finalRoute) || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 text-center"
+                    >
+                      Open in Apple Maps
+                    </a>
+                    <button
+                      onClick={handleClearStops}
+                      className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                    >
+                      Clear All
+                    </button>
+                  </>
                 )}
               </div>
             </div>

@@ -171,7 +171,6 @@ export default function CertisMap({
             feature.properties?.Category || ""
           );
         }
-
         const stateSet = new Set<string>();
         const retailerSetAll = new Set<string>();
         const supplierSet = new Set<string>();
@@ -439,8 +438,7 @@ export default function CertisMap({
     onRetailerSummary,
     onRetailersLoaded,
   ]);
-
-  // ✅ Trip route logic stays unchanged
+  // ✅ Trip route logic
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -574,3 +572,5 @@ export default function CertisMap({
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
+
+
