@@ -27,15 +27,19 @@ const categoryLabels: Record<string, string> = {
   kingpin: "Kingpin",
 };
 
+// ✅ Clean addresses for export URLs
+const cleanAddress = (addr: string) =>
+  encodeURIComponent((addr || "").replace(/\s+/g, " ").trim());
+
 // ✅ Build external map URLs
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "https://www.google.com/maps/dir/?api=1";
-  const origin = encodeURIComponent(stops[0].address);
-  const destination = encodeURIComponent(stops[stops.length - 1].address);
+  const origin = cleanAddress(stops[0].address);
+  const destination = cleanAddress(stops[stops.length - 1].address);
   const waypoints = stops
     .slice(1, -1)
-    .map((s) => encodeURIComponent(s.address))
+    .map((s) => cleanAddress(s.address))
     .join("|");
   return `${base}&origin=${origin}&destination=${destination}${
     waypoints ? `&waypoints=${waypoints}` : ""
@@ -45,10 +49,10 @@ function buildGoogleMapsUrl(stops: Stop[]) {
 function buildAppleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "http://maps.apple.com/?dirflg=d";
-  const origin = encodeURIComponent(stops[0].address);
+  const origin = cleanAddress(stops[0].address);
   const daddr = stops
     .slice(1)
-    .map((s) => encodeURIComponent(s.address))
+    .map((s) => cleanAddress(s.address))
     .join("+to:");
   return `${base}&saddr=${origin}&daddr=${daddr}`;
 }
@@ -543,4 +547,3 @@ export default function Page() {
 }
 
 // === PART 2 END ===
-
