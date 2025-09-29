@@ -81,8 +81,7 @@ export default function Page() {
   // ✅ Trip Optimization
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
-  const [finalRoute, setFinalRoute] = useState<Stop[]>([]);
-  const [optimizedStops, setOptimizedStops] = useState<Stop[]>([]); // ✅ new state
+  const [optimizedStops, setOptimizedStops] = useState<Stop[]>([]);
 
   // ✅ Home Zip
   const [homeZip, setHomeZip] = useState("");
@@ -100,8 +99,7 @@ export default function Page() {
 
   const handleClearStops = () => {
     setTripStops([]);
-    setFinalRoute([]);
-    setOptimizedStops([]); // ✅ clear optimized list too
+    setOptimizedStops([]);
   };
 
   // ✅ Geocode ZIP → coords
@@ -132,20 +130,11 @@ export default function Page() {
     }
   };
 
-  // ✅ Build route
-  const handleBuildRoute = () => {
-    if (tripStops.length === 0) return;
-    if (tripMode === "entered") {
-      setFinalRoute([...tripStops]);
-    } else {
-      // ✅ use optimized route if available
-      if (optimizedStops.length > 0) {
-        setFinalRoute([...optimizedStops]);
-      } else {
-        setFinalRoute([...tripStops]); // fallback
-      }
-    }
-  };
+  // ✅ Choose correct export list
+  const exportStops =
+    tripMode === "optimize" && optimizedStops.length > 0
+      ? optimizedStops
+      : tripStops;
 
   // ========================================
   // 🔘 Category Handlers
@@ -219,8 +208,8 @@ export default function Page() {
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
 
-// === PART 1 END ===
-// === PART 2 START ===
+  // === PART 1 END ===
+  // === PART 2 START ===
 
   return (
     <div className="flex h-screen w-screen relative">
@@ -429,9 +418,8 @@ export default function Page() {
                 ({s.count} sites) <br />
                 Suppliers: {s.suppliers.join(", ") || "N/A"} <br />
                 Categories:{" "}
-                {s.categories
-                  .map((c) => categoryLabels[norm(c)] || c)
-                  .join(", ") || "N/A"}
+                {s.categories.map((c) => categoryLabels[norm(c)] || c).join(", ") ||
+                  "N/A"}
               </div>
             ))}
             {kingpinSummary.length > 0 && (
@@ -492,17 +480,16 @@ export default function Page() {
                 ))}
               </ol>
               <div className="flex flex-col gap-2 mt-3">
-                {/* ✅ Button order fixed */}
                 <button
-                  onClick={handleBuildRoute}
+                  onClick={() => {}}
                   className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
                 >
                   Build Route
                 </button>
-                {finalRoute.length > 1 && (
+                {exportStops.length > 1 && (
                   <>
                     <a
-                      href={buildGoogleMapsUrl(finalRoute) || "#"}
+                      href={buildGoogleMapsUrl(exportStops) || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 text-center"
@@ -510,7 +497,7 @@ export default function Page() {
                       Open in Google Maps
                     </a>
                     <a
-                      href={buildAppleMapsUrl(finalRoute) || "#"}
+                      href={buildAppleMapsUrl(exportStops) || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 text-center"
@@ -528,9 +515,7 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              No stops added yet.
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
           )}
         </div>
       </aside>
@@ -550,7 +535,7 @@ export default function Page() {
           onRemoveStop={handleRemoveStop}
           tripStops={tripStops}
           tripMode={tripMode}
-          onOptimizedRoute={setOptimizedStops} // ✅ new prop
+          onOptimizedRoute={setOptimizedStops}
         />
       </main>
     </div>
