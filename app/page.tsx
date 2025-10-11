@@ -27,33 +27,50 @@ const categoryLabels: Record<string, string> = {
   kingpin: "Kingpin",
 };
 
-// ✅ Clean addresses for export URLs
-const cleanAddress = (addr: string) =>
-  encodeURIComponent((addr || "").replace(/\s+/g, " ").trim());
+// ✅ Build cleaner, structured address for exports
+const formatFullAddress = (stop: Stop) => {
+  const parts = [
+    stop.address,
+    stop.city,
+    stop.state,
+    stop.zip ? stop.zip.toString() : "",
+  ].filter(Boolean);
+  return parts.join(", ");
+};
 
-// ✅ Build external map URLs
+// ✅ Helper for encoding addresses for URL
+const encodeAddress = (address: string) =>
+  encodeURIComponent((address || "").replace(/\s+/g, " ").trim());
+
+// ✅ Build Google Maps URL with structured addresses
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "https://www.google.com/maps/dir/?api=1";
-  const origin = cleanAddress(stops[0].address);
-  const destination = cleanAddress(stops[stops.length - 1].address);
+
+  const origin = encodeAddress(formatFullAddress(stops[0]));
+  const destination = encodeAddress(formatFullAddress(stops[stops.length - 1]));
+
   const waypoints = stops
     .slice(1, -1)
-    .map((s) => cleanAddress(s.address))
+    .map((s) => encodeAddress(formatFullAddress(s)))
     .join("|");
+
   return `${base}&origin=${origin}&destination=${destination}${
     waypoints ? `&waypoints=${waypoints}` : ""
   }`;
 }
 
+// ✅ Build Apple Maps URL with structured addresses
 function buildAppleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "http://maps.apple.com/?dirflg=d";
-  const origin = cleanAddress(stops[0].address);
+
+  const origin = encodeAddress(formatFullAddress(stops[0]));
   const daddr = stops
     .slice(1)
-    .map((s) => cleanAddress(s.address))
+    .map((s) => encodeAddress(formatFullAddress(s)))
     .join("+to:");
+
   return `${base}&saddr=${origin}&daddr=${daddr}`;
 }
 
@@ -134,6 +151,22 @@ export default function Page() {
     }
   };
 
+  // ✅ Build Route Button Logic
+  const handleBuildRoute = () => {
+    if (tripStops.length < 2) {
+      alert("Please add at least two stops before building a route.");
+      return;
+    }
+
+    // Flip the mode briefly to ensure re-render of map route logic
+    setTripMode((prev) => (prev === "entered" ? "optimize" : "entered"));
+
+    // Small delay to re-apply chosen mode (forces route refresh)
+    setTimeout(() => {
+      setTripMode((prev) => (prev === "entered" ? "entered" : "optimize"));
+    }, 300);
+  };
+
   // ✅ Choose correct export list
   const exportStops =
     tripMode === "optimize" && optimizedStops.length > 0
@@ -146,13 +179,18 @@ export default function Page() {
   const handleToggleCategory = (category: string) => {
     const normalized = norm(category);
     setSelectedCategories((prev) =>
-      prev.includes(normalized) ? prev.filter((c) => c !== normalized) : [...prev, normalized]
+      prev.includes(normalized)
+        ? prev.filter((c) => c !== normalized)
+        : [...prev, normalized]
     );
   };
 
-  const handleSelectAllCategories = () => {
-    setSelectedCategories(Object.keys(categoryColors).filter((c) => c !== "Kingpin").map(norm));
-  };
+  const handleSelectAllCategories = () =>
+    setSelectedCategories(
+      Object.keys(categoryColors)
+        .filter((c) => c !== "Kingpin")
+        .map(norm)
+    );
 
   const handleClearAllCategories = () => setSelectedCategories([]);
 
@@ -162,11 +200,14 @@ export default function Page() {
   const handleToggleState = (state: string) => {
     const normalized = norm(state);
     setSelectedStates((prev) =>
-      prev.includes(normalized) ? prev.filter((s) => s !== normalized) : [...prev, normalized]
+      prev.includes(normalized)
+        ? prev.filter((s) => s !== normalized)
+        : [...prev, normalized]
     );
   };
 
-  const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
+  const handleSelectAllStates = () =>
+    setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
   // ========================================
@@ -174,7 +215,9 @@ export default function Page() {
   // ========================================
   const handleToggleSupplier = (supplier: string) => {
     setSelectedSuppliers((prev) =>
-      prev.includes(supplier) ? prev.filter((s) => s !== supplier) : [...prev, supplier]
+      prev.includes(supplier)
+        ? prev.filter((s) => s !== supplier)
+        : [...prev, supplier]
     );
   };
   const handleSelectAllSuppliers = () => setSelectedSuppliers(availableSuppliers);
@@ -186,10 +229,13 @@ export default function Page() {
   const handleToggleRetailer = (retailer: string) => {
     const normalized = norm(retailer);
     setSelectedRetailers((prev) =>
-      prev.includes(normalized) ? prev.filter((r) => r !== normalized) : [...prev, normalized]
+      prev.includes(normalized)
+        ? prev.filter((r) => r !== normalized)
+        : [...prev, normalized]
     );
   };
-  const handleSelectAllRetailers = () => setSelectedRetailers(availableRetailers.map(norm));
+  const handleSelectAllRetailers = () =>
+    setSelectedRetailers(availableRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // ========================================
@@ -212,9 +258,7 @@ export default function Page() {
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
 
-  // === PART 1 END ===
-  // === PART 2 START ===
-
+  // === UI Rendering ===
   return (
     <div className="flex h-screen w-screen relative">
       {/* 📱 Mobile Hamburger Button */}
@@ -244,7 +288,9 @@ export default function Page() {
 
         {/* 🟦 Tile 1: Home Zip Code */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home Zip Code</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Home Zip Code
+          </h2>
           <div className="flex space-x-2">
             <input
               type="text"
@@ -269,7 +315,9 @@ export default function Page() {
 
         {/* 🟦 Tile 2: State Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">States</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            States
+          </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={handleSelectAllStates}
@@ -303,7 +351,9 @@ export default function Page() {
 
         {/* 🟦 Tile 3: Retailer Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Retailers</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Retailers
+          </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={handleSelectAllRetailers}
@@ -337,7 +387,9 @@ export default function Page() {
 
         {/* 🟦 Tile 4: Supplier Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Suppliers</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Suppliers
+          </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={handleSelectAllSuppliers}
@@ -366,9 +418,11 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 5: Categories (Legend) */}
+        {/* 🟦 Tile 5: Categories */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Categories</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Categories
+          </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={handleSelectAllCategories}
@@ -422,8 +476,9 @@ export default function Page() {
                 ({s.count} sites) <br />
                 Suppliers: {s.suppliers.join(", ") || "N/A"} <br />
                 Categories:{" "}
-                {s.categories.map((c) => categoryLabels[norm(c)] || c).join(", ") ||
-                  "N/A"}
+                {s.categories
+                  .map((c) => categoryLabels[norm(c)] || c)
+                  .join(", ") || "N/A"}
               </div>
             ))}
             {kingpinSummary.length > 0 && (
@@ -448,7 +503,9 @@ export default function Page() {
                 checked={tripMode === "entered"}
                 onChange={() => setTripMode("entered")}
               />
-              <span className="text-gray-700 dark:text-gray-300">Map as Entered</span>
+              <span className="text-gray-700 dark:text-gray-300">
+                Map as Entered
+              </span>
             </label>
             <label className="flex items-center space-x-1 cursor-pointer">
               <input
@@ -457,7 +514,9 @@ export default function Page() {
                 checked={tripMode === "optimize"}
                 onChange={() => setTripMode("optimize")}
               />
-              <span className="text-gray-700 dark:text-gray-300">Optimize Route</span>
+              <span className="text-gray-700 dark:text-gray-300">
+                Optimize Route
+              </span>
             </label>
           </div>
 
@@ -469,7 +528,7 @@ export default function Page() {
                     <div>
                       <div className="font-semibold">{stop.label}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {stop.address}
+                        {formatFullAddress(stop)}
                       </div>
                     </div>
                     {i > 0 && (
@@ -483,13 +542,15 @@ export default function Page() {
                   </li>
                 ))}
               </ol>
+
               <div className="flex flex-col gap-2 mt-3">
                 <button
-                  onClick={() => {}}
+                  onClick={handleBuildRoute}
                   className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
                 >
                   Build Route
                 </button>
+
                 {exportStops.length > 1 && (
                   <>
                     <a
@@ -519,7 +580,9 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No stops added yet.
+            </p>
           )}
         </div>
       </aside>
@@ -546,4 +609,4 @@ export default function Page() {
   );
 }
 
-// === PART 2 END ===
+// === END OF FILE ===

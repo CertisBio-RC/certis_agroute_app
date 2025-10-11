@@ -29,7 +29,7 @@ const normalizeCategory = (cat: string) => {
     case "feed":
       return "feed";
     case "agronomy/grain":
-      return "agronomy/grain"; // special combo
+      return "agronomy/grain";
     case "office/service":
     case "officeservice":
       return "officeservice";
@@ -42,7 +42,7 @@ const normalizeCategory = (cat: string) => {
   }
 };
 
-// ✅ Expand combo/alias categories → multiple canonical categories
+// ✅ Expand combo/alias categories
 const expandCategories = (cat: string): string[] => {
   const norm = normalizeCategory(cat);
   if (norm === "agronomy/grain") return ["agronomy", "grain"];
@@ -50,7 +50,7 @@ const expandCategories = (cat: string): string[] => {
   return [norm];
 };
 
-// ✅ Assign a primary display category for color-coding
+// ✅ Assign display category
 const assignDisplayCategory = (cat: string): string => {
   const expanded = expandCategories(cat);
   if (expanded.includes("agronomy")) return "Agronomy";
@@ -65,7 +65,7 @@ const assignDisplayCategory = (cat: string): string => {
 // ✅ Helper normalizer
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 
-// ✅ Supplier name map
+// ✅ Supplier normalization
 const SUPPLIER_NAME_MAP: Record<string, string> = {
   chs: "CHS",
   winfield: "Winfield",
@@ -95,13 +95,17 @@ function splitAndStandardizeSuppliers(raw: string | undefined): string[] {
     .map(standardizeSupplier);
 }
 
-// ✅ Trip Stop structure
+// ✅ Trip Stop structure (fully extended)
 export interface Stop {
   label: string;
   address: string;
   coords: [number, number];
+  city?: string;
+  state?: string;
+  zip?: string | number;
 }
 
+// ✅ Component props
 export interface CertisMapProps {
   selectedCategories: string[];
   selectedStates: string[];
@@ -123,7 +127,7 @@ export interface CertisMapProps {
   onRemoveStop?: (index: number) => void;
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
-  onOptimizedRoute?: (stops: Stop[]) => void; // ✅ NEW
+  onOptimizedRoute?: (stops: Stop[]) => void;
 }
 
 export default function CertisMap({
@@ -148,7 +152,7 @@ export default function CertisMap({
     process.env.NEXT_PUBLIC_BASE_PATH || ""
   }/data/retailers.geojson?cacheBust=${Date.now()}`;
 
-  // ✅ Initial map + data load
+  // ✅ Initialize map and data
   useEffect(() => {
     if (mapRef.current) return;
 
@@ -167,7 +171,7 @@ export default function CertisMap({
         const response = await fetch(geojsonPath);
         const data = await response.json();
 
-        // 👉 Preprocess: assign DisplayCategory
+        // Assign display category
         for (const feature of data.features) {
           feature.properties.DisplayCategory = assignDisplayCategory(
             feature.properties?.Category || ""
@@ -185,7 +189,6 @@ export default function CertisMap({
 
           if (state) stateSet.add(state);
           if (retailer) retailerSetAll.add(retailer);
-
           splitAndStandardizeSuppliers(suppliersRaw).forEach((s) =>
             supplierSet.add(s)
           );
@@ -243,32 +246,24 @@ export default function CertisMap({
           maxWidth: "none",
         });
 
+        // ✅ Build Popup
         function buildPopupHTML(props: any, coords: [number, number]) {
           const retailer = props.Retailer || "Unknown";
           const siteName = props.Name || "";
           const category = props.DisplayCategory || "N/A";
           const stopLabel = siteName ? `${retailer} – ${siteName}` : retailer;
-
           const suppliers =
             splitAndStandardizeSuppliers(props.Suppliers).join(", ") || "N/A";
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
-          const addressLine = `${props.Address || ""}, ${props.City || ""}, ${
-            props.State || ""
-          } ${props.Zip || ""}`;
-
           const html = `
-            <div style="font-size: 13px; width:360px; background:#1a1a1a; color:#f5f5f5;
-                        padding:6px; border-radius:4px; position:relative;">
+            <div style="font-size:13px;width:360px;background:#1a1a1a;color:#f5f5f5;
+                        padding:6px;border-radius:4px;position:relative;">
               <button id="${btnId}"
-                style="position:absolute; top:4px; right:4px; padding:2px 6px;
-                       background:#166534; color:#fff; border:none; border-radius:3px;
-                       font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px; font-weight:600;">
-                <span style="background:#fff; color:#166534; border-radius:50%; width:14px; height:14px;
-                             display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold;">
-                  +
-                </span>
-                Add to Trip
+                style="position:absolute;top:4px;right:4px;padding:2px 6px;
+                       background:#166534;color:#fff;border:none;border-radius:3px;
+                       font-size:11px;cursor:pointer;font-weight:600;">
+                + Add to Trip
               </button>
               <strong>${retailer}</strong><br/>
               <em>${siteName}</em><br/>
@@ -285,7 +280,10 @@ export default function CertisMap({
               btn.onclick = () =>
                 onAddStop({
                   label: stopLabel,
-                  address: addressLine,
+                  address: props.Address || "",
+                  city: props.City || "",
+                  state: props.State || "",
+                  zip: props.Zip || "",
                   coords,
                 });
             }
@@ -328,10 +326,7 @@ export default function CertisMap({
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-// === PART 1 END ===
-// === PART 2 START ===
-
-  // ✅ Dynamic filtering + retailer summary
+  // ✅ Filtering + summary
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -341,10 +336,9 @@ export default function CertisMap({
     fetch(geojsonPath)
       .then((res) => res.json())
       .then((data) => {
-        // preprocess again
-        for (const feature of data.features) {
-          feature.properties.DisplayCategory = assignDisplayCategory(
-            feature.properties?.Category || ""
+        for (const f of data.features) {
+          f.properties.DisplayCategory = assignDisplayCategory(
+            f.properties?.Category || ""
           );
         }
 
@@ -374,7 +368,6 @@ export default function CertisMap({
 
         source.setData(filtered);
 
-        // ✅ Group by retailer with states[]
         if (onRetailerSummary) {
           const summaryMap = new Map<
             string,
@@ -386,6 +379,7 @@ export default function CertisMap({
               states: string[];
             }
           >();
+
           for (const f of filtered.features) {
             const props = f.properties || {};
             if (props.DisplayCategory === "Kingpin") continue;
@@ -404,11 +398,10 @@ export default function CertisMap({
                 states: [],
               });
             }
+
             const entry = summaryMap.get(retailer)!;
             entry.count += 1;
-            if (state && !entry.states.includes(state)) {
-              entry.states.push(state);
-            }
+            if (state && !entry.states.includes(state)) entry.states.push(state);
             suppliers.forEach((s) => {
               if (s && !entry.suppliers.includes(s)) entry.suppliers.push(s);
             });
@@ -419,33 +412,10 @@ export default function CertisMap({
 
           onRetailerSummary(Array.from(summaryMap.values()));
         }
-
-        if (onRetailersLoaded) {
-          const visibleRetailers = new Set<string>();
-          for (const f of data.features) {
-            const props = f.properties || {};
-            if (props.DisplayCategory === "Kingpin") continue;
-            if (
-              selectedStates.length === 0 ||
-              selectedStates.map(norm).includes(norm(props.State))
-            ) {
-              if (props.Retailer) visibleRetailers.add(props.Retailer);
-            }
-          }
-          onRetailersLoaded(Array.from(visibleRetailers).sort());
-        }
       });
-  }, [
-    geojsonPath,
-    selectedStates,
-    selectedRetailers,
-    selectedCategories,
-    selectedSuppliers,
-    onRetailerSummary,
-    onRetailersLoaded,
-  ]);
+  }, [geojsonPath, selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
 
-  // ✅ Trip route logic
+  // ✅ Trip Route logic
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -486,30 +456,22 @@ export default function CertisMap({
           map.removeLayer("trip-route");
           map.removeSource("trip-route");
         }
+
         map.addSource("trip-route", {
           type: "geojson",
           data: {
             type: "FeatureCollection",
-            features: [
-              {
-                type: "Feature",
-                geometry: route,
-                properties: {},
-              },
-            ],
+            features: [{ type: "Feature", geometry: route, properties: {} }],
           },
         });
+
         map.addLayer({
           id: "trip-route",
           type: "line",
           source: "trip-route",
-          paint: {
-            "line-color": "#1E90FF",
-            "line-width": 4,
-          },
+          paint: { "line-color": "#1E90FF", "line-width": 4 },
         });
 
-        // waypoints → ordered stops
         let orderedStops = [...tripStops];
         if (tripMode === "optimize" && data.waypoints) {
           const sorted = [...data.waypoints].sort(
@@ -518,7 +480,9 @@ export default function CertisMap({
           orderedStops = sorted.map((wp: any) => {
             const [lng, lat] = wp.location;
             return (
-              tripStops.find((s) => s.coords[0] === lng && s.coords[1] === lat) || {
+              tripStops.find(
+                (s) => s.coords[0] === lng && s.coords[1] === lat
+              ) || {
                 label: wp.name || "Stop",
                 address: "",
                 coords: [lng, lat] as [number, number],
@@ -527,10 +491,7 @@ export default function CertisMap({
           });
         }
 
-        // ✅ Send back to parent
-        if (onOptimizedRoute) {
-          onOptimizedRoute(orderedStops);
-        }
+        onOptimizedRoute?.(orderedStops);
 
         const stopsGeoJSON: GeoJSON.FeatureCollection = {
           type: "FeatureCollection",
@@ -546,6 +507,7 @@ export default function CertisMap({
           map.removeLayer("trip-stops-label");
           map.removeSource("trip-stops");
         }
+
         map.addSource("trip-stops", { type: "geojson", data: stopsGeoJSON });
 
         map.addLayer({
@@ -582,5 +544,3 @@ export default function CertisMap({
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
-
-// === PART 2 END ===
