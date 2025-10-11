@@ -9960,27 +9960,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          NaN,
-          NaN
-        ]
-      },
-      "properties": {
-        "Retailer": "Conserv FS",
-        "Long Name": "Conserv FS - IL",
-        "Name": "St. Charles Service Center",
-        "Address": "1500 Foundry St #1",
-        "City": "St. Charles",
-        "State": "IL",
-        "Zip": 60174,
-        "Category": "Agronomy",
-        "Suppliers": "Growmark"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -87.80783,
           41.55776
         ]
@@ -17785,27 +17764,6 @@
         "State": "IA",
         "Zip": 51357,
         "Category": "Office/Service",
-        "Suppliers": "Growmark"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          NaN,
-          NaN
-        ]
-      },
-      "properties": {
-        "Retailer": "New Century FS",
-        "Long Name": "New Century FS - IA",
-        "Name": "State Center",
-        "Address": "103 3rd Ave NE #A",
-        "City": "State Center",
-        "State": "IA",
-        "Zip": 50247,
-        "Category": "Agronomy",
         "Suppliers": "Growmark"
       }
     },
