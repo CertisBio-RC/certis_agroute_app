@@ -120,11 +120,11 @@ export interface CertisMapProps {
     }[]
   ) => void;
   onAddStop?: (stop: Stop) => void;
+  onRemoveStop?: (index: number) => void; // ✅ Added line
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
   onOptimizedRoute?: (stops: Stop[]) => void;
 }
-
 // ✅ Component
 export default function CertisMap({
   selectedCategories,
@@ -493,11 +493,9 @@ export default function CertisMap({
           },
         });
       })
-      .catch((err) => console.error("Directions/Optimization API error
       .catch((err) => console.error("Directions/Optimization API error:", err));
   }, [tripStops, tripMode, onOptimizedRoute]);
 
   // ✅ Render Map Container
   return <div ref={mapContainer} className="w-full h-full" />;
 }
-
