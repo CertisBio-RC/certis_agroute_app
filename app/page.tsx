@@ -22,12 +22,12 @@ const categoryLabels: Record<string, string> = {
   feed: "Feed",
   "grain/feed": "Grain/Feed",
   "office/service": "Office/Service",
-  officeservice: "Office/Service", // ✅ safeguard
+  officeservice: "Office/Service",
   distribution: "Distribution",
   kingpin: "Kingpin",
 };
 
-// ✅ Build cleaner, structured address for exports
+// ✅ Build cleaner address string
 const formatFullAddress = (stop: Stop) => {
   const parts = [
     stop.address,
@@ -42,35 +42,30 @@ const formatFullAddress = (stop: Stop) => {
 const encodeAddress = (address: string) =>
   encodeURIComponent((address || "").replace(/\s+/g, " ").trim());
 
-// ✅ Build Google Maps URL with structured addresses
+// ✅ Build Google Maps URL (handles both entered and optimized)
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "https://www.google.com/maps/dir/?api=1";
-
   const origin = encodeAddress(formatFullAddress(stops[0]));
   const destination = encodeAddress(formatFullAddress(stops[stops.length - 1]));
-
   const waypoints = stops
     .slice(1, -1)
     .map((s) => encodeAddress(formatFullAddress(s)))
     .join("|");
-
   return `${base}&origin=${origin}&destination=${destination}${
     waypoints ? `&waypoints=${waypoints}` : ""
   }`;
 }
 
-// ✅ Build Apple Maps URL with structured addresses
+// ✅ Build Apple Maps URL (parallel to Google)
 function buildAppleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "http://maps.apple.com/?dirflg=d";
-
   const origin = encodeAddress(formatFullAddress(stops[0]));
   const daddr = stops
     .slice(1)
     .map((s) => encodeAddress(formatFullAddress(s)))
     .join("+to:");
-
   return `${base}&saddr=${origin}&daddr=${daddr}`;
 }
 
@@ -104,20 +99,20 @@ export default function Page() {
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
   const [optimizedStops, setOptimizedStops] = useState<Stop[]>([]);
 
-  // ✅ Home Zip
+  // ✅ Home ZIP
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
+  // ========================================
+  // 🧭 Trip Stop Handlers
+  // ========================================
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label && s.address === stop.address)) {
       setTripStops((prev) => [...prev, stop]);
     }
   };
-
-  const handleRemoveStop = (index: number) => {
+  const handleRemoveStop = (index: number) =>
     setTripStops((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleClearStops = () => {
     setTripStops([]);
     setOptimizedStops([]);
@@ -151,31 +146,30 @@ export default function Page() {
     }
   };
 
-  // ✅ Build Route Button Logic
+  // ✅ Route Builder (ensures Google Maps receives latest order)
   const handleBuildRoute = () => {
     if (tripStops.length < 2) {
       alert("Please add at least two stops before building a route.");
       return;
     }
-
-    // Flip the mode briefly to ensure re-render of map route logic
+    // Trigger map refresh
     setTripMode((prev) => (prev === "entered" ? "optimize" : "entered"));
-
-    // Small delay to re-apply chosen mode (forces route refresh)
     setTimeout(() => {
       setTripMode((prev) => (prev === "entered" ? "entered" : "optimize"));
     }, 300);
   };
 
-  // ✅ Choose correct export list
+  // ✅ Export Stops Resolver (as entered vs optimized)
   const exportStops =
     tripMode === "optimize" && optimizedStops.length > 0
       ? optimizedStops
       : tripStops;
 
   // ========================================
-  // 🔘 Category Handlers
+  // 🔘 Filter Handlers (Categories / States / Suppliers / Retailers)
   // ========================================
+
+  // --- Categories
   const handleToggleCategory = (category: string) => {
     const normalized = norm(category);
     setSelectedCategories((prev) =>
@@ -184,19 +178,15 @@ export default function Page() {
         : [...prev, normalized]
     );
   };
-
   const handleSelectAllCategories = () =>
     setSelectedCategories(
       Object.keys(categoryColors)
         .filter((c) => c !== "Kingpin")
         .map(norm)
     );
-
   const handleClearAllCategories = () => setSelectedCategories([]);
 
-  // ========================================
-  // 🔘 State Handlers
-  // ========================================
+  // --- States
   const handleToggleState = (state: string) => {
     const normalized = norm(state);
     setSelectedStates((prev) =>
@@ -205,14 +195,10 @@ export default function Page() {
         : [...prev, normalized]
     );
   };
-
-  const handleSelectAllStates = () =>
-    setSelectedStates(availableStates.map(norm));
+  const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
-  // ========================================
-  // 🔘 Supplier Handlers
-  // ========================================
+  // --- Suppliers
   const handleToggleSupplier = (supplier: string) => {
     setSelectedSuppliers((prev) =>
       prev.includes(supplier)
@@ -223,9 +209,7 @@ export default function Page() {
   const handleSelectAllSuppliers = () => setSelectedSuppliers(availableSuppliers);
   const handleClearAllSuppliers = () => setSelectedSuppliers([]);
 
-  // ========================================
-  // 🔘 Retailer Handlers
-  // ========================================
+  // --- Retailers
   const handleToggleRetailer = (retailer: string) => {
     const normalized = norm(retailer);
     setSelectedRetailers((prev) =>
@@ -237,9 +221,8 @@ export default function Page() {
   const handleSelectAllRetailers = () =>
     setSelectedRetailers(availableRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
-
   // ========================================
-  // 🟦 Derived summaries
+  // 🧮 Derived Summaries
   // ========================================
   const kingpinSummary = retailerSummary.filter(
     (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
@@ -258,7 +241,9 @@ export default function Page() {
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
 
-  // === UI Rendering ===
+  // ========================================
+  // 🖼️ Render UI
+  // ========================================
   return (
     <div className="flex h-screen w-screen relative">
       {/* 📱 Mobile Hamburger Button */}
@@ -272,8 +257,9 @@ export default function Page() {
 
       {/* 📌 Sidebar */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-96 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+        className={`fixed md:static top-0 left-0 h-full w-96 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0`}
       >
         {/* Logo */}
         <div className="flex items-center justify-center mb-6">
@@ -286,7 +272,7 @@ export default function Page() {
           />
         </div>
 
-        {/* 🟦 Tile 1: Home Zip Code */}
+        {/* 🟦 Tile 1: Home ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Home Zip Code
@@ -610,3 +596,4 @@ export default function Page() {
 }
 
 // === END OF FILE ===
+
