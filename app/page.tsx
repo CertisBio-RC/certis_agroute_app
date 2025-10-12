@@ -9,13 +9,16 @@ import { Menu, X } from "lucide-react";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-// ✅ Normalizer
-const norm = (val: string) => (val || "").toString().trim().toLowerCase();
+// ✅ Helpers
+const norm = (v: string) => (v || "").toString().trim().toLowerCase();
+const capitalizeState = (v: string) => (v || "").toUpperCase();
+const formatFullAddress = (s: Stop) =>
+  [s.address, s.city, s.state, s.zip ? s.zip.toString() : ""]
+    .filter(Boolean)
+    .join(", ");
+const encodeAddress = (a: string) =>
+  encodeURIComponent((a || "").replace(/\s+/g, " ").trim());
 
-// ✅ Capitalizer for state abbreviations
-const capitalizeState = (val: string) => (val || "").toUpperCase();
-
-// ✅ Category label cleanup
 const categoryLabels: Record<string, string> = {
   agronomy: "Agronomy",
   grain: "Grain",
@@ -27,42 +30,32 @@ const categoryLabels: Record<string, string> = {
   kingpin: "Kingpin",
 };
 
-// ✅ Build cleaner address string
-const formatFullAddress = (stop: Stop) => {
-  const parts = [
-    stop.address,
-    stop.city,
-    stop.state,
-    stop.zip ? stop.zip.toString() : "",
-  ].filter(Boolean);
-  return parts.join(", ");
-};
-
-// ✅ Helper for encoding addresses for URL
-const encodeAddress = (address: string) =>
-  encodeURIComponent((address || "").replace(/\s+/g, " ").trim());
-
-// ✅ Build Google Maps URL (handles both entered and optimized)
-function buildGoogleMapsUrl(stops: Stop[]) {
+// ✅ Build URLs (adds return to Home if set)
+function buildGoogleMapsUrl(stops: Stop[], homeZip?: string) {
   if (stops.length < 2) return null;
+  let route = [...stops];
+  if (homeZip && !stops[stops.length - 1].label.startsWith("Home"))
+    route = [...stops, stops[0]];
   const base = "https://www.google.com/maps/dir/?api=1";
-  const origin = encodeAddress(formatFullAddress(stops[0]));
-  const destination = encodeAddress(formatFullAddress(stops[stops.length - 1]));
-  const waypoints = stops
+  const origin = encodeAddress(formatFullAddress(route[0]));
+  const dest = encodeAddress(formatFullAddress(route[route.length - 1]));
+  const waypoints = route
     .slice(1, -1)
     .map((s) => encodeAddress(formatFullAddress(s)))
     .join("|");
-  return `${base}&origin=${origin}&destination=${destination}${
+  return `${base}&origin=${origin}&destination=${dest}${
     waypoints ? `&waypoints=${waypoints}` : ""
   }`;
 }
 
-// ✅ Build Apple Maps URL (parallel to Google)
-function buildAppleMapsUrl(stops: Stop[]) {
+function buildAppleMapsUrl(stops: Stop[], homeZip?: string) {
   if (stops.length < 2) return null;
+  let route = [...stops];
+  if (homeZip && !stops[stops.length - 1].label.startsWith("Home"))
+    route = [...stops, stops[0]];
   const base = "http://maps.apple.com/?dirflg=d";
-  const origin = encodeAddress(formatFullAddress(stops[0]));
-  const daddr = stops
+  const origin = encodeAddress(formatFullAddress(route[0]));
+  const daddr = route
     .slice(1)
     .map((s) => encodeAddress(formatFullAddress(s)))
     .join("+to:");
@@ -70,9 +63,9 @@ function buildAppleMapsUrl(stops: Stop[]) {
 }
 
 export default function Page() {
-  // ========================================
-  // 🎛️ State Hooks
-  // ========================================
+  // =========================
+  // 🎛 State Hooks
+  // =========================
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
@@ -81,7 +74,6 @@ export default function Page() {
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
-
   const [retailerSummary, setRetailerSummary] = useState<
     {
       retailer: string;
@@ -94,31 +86,30 @@ export default function Page() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // ✅ Trip Optimization
+  // 🧭 Trip
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
   const [optimizedStops, setOptimizedStops] = useState<Stop[]>([]);
-
-  // ✅ Home ZIP
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
-  // ========================================
-  // 🧭 Trip Stop Handlers
-  // ========================================
+  // =========================
+  // 🚗 Trip handlers
+  // =========================
   const handleAddStop = (stop: Stop) => {
-    if (!tripStops.some((s) => s.label === stop.label && s.address === stop.address)) {
-      setTripStops((prev) => [...prev, stop]);
-    }
+    setTripStops((prev) =>
+      prev.some((s) => s.label === stop.label && s.address === stop.address)
+        ? prev
+        : [...prev, stop]
+    );
   };
-  const handleRemoveStop = (index: number) =>
-    setTripStops((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveStop = (i: number) =>
+    setTripStops((p) => p.filter((_, idx) => idx !== i));
   const handleClearStops = () => {
     setTripStops([]);
     setOptimizedStops([]);
   };
 
-  // ✅ Geocode ZIP → coords
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
     try {
@@ -127,126 +118,108 @@ export default function Page() {
           homeZip
         )}.json?access_token=${mapboxToken}&limit=1`
       );
-      const data = await res.json();
-      if (data.features && data.features.length > 0) {
-        const [lng, lat] = data.features[0].center;
+      const d = await res.json();
+      if (d.features && d.features.length) {
+        const [lng, lat] = d.features[0].center;
         setHomeCoords([lng, lat]);
-        const homeStop: Stop = {
+        const home: Stop = {
           label: `Home (${homeZip})`,
           address: homeZip,
           coords: [lng, lat],
         };
-        setTripStops((prev) => {
-          const withoutHome = prev.filter((s) => !s.label.startsWith("Home"));
-          return [homeStop, ...withoutHome];
-        });
+        setTripStops((p) => [
+          home,
+          ...p.filter((s) => !s.label.startsWith("Home")),
+        ]);
       }
-    } catch (err) {
-      console.error("Error geocoding ZIP:", err);
+    } catch (e) {
+      console.error("ZIP geocode error:", e);
     }
   };
 
-  // ✅ Route Builder (ensures Google Maps receives latest order)
   const handleBuildRoute = () => {
     if (tripStops.length < 2) {
-      alert("Please add at least two stops before building a route.");
+      alert("Add at least two stops first.");
       return;
     }
-    // Trigger map refresh
-    setTripMode((prev) => (prev === "entered" ? "optimize" : "entered"));
-    setTimeout(() => {
-      setTripMode((prev) => (prev === "entered" ? "entered" : "optimize"));
-    }, 300);
-  };
-
-  // ✅ Export Stops Resolver (as entered vs optimized)
-  const exportStops =
-    tripMode === "optimize" && optimizedStops.length > 0
-      ? optimizedStops
-      : tripStops;
-
-  // ========================================
-  // 🔘 Filter Handlers (Categories / States / Suppliers / Retailers)
-  // ========================================
-
-  // --- Categories
-  const handleToggleCategory = (category: string) => {
-    const normalized = norm(category);
-    setSelectedCategories((prev) =>
-      prev.includes(normalized)
-        ? prev.filter((c) => c !== normalized)
-        : [...prev, normalized]
+    setTripMode((m) => (m === "entered" ? "optimize" : "entered"));
+    setTimeout(
+      () => setTripMode((m) => (m === "entered" ? "entered" : "optimize")),
+      300
     );
   };
+
+  const exportStops = useMemo(() => {
+    const s =
+      tripMode === "optimize" && optimizedStops.length
+        ? optimizedStops
+        : tripStops;
+    if (
+      homeZip &&
+      s.length > 1 &&
+      !s[s.length - 1].label.startsWith("Home")
+    )
+      return [...s, s[0]];
+    return s;
+  }, [tripMode, optimizedStops, tripStops, homeZip]);
+
+  // =========================
+  // 🔘 Filter handlers
+  // =========================
+  const toggle = (prev: string[], val: string) =>
+    prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val];
+
+  const handleToggleCategory = (c: string) =>
+    setSelectedCategories((p) => toggle(p, norm(c)));
   const handleSelectAllCategories = () =>
     setSelectedCategories(
-      Object.keys(categoryColors)
-        .filter((c) => c !== "Kingpin")
-        .map(norm)
+      Object.keys(categoryColors).filter((c) => c !== "Kingpin").map(norm)
     );
   const handleClearAllCategories = () => setSelectedCategories([]);
 
-  // --- States
-  const handleToggleState = (state: string) => {
-    const normalized = norm(state);
-    setSelectedStates((prev) =>
-      prev.includes(normalized)
-        ? prev.filter((s) => s !== normalized)
-        : [...prev, normalized]
-    );
-  };
+  const handleToggleState = (s: string) => setSelectedStates((p) => toggle(p, norm(s)));
   const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
-  // --- Suppliers
-  const handleToggleSupplier = (supplier: string) => {
-    setSelectedSuppliers((prev) =>
-      prev.includes(supplier)
-        ? prev.filter((s) => s !== supplier)
-        : [...prev, supplier]
-    );
-  };
+  const handleToggleSupplier = (s: string) =>
+    setSelectedSuppliers((p) => toggle(p, s));
   const handleSelectAllSuppliers = () => setSelectedSuppliers(availableSuppliers);
   const handleClearAllSuppliers = () => setSelectedSuppliers([]);
 
-  // --- Retailers
-  const handleToggleRetailer = (retailer: string) => {
-    const normalized = norm(retailer);
-    setSelectedRetailers((prev) =>
-      prev.includes(normalized)
-        ? prev.filter((r) => r !== normalized)
-        : [...prev, normalized]
-    );
-  };
+  const handleToggleRetailer = (r: string) =>
+    setSelectedRetailers((p) => toggle(p, norm(r)));
   const handleSelectAllRetailers = () =>
     setSelectedRetailers(availableRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
-  // ========================================
-  // 🧮 Derived Summaries
-  // ========================================
+
+  // =========================
+  // 🧮 Derived summaries
+  // =========================
   const kingpinSummary = retailerSummary.filter(
     (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
   );
-
   const normalSummary = retailerSummary.filter(
     (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
   );
 
-  const filteredRetailersForSummary = useMemo(() => {
-    if (selectedStates.length === 0) return availableRetailers;
+  // ✅ NEW: dynamically filtered retailer list for sidebar
+  const filteredRetailers = useMemo(() => {
+    if (!selectedStates.length) return availableRetailers;
     return retailerSummary
-      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
+      .filter((s) =>
+        s.states.some((st) => selectedStates.includes(norm(st)))
+      )
       .map((s) => s.retailer)
       .filter((r, i, arr) => arr.indexOf(r) === i)
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
 
-  // ========================================
-  // 🖼️ Render UI
-  // ========================================
+  // =========================
+  // 🖼 Render UI
+  // =========================
   return (
     <div className="flex h-screen w-screen relative">
-      {/* 📱 Mobile Hamburger Button */}
+      {/* 📱 Hamburger */}
       <button
         className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -255,7 +228,7 @@ export default function Page() {
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-      {/* 📌 Sidebar */}
+      {/* 📋 Sidebar */}
       <aside
         className={`fixed md:static top-0 left-0 h-full w-96 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -299,106 +272,85 @@ export default function Page() {
           )}
         </div>
 
-        {/* 🟦 Tile 2: State Filter */}
+        {/* 🟦 Tile 2: States */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             States
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
-            <button
-              onClick={handleSelectAllStates}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-            >
+            <button onClick={handleSelectAllStates} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
               Select All
             </button>
-            <button
-              onClick={handleClearAllStates}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
-            >
+            <button onClick={handleClearAllStates} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
               Clear
             </button>
           </div>
           <div className="grid grid-cols-3 gap-1 text-sm">
-            {availableStates.map((state) => {
-              const normalized = norm(state);
-              return (
-                <label key={state} className="flex items-center space-x-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedStates.includes(normalized)}
-                    onChange={() => handleToggleState(state)}
-                  />
-                  <span>{capitalizeState(state)}</span>
-                </label>
-              );
-            })}
+            {availableStates.map((s) => (
+              <label key={s} className="flex items-center space-x-1">
+                <input
+                  type="checkbox"
+                  checked={selectedStates.includes(norm(s))}
+                  onChange={() => handleToggleState(s)}
+                />
+                <span>{capitalizeState(s)}</span>
+              </label>
+            ))}
           </div>
         </div>
 
-        {/* 🟦 Tile 3: Retailer Filter */}
+        {/* 🟦 Tile 3: Retailers */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Retailers
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-              onClick={handleSelectAllRetailers}
+              onClick={() => setSelectedRetailers(filteredRetailers.map(norm))}
               className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
             >
               Select All
             </button>
-            <button
-              onClick={handleClearAllRetailers}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
-            >
+            <button onClick={handleClearAllRetailers} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
               Clear
             </button>
           </div>
           <div className="max-h-40 overflow-y-auto text-sm">
-            {availableRetailers.map((retailer) => {
-              const normalized = norm(retailer);
-              return (
-                <label key={retailer} className="flex items-center space-x-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedRetailers.includes(normalized)}
-                    onChange={() => handleToggleRetailer(retailer)}
-                  />
-                  <span>{retailer}</span>
-                </label>
-              );
-            })}
+            {filteredRetailers.map((r) => (
+              <label key={r} className="flex items-center space-x-1">
+                <input
+                  type="checkbox"
+                  checked={selectedRetailers.includes(norm(r))}
+                  onChange={() => handleToggleRetailer(r)}
+                />
+                <span>{r}</span>
+              </label>
+            ))}
           </div>
         </div>
 
-        {/* 🟦 Tile 4: Supplier Filter */}
+        {/* 🟦 Tile 4: Suppliers */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Suppliers
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
-            <button
-              onClick={handleSelectAllSuppliers}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-            >
+            <button onClick={handleSelectAllSuppliers} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
               Select All
             </button>
-            <button
-              onClick={handleClearAllSuppliers}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
-            >
+            <button onClick={handleClearAllSuppliers} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
               Clear
             </button>
           </div>
           <div className="max-h-40 overflow-y-auto text-sm">
-            {availableSuppliers.map((supplier) => (
-              <label key={supplier} className="flex items-center space-x-1">
+            {availableSuppliers.map((s) => (
+              <label key={s} className="flex items-center space-x-1">
                 <input
                   type="checkbox"
-                  checked={selectedSuppliers.includes(supplier)}
-                  onChange={() => handleToggleSupplier(supplier)}
+                  checked={selectedSuppliers.includes(s)}
+                  onChange={() => handleToggleSupplier(s)}
                 />
-                <span>{supplier}</span>
+                <span>{s}</span>
               </label>
             ))}
           </div>
@@ -540,7 +492,7 @@ export default function Page() {
                 {exportStops.length > 1 && (
                   <>
                     <a
-                      href={buildGoogleMapsUrl(exportStops) || "#"}
+                      href={buildGoogleMapsUrl(exportStops, homeZip) || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 text-center"
@@ -548,7 +500,7 @@ export default function Page() {
                       Open in Google Maps
                     </a>
                     <a
-                      href={buildAppleMapsUrl(exportStops) || "#"}
+                      href={buildAppleMapsUrl(exportStops, homeZip) || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 text-center"
@@ -585,7 +537,6 @@ export default function Page() {
           onSuppliersLoaded={setAvailableSuppliers}
           onRetailerSummary={setRetailerSummary}
           onAddStop={handleAddStop}
-          onRemoveStop={handleRemoveStop}
           tripStops={tripStops}
           tripMode={tripMode}
           onOptimizedRoute={setOptimizedStops}
@@ -596,4 +547,3 @@ export default function Page() {
 }
 
 // === END OF FILE ===
-
