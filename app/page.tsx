@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
@@ -143,10 +143,8 @@ export default function Page() {
       return;
     }
     setTripMode((m) => (m === "entered" ? "optimize" : "entered"));
-    setTimeout(
-      () => setTripMode((m) => (m === "entered" ? "entered" : "optimize")),
-      300
-    );
+    setTimeout(() =>
+      setTripMode((m) => (m === "entered" ? "entered" : "optimize")), 300);
   };
 
   const exportStops = useMemo(() => {
@@ -177,13 +175,16 @@ export default function Page() {
     );
   const handleClearAllCategories = () => setSelectedCategories([]);
 
-  const handleToggleState = (s: string) => setSelectedStates((p) => toggle(p, norm(s)));
-  const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
+  const handleToggleState = (s: string) =>
+    setSelectedStates((p) => toggle(p, norm(s)));
+  const handleSelectAllStates = () =>
+    setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
   const handleToggleSupplier = (s: string) =>
     setSelectedSuppliers((p) => toggle(p, s));
-  const handleSelectAllSuppliers = () => setSelectedSuppliers(availableSuppliers);
+  const handleSelectAllSuppliers = () =>
+    setSelectedSuppliers(availableSuppliers);
   const handleClearAllSuppliers = () => setSelectedSuppliers([]);
 
   const handleToggleRetailer = (r: string) =>
@@ -193,7 +194,7 @@ export default function Page() {
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // =========================
-  // 🧮 Derived summaries
+  // 🧮 Derived summaries + persistence
   // =========================
   const kingpinSummary = retailerSummary.filter(
     (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
@@ -202,7 +203,6 @@ export default function Page() {
     (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
   );
 
-  // ✅ NEW: dynamically filtered retailer list for sidebar
   const filteredRetailers = useMemo(() => {
     if (!selectedStates.length) return availableRetailers;
     return retailerSummary
@@ -213,6 +213,13 @@ export default function Page() {
       .filter((r, i, arr) => arr.indexOf(r) === i)
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
+
+  // ✅ Persist selectedRetailers that remain valid
+  useEffect(() => {
+    setSelectedRetailers((prev) =>
+      prev.filter((r) => filteredRetailers.includes(r))
+    );
+  }, [filteredRetailers]);
 
   // =========================
   // 🖼 Render UI
@@ -278,10 +285,16 @@ export default function Page() {
             States
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={handleSelectAllStates} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
+            <button
+              onClick={handleSelectAllStates}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
               Select All
             </button>
-            <button onClick={handleClearAllStates} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
+            <button
+              onClick={handleClearAllStates}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
               Clear
             </button>
           </div>
@@ -299,19 +312,22 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 3: Retailers */}
+        {/* 🟦 Tile 3: Retailers (filtered + multi-select persistent) */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Retailers
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-              onClick={() => setSelectedRetailers(filteredRetailers.map(norm))}
+              onClick={handleSelectAllRetailers}
               className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
             >
               Select All
             </button>
-            <button onClick={handleClearAllRetailers} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
+            <button
+              onClick={handleClearAllRetailers}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
               Clear
             </button>
           </div>
@@ -335,10 +351,16 @@ export default function Page() {
             Suppliers
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={handleSelectAllSuppliers} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
+            <button
+              onClick={handleSelectAllSuppliers}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
               Select All
             </button>
-            <button onClick={handleClearAllSuppliers} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
+            <button
+              onClick={handleClearAllSuppliers}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
               Clear
             </button>
           </div>
