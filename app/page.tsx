@@ -443,7 +443,6 @@ export default function Page() {
 
         {/* 🟦 Tile 7: Trip Optimization */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Trip Optimization
           </h2>
