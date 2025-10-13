@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
@@ -127,10 +127,7 @@ export default function Page() {
           address: homeZip,
           coords: [lng, lat],
         };
-        setTripStops((p) => [
-          home,
-          ...p.filter((s) => !s.label.startsWith("Home")),
-        ]);
+        setTripStops((p) => [home, ...p.filter((s) => !s.label.startsWith("Home"))]);
       }
     } catch (e) {
       console.error("ZIP geocode error:", e);
@@ -143,8 +140,10 @@ export default function Page() {
       return;
     }
     setTripMode((m) => (m === "entered" ? "optimize" : "entered"));
-    setTimeout(() =>
-      setTripMode((m) => (m === "entered" ? "entered" : "optimize")), 300);
+    setTimeout(
+      () => setTripMode((m) => (m === "entered" ? "entered" : "optimize")),
+      300
+    );
   };
 
   const exportStops = useMemo(() => {
@@ -152,11 +151,7 @@ export default function Page() {
       tripMode === "optimize" && optimizedStops.length
         ? optimizedStops
         : tripStops;
-    if (
-      homeZip &&
-      s.length > 1 &&
-      !s[s.length - 1].label.startsWith("Home")
-    )
+    if (homeZip && s.length > 1 && !s[s.length - 1].label.startsWith("Home"))
       return [...s, s[0]];
     return s;
   }, [tripMode, optimizedStops, tripStops, homeZip]);
@@ -177,24 +172,26 @@ export default function Page() {
 
   const handleToggleState = (s: string) =>
     setSelectedStates((p) => toggle(p, norm(s)));
-  const handleSelectAllStates = () =>
-    setSelectedStates(availableStates.map(norm));
+  const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
   const handleToggleSupplier = (s: string) =>
     setSelectedSuppliers((p) => toggle(p, s));
-  const handleSelectAllSuppliers = () =>
-    setSelectedSuppliers(availableSuppliers);
+  const handleSelectAllSuppliers = () => setSelectedSuppliers(availableSuppliers);
   const handleClearAllSuppliers = () => setSelectedSuppliers([]);
 
-  const handleToggleRetailer = (r: string) =>
-    setSelectedRetailers((p) => toggle(p, norm(r)));
+  const handleToggleRetailer = (r: string) => {
+    const key = norm(r);
+    setSelectedRetailers((p) =>
+      p.includes(key) ? p.filter((x) => x !== key) : [...p, key]
+    );
+  };
   const handleSelectAllRetailers = () =>
     setSelectedRetailers(availableRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // =========================
-  // 🧮 Derived summaries + persistence
+  // 🧮 Derived summaries
   // =========================
   const kingpinSummary = retailerSummary.filter(
     (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
@@ -206,20 +203,11 @@ export default function Page() {
   const filteredRetailers = useMemo(() => {
     if (!selectedStates.length) return availableRetailers;
     return retailerSummary
-      .filter((s) =>
-        s.states.some((st) => selectedStates.includes(norm(st)))
-      )
+      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
       .map((s) => s.retailer)
       .filter((r, i, arr) => arr.indexOf(r) === i)
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
-
-  // ✅ Persist selectedRetailers that remain valid
-  useEffect(() => {
-    setSelectedRetailers((prev) =>
-      prev.filter((r) => filteredRetailers.includes(r))
-    );
-  }, [filteredRetailers]);
 
   // =========================
   // 🖼 Render UI
@@ -312,7 +300,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 3: Retailers (filtered + multi-select persistent) */}
+        {/* 🟦 Tile 3: Retailers (fixed normalization + persistent multi-select) */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Retailers
@@ -332,16 +320,19 @@ export default function Page() {
             </button>
           </div>
           <div className="max-h-40 overflow-y-auto text-sm">
-            {filteredRetailers.map((r) => (
-              <label key={r} className="flex items-center space-x-1">
-                <input
-                  type="checkbox"
-                  checked={selectedRetailers.includes(norm(r))}
-                  onChange={() => handleToggleRetailer(r)}
-                />
-                <span>{r}</span>
-              </label>
-            ))}
+            {filteredRetailers.map((r) => {
+              const key = norm(r);
+              return (
+                <label key={key} className="flex items-center space-x-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedRetailers.includes(key)}
+                    onChange={() => handleToggleRetailer(key)}
+                  />
+                  <span>{r}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
 
@@ -452,6 +443,7 @@ export default function Page() {
 
         {/* 🟦 Tile 7: Trip Optimization */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+          <h2
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Trip Optimization
           </h2>
