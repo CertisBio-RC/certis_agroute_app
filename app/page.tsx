@@ -1,4 +1,4 @@
-// app/page.tsx
+// app/page.tsx  — Part 1 of 2
 "use client";
 
 import { useState, useMemo } from "react";
@@ -9,7 +9,7 @@ import { Menu, X } from "lucide-react";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-// ✅ Helpers
+// ✅ Utility helpers
 const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 const capitalizeState = (v: string) => (v || "").toUpperCase();
 const formatFullAddress = (s: Stop) =>
@@ -21,6 +21,7 @@ const encodeAddress = (a: string) =>
 
 const categoryLabels: Record<string, string> = {
   agronomy: "Agronomy",
+  "agronomy/grain": "Agronomy/Grain",
   grain: "Grain",
   feed: "Feed",
   "grain/feed": "Grain/Feed",
@@ -30,16 +31,13 @@ const categoryLabels: Record<string, string> = {
   kingpin: "Kingpin",
 };
 
-// ✅ Build URLs (adds return to Home if set)
+// ✅ Build external map URLs
 function buildGoogleMapsUrl(stops: Stop[], homeZip?: string) {
   if (stops.length < 2) return null;
-  let route = [...stops];
-  if (homeZip && !stops[stops.length - 1].label.startsWith("Home"))
-    route = [...stops, stops[0]];
   const base = "https://www.google.com/maps/dir/?api=1";
-  const origin = encodeAddress(formatFullAddress(route[0]));
-  const dest = encodeAddress(formatFullAddress(route[route.length - 1]));
-  const waypoints = route
+  const origin = encodeAddress(formatFullAddress(stops[0]));
+  const dest = encodeAddress(formatFullAddress(stops[stops.length - 1]));
+  const waypoints = stops
     .slice(1, -1)
     .map((s) => encodeAddress(formatFullAddress(s)))
     .join("|");
@@ -47,15 +45,11 @@ function buildGoogleMapsUrl(stops: Stop[], homeZip?: string) {
     waypoints ? `&waypoints=${waypoints}` : ""
   }`;
 }
-
 function buildAppleMapsUrl(stops: Stop[], homeZip?: string) {
   if (stops.length < 2) return null;
-  let route = [...stops];
-  if (homeZip && !stops[stops.length - 1].label.startsWith("Home"))
-    route = [...stops, stops[0]];
   const base = "http://maps.apple.com/?dirflg=d";
-  const origin = encodeAddress(formatFullAddress(route[0]));
-  const daddr = route
+  const origin = encodeAddress(formatFullAddress(stops[0]));
+  const daddr = stops
     .slice(1)
     .map((s) => encodeAddress(formatFullAddress(s)))
     .join("+to:");
@@ -70,10 +64,11 @@ export default function Page() {
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
 
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+
   const [retailerSummary, setRetailerSummary] = useState<
     {
       retailer: string;
@@ -86,7 +81,7 @@ export default function Page() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // 🧭 Trip
+  // 🧭 Trip builder
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
   const [optimizedStops, setOptimizedStops] = useState<Stop[]>([]);
@@ -96,13 +91,12 @@ export default function Page() {
   // =========================
   // 🚗 Trip handlers
   // =========================
-  const handleAddStop = (stop: Stop) => {
-    setTripStops((prev) =>
-      prev.some((s) => s.label === stop.label && s.address === stop.address)
-        ? prev
-        : [...prev, stop]
+  const handleAddStop = (stop: Stop) =>
+    setTripStops((p) =>
+      p.some((s) => s.label === stop.label && s.address === stop.address)
+        ? p
+        : [...p, stop]
     );
-  };
   const handleRemoveStop = (i: number) =>
     setTripStops((p) => p.filter((_, idx) => idx !== i));
   const handleClearStops = () => {
@@ -119,7 +113,7 @@ export default function Page() {
         )}.json?access_token=${mapboxToken}&limit=1`
       );
       const d = await res.json();
-      if (d.features && d.features.length) {
+      if (d.features?.length) {
         const [lng, lat] = d.features[0].center;
         setHomeCoords([lng, lat]);
         const home: Stop = {
@@ -146,21 +140,32 @@ export default function Page() {
     );
   };
 
-  const exportStops = useMemo(() => {
-    const s =
-      tripMode === "optimize" && optimizedStops.length
-        ? optimizedStops
-        : tripStops;
-    if (homeZip && s.length > 1 && !s[s.length - 1].label.startsWith("Home"))
-      return [...s, s[0]];
-    return s;
-  }, [tripMode, optimizedStops, tripStops, homeZip]);
-
   // =========================
   // 🔘 Filter handlers
   // =========================
-  const toggle = (prev: string[], val: string) =>
-    prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val];
+  const toggle = (arr: string[], val: string) =>
+    arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
+
+  const handleToggleState = (s: string) => setSelectedStates((p) => toggle(p, norm(s)));
+  const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
+  const handleClearAllStates = () => setSelectedStates([]);
+
+  const handleToggleRetailer = (r: string) => {
+    const key = norm(r);
+    setSelectedRetailers((prev) => {
+      const updated = prev.includes(key)
+        ? prev.filter((x) => x !== key)
+        : [...prev, key];
+
+      // ✅ When retailer(s) selected, default categories → Agronomy + Agronomy/Grain
+      if (updated.length > 0 && selectedCategories.length === 0) {
+        setSelectedCategories(["agronomy", "agronomy/grain"]);
+      }
+      return updated;
+    });
+  };
+  const handleSelectAllRetailers = () => setSelectedRetailers(availableRetailers.map(norm));
+  const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   const handleToggleCategory = (c: string) =>
     setSelectedCategories((p) => toggle(p, norm(c)));
@@ -170,36 +175,14 @@ export default function Page() {
     );
   const handleClearAllCategories = () => setSelectedCategories([]);
 
-  const handleToggleState = (s: string) =>
-    setSelectedStates((p) => toggle(p, norm(s)));
-  const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
-  const handleClearAllStates = () => setSelectedStates([]);
-
   const handleToggleSupplier = (s: string) =>
     setSelectedSuppliers((p) => toggle(p, s));
   const handleSelectAllSuppliers = () => setSelectedSuppliers(availableSuppliers);
   const handleClearAllSuppliers = () => setSelectedSuppliers([]);
 
-  const handleToggleRetailer = (r: string) => {
-    const key = norm(r);
-    setSelectedRetailers((p) =>
-      p.includes(key) ? p.filter((x) => x !== key) : [...p, key]
-    );
-  };
-  const handleSelectAllRetailers = () =>
-    setSelectedRetailers(availableRetailers.map(norm));
-  const handleClearAllRetailers = () => setSelectedRetailers([]);
-
   // =========================
-  // 🧮 Derived summaries
+  // 🧮 Derived data
   // =========================
-  const kingpinSummary = retailerSummary.filter(
-    (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
-  );
-  const normalSummary = retailerSummary.filter(
-    (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
-  );
-
   const filteredRetailers = useMemo(() => {
     if (!selectedStates.length) return availableRetailers;
     return retailerSummary
@@ -208,6 +191,7 @@ export default function Page() {
       .filter((r, i, arr) => arr.indexOf(r) === i)
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
+// app/page.tsx  — Part 2 of 2
 
   // =========================
   // 🖼 Render UI
@@ -240,10 +224,10 @@ export default function Page() {
           />
         </div>
 
-        {/* 🟦 Tile 1: Home ZIP */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Home Zip Code
+        {/* 🟦 ZIP */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-base">
+          <h2 className="text-xl font-bold mb-3 text-gray-800 dark:text-gray-200">
+            ① Home Zip Code
           </h2>
           <div className="flex space-x-2">
             <input
@@ -267,26 +251,26 @@ export default function Page() {
           )}
         </div>
 
-        {/* 🟦 Tile 2: States */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            States
+        {/* 🟦 States */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-base">
+          <h2 className="text-xl font-bold mb-3 text-gray-800 dark:text-gray-200">
+            ② Select State(s)
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={handleSelectAllStates}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+              className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
             </button>
             <button
               onClick={handleClearAllStates}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+              className="px-2 py-1 bg-gray-400 text-white rounded text-sm"
             >
               Clear
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-1 text-sm">
+          <div className="grid grid-cols-3 gap-1 text-base">
             {availableStates.map((s) => (
               <label key={s} className="flex items-center space-x-1">
                 <input
@@ -300,26 +284,26 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 3: Retailers (fixed normalization + persistent multi-select) */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Retailers
+        {/* 🟦 Retailers */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-base">
+          <h2 className="text-xl font-bold mb-3 text-gray-800 dark:text-gray-200">
+            ③ Select Retailer(s)
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={handleSelectAllRetailers}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+              className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
             </button>
             <button
               onClick={handleClearAllRetailers}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+              className="px-2 py-1 bg-gray-400 text-white rounded text-sm"
             >
               Clear
             </button>
           </div>
-          <div className="max-h-40 overflow-y-auto text-sm">
+          <div className="max-h-40 overflow-y-auto text-base">
             {filteredRetailers.map((r) => {
               const key = norm(r);
               return (
@@ -327,7 +311,7 @@ export default function Page() {
                   <input
                     type="checkbox"
                     checked={selectedRetailers.includes(key)}
-                    onChange={() => handleToggleRetailer(key)}
+                    onChange={() => handleToggleRetailer(r)}
                   />
                   <span>{r}</span>
                 </label>
@@ -336,26 +320,26 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 4: Suppliers */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Suppliers
+        {/* 🟦 Suppliers */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-base">
+          <h2 className="text-xl font-bold mb-3 text-gray-800 dark:text-gray-200">
+            ④ Select Supplier(s)
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={handleSelectAllSuppliers}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+              className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
             </button>
             <button
               onClick={handleClearAllSuppliers}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+              className="px-2 py-1 bg-gray-400 text-white rounded text-sm"
             >
               Clear
             </button>
           </div>
-          <div className="max-h-40 overflow-y-auto text-sm">
+          <div className="max-h-40 overflow-y-auto text-base">
             {availableSuppliers.map((s) => (
               <label key={s} className="flex items-center space-x-1">
                 <input
@@ -369,36 +353,36 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 5: Categories */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Categories
+        {/* 🟦 Categories */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-base">
+          <h2 className="text-xl font-bold mb-3 text-gray-800 dark:text-gray-200">
+            ⑤ Select Additional Category(ies)
           </h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={handleSelectAllCategories}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+              className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
             </button>
             <button
               onClick={handleClearAllCategories}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+              className="px-2 py-1 bg-gray-400 text-white rounded text-sm"
             >
               Clear
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-1 text-sm">
+          <div className="grid grid-cols-2 gap-1 text-base">
             {Object.entries(categoryColors)
-              .filter(([key]) => key !== "Kingpin")
-              .map(([key, { color }]) => {
-                const label = categoryLabels[norm(key)] || key;
+              .filter(([k]) => k !== "Kingpin")
+              .map(([k, { color }]) => {
+                const label = categoryLabels[norm(k)] || k;
                 return (
-                  <label key={key} className="flex items-center space-x-1">
+                  <label key={k} className="flex items-center space-x-1">
                     <input
                       type="checkbox"
-                      checked={selectedCategories.includes(norm(key))}
-                      onChange={() => handleToggleCategory(key)}
+                      checked={selectedCategories.includes(norm(k))}
+                      onChange={() => handleToggleCategory(k)}
                     />
                     <span className="flex items-center">
                       <span
@@ -413,79 +397,26 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 6: Channel Summary */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Channel Summary
+        {/* 🟦 Trip Optimization */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow text-base">
+          <h2 className="text-xl font-bold mb-3 text-gray-800 dark:text-gray-200">
+            ⑥ Trip Optimization
           </h2>
-          <div className="text-sm text-gray-700 dark:text-gray-300 max-h-40 overflow-y-auto">
-            {normalSummary.map((s, i) => (
-              <div key={i} className="mb-2">
-                <strong>
-                  {s.retailer} ({s.states.map(capitalizeState).join(", ")})
-                </strong>{" "}
-                ({s.count} sites) <br />
-                Suppliers: {s.suppliers.join(", ") || "N/A"} <br />
-                Categories:{" "}
-                {s.categories
-                  .map((c) => categoryLabels[norm(c)] || c)
-                  .join(", ") || "N/A"}
-              </div>
-            ))}
-            {kingpinSummary.length > 0 && (
-              <div className="mt-2 text-red-600 dark:text-red-400">
-                <strong>Kingpins:</strong>{" "}
-                {kingpinSummary.map((s) => s.retailer).join(", ")}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 🟦 Tile 7: Trip Optimization */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Trip Optimization
-          </h2>
-          <div className="flex space-x-4 mb-3 text-sm">
-            <label className="flex items-center space-x-1 cursor-pointer">
-              <input
-                type="radio"
-                value="entered"
-                checked={tripMode === "entered"}
-                onChange={() => setTripMode("entered")}
-              />
-              <span className="text-gray-700 dark:text-gray-300">
-                Map as Entered
-              </span>
-            </label>
-            <label className="flex items-center space-x-1 cursor-pointer">
-              <input
-                type="radio"
-                value="optimize"
-                checked={tripMode === "optimize"}
-                onChange={() => setTripMode("optimize")}
-              />
-              <span className="text-gray-700 dark:text-gray-300">
-                Optimize Route
-              </span>
-            </label>
-          </div>
-
           {tripStops.length > 0 ? (
             <div className="space-y-2">
-              <ol className="list-decimal ml-5 text-sm text-gray-700 dark:text-gray-300">
+              <ol className="list-decimal ml-5 text-base text-gray-700 dark:text-gray-300">
                 {tripStops.map((stop, i) => (
                   <li key={i} className="flex justify-between items-start">
                     <div>
                       <div className="font-semibold">{stop.label}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
                         {formatFullAddress(stop)}
                       </div>
                     </div>
                     {i > 0 && (
                       <button
                         onClick={() => handleRemoveStop(i)}
-                        className="ml-2 text-red-600 hover:text-red-800 text-xs"
+                        className="ml-2 text-red-600 hover:text-red-800 text-sm"
                       >
                         ❌
                       </button>
@@ -497,32 +428,32 @@ export default function Page() {
               <div className="flex flex-col gap-2 mt-3">
                 <button
                   onClick={handleBuildRoute}
-                  className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                  className="px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
                 >
                   Build Route
                 </button>
 
-                {exportStops.length > 1 && (
+                {tripStops.length > 1 && (
                   <>
                     <a
-                      href={buildGoogleMapsUrl(exportStops, homeZip) || "#"}
+                      href={buildGoogleMapsUrl(tripStops, homeZip) || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 text-center"
+                      className="px-2 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 text-center"
                     >
                       Open in Google Maps
                     </a>
                     <a
-                      href={buildAppleMapsUrl(exportStops, homeZip) || "#"}
+                      href={buildAppleMapsUrl(tripStops, homeZip) || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 text-center"
+                      className="px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 text-center"
                     >
                       Open in Apple Maps
                     </a>
                     <button
                       onClick={handleClearStops}
-                      className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                      className="px-2 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                     >
                       Clear All
                     </button>
@@ -560,3 +491,4 @@ export default function Page() {
 }
 
 // === END OF FILE ===
+
