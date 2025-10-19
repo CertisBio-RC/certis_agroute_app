@@ -147,6 +147,7 @@ export default function CertisMap({
         const data = await response.json();
         geoDataRef.current = data;
 
+        // normalize display categories
         for (const f of data.features) {
           f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
@@ -198,13 +199,13 @@ export default function CertisMap({
           filter: ["!=", ["get", "DisplayCategory"], "Kingpin"],
         });
 
-        // ✅ Kingpins
+        // ✅ Kingpins (smaller, bold outline)
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
           source: "retailers",
           paint: {
-            "circle-radius": 10,
+            "circle-radius": 7,
             "circle-color": categoryColors.Kingpin.color,
             "circle-stroke-width": 3,
             "circle-stroke-color": categoryColors.Kingpin.outline!,
@@ -219,7 +220,8 @@ export default function CertisMap({
           const retailer = props.Retailer || "Unknown";
           const siteName = props.Name || "";
           const category = props.DisplayCategory || "N/A";
-          const suppliers = splitAndStandardizeSuppliers(props.Suppliers).join(", ") || "N/A";
+          const suppliersArr = splitAndStandardizeSuppliers(props.Suppliers);
+          const suppliers = suppliersArr.length > 0 ? suppliersArr.join(", ") : "N/A";
           const stopLabel = siteName ? `${retailer} – ${siteName}` : retailer;
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
@@ -237,7 +239,7 @@ export default function CertisMap({
               ${props.Address || ""}<br/>
               ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
               <strong>Category:</strong> ${category}<br/>
-              Suppliers: ${suppliers}
+              <strong>Suppliers:</strong> ${suppliers}
             </div>
           `;
 
@@ -288,8 +290,7 @@ export default function CertisMap({
       }
     });
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
-
-  // ✅ Real-time filtering
+  // ✅ Real-time filtering (non-destructive, cumulative, follows your gate rules)
   useEffect(() => {
     if (!mapRef.current || !geoDataRef.current) return;
     const map = mapRef.current;
@@ -297,28 +298,33 @@ export default function CertisMap({
     const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!source) return;
 
+    // always keep Kingpins visible
     const filtered = {
       type: "FeatureCollection" as const,
       features: data.features.filter((f: any) => {
         const props = f.properties || {};
-        const category = props.DisplayCategory;
+        const displayCategory = props.DisplayCategory || "";
         const retailer = norm(props.Retailer);
-        const state = norm(props.State);
+        const state = props.State ? props.State.toUpperCase() : "";
         const supplierList = splitAndStandardizeSuppliers(props.Suppliers).map(norm);
 
-        // Always show Kingpins
-        if (category === "Kingpin") return true;
+        // Always show Kingpins globally
+        if (displayCategory === "Kingpin") return true;
+
+        // Require both state and retailer
         if (selectedStates.length === 0) return false;
         if (!selectedStates.includes(state)) return false;
         if (selectedRetailers.length === 0) return false;
         if (!selectedRetailers.includes(retailer)) return false;
 
-        const catNorm = norm(category);
+        // Category handling — defaults to Agronomy/Agronomy-Grain if none selected
+        const catNorm = norm(displayCategory);
         const categoryMatch =
           selectedCategories.length === 0
             ? ["agronomy", "agronomy/grain", "grain/feed"].includes(catNorm)
             : selectedCategories.includes(catNorm);
 
+        // Supplier filter (optional)
         const supplierMatch =
           selectedSuppliers.length === 0 ||
           selectedSuppliers.some((s) => supplierList.includes(norm(s)));
@@ -329,7 +335,7 @@ export default function CertisMap({
 
     source.setData(filtered);
 
-    // ✅ Summary
+    // ✅ Retailer summary aggregation
     if (onRetailerSummary) {
       const summaryMap = new Map<
         string,
@@ -339,6 +345,7 @@ export default function CertisMap({
       for (const f of filtered.features) {
         const props = f.properties || {};
         if (props.DisplayCategory === "Kingpin") continue;
+
         const state = props.State || "Unknown";
         const retailer = props.Retailer || "Unknown";
         const suppliers = splitAndStandardizeSuppliers(props.Suppliers);
@@ -350,7 +357,7 @@ export default function CertisMap({
 
         const entry = summaryMap.get(retailer)!;
         entry.count += 1;
-        if (state && !entry.states.includes(state)) entry.states.push(state);
+        if (!entry.states.includes(state)) entry.states.push(state);
         suppliers.forEach((s) => !entry.suppliers.includes(s) && entry.suppliers.push(s));
         categories.forEach((c) => !entry.categories.includes(c) && entry.categories.push(c));
       }
@@ -359,11 +366,12 @@ export default function CertisMap({
     }
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
 
-  // ✅ Trip rendering
+  // ✅ Trip rendering (entered vs optimized)
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
 
+    // remove old layers if not enough stops
     if (tripStops.length < 2) {
       ["trip-route", "trip-stops-circle", "trip-stops-label"].forEach((layer) => {
         if (map.getLayer(layer)) map.removeLayer(layer);
@@ -373,6 +381,7 @@ export default function CertisMap({
     }
 
     const coordsParam = tripStops.map((s) => s.coords.join(",")).join(";");
+
     const url =
       tripMode === "optimize"
         ? `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsParam}?geometries=geojson&roundtrip=false&source=first&destination=last&access_token=${mapboxgl.accessToken}`
@@ -384,6 +393,7 @@ export default function CertisMap({
         const route = tripMode === "optimize" ? data.trips?.[0]?.geometry : data.routes?.[0]?.geometry;
         if (!route) return;
 
+        // remove old route before adding new one
         if (map.getLayer("trip-route")) {
           map.removeLayer("trip-route");
           map.removeSource("trip-route");
@@ -413,6 +423,7 @@ export default function CertisMap({
           })),
         };
 
+        // clear existing stop markers
         ["trip-stops-circle", "trip-stops-label"].forEach((layer) => {
           if (map.getLayer(layer)) map.removeLayer(layer);
         });
@@ -420,6 +431,7 @@ export default function CertisMap({
 
         map.addSource("trip-stops", { type: "geojson", data: stopsGeoJSON });
 
+        // stop markers
         map.addLayer({
           id: "trip-stops-circle",
           type: "circle",
@@ -432,6 +444,7 @@ export default function CertisMap({
           },
         });
 
+        // stop numbers
         map.addLayer({
           id: "trip-stops-label",
           type: "symbol",
@@ -455,3 +468,4 @@ export default function CertisMap({
   // ✅ Render container
   return <div ref={mapContainer} className="w-full h-full" />;
 }
+
