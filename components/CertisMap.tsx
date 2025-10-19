@@ -72,7 +72,6 @@ function splitAndStandardizeSuppliers(raw?: string, props?: Record<string, any>)
       .filter(Boolean)
       .map(standardizeSupplier);
   }
-  // fallback: check any key that contains "supplier"
   if (props) {
     for (const key of Object.keys(props)) {
       if (key.toLowerCase().includes("supplier")) {
@@ -163,12 +162,10 @@ export default function CertisMap({
         const data = await response.json();
         geoDataRef.current = data;
 
-        // assign clean categories
         for (const f of data.features) {
           f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
 
-        // Collect state/retailer/supplier lists
         const stateSet = new Set<string>();
         const retailerSet = new Set<string>();
         const supplierSet = new Set<string>();
@@ -188,7 +185,7 @@ export default function CertisMap({
 
         map.addSource("retailers", { type: "geojson", data });
 
-        // Regular points (non-Kingpin)
+        // ✅ Regular points
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -230,7 +227,7 @@ export default function CertisMap({
           filter: ["==", ["get", "DisplayCategory"], "Kingpin"],
         });
 
-        // Popup logic
+        // ✅ Popup logic
         const popup = new mapboxgl.Popup({
           closeButton: false,
           closeOnClick: false,
@@ -287,8 +284,9 @@ export default function CertisMap({
             if (!feature) return;
             const coords = (feature.geometry as any)?.coordinates as [number, number];
             const props = feature.properties;
-            if (coords && props) popup.setLngLat(coords).setHTML(buildPopupHTML(props, coords)).addTo(map);
-          });
+            if (coords && props) {
+              popup.setLngLat(coords).setHTML(buildPopupHTML(props, coords)).addTo(map);
+            }
           });
 
           map.on("mouseleave", layerId, () => {
@@ -307,7 +305,7 @@ export default function CertisMap({
     return () => map.remove();
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
-  // ✅ Filtering + Rendering
+  // ✅ Filtering
   useEffect(() => {
     const map = mapRef.current;
     const geoData = geoDataRef.current;
@@ -315,41 +313,30 @@ export default function CertisMap({
 
     const baseFeatures = geoData.features;
 
-    // Keep Kingpins always
     const kingpins = baseFeatures.filter(
       (f: any) => f.properties?.DisplayCategory === "Kingpin"
     );
 
-    // Filter by state
     let filtered = baseFeatures.filter(
-      (f: any) =>
-        !f.properties?.DisplayCategory ||
-        f.properties?.DisplayCategory !== "Kingpin"
+      (f: any) => f.properties?.DisplayCategory !== "Kingpin"
     );
 
     if (selectedStates.length > 0) {
-      filtered = filtered.filter((f: any) =>
-        selectedStates.includes(f.properties?.State)
-      );
+      filtered = filtered.filter((f: any) => selectedStates.includes(f.properties?.State));
     }
 
-    // Build retailer list based on selected state(s)
     const filteredRetailers = Array.from(
       new Set(filtered.map((f: any) => f.properties?.Retailer))
     ).sort();
 
     onRetailersLoaded?.(filteredRetailers);
 
-    // Show only when user checks retailers
     if (selectedRetailers.length > 0) {
-      filtered = filtered.filter((f: any) =>
-        selectedRetailers.includes(f.properties?.Retailer)
-      );
+      filtered = filtered.filter((f: any) => selectedRetailers.includes(f.properties?.Retailer));
     } else {
       filtered = [];
     }
 
-    // Category filter (Agronomy default)
     if (selectedCategories.length > 0) {
       filtered = filtered.filter((f: any) => {
         const cat = assignDisplayCategory(f.properties?.Category || "");
@@ -361,7 +348,6 @@ export default function CertisMap({
       );
     }
 
-    // Supplier filter
     if (selectedSuppliers.length > 0) {
       filtered = filtered.filter((f: any) => {
         const suppliers = splitAndStandardizeSuppliers(f.properties?.Suppliers, f.properties);
@@ -369,7 +355,6 @@ export default function CertisMap({
       });
     }
 
-    // Combine visible data
     const combined = {
       ...geoData,
       features: [...kingpins, ...filtered],
@@ -385,23 +370,15 @@ export default function CertisMap({
     onRetailersLoaded,
   ]);
 
-  // ✅ Draw trip stops
+  // ✅ Trip stops
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    if (map.getLayer("trip-line")) {
-      map.removeLayer("trip-line");
-    }
-    if (map.getSource("trip-line")) {
-      map.removeSource("trip-line");
-    }
-    if (map.getLayer("trip-points")) {
-      map.removeLayer("trip-points");
-    }
-    if (map.getSource("trip-points")) {
-      map.removeSource("trip-points");
-    }
+    if (map.getLayer("trip-line")) map.removeLayer("trip-line");
+    if (map.getSource("trip-line")) map.removeSource("trip-line");
+    if (map.getLayer("trip-points")) map.removeLayer("trip-points");
+    if (map.getSource("trip-points")) map.removeSource("trip-points");
 
     if (tripStops.length === 0) return;
 
