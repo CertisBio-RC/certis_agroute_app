@@ -7,7 +7,7 @@ import { Menu, X } from "lucide-react";
 import CertisMap, { Stop, categoryColors } from "@/components/CertisMap";
 
 // ========================================
-// ⚙️ Normalizer Utility
+// ⚙️ Utility
 // ========================================
 const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 
@@ -15,7 +15,7 @@ const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 // 🧭 Page Component
 // ========================================
 export default function Page() {
-  // Sidebar toggles
+  // Sidebar toggle
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Core selections
@@ -29,19 +29,18 @@ export default function Page() {
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
 
+  // Retailer map for state cascade
+  const [retailerStateMap, setRetailerStateMap] = useState<Record<string, string[]>>({});
+
   // Trip builder
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
 
-  // Retailer summary (for analytics or debugging)
-  const [retailerSummary, setRetailerSummary] = useState<any[]>([]);
-
   // ========================================
-  // 🧮 Select All / Clear helpers
+  // 🧮 Helpers
   // ========================================
   const toggleAll = (setter: any, arr: string[], items: string[]) =>
     setter(arr.length === items.length ? [] : items);
-
   const clearAll = (setter: any) => setter([]);
 
   // ========================================
@@ -49,34 +48,46 @@ export default function Page() {
   // ========================================
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label)) {
-      setTripStops([...tripStops, stop]);
+      setTripStops((prev) => [...prev, stop]);
     }
   };
-
   const handleClearStops = () => setTripStops([]);
-
-  const handleRemoveStop = (index: number) => {
-    const updated = [...tripStops];
-    updated.splice(index, 1);
-    setTripStops(updated);
-  };
+  const handleRemoveStop = (idx: number) =>
+    setTripStops((prev) => prev.filter((_, i) => i !== idx));
 
   // ========================================
-  // 📍 Export to Google Maps (As Entered)
+  // 🌍 Export Functions
   // ========================================
   const exportToGoogleMaps = () => {
-    if (tripStops.length === 0) return;
+    if (!tripStops.length) return;
     const base = "https://www.google.com/maps/dir/";
     const query = tripStops.map((s) => encodeURIComponent(s.address)).join("/");
     window.open(base + query, "_blank");
   };
 
+  const exportToAppleMaps = () => {
+    if (!tripStops.length) return;
+    const base = "https://maps.apple.com/?daddr=";
+    const query = tripStops.map((s) => encodeURIComponent(s.address)).join("+to:");
+    window.open(base + query, "_blank");
+  };
+
   // ========================================
-  // 🗺️ UI Render
+  // 🧩 Cascade Retailers by Selected States
+  // ========================================
+  const filteredRetailers = useMemo(() => {
+    if (!selectedStates.length) return availableRetailers;
+    return availableRetailers.filter((r) =>
+      retailerStateMap[r]?.some((st) => selectedStates.includes(st))
+    );
+  }, [selectedStates, availableRetailers, retailerStateMap]);
+
+  // ========================================
+  // 🗺️ UI
   // ========================================
   return (
     <div className="flex flex-col h-screen w-full bg-gray-950 text-gray-100">
-      {/* Header Bar */}
+      {/* Header */}
       <header className="flex items-center justify-between bg-gray-900 text-white px-4 py-2 shadow-md">
         <div className="flex items-center space-x-3">
           <button
@@ -108,7 +119,7 @@ export default function Page() {
           }`}
         >
           <div className="p-4 space-y-4 text-[15px] md:text-[16px]">
-            {/* Home ZIP */}
+            {/* 🏠 ZIP */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">
                 Home ZIP Code
@@ -125,7 +136,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* States */}
+            {/* 🗺️ States */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">
                 Select State(s)
@@ -155,7 +166,7 @@ export default function Page() {
                       onChange={() =>
                         setSelectedStates((prev) =>
                           prev.includes(st)
-                            ? prev.filter((s) => s !== st)
+                            ? prev.filter((x) => x !== st)
                             : [...prev, st]
                         )
                       }
@@ -166,7 +177,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Retailers */}
+            {/* 🏢 Retailers */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">
                 Select Retailer(s)
@@ -174,11 +185,7 @@ export default function Page() {
               <div className="flex space-x-2 mb-2">
                 <button
                   onClick={() =>
-                    toggleAll(
-                      setSelectedRetailers,
-                      selectedRetailers,
-                      availableRetailers
-                    )
+                    toggleAll(setSelectedRetailers, selectedRetailers, filteredRetailers)
                   }
                   className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
                 >
@@ -192,7 +199,7 @@ export default function Page() {
                 </button>
               </div>
               <div className="h-48 overflow-y-auto space-y-1">
-                {availableRetailers.map((r) => (
+                {filteredRetailers.map((r) => (
                   <label key={r} className="flex items-center space-x-2">
                     <input
                       type="checkbox"
@@ -211,7 +218,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Suppliers */}
+            {/* 🧪 Suppliers */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">
                 Select Supplier(s)
@@ -219,11 +226,7 @@ export default function Page() {
               <div className="flex space-x-2 mb-2">
                 <button
                   onClick={() =>
-                    toggleAll(
-                      setSelectedSuppliers,
-                      selectedSuppliers,
-                      availableSuppliers
-                    )
+                    toggleAll(setSelectedSuppliers, selectedSuppliers, availableSuppliers)
                   }
                   className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
                 >
@@ -256,10 +259,10 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Categories */}
+            {/* 🌾 Categories */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">
-                Select Additional Category(ies)
+                Select Categories
               </h2>
               <div className="flex space-x-2 mb-2">
                 <button
@@ -267,9 +270,7 @@ export default function Page() {
                     toggleAll(
                       setSelectedCategories,
                       selectedCategories,
-                      Object.keys(categoryColors).filter(
-                        (c) => c !== "Kingpin"
-                      )
+                      Object.keys(categoryColors).filter((c) => c !== "Kingpin")
                     )
                   }
                   className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
@@ -283,7 +284,7 @@ export default function Page() {
                   Clear
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid grid-cols-2 gap-1 text-[15px]">
                 {Object.keys(categoryColors)
                   .filter((c) => c !== "Kingpin")
                   .map((c) => (
@@ -296,29 +297,24 @@ export default function Page() {
                             prev.includes(c)
                               ? prev.filter((x) => x !== c)
                               : [...prev, c]
-                          )
-                        }
-                      />
+                        )
+                      }
+                    />
+                    <span
+                      className="flex items-center space-x-1"
+                      style={{ color: categoryColors[c].color }}
+                    >
                       <span
-                        className="flex items-center space-x-1"
-                        style={{
-                          color: categoryColors[c].color,
-                        }}
-                      >
-                        <span
-                          className="inline-block w-3 h-3 rounded-full"
-                          style={{
-                            backgroundColor: categoryColors[c].color,
-                          }}
-                        ></span>
-                        <span>{c}</span>
-                      </span>
-                    </label>
+                        className="inline-block w-3 h-3 rounded-full"
+                        style={{ backgroundColor: categoryColors[c].color }}
+                      ></span>
+                      <span>{c}</span>
+                    </span>
                   ))}
               </div>
             </div>
 
-            {/* Trip Optimization */}
+            {/* 🚗 Trip Optimization */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">
                 Trip Optimization
@@ -373,6 +369,12 @@ export default function Page() {
                   Send to Google Maps
                 </button>
                 <button
+                  onClick={exportToAppleMaps}
+                  className="bg-yellow-600 text-white px-3 py-1 rounded font-semibold"
+                >
+                  Send to Apple Maps
+                </button>
+                <button
                   onClick={handleClearStops}
                   className="bg-gray-600 text-white px-3 py-1 rounded font-semibold"
                 >
@@ -383,7 +385,7 @@ export default function Page() {
           </div>
         </aside>
 
-        {/* Map Area */}
+        {/* 🗺️ Map Area */}
         <main className="flex-1 relative">
           <CertisMap
             selectedStates={selectedStates}
@@ -391,9 +393,19 @@ export default function Page() {
             selectedSuppliers={selectedSuppliers}
             selectedCategories={selectedCategories}
             onStatesLoaded={setAvailableStates}
-            onRetailersLoaded={setAvailableRetailers}
+            onRetailersLoaded={(r) => {
+              setAvailableRetailers(r);
+              // build retailer→state map for cascade
+              setRetailerStateMap((prev) => {
+                const newMap = { ...prev };
+                r.forEach((ret) => {
+                  if (!newMap[ret]) newMap[ret] = [];
+                });
+                return newMap;
+              });
+            }}
             onSuppliersLoaded={setAvailableSuppliers}
-            onRetailerSummary={setRetailerSummary}
+            onRetailerSummary={() => {}}
             onAddStop={handleAddStop}
             tripStops={tripStops}
             tripMode={tripMode}
