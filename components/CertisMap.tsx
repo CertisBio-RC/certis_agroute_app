@@ -1,3 +1,4 @@
+// components/CertisMap.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -160,7 +161,11 @@ export default function CertisMap({
           const st = f.properties?.State;
           const r = f.properties?.Retailer;
           const rawSuppliers =
-            f.properties?.Suppliers || f.properties?.Supplier || f.properties?.["Supplier(s)"];
+            f.properties?.Suppliers ||
+            f.properties?.suppliers ||
+            f.properties?.Supplier ||
+            f.properties?.supplier ||
+            f.properties?.["Supplier(s)"];
           if (st) stateSet.add(st);
           if (r) retailerSet.add(r);
           splitAndStandardizeSuppliers(rawSuppliers).forEach((s) => supplierSet.add(s));
@@ -227,7 +232,11 @@ export default function CertisMap({
           const category = props.DisplayCategory || "N/A";
           const suppliers =
             splitAndStandardizeSuppliers(
-              props.Suppliers || props.Supplier || props["Supplier(s)"]
+              props.Suppliers ||
+                props.suppliers ||
+                props.Supplier ||
+                props.supplier ||
+                props["Supplier(s)"]
             ).join(", ") || "N/A";
           const stopLabel = siteName ? `${retailer} – ${siteName}` : retailer;
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
@@ -310,7 +319,11 @@ export default function CertisMap({
       const retailer = props.Retailer || "";
       const state = props.State || "";
       const supplierList = splitAndStandardizeSuppliers(
-        props.Suppliers || props.Supplier || props["Supplier(s)"]
+        props.Suppliers ||
+          props.suppliers ||
+          props.Supplier ||
+          props.supplier ||
+          props["Supplier(s)"]
       ).map(norm);
 
       if (category === "Kingpin") return true;
@@ -345,7 +358,11 @@ export default function CertisMap({
         const state = props.State || "Unknown";
         const retailer = props.Retailer || "Unknown";
         const suppliers = splitAndStandardizeSuppliers(
-          props.Suppliers || props.Supplier || props["Supplier(s)"]
+          props.Suppliers ||
+            props.suppliers ||
+            props.Supplier ||
+            props.supplier ||
+            props["Supplier(s)"]
         );
         const categories = expandCategories(props.Category || "");
 
