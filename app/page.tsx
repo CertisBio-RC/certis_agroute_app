@@ -6,57 +6,48 @@ import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import CertisMap, { Stop, categoryColors } from "@/components/CertisMap";
 
-// ========================================
-// ⚙️ Utility
-// ========================================
 const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 
-// ========================================
-// 🧭 Page Component
-// ========================================
 export default function Page() {
-  // Sidebar toggle
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Core selections
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  // Available options
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
 
-  // Retailer map for state cascade
+  // Map of retailer -> [states]
   const [retailerStateMap, setRetailerStateMap] = useState<Record<string, string[]>>({});
 
-  // Trip builder
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
 
   // ========================================
-  // 🧮 Helpers
+  // Helpers
   // ========================================
   const toggleAll = (setter: any, arr: string[], items: string[]) =>
     setter(arr.length === items.length ? [] : items);
   const clearAll = (setter: any) => setter([]);
 
   // ========================================
-  // 🚗 Trip Handling
+  // Trip Handling
   // ========================================
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label)) {
       setTripStops((prev) => [...prev, stop]);
     }
   };
+
   const handleClearStops = () => setTripStops([]);
   const handleRemoveStop = (idx: number) =>
     setTripStops((prev) => prev.filter((_, i) => i !== idx));
 
   // ========================================
-  // 🌍 Export Functions
+  // Export
   // ========================================
   const exportToGoogleMaps = () => {
     if (!tripStops.length) return;
@@ -73,7 +64,7 @@ export default function Page() {
   };
 
   // ========================================
-  // 🧩 Cascade Retailers by Selected States
+  // State → Retailer Cascade
   // ========================================
   const filteredRetailers = useMemo(() => {
     if (!selectedStates.length) return availableRetailers;
@@ -83,11 +74,10 @@ export default function Page() {
   }, [selectedStates, availableRetailers, retailerStateMap]);
 
   // ========================================
-  // 🗺️ UI
+  // UI Rendering
   // ========================================
   return (
     <div className="flex flex-col h-screen w-full bg-gray-950 text-gray-100">
-      {/* Header */}
       <header className="flex items-center justify-between bg-gray-900 text-white px-4 py-2 shadow-md">
         <div className="flex items-center space-x-3">
           <button
@@ -119,11 +109,9 @@ export default function Page() {
           }`}
         >
           <div className="p-4 space-y-4 text-[15px] md:text-[16px]">
-            {/* 🏠 ZIP */}
+            {/* Home ZIP */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
-              <h2 className="text-yellow-400 text-lg font-semibold mb-2">
-                Home ZIP Code
-              </h2>
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Home ZIP Code</h2>
               <div className="flex space-x-2">
                 <input
                   type="text"
@@ -136,11 +124,9 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 🗺️ States */}
+            {/* States */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
-              <h2 className="text-yellow-400 text-lg font-semibold mb-2">
-                Select State(s)
-              </h2>
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select State(s)</h2>
               <div className="flex space-x-2 mb-2">
                 <button
                   onClick={() =>
@@ -177,11 +163,9 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 🏢 Retailers */}
+            {/* Retailers */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
-              <h2 className="text-yellow-400 text-lg font-semibold mb-2">
-                Select Retailer(s)
-              </h2>
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Retailer(s)</h2>
               <div className="flex space-x-2 mb-2">
                 <button
                   onClick={() =>
@@ -218,11 +202,9 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 🧪 Suppliers */}
+            {/* Suppliers */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
-              <h2 className="text-yellow-400 text-lg font-semibold mb-2">
-                Select Supplier(s)
-              </h2>
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Supplier(s)</h2>
               <div className="flex space-x-2 mb-2">
                 <button
                   onClick={() =>
@@ -259,11 +241,9 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 🌾 Categories */}
+            {/* Categories */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
-              <h2 className="text-yellow-400 text-lg font-semibold mb-2">
-                Select Categories
-              </h2>
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Categories</h2>
               <div className="flex space-x-2 mb-2">
                 <button
                   onClick={() =>
@@ -297,28 +277,27 @@ export default function Page() {
                             prev.includes(c)
                               ? prev.filter((x) => x !== c)
                               : [...prev, c]
-                        )
-                      }
-                    />
-                    <span
-                      className="flex items-center space-x-1"
-                      style={{ color: categoryColors[c].color }}
-                    >
+                          )
+                        }
+                      />
                       <span
-                        className="inline-block w-3 h-3 rounded-full"
-                        style={{ backgroundColor: categoryColors[c].color }}
-                      ></span>
-                      <span>{c}</span>
-                    </span>
+                        className="flex items-center space-x-1"
+                        style={{ color: categoryColors[c].color }}
+                      >
+                        <span
+                          className="inline-block w-3 h-3 rounded-full"
+                          style={{ backgroundColor: categoryColors[c].color }}
+                        ></span>
+                        <span>{c}</span>
+                      </span>
+                    </label>
                   ))}
               </div>
             </div>
 
-            {/* 🚗 Trip Optimization */}
+            {/* Trip Optimization */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
-              <h2 className="text-yellow-400 text-lg font-semibold mb-2">
-                Trip Optimization
-              </h2>
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Trip Optimization</h2>
               <div className="flex space-x-3 mb-3">
                 <label className="flex items-center space-x-1">
                   <input
@@ -385,7 +364,7 @@ export default function Page() {
           </div>
         </aside>
 
-        {/* 🗺️ Map Area */}
+        {/* Map Area */}
         <main className="flex-1 relative">
           <CertisMap
             selectedStates={selectedStates}
@@ -395,7 +374,7 @@ export default function Page() {
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={(r) => {
               setAvailableRetailers(r);
-              // build retailer→state map for cascade
+              // ✅ Map each retailer to its associated states from the loaded GeoJSON
               setRetailerStateMap((prev) => {
                 const newMap = { ...prev };
                 r.forEach((ret) => {
@@ -405,7 +384,18 @@ export default function Page() {
               });
             }}
             onSuppliersLoaded={setAvailableSuppliers}
-            onRetailerSummary={() => {}}
+            onRetailerSummary={(summaries) => {
+              // Build retailer→state map for cascade
+              const newMap: Record<string, string[]> = {};
+              summaries.forEach((entry) => {
+                if (!newMap[entry.retailer]) newMap[entry.retailer] = [];
+                entry.states.forEach((s: string) => {
+                  if (!newMap[entry.retailer].includes(s))
+                    newMap[entry.retailer].push(s);
+                });
+              });
+              setRetailerStateMap(newMap);
+            }}
             onAddStop={handleAddStop}
             tripStops={tripStops}
             tripMode={tripMode}
