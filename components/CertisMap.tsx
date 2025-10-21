@@ -48,34 +48,18 @@ const assignDisplayCategory = (cat: string): string => {
 };
 
 // ========================================
-// 🧩 Supplier Normalization
+// 🧩 Supplier Normalization + Robust Parsing
 // ========================================
-const SUPPLIER_NAME_MAP: Record<string, string> = {
-  chs: "CHS",
-  winfield: "Winfield",
-  helena: "Helena",
-  rosens: "Rosens",
-  growmark: "Growmark",
-  iap: "IAP",
-  "wilbur-ellis": "Wilbur-Ellis",
-};
-
-function standardizeSupplier(raw: string): string {
-  const key = norm(raw);
-  if (SUPPLIER_NAME_MAP[key]) return SUPPLIER_NAME_MAP[key];
-  return raw
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-function splitAndStandardizeSuppliers(raw?: string): string[] {
-  if (!raw) return [];
-  return raw
-    .split(/[;,]/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map(standardizeSupplier);
+function parseSuppliers(value: any): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((s) => s.trim());
+  if (typeof value === "object") return Object.values(value).map((s: any) => s.toString().trim());
+  if (typeof value === "string")
+    return value
+      .split(/[,;/|]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  return [];
 }
 
 // ========================================
@@ -134,7 +118,7 @@ export default function CertisMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const geoDataRef = useRef<any>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021d`;
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021f`;
 
   // ========================================
   // 🗺️ Map Initialization
@@ -164,22 +148,24 @@ export default function CertisMap({
           f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
 
-        // Collect unique values
+        // Collect unique sets
         const stateSet = new Set<string>();
         const retailerSet = new Set<string>();
         const supplierSet = new Set<string>();
 
         for (const f of data.features) {
-          const st = f.properties?.State;
-          const r = f.properties?.Retailer;
+          const props = f.properties || {};
+          const st = props.State;
+          const r = props.Retailer;
           const rawSuppliers =
-            f.properties?.Suppliers ||
-            f.properties?.Supplier ||
-            f.properties?.SUPPLIER ||
-            f.properties?.["Supplier(s)"];
+            props.Suppliers ||
+            props.Supplier ||
+            props.supplier ||
+            props["Supplier(s)"] ||
+            props["Suppliers(s)"];
           if (st) stateSet.add(st);
           if (r) retailerSet.add(r);
-          splitAndStandardizeSuppliers(rawSuppliers).forEach((s) => supplierSet.add(s));
+          parseSuppliers(rawSuppliers).forEach((s) => supplierSet.add(s));
         }
 
         onStatesLoaded?.(Array.from(stateSet).sort());
@@ -188,7 +174,7 @@ export default function CertisMap({
 
         map.addSource("retailers", { type: "geojson", data });
 
-        // Regular retailers - hidden at startup
+        // Regular retailers layer (hidden initially)
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -217,13 +203,13 @@ export default function CertisMap({
           layout: { visibility: "none" },
         });
 
-        // Kingpins visible at startup
+        // Kingpins visible on startup
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
           source: "retailers",
           paint: {
-            "circle-radius": 7,
+            "circle-radius": 6,
             "circle-color": categoryColors.Kingpin.color,
             "circle-stroke-width": 3,
             "circle-stroke-color": categoryColors.Kingpin.outline!,
@@ -232,17 +218,7 @@ export default function CertisMap({
           layout: { visibility: "visible" },
         });
 
-        // Pointer behavior
-        ["retailers-layer", "kingpins-layer"].forEach((layerId) => {
-          map.on("mouseenter", layerId, () => {
-            map.getCanvas().style.cursor = "pointer";
-          });
-          map.on("mouseleave", layerId, () => {
-            map.getCanvas().style.cursor = "grab";
-          });
-        });
-
-        // Persistent click-based popup
+        // Persistent popup
         map.on("click", ["retailers-layer", "kingpins-layer"], (e) => {
           const feature = e.features?.[0];
           if (!feature) return;
@@ -253,23 +229,22 @@ export default function CertisMap({
             : [0, 0];
           const props = feature.properties || {};
 
-          const supplierList =
+          const suppliersArr = parseSuppliers(
             props.Suppliers ||
-            props.Supplier ||
-            props.SUPPLIER ||
-            props["Supplier(s)"];
+              props.Supplier ||
+              props.supplier ||
+              props["Supplier(s)"] ||
+              props["Suppliers(s)"]
+          );
+
           const suppliers =
-            splitAndStandardizeSuppliers(supplierList).join(", ") || "N/A";
+            suppliersArr.length > 0 ? suppliersArr.join(", ") : "N/A";
 
           const retailer = props.Retailer || "Unknown";
           const siteName = props.Name || "";
           const category = props.DisplayCategory || "N/A";
           const stopLabel = siteName ? `${retailer} – ${siteName}` : retailer;
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
-
-          const fullAddress = `${props.Address || ""}, ${props.City || ""}, ${
-            props.State || ""
-          } ${props.Zip || ""}`;
 
           const popupHTML = `
             <div style="font-size:13px;width:360px;background:#1a1a1a;color:#f5f5f5;
@@ -282,7 +257,8 @@ export default function CertisMap({
               </button>
               <strong>${retailer}</strong><br/>
               <em>${siteName}</em><br/>
-              ${fullAddress}<br/>
+              ${props.Address || ""}<br/>
+              ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
               <strong>Category:</strong> ${category}<br/>
               <strong>Suppliers:</strong> ${suppliers}
             </div>
@@ -304,18 +280,27 @@ export default function CertisMap({
           setTimeout(() => {
             const btn = document.getElementById(btnId);
             if (btn && onAddStop) {
-              btn.onclick = () => {
+              btn.onclick = () =>
                 onAddStop({
                   label: stopLabel,
-                  address: fullAddress,
-                  city: props.City,
-                  state: props.State,
-                  zip: props.Zip,
+                  address: props.Address || "",
+                  city: props.City || "",
+                  state: props.State || "",
+                  zip: props.Zip || "",
                   coords,
                 });
-              };
             }
           }, 100);
+        });
+
+        // Pointer cursor for interactivity
+        ["retailers-layer", "kingpins-layer"].forEach((layer) => {
+          map.on("mouseenter", layer, () => {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", layer, () => {
+            map.getCanvas().style.cursor = "";
+          });
         });
       } catch (err) {
         console.error("❌ Failed to load GeoJSON", err);
@@ -324,7 +309,7 @@ export default function CertisMap({
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
   // ========================================
-  // 🔄 Real-Time Filtering & Retailer Updates
+  // 🔄 Real-Time Filtering
   // ========================================
   useEffect(() => {
     if (!mapRef.current || !geoDataRef.current) return;
@@ -333,6 +318,7 @@ export default function CertisMap({
     const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!source) return;
 
+    // Toggle retailer visibility
     const hasFilters =
       selectedStates.length > 0 ||
       selectedRetailers.length > 0 ||
@@ -346,8 +332,12 @@ export default function CertisMap({
       const category = props.DisplayCategory;
       const retailer = props.Retailer || "";
       const state = props.State || "";
-      const supplierList = splitAndStandardizeSuppliers(
-        props.Suppliers || props.Supplier || props.SUPPLIER || props["Supplier(s)"]
+      const supplierList = parseSuppliers(
+        props.Suppliers ||
+          props.Supplier ||
+          props.supplier ||
+          props["Supplier(s)"] ||
+          props["Suppliers(s)"]
       ).map(norm);
 
       if (category === "Kingpin") return true;
@@ -358,7 +348,7 @@ export default function CertisMap({
       const categoryMatch =
         selectedCategories.length === 0
           ? ["agronomy", "agronomy/grain", "grain/feed"].includes(catNorm)
-          : selectedCategories.includes(category);
+          : selectedCategories.includes(catNorm);
 
       const supplierMatch =
         selectedSuppliers.length === 0 ||
@@ -367,25 +357,9 @@ export default function CertisMap({
       return categoryMatch && supplierMatch;
     });
 
-    // ✅ Update source data
     source.setData({ type: "FeatureCollection", features: filtered });
 
-    // ✅ Rebuild retailer & supplier lists dynamically
-    const filteredRetailers = new Set<string>();
-    const filteredSuppliers = new Set<string>();
-
-    for (const f of filtered) {
-      const props = f.properties || {};
-      if (props.Retailer) filteredRetailers.add(props.Retailer);
-      splitAndStandardizeSuppliers(
-        props.Suppliers || props.Supplier || props.SUPPLIER || props["Supplier(s)"]
-      ).forEach((s) => filteredSuppliers.add(s));
-    }
-
-    onRetailersLoaded?.(Array.from(filteredRetailers).sort());
-    onSuppliersLoaded?.(Array.from(filteredSuppliers).sort());
-
-    // ✅ Retailer Summary
+    // Retailer Summary for Sidebar
     if (onRetailerSummary) {
       const summaryMap = new Map<
         string,
@@ -397,8 +371,12 @@ export default function CertisMap({
         if (props.DisplayCategory === "Kingpin") continue;
         const state = props.State || "Unknown";
         const retailer = props.Retailer || "Unknown";
-        const suppliers = splitAndStandardizeSuppliers(
-          props.Suppliers || props.Supplier || props.SUPPLIER || props["Supplier(s)"]
+        const suppliers = parseSuppliers(
+          props.Suppliers ||
+            props.Supplier ||
+            props.supplier ||
+            props["Supplier(s)"] ||
+            props["Suppliers(s)"]
         );
         const categories = expandCategories(props.Category || "");
 
