@@ -20,7 +20,7 @@ export const categoryColors: Record<string, { color: string; outline?: string }>
 };
 
 // ========================================
-// ⚙️ Normalizers
+// ⚙️ Normalizers + Utilities
 // ========================================
 const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 
@@ -48,7 +48,18 @@ const assignDisplayCategory = (cat: string): string => {
 };
 
 // ========================================
-// 🧩 Supplier Normalization + Robust Parsing
+// 🧹 Address Sanitizer
+// ========================================
+const sanitizeAddress = (addr: string): string => {
+  return (addr || "")
+    .replace(/\bP\.?\s*O\.?\s*Box\s*\d*/gi, "")
+    .replace(/,+/g, ",")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+};
+
+// ========================================
+// 🧩 Supplier Parser (multi-format robust)
 // ========================================
 function parseSuppliers(value: any): string[] {
   if (!value) return [];
@@ -118,7 +129,7 @@ export default function CertisMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const geoDataRef = useRef<any>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021f`;
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251022a`;
 
   // ========================================
   // 🗺️ Map Initialization
@@ -143,29 +154,23 @@ export default function CertisMap({
         const data = await response.json();
         geoDataRef.current = data;
 
-        // Normalize categories
+        // Assign normalized categories
         for (const f of data.features) {
           f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
 
-        // Collect unique sets
+        // Collect unique metadata
         const stateSet = new Set<string>();
         const retailerSet = new Set<string>();
         const supplierSet = new Set<string>();
 
         for (const f of data.features) {
           const props = f.properties || {};
-          const st = props.State;
-          const r = props.Retailer;
-          const rawSuppliers =
-            props.Suppliers ||
-            props.Supplier ||
-            props.supplier ||
-            props["Supplier(s)"] ||
-            props["Suppliers(s)"];
-          if (st) stateSet.add(st);
-          if (r) retailerSet.add(r);
-          parseSuppliers(rawSuppliers).forEach((s) => supplierSet.add(s));
+          if (props.State) stateSet.add(props.State);
+          if (props.Retailer) retailerSet.add(props.Retailer);
+          parseSuppliers(
+            props.Suppliers || props.Supplier || props["Supplier(s)"]
+          ).forEach((s) => supplierSet.add(s));
         }
 
         onStatesLoaded?.(Array.from(stateSet).sort());
@@ -174,7 +179,7 @@ export default function CertisMap({
 
         map.addSource("retailers", { type: "geojson", data });
 
-        // Regular retailers layer (hidden initially)
+        // Hide all but Kingpins initially
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -203,7 +208,7 @@ export default function CertisMap({
           layout: { visibility: "none" },
         });
 
-        // Kingpins visible on startup
+        // Kingpin layer visible by default
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -218,32 +223,24 @@ export default function CertisMap({
           layout: { visibility: "visible" },
         });
 
-        // Persistent popup
+        // 💬 Popup (persistent + trip-safe)
         map.on("click", ["retailers-layer", "kingpins-layer"], (e) => {
           const feature = e.features?.[0];
           if (!feature) return;
-
+          const props = feature.properties || {};
           const geom: any = feature.geometry;
           const coords: [number, number] = Array.isArray(geom?.coordinates)
             ? geom.coordinates
             : [0, 0];
-          const props = feature.properties || {};
 
-          const suppliersArr = parseSuppliers(
-            props.Suppliers ||
-              props.Supplier ||
-              props.supplier ||
-              props["Supplier(s)"] ||
-              props["Suppliers(s)"]
-          );
-
-          const suppliers =
-            suppliersArr.length > 0 ? suppliersArr.join(", ") : "N/A";
+          const suppliers = parseSuppliers(
+            props.Suppliers || props.Supplier || props["Supplier(s)"]
+          ).join(", ") || "N/A";
 
           const retailer = props.Retailer || "Unknown";
           const siteName = props.Name || "";
-          const category = props.DisplayCategory || "N/A";
           const stopLabel = siteName ? `${retailer} – ${siteName}` : retailer;
+          const category = props.DisplayCategory || "N/A";
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
           const popupHTML = `
@@ -257,7 +254,7 @@ export default function CertisMap({
               </button>
               <strong>${retailer}</strong><br/>
               <em>${siteName}</em><br/>
-              ${props.Address || ""}<br/>
+              ${sanitizeAddress(props.Address || "")}<br/>
               ${props.City || ""} ${props.State || ""} ${props.Zip || ""}<br/>
               <strong>Category:</strong> ${category}<br/>
               <strong>Suppliers:</strong> ${suppliers}
@@ -283,7 +280,7 @@ export default function CertisMap({
               btn.onclick = () =>
                 onAddStop({
                   label: stopLabel,
-                  address: props.Address || "",
+                  address: sanitizeAddress(props.Address || ""),
                   city: props.City || "",
                   state: props.State || "",
                   zip: props.Zip || "",
@@ -293,14 +290,10 @@ export default function CertisMap({
           }, 100);
         });
 
-        // Pointer cursor for interactivity
+        // 🖱 Pointer Cursor
         ["retailers-layer", "kingpins-layer"].forEach((layer) => {
-          map.on("mouseenter", layer, () => {
-            map.getCanvas().style.cursor = "pointer";
-          });
-          map.on("mouseleave", layer, () => {
-            map.getCanvas().style.cursor = "";
-          });
+          map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
+          map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
         });
       } catch (err) {
         console.error("❌ Failed to load GeoJSON", err);
@@ -309,7 +302,7 @@ export default function CertisMap({
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
   // ========================================
-  // 🔄 Real-Time Filtering
+  // 🔄 Real-Time Filtering (multi-selection safe)
   // ========================================
   useEffect(() => {
     if (!mapRef.current || !geoDataRef.current) return;
@@ -318,7 +311,6 @@ export default function CertisMap({
     const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!source) return;
 
-    // Toggle retailer visibility
     const hasFilters =
       selectedStates.length > 0 ||
       selectedRetailers.length > 0 ||
@@ -332,36 +324,32 @@ export default function CertisMap({
       const category = props.DisplayCategory;
       const retailer = props.Retailer || "";
       const state = props.State || "";
-      const supplierList = parseSuppliers(
-        props.Suppliers ||
-          props.Supplier ||
-          props.supplier ||
-          props["Supplier(s)"] ||
-          props["Suppliers(s)"]
+      const suppliers = parseSuppliers(
+        props.Suppliers || props.Supplier || props["Supplier(s)"]
       ).map(norm);
 
       if (category === "Kingpin") return true;
-      if (selectedStates.length > 0 && !selectedStates.includes(state)) return false;
-      if (selectedRetailers.length > 0 && !selectedRetailers.includes(retailer)) return false;
+      if (selectedStates.length && !selectedStates.includes(state)) return false;
+      if (selectedRetailers.length && !selectedRetailers.includes(retailer)) return false;
 
       const catNorm = norm(category);
       const categoryMatch =
         selectedCategories.length === 0
-          ? ["agronomy", "agronomy/grain", "grain/feed"].includes(catNorm)
-          : selectedCategories.includes(catNorm);
+          ? ["agronomy", "grain/feed", "feed"].includes(catNorm)
+          : selectedCategories.includes(category);
 
       const supplierMatch =
         selectedSuppliers.length === 0 ||
-        selectedSuppliers.some((s) => supplierList.includes(norm(s)));
+        selectedSuppliers.some((s) => suppliers.includes(norm(s)));
 
       return categoryMatch && supplierMatch;
     });
 
     source.setData({ type: "FeatureCollection", features: filtered });
 
-    // Retailer Summary for Sidebar
+    // Retailer summary callback
     if (onRetailerSummary) {
-      const summaryMap = new Map<
+      const summary = new Map<
         string,
         { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }
       >();
@@ -369,31 +357,24 @@ export default function CertisMap({
       for (const f of filtered) {
         const props = f.properties || {};
         if (props.DisplayCategory === "Kingpin") continue;
-        const state = props.State || "Unknown";
         const retailer = props.Retailer || "Unknown";
-        const suppliers = parseSuppliers(
-          props.Suppliers ||
-            props.Supplier ||
-            props.supplier ||
-            props["Supplier(s)"] ||
-            props["Suppliers(s)"]
-        );
+        const suppliers = parseSuppliers(props.Suppliers || props.Supplier || props["Supplier(s)"]);
         const categories = expandCategories(props.Category || "");
+        const state = props.State || "Unknown";
 
-        if (!summaryMap.has(retailer)) {
-          summaryMap.set(retailer, { retailer, count: 0, suppliers: [], categories: [], states: [] });
-        }
+        if (!summary.has(retailer))
+          summary.set(retailer, { retailer, count: 0, suppliers: [], categories: [], states: [] });
 
-        const entry = summaryMap.get(retailer)!;
-        entry.count += 1;
-        if (state && !entry.states.includes(state)) entry.states.push(state);
-        suppliers.forEach((s) => !entry.suppliers.includes(s) && entry.suppliers.push(s));
-        categories.forEach((c) => !entry.categories.includes(c) && entry.categories.push(c));
+        const e = summary.get(retailer)!;
+        e.count++;
+        suppliers.forEach((s) => !e.suppliers.includes(s) && e.suppliers.push(s));
+        categories.forEach((c) => !e.categories.includes(c) && e.categories.push(c));
+        if (!e.states.includes(state)) e.states.push(state);
       }
 
-      onRetailerSummary(Array.from(summaryMap.values()));
+      onRetailerSummary(Array.from(summary.values()));
     }
-  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
+  }, [selectedStates, selectedRetailers, selectedSuppliers, selectedCategories, onRetailerSummary]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }
