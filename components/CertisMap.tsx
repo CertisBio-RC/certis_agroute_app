@@ -124,7 +124,7 @@ export default function CertisMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const geoDataRef = useRef<any>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251022b`;
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251022c`;
 
   // ========================================
   // 🗺️ Map Initialization
@@ -149,26 +149,25 @@ export default function CertisMap({
         const data = await response.json();
         geoDataRef.current = data;
 
-        // Normalize and prep
         for (const f of data.features) {
           f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
 
-        const stateSet = new Set<string>();
-        const retailerSet = new Set<string>();
-        const supplierSet = new Set<string>();
+        const states = new Set<string>();
+        const retailers = new Set<string>();
+        const suppliers = new Set<string>();
 
         for (const f of data.features) {
           const p = f.properties || {};
-          if (p.State) stateSet.add(p.State);
-          if (p.Retailer) retailerSet.add(p.Retailer);
+          if (p.State) states.add(p.State);
+          if (p.Retailer) retailers.add(p.Retailer);
           const sup = parseSuppliers(p.Suppliers || p.Supplier || p["Supplier(s)"]);
-          sup.forEach((s) => supplierSet.add(s));
+          sup.forEach((s) => suppliers.add(s));
         }
 
-        onStatesLoaded?.(Array.from(stateSet).sort());
-        onRetailersLoaded?.(Array.from(retailerSet).sort());
-        onSuppliersLoaded?.(Array.from(supplierSet).sort());
+        onStatesLoaded?.(Array.from(states).sort());
+        onRetailersLoaded?.(Array.from(retailers).sort());
+        onSuppliersLoaded?.(Array.from(suppliers).sort());
 
         map.addSource("retailers", { type: "geojson", data });
 
@@ -200,7 +199,7 @@ export default function CertisMap({
           layout: { visibility: "none" },
         });
 
-        // Kingpins layer visible by default
+        // Kingpins
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -215,14 +214,14 @@ export default function CertisMap({
           layout: { visibility: "visible" },
         });
 
-        // Popup logic
+        // Popup
         map.on("click", ["retailers-layer", "kingpins-layer"], (e) => {
           const f = e.features?.[0];
           if (!f) return;
           const geom = f.geometry as GeoJSON.Point;
-          const coords: [number, number] = Array.isArray(geom?.coordinates)
-            ? geom.coordinates
-            : [0, 0];
+          const coords = (Array.isArray(geom?.coordinates)
+            ? (geom.coordinates as [number, number])
+            : [0, 0]) satisfies [number, number];
           const p = f.properties || {};
 
           const suppliers = parseSuppliers(p.Suppliers || p.Supplier || p["Supplier(s)"]);
@@ -283,7 +282,7 @@ export default function CertisMap({
           }, 100);
         });
 
-        // Pointer cursor
+        // Cursor
         ["retailers-layer", "kingpins-layer"].forEach((layer) => {
           map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
           map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
@@ -295,7 +294,7 @@ export default function CertisMap({
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded]);
 
   // ========================================
-  // 🔄 Filtering Logic
+  // 🔄 Filtering
   // ========================================
   useEffect(() => {
     if (!mapRef.current || !geoDataRef.current) return;
