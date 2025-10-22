@@ -9,7 +9,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app";
 
 // ========================================
-// 🎨 Category Colors
+// 🎨 CATEGORY COLORS
 // ========================================
 export const categoryColors: Record<string, { color: string; outline?: string }> = {
   Agronomy: { color: "#FFD700", outline: "#000" },
@@ -21,14 +21,13 @@ export const categoryColors: Record<string, { color: string; outline?: string }>
 };
 
 // ========================================
-// ⚙️ Normalizers
+// ⚙️ NORMALIZERS
 // ========================================
 const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 
 const normalizeCategory = (cat: string) => {
   const c = norm(cat);
-  if (["agronomy/grain", "agronomygrain", "agronomy hybrid"].includes(c))
-    return "agronomy/grain";
+  if (["agronomy/grain", "agronomygrain", "agronomy hybrid"].includes(c)) return "agronomy/grain";
   return c;
 };
 
@@ -43,24 +42,19 @@ const assignDisplayCategory = (cat: string): string => {
   if (expanded.includes("agronomy")) return "Agronomy";
   if (expanded.includes("grain")) return "Grain/Feed";
   if (expanded.includes("feed")) return "Feed";
-  if (
-    expanded.includes("officeservice") ||
-    expanded.includes("office/service")
-  )
-    return "Office/Service";
+  if (expanded.includes("officeservice") || expanded.includes("office/service")) return "Office/Service";
   if (expanded.includes("distribution")) return "Distribution";
   if (expanded.includes("kingpin")) return "Kingpin";
   return "Unknown";
 };
 
 // ========================================
-// 🧩 Supplier Normalization + Robust Parsing
+// 🧩 SUPPLIER NORMALIZATION
 // ========================================
 function parseSuppliers(value: any): string[] {
   if (!value) return [];
   if (Array.isArray(value)) return value.map((s) => s.trim());
-  if (typeof value === "object")
-    return Object.values(value).map((s: any) => s.toString().trim());
+  if (typeof value === "object") return Object.values(value).map((s: any) => s.toString().trim());
   if (typeof value === "string")
     return value
       .split(/[,;/|]+/)
@@ -70,7 +64,7 @@ function parseSuppliers(value: any): string[] {
 }
 
 // ========================================
-// 📍 Types
+// 📍 TYPES
 // ========================================
 export interface Stop {
   label: string;
@@ -105,7 +99,7 @@ export interface CertisMapProps {
 }
 
 // ========================================
-// 🗺️ Component
+// 🗺️ MAIN COMPONENT
 // ========================================
 export default function CertisMap({
   selectedCategories,
@@ -125,10 +119,10 @@ export default function CertisMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const geoDataRef = useRef<any>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021x`;
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021k`;
 
   // ========================================
-  // 🗺️ Map Initialization
+  // 🗺️ MAP INITIALIZATION
   // ========================================
   useEffect(() => {
     if (mapRef.current) return;
@@ -145,37 +139,40 @@ export default function CertisMap({
 
     map.on("load", async () => {
       try {
-        const res = await fetch(geojsonPath, { cache: "no-store" });
-        if (!res.ok) throw new Error(`GeoJSON fetch failed: ${res.status}`);
-        const data = await res.json();
+        const response = await fetch(geojsonPath, { cache: "no-store" });
+        if (!response.ok) throw new Error(`GeoJSON fetch failed: ${response.status}`);
+        const data = await response.json();
         geoDataRef.current = data;
 
+        // Normalize categories
         for (const f of data.features) {
-          f.properties.DisplayCategory = assignDisplayCategory(
-            f.properties?.Category || ""
-          );
+          f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
 
-        const states = new Set<string>();
-        const retailers = new Set<string>();
-        const suppliers = new Set<string>();
+        // Collect unique lists
+        const stateSet = new Set<string>();
+        const retailerSet = new Set<string>();
+        const supplierSet = new Set<string>();
 
         for (const f of data.features) {
           const p = f.properties || {};
-          if (p.State) states.add(p.State);
-          if (p.Retailer) retailers.add(p.Retailer);
-          parseSuppliers(
-            p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"]
-          ).forEach((s) => suppliers.add(s));
+          const st = p.State;
+          const r = p.Retailer;
+          const rawSuppliers =
+            p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"];
+          if (st) stateSet.add(st);
+          if (r) retailerSet.add(r);
+          parseSuppliers(rawSuppliers).forEach((s) => supplierSet.add(s));
         }
 
-        onStatesLoaded?.(Array.from(states).sort());
-        onRetailersLoaded?.(Array.from(retailers).sort());
-        onSuppliersLoaded?.(Array.from(suppliers).sort());
+        onStatesLoaded?.(Array.from(stateSet).sort());
+        onRetailersLoaded?.(Array.from(retailerSet).sort());
+        onSuppliersLoaded?.(Array.from(supplierSet).sort());
 
+        // Add data source
         map.addSource("retailers", { type: "geojson", data });
 
-        // Retailers
+        // Retailers layer
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -204,7 +201,7 @@ export default function CertisMap({
           layout: { visibility: "none" },
         });
 
-        // Kingpins
+        // Kingpins layer (visible)
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -219,20 +216,20 @@ export default function CertisMap({
           layout: { visibility: "visible" },
         });
 
-        // Popup logic
+        // Popups
         map.on("click", ["retailers-layer", "kingpins-layer"], (e) => {
           const f = e.features?.[0];
           if (!f) return;
           const geom = f.geometry as GeoJSON.Point;
           const coords = Array.isArray(geom?.coordinates)
-            ? ([geom.coordinates[0], geom.coordinates[1]] as [number, number])
-            : ([0, 0] as [number, number]);
+            ? (geom.coordinates.slice(0, 2) as [number, number])
+            : [0, 0];
           const p = f.properties || {};
 
           const suppliersArr = parseSuppliers(
             p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"]
           );
-          const suppliers = suppliersArr.length ? suppliersArr.join(", ") : "N/A";
+          const suppliers = suppliersArr.length > 0 ? suppliersArr.join(", ") : "N/A";
           const retailer = p.Retailer || "Unknown";
           const siteName = p.Name || "";
           const category = p.DisplayCategory || "N/A";
@@ -240,23 +237,24 @@ export default function CertisMap({
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
           const popupHTML = `
-            <div style="font-size:13px;width:360px;background:#1a1a1a;color:#f5f5f5;
-              padding:6px;border-radius:4px;position:relative;">
+            <div style="font-size:13px;width:340px;background:#1a1a1a;color:#f5f5f5;
+                        padding:6px;border-radius:4px;position:relative;">
               <button id="${btnId}" style="position:absolute;top:4px;right:4px;
-                padding:2px 6px;background:#166534;color:#fff;border:none;
-                border-radius:3px;font-size:11px;cursor:pointer;font-weight:600;">
+                       padding:2px 6px;background:#166534;color:#fff;border:none;
+                       border-radius:3px;font-size:11px;cursor:pointer;font-weight:600;">
                 + Add to Trip
               </button>
               <strong>${retailer}</strong><br/>
               <em>${siteName}</em><br/>
               ${p.Address || ""}<br/>
-              ${p.City || ""}, ${p.State || ""} ${p.Zip || ""}<br/>
+              ${p.City || ""} ${p.State || ""} ${p.Zip || ""}<br/>
               <strong>Category:</strong> ${category}<br/>
               <strong>Suppliers:</strong> ${suppliers}
             </div>
           `;
 
-          popupRef.current?.remove();
+          if (popupRef.current) popupRef.current.remove();
+
           const popup = new mapboxgl.Popup({
             closeButton: true,
             closeOnClick: true,
@@ -265,6 +263,7 @@ export default function CertisMap({
             .setLngLat(coords as LngLatLike)
             .setHTML(popupHTML)
             .addTo(map);
+
           popupRef.current = popup;
 
           setTimeout(() => {
@@ -277,7 +276,7 @@ export default function CertisMap({
                   city: p.City || "",
                   state: p.State || "",
                   zip: p.Zip || "",
-                  coords,
+                  coords: coords as [number, number],
                 });
             }
           }, 100);
@@ -288,77 +287,93 @@ export default function CertisMap({
           map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
         });
       } catch (err) {
-        console.error("❌ GeoJSON load error", err);
+        console.error("❌ Failed to load GeoJSON", err);
       }
     });
-  }, [
-    geojsonPath,
-    onStatesLoaded,
-    onRetailersLoaded,
-    onSuppliersLoaded,
-    onAddStop,
-  ]);
+  }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
   // ========================================
-  // 🔄 Filtering
+  // 🔄 FILTERING (ADDITIVE CASCADE)
   // ========================================
   useEffect(() => {
     if (!mapRef.current || !geoDataRef.current) return;
     const map = mapRef.current;
-    const full = geoDataRef.current;
-    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource;
-    if (!src) return;
+    const data = geoDataRef.current;
+    const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
+    if (!source) return;
 
-    const active =
-      selectedStates.length ||
-      selectedRetailers.length ||
-      selectedSuppliers.length ||
-      selectedCategories.length;
-    map.setLayoutProperty("retailers-layer", "visibility", active ? "visible" : "none");
-
-    const filtered = full.features.filter((f: any) => {
+    const filtered = data.features.filter((f: any) => {
       const p = f.properties || {};
-      if (p.DisplayCategory === "Kingpin") return true;
-
-      const stateMatch =
-        !selectedStates.length || selectedStates.includes(p.State);
-      const retailerMatch =
-        !selectedRetailers.length || selectedRetailers.includes(p.Retailer);
-      const categoryMatch =
-        !selectedCategories.length || selectedCategories.includes(norm(p.DisplayCategory));
-      const suppliers = parseSuppliers(
+      const category = p.DisplayCategory;
+      const retailer = p.Retailer || "";
+      const state = p.State || "";
+      const supplierList = parseSuppliers(
         p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"]
       ).map(norm);
-      const supplierMatch =
-        !selectedSuppliers.length ||
-        selectedSuppliers.some((s) => suppliers.includes(norm(s)));
 
-      return stateMatch && retailerMatch && categoryMatch && supplierMatch;
+      if (category === "Kingpin") return true;
+
+      const matchState = selectedStates.length === 0 || selectedStates.includes(state);
+      const matchRetailer = selectedRetailers.length === 0 || selectedRetailers.includes(retailer);
+      const matchCategory =
+        selectedCategories.length === 0 || selectedCategories.includes(norm(category));
+      const matchSupplier =
+        selectedSuppliers.length === 0 ||
+        selectedSuppliers.some((s) => supplierList.includes(norm(s)));
+
+      return matchState && matchRetailer && matchCategory && matchSupplier;
     });
 
-    src.setData({ type: "FeatureCollection", features: filtered });
-  }, [
-    selectedStates,
-    selectedRetailers,
-    selectedSuppliers,
-    selectedCategories,
-  ]);
+    source.setData({ type: "FeatureCollection", features: filtered });
+
+    map.setLayoutProperty("retailers-layer", "visibility", "visible");
+
+    if (onRetailerSummary) {
+      const summaryMap = new Map<
+        string,
+        { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }
+      >();
+
+      for (const f of filtered) {
+        const p = f.properties || {};
+        if (p.DisplayCategory === "Kingpin") continue;
+        const state = p.State || "Unknown";
+        const retailer = p.Retailer || "Unknown";
+        const suppliers = parseSuppliers(p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"]);
+        const categories = expandCategories(p.Category || "");
+
+        if (!summaryMap.has(retailer)) {
+          summaryMap.set(retailer, { retailer, count: 0, suppliers: [], categories: [], states: [] });
+        }
+
+        const entry = summaryMap.get(retailer)!;
+        entry.count += 1;
+        if (state && !entry.states.includes(state)) entry.states.push(state);
+        suppliers.forEach((s) => !entry.suppliers.includes(s) && entry.suppliers.push(s));
+        categories.forEach((c) => !entry.categories.includes(c) && entry.categories.push(c));
+      }
+
+      onRetailerSummary(Array.from(summaryMap.values()));
+    }
+  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
 
   // ========================================
-  // 🧱 Render Map + Logo
+  // 🧱 RENDER MAP + FIXED LOGO
   // ========================================
   return (
     <div className="relative w-full h-full">
-      <div className="absolute top-3 left-3 z-50 bg-black/60 p-2 rounded-xl shadow-md">
+      {/* Logo - fixed outside map canvas */}
+      <div className="absolute top-2 left-2 z-50 bg-white bg-opacity-90 p-1 rounded shadow-md pointer-events-none">
         <Image
           src={`${basePath}/certis-logo.png`}
           alt="Certis Biologicals"
           width={180}
-          height={50}
+          height={48}
           priority
-          className="pointer-events-none"
         />
       </div>
+
+      {/* Map Container */}
       <div ref={mapContainer} className="w-full h-full" />
     </div>
   );
