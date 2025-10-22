@@ -1,0 +1,95 @@
+[33m6f8158dc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mrestore-baseline[m[33m)[m ✅ Final compile-safe CertisMap.tsx with fixed retailer logic, supplier fallback, and always-visible Kingpins
+[33m8d0af9fe[m ✅ Fix syntax, always-visible Kingpins, supplier fallback, and correct retailer gating
+[33md2725718[m ✅ Always-visible Kingpins, corrected retailer filter, and supplier display fix
+[33medd64b48[m ✅ Full rebuild with supplier fallback, safe geometry cast, and retailer gating
+[33m4815a2ae[m ✅ Fix Kingpin visibility, supplier popup, and full filter logic refactor for CertisMap
+[33mbc5f9ef3[m ✅ Hide all points until retailer selected, maintain Agronomy default, reduce Kingpin size, and fix supplier popup display
+[33mdfdf8be0[m ✅ Correct state→retailer gating, Kingpin size, supplier popup, and route export logic
+[33m2a935ab0[m ✅ Corrected map filtering logic, retailer persistence, supplier popups, and Kingpin sizing
+[33md8b3a9ab[m ✅ Fix retailer list persistence, restore trip optimization toggle, and improve UI clarity
+[33md8dc8cff[m ✅ Full CertisMap.tsx correction: semicolon fix, persistent retailers, balanced Kingpins
+[33mb80a76be[m ✅ Fix persistent retailer list, cumulative filtering, and Kingpin size balance
+[33m90144aa6[m ✅ Implement Kingpin→Agronomy flow, thicker outlines, and verified map logic
+[33m00045f63[m ✅ Implement new Kingpin→Agronomy filter flow, thicker outlines, and UI font upgrades
+[33m79653200[m ✅ Fix JSX syntax error in Trip Optimization block
+[33mcff21af9[m ✅ Fix multi-retailer selection + dynamic state filtering behavior
+[33m525cf4c4[m ✅ Multi-retailer selection persists across state filters
+[33mb34a7933[m ✨ Add dynamic Retailer filtering by state + synced sidebar updates
+[33m1fa33a72[m 🌎 Update retailer geocoding + GeoJSON data
+[33m083954fc[m 🚀 Fix build errors and deploy updated CertisMap + page.tsx
+[33m4111a88f[m 🚀 Update page.tsx for Google/Apple route export fix
+[33mb6fe6a73[m 🐛 Sanitize NaN coords + encode Mapbox geocoding URLs
+[33m0d7ce4c2[m 📍 Fix CertisMap basePath + restore retailer point rendering
+[33m92efb6e0[m 📍 Update retailers.geojson from latest Excel
+[33mf63da827[m 🚀 Implement Build Route button logic and sync with CertisMap
+[33m9a56ed5f[m ✅ Fix Google/Apple Maps export to use optimized/entered route with clean addresses
+[33mbd148648[m ✅ Fix exportStops to use optimized route for Google/Apple Maps
+[33mf1bf484b[m ✅ Fix category normalization + trip export optimization + export button layout
+[33me46ae8c8[m ✅ Full regen of page.tsx + CertisMap.tsx (category normalization + trip builder fixes)
+[33m47a4967f[m 🚀 Deploy: Google + Apple Maps export feature
+[33m43351fcd[m 📌 Update baseline checkpoint (Google + Apple Maps export added)
+[33mab127717[m 📌 Update baseline checkpoint (stable working app)
+[33maeefdcb4[m ✅ Clean baseline: exclude baseline/ from TypeScript + ESLint
+[33m059ec974[m ♻️ Cleanup: remove legacy state field, use states[] only
+[33mf315679a[m ✨ Retailer summary now dedupes states (multi-state list instead of repeats)
+[33mf8ff8c4c[m 📌 Save baseline checkpoint (page.tsx + CertisMap.tsx)
+[33md9011071[m ✨ Improve category expansion + Channel Summary (suppliers + categories, no color dots)
+[33m8d7e2dbf[m 🐛 Fix category normalization & counting (split categories properly)
+[33ma44086f1[m ➕ Add per-stop ❌ remove button while preserving baseline logic
+[33mc6edefaf[m ➖ Add per-stop ❌ remove button in trip list
+[33md55b691f[m 🎨 Improve trip-stop markers (circle + label)
+[33mb5dfa9e2[m 🐛 Fix Directions API route source typing (add properties)
+[33m6ea04dc0[m 🐛 Fix Stop type mismatch (coordinates → coords)
+[33m18abc8b7[m ✨ Add Home ZIP geocoding + Directions API routing
+[33mbe80a382[m 🛣️ Add tripMode toggle (Map as Entered vs Optimize Route) with live map rendering
+[33m8ae6784f[m 🚦 Add Stop object model with address + coords for trip optimization
+[33m530e4a9b[m 🎨 Update Add to Trip button to dark green with accessible plus sign
+[33me8c2d46e[m ✨ Add Category line to popup above Suppliers
+[33m0a24e510[m 🎨 Narrow popup width to 360px + split address lines
+[33m3297d250[m ✨ Widen sidebar + add Select All to Retailer/Supplier tiles
+[33mc4733a23[m 🔧 Shrink popup width to 420px + preserve full retailer list in filter
+[33m85d5b4b1[m 🔧 Fix popup width + preserve full retailer list in filter
+[33m49f69ec5[m 🔧 Update Channel Summary wording + popup tweaks
+[33m742eb925[m ✅ Rebuild GeoJSON and deploy latest data pipeline
+[33ma3a5d785[m ♻️ Canonicalize retailers.geojson to public/data
+[33mabb287f5[m ♻️ Force refresh retailers.geojson with full properties
+[33m348f6260[m 🚀 Fix: bust GeoJSON cache in CertisMap.tsx (restore Kingpins + filters)
+[33m843ac9da[m ✅ Fix: retailers.geojson with clean string properties (Category + Kingpin restored)
+[33m18d4810c[m ♻️ Rebuilt retailers.geojson with full properties
+[33mce56a8f5[m 🐛 Fix: cast coords as [number, number] in CertisMap.tsx (TypeScript build error resolved)
+[33m6edea0ca[m ✅ Baseline: CertisMap + page.tsx + globals.css stabilized
+[33mc2b05fd2[m 🚀 Update CertisMap to load data/retailers.geojson + pipeline fixes
+[33m8c8fd46e[m ✅ Dynamic Retailer List + Kingpin legend fix + widened popup + circle size update
+[33mf9c6dbac[m 🎯 Adjust retailer + kingpin circle sizes (4+7) and bump stroke widths
+[33mfd878346[m 🛠 Fix retailer list filtering + trip stop labels in CertisMap
+[33maca5186d[m 🚀 Update CertisMap + page.tsx with trip stop fixes and retailer filter logic
+[33me8878a2e[m 🐛 Fix missing categoryColors export in CertisMap
+[33m21fb6975[m ✅ Fix categoryColors export + Channel Summary alignment
+[33m1e794f3b[m ✅ Update Channel Summary formatting + Supplier handling
+[33me6816ab1[m ✨ Switch Retailer filter + summary to Long Name (fix lowercase display)
+[33m23d6346a[m 🐛 Fix popup Suppliers field + exclude Kingpins from Channel Summary
+[33m76b4f10a[m 🔄 Normalize to Suppliers field in GeoJSON
+[33mc52d7aab[m 🐛 Fix Supplier field in popups + ensure Kingpin hover/click popups
+[33m5ea3e356[m ✨ Add Supplier info + Kingpin hover/click popups with dark theme
+[33md799b8b1[m 🔄 Update retailers.geojson from refreshed Excel (includes Kingpins)
+[33mb4f329a8[m 🔄 Rebuild retailers.geojson from updated Excel + sync scripts
+[33m1320d5b6[m 🐛 Fix TypeScript error by casting geometry as GeoJSON.Point in CertisMap popups
+[33mc75ffa14[m ✨ Update CertisMap popups with Retailer/Name/Address formatting + dark theme
+[33m46a046fe[m 🐛 Fix retailers.geojson fetch path with basePath awareness
+[33m466aa5d0[m 🐛 Restore retailer points + Kingpins + filter population in CertisMap
+[33m3fb419ad[m 🐛 Restore points + Kingpins via dual-layer handling in CertisMap
+[33m1ee1d40e[m 🔧 Rename Debug Info tile to Channel Summary (page.tsx)
+[33m57238f04[m 📊 Enhance Channel Summary tile with dynamic retailer list
+[33m9cfb6167[m 📊 Enhance Channel Summary tile with dynamic retailer list
+[33m27df8596[m 🐛 Fix CertisMap typing by enforcing FeatureCollection for filtered data
+[33m975b7157[m 🎨 Restore categoryColors export in CertisMap for legend use in page.tsx
+[33ma92e566f[m 🐛 Fix CertisMap type error by casting state/retailer arrays to string[]
+[33m947b206e[m 📊 Add Channel Summary tile with dynamic retailer location counts
+[33m86117ef7[m ✨ Rename Debug Info tile to Channel Summary with retailer summary counts
+[33md98e1e7f[m 🔍 Add counts to Debug Info selections
+[33mee88da35[m 📦 Add lucide-react for mobile sidebar icons
+[33m0392ccfa[m ✅ Add mobile sidebar toggle + popup styling fix
+[33m7243a7a9[m ✨ Add dynamic Retailer filter with sidebar sync + preserve static Supplier list
+[33m46e55fcd[m ✨ Add dynamic Supplier + Retailer filters with sidebar sync
+[33m0ada250f[m ✨ Add supplier filter logic to map (sync with sidebar checkboxes)
+[33m58b72797[m 🎨 Sync categoryColors import so sidebar legend matches map 

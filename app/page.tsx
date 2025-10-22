@@ -87,7 +87,7 @@ export default function Page() {
             {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <Image
-            src="/certis_logo.png"
+            src="/certis-logo.png"
             alt="Certis Biologicals"
             width={160}
             height={40}

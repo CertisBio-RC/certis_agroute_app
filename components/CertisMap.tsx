@@ -3,7 +3,6 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl, { LngLatLike } from "mapbox-gl";
-import Image from "next/image";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app";
@@ -27,7 +26,8 @@ const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 
 const normalizeCategory = (cat: string) => {
   const c = norm(cat);
-  if (["agronomy/grain", "agronomygrain", "agronomy hybrid"].includes(c)) return "agronomy/grain";
+  if (["agronomy/grain", "agronomygrain", "agronomy hybrid"].includes(c))
+    return "agronomy/grain";
   return c;
 };
 
@@ -42,7 +42,8 @@ const assignDisplayCategory = (cat: string): string => {
   if (expanded.includes("agronomy")) return "Agronomy";
   if (expanded.includes("grain")) return "Grain/Feed";
   if (expanded.includes("feed")) return "Feed";
-  if (expanded.includes("officeservice") || expanded.includes("office/service")) return "Office/Service";
+  if (expanded.includes("officeservice") || expanded.includes("office/service"))
+    return "Office/Service";
   if (expanded.includes("distribution")) return "Distribution";
   if (expanded.includes("kingpin")) return "Kingpin";
   return "Unknown";
@@ -339,7 +340,9 @@ export default function CertisMap({
         if (p.DisplayCategory === "Kingpin") continue;
         const state = p.State || "Unknown";
         const retailer = p.Retailer || "Unknown";
-        const suppliers = parseSuppliers(p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"]);
+        const suppliers = parseSuppliers(
+          p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"]
+        );
         const categories = expandCategories(p.Category || "");
 
         if (!summaryMap.has(retailer)) {
@@ -358,22 +361,10 @@ export default function CertisMap({
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
 
   // ========================================
-  // 🧱 RENDER MAP + FIXED LOGO
+  // 🧱 RENDER MAP
   // ========================================
   return (
     <div className="relative w-full h-full">
-      {/* Logo - fixed outside map canvas */}
-      <div className="absolute top-2 left-2 z-50 bg-white bg-opacity-90 p-1 rounded shadow-md pointer-events-none">
-        <Image
-          src={`${basePath}/certis-logo.png`}
-          alt="Certis Biologicals"
-          width={180}
-          height={48}
-          priority
-        />
-      </div>
-
-      {/* Map Container */}
       <div ref={mapContainer} className="w-full h-full" />
     </div>
   );

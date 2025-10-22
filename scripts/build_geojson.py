@@ -1,78 +1,93 @@
-﻿import pandas as pd
-import requests
-import sys
-import os
+﻿# scripts/build_geojson.py
+import pandas as pd
 import json
+from pathlib import Path
 
-# 🔑 Use env token if set, otherwise fallback to your hardcoded token
-MAPBOX_TOKEN = os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN") or "pk.eyJ1IjoiZG9jamJhaWxleTE5NzEiLCJhIjoiY21ld3lzZTNqMGQwdzJxb2lwNHpjcjNveiJ9.T2O5szdwL-O5nDF9BJmFnw"
+# ========================================
+# CONFIGURATION
+# ========================================
+DATA_DIR = Path("data")
+INPUT_FILE = DATA_DIR / "retailers_latlong.xlsx"
+OUTPUT_FILE = DATA_DIR / "retailers.geojson"
 
-if not MAPBOX_TOKEN:
-    print("❌ ERROR: No Mapbox token found")
-    sys.exit(1)
+# ========================================
+# LOAD DATA
+# ========================================
+print("Loading geocoded retailer data...")
 
-def geocode(address):
-    """Geocode address into [lon, lat] using Mapbox API"""
-    url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{address}.json"
-    params = {"access_token": MAPBOX_TOKEN, "limit": 1}
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        if data.get("features"):
-            return data["features"][0]["geometry"]["coordinates"]
-    except Exception as e:
-        print(f"⚠️ Error geocoding {address}: {e}")
-    return None
+if not INPUT_FILE.exists():
+    raise FileNotFoundError(f"ERROR: Input file not found: {INPUT_FILE}")
 
-def main(input_xlsx, output_geojson):
-    print(f"📂 Reading {input_xlsx} ...")
-    df = pd.read_excel(input_xlsx)
+df = pd.read_excel(INPUT_FILE)
+print(f"Loaded {len(df)} rows from {INPUT_FILE}")
 
-    # Normalize column names
-    df.columns = [c.strip().lower() for c in df.columns]
+# ========================================
+# COLUMN VALIDATION
+# ========================================
+required_columns = [
+    "Long Name",
+    "Retailer",
+    "Name",
+    "Address",
+    "City",
+    "State",
+    "Zip",
+    "Category",
+    "Suppliers",
+    "Latitude",
+    "Longitude",
+]
 
-    # Accept multiple possible column headers for addresses
-    if "address" not in df.columns and "location" not in df.columns:
-        print("❌ ERROR: Missing required column: Address or Location")
-        sys.exit(1)
+missing = [c for c in required_columns if c not in df.columns]
+if missing:
+    raise ValueError(f"Missing columns: {missing}")
 
-    addr_col = "address" if "address" in df.columns else "location"
-    features = []
+# ========================================
+# CONVERT TO GEOJSON
+# ========================================
+print("Converting to GeoJSON...")
 
-    for i, row in df.iterrows():
-        name = str(row.get("name", "")).strip()
-        category = str(row.get("category", "")).strip()
-        address = str(row.get(addr_col, "")).strip()
+def parse_suppliers(value):
+    """Convert supplier cell to a clean list."""
+    if pd.isna(value) or str(value).strip() == "":
+        return []
+    return [s.strip() for s in str(value).split(",") if s.strip()]
 
-        print(f"➡️ {i+1}/{len(df)} | {name} | {address}")
+features = []
+for _, row in df.iterrows():
+    lat = row["Latitude"]
+    lon = row["Longitude"]
 
-        if not address or address.lower() == "nan":
-            print(f"⚠️ Skipping row {i+1}: no address")
-            continue
+    if pd.isna(lat) or pd.isna(lon):
+        continue
 
-        coords = geocode(address)
-        if not coords:
-            print(f"⚠️ Could not geocode '{address}'")
-            continue
+    suppliers = parse_suppliers(row["Suppliers"])
 
-        features.append({
-            "type": "Feature",
-            "properties": {"name": name, "category": category, "address": address},
-            "geometry": {"type": "Point", "coordinates": coords}
-        })
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [float(lon), float(lat)]},
+        "properties": {
+            "Long Name": str(row["Long Name"]).strip(),
+            "Retailer": str(row["Retailer"]).strip(),
+            "Name": str(row["Name"]).strip(),
+            "Address": str(row["Address"]).strip(),
+            "City": str(row["City"]).strip(),
+            "State": str(row["State"]).strip(),
+            "Zip": str(row["Zip"]).strip(),
+            "Category": str(row["Category"]).strip(),
+            "Suppliers": suppliers,
+        },
+    }
+    features.append(feature)
 
-    geojson = {"type": "FeatureCollection", "features": features}
+geojson = {"type": "FeatureCollection", "features": features}
 
-    os.makedirs(os.path.dirname(output_geojson), exist_ok=True)
-    with open(output_geojson, "w") as f:
-        json.dump(geojson, f, indent=2)
+# ========================================
+# SAVE FILE
+# ========================================
+OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    json.dump(geojson, f, indent=2)
 
-    print(f"✅ Wrote {len(features)} features → {output_geojson}")
-
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python scripts/build_geojson.py input.xlsx output.geojson")
-        sys.exit(1)
-
-    main(sys.argv[1], sys.argv[2])
+print(f"GeoJSON file created: {OUTPUT_FILE}")
+print(f"Total features exported: {len(features)}")
