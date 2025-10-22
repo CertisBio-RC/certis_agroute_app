@@ -119,7 +119,7 @@ export default function CertisMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const geoDataRef = useRef<any>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021h`;
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021i`;
 
   // ========================================
   // 🗺️ Map Initialization
@@ -221,7 +221,7 @@ export default function CertisMap({
           if (!f) return;
           const geom = f.geometry as GeoJSON.Point;
           const coords = Array.isArray(geom?.coordinates)
-            ? (geom.coordinates as [number, number])
+            ? (geom.coordinates.slice(0, 2) as [number, number])
             : [0, 0];
           const p = f.properties || {};
 
@@ -277,7 +277,7 @@ export default function CertisMap({
                   city: p.City || "",
                   state: p.State || "",
                   zip: p.Zip || "",
-                  coords,
+                  coords: coords as [number, number],
                 });
             }
           }, 100);
