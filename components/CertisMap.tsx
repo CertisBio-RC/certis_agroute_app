@@ -124,7 +124,7 @@ export default function CertisMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const geoDataRef = useRef<any>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021g`;
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251022b`;
 
   // ========================================
   // 🗺️ Map Initialization
@@ -219,7 +219,10 @@ export default function CertisMap({
         map.on("click", ["retailers-layer", "kingpins-layer"], (e) => {
           const f = e.features?.[0];
           if (!f) return;
-          const coords = f.geometry?.coordinates || [0, 0];
+          const geom = f.geometry as GeoJSON.Point;
+          const coords: [number, number] = Array.isArray(geom?.coordinates)
+            ? geom.coordinates
+            : [0, 0];
           const p = f.properties || {};
 
           const suppliers = parseSuppliers(p.Suppliers || p.Supplier || p["Supplier(s)"]);
@@ -230,9 +233,15 @@ export default function CertisMap({
           const category = p.DisplayCategory || "N/A";
           const stopLabel = site ? `${retailer} – ${site}` : retailer;
           const btnId = `btn-${Math.random().toString(36).slice(2)}`;
+          const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+            addr + " " + (p.City || "") + " " + (p.State || "")
+          )}`;
+          const amaps = `https://maps.apple.com/?daddr=${encodeURIComponent(
+            addr + " " + (p.City || "") + " " + (p.State || "")
+          )}`;
 
           const html = `
-            <div style="font-size:13px;width:360px;background:#1a1a1a;color:#f5f5f5;padding:6px;border-radius:4px;">
+            <div style="font-size:13px;width:360px;background:#1a1a1a;color:#f5f5f5;padding:6px;border-radius:4px;position:relative;">
               <button id="${btnId}"
                 style="position:absolute;top:4px;right:4px;padding:2px 6px;background:#166534;color:#fff;border:none;border-radius:3px;font-size:11px;cursor:pointer;font-weight:600;">
                 + Add to Trip
@@ -242,7 +251,11 @@ export default function CertisMap({
               ${addr}<br/>
               ${p.City || ""} ${p.State || ""} ${p.Zip || ""}<br/>
               <strong>Category:</strong> ${category}<br/>
-              <strong>Suppliers:</strong> ${supplierStr}
+              <strong>Suppliers:</strong> ${supplierStr}<br/>
+              <div style="margin-top:6px;">
+                <a href="${gmaps}" target="_blank" style="color:#00b0ff;font-size:12px;margin-right:10px;">📍 Google Maps</a>
+                <a href="${amaps}" target="_blank" style="color:#00ff9d;font-size:12px;">🍎 Apple Maps</a>
+              </div>
             </div>`;
 
           if (popupRef.current) popupRef.current.remove();
@@ -306,11 +319,7 @@ export default function CertisMap({
         !selectedSuppliers.some((s) => suppliers.includes(norm(s)))
       )
         return false;
-      if (
-        selectedCategories.length > 0 &&
-        !selectedCategories.includes(category)
-      )
-        return false;
+      if (selectedCategories.length > 0 && !selectedCategories.includes(category)) return false;
       return true;
     });
 
