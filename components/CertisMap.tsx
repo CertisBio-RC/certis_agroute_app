@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import mapboxgl from "mapbox-gl";
+import mapboxgl, { LngLatLike } from "mapbox-gl";
 import Image from "next/image";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -21,7 +21,7 @@ export const categoryColors: Record<string, { color: string; outline?: string }>
 };
 
 // ========================================
-//⚙️ Normalizers
+// ⚙️ Normalizers
 // ========================================
 const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 
@@ -119,7 +119,7 @@ export default function CertisMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const geoDataRef = useRef<any>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021g`;
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021h`;
 
   // ========================================
   // 🗺️ Map Initialization
@@ -261,7 +261,7 @@ export default function CertisMap({
             closeOnClick: true,
             maxWidth: "none",
           })
-            .setLngLat(coords)
+            .setLngLat(coords as LngLatLike)
             .setHTML(popupHTML)
             .addTo(map);
 
@@ -283,7 +283,6 @@ export default function CertisMap({
           }, 100);
         });
 
-        // Pointer cursor for interactivity
         ["retailers-layer", "kingpins-layer"].forEach((layer) => {
           map.on("mouseenter", layer, () => {
             map.getCanvas().style.cursor = "pointer";
@@ -299,7 +298,7 @@ export default function CertisMap({
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
   // ========================================
-  // 🔄 Real-Time Filtering
+  // 🔄 Filtering + Sidebar Summary
   // ========================================
   useEffect(() => {
     if (!mapRef.current || !geoDataRef.current) return;
@@ -344,7 +343,6 @@ export default function CertisMap({
 
     source.setData({ type: "FeatureCollection", features: filtered });
 
-    // Sidebar Summary
     if (onRetailerSummary) {
       const summaryMap = new Map<
         string,
