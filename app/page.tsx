@@ -7,6 +7,7 @@ import { Menu, X } from "lucide-react";
 import CertisMap, { Stop, categoryColors } from "@/components/CertisMap";
 
 const norm = (v: string) => (v || "").toString().trim().toLowerCase();
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app";
 
 export default function Page() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -20,7 +21,6 @@ export default function Page() {
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
 
-  // Map of retailer -> [states]
   const [retailerStateMap, setRetailerStateMap] = useState<Record<string, string[]>>({});
 
   const [tripStops, setTripStops] = useState<Stop[]>([]);
@@ -87,7 +87,7 @@ export default function Page() {
             {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <Image
-            src="/certis-logo.png"
+            src={`${basePath}/certis-logo.png`}
             alt="Certis Biologicals"
             width={160}
             height={40}
@@ -277,9 +277,9 @@ export default function Page() {
                             prev.includes(c)
                               ? prev.filter((x) => x !== c)
                               : [...prev, c]
-                          )
-                        }
-                      />
+                        )
+                      }
+                    />
                       <span
                         className="flex items-center space-x-1"
                         style={{ color: categoryColors[c].color }}
@@ -374,7 +374,6 @@ export default function Page() {
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={(r) => {
               setAvailableRetailers(r);
-              // ✅ Map each retailer to its associated states from the loaded GeoJSON
               setRetailerStateMap((prev) => {
                 const newMap = { ...prev };
                 r.forEach((ret) => {
@@ -385,7 +384,6 @@ export default function Page() {
             }}
             onSuppliersLoaded={setAvailableSuppliers}
             onRetailerSummary={(summaries) => {
-              // Build retailer→state map for cascade
               const newMap: Record<string, string[]> = {};
               summaries.forEach((entry) => {
                 if (!newMap[entry.retailer]) newMap[entry.retailer] = [];
