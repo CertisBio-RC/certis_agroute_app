@@ -129,9 +129,7 @@ export default function Page() {
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select State(s)</h2>
               <div className="flex space-x-2 mb-2">
                 <button
-                  onClick={() =>
-                    toggleAll(setSelectedStates, selectedStates, availableStates)
-                  }
+                  onClick={() => toggleAll(setSelectedStates, selectedStates, availableStates)}
                   className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
                 >
                   Select All
@@ -151,9 +149,7 @@ export default function Page() {
                       checked={selectedStates.includes(st)}
                       onChange={() =>
                         setSelectedStates((prev) =>
-                          prev.includes(st)
-                            ? prev.filter((x) => x !== st)
-                            : [...prev, st]
+                          prev.includes(st) ? prev.filter((x) => x !== st) : [...prev, st]
                         )
                       }
                     />
@@ -168,9 +164,7 @@ export default function Page() {
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Retailer(s)</h2>
               <div className="flex space-x-2 mb-2">
                 <button
-                  onClick={() =>
-                    toggleAll(setSelectedRetailers, selectedRetailers, filteredRetailers)
-                  }
+                  onClick={() => toggleAll(setSelectedRetailers, selectedRetailers, filteredRetailers)}
                   className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
                 >
                   Select All
@@ -190,9 +184,7 @@ export default function Page() {
                       checked={selectedRetailers.includes(r)}
                       onChange={() =>
                         setSelectedRetailers((prev) =>
-                          prev.includes(r)
-                            ? prev.filter((x) => x !== r)
-                            : [...prev, r]
+                          prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
                         )
                       }
                     />
@@ -207,9 +199,7 @@ export default function Page() {
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Supplier(s)</h2>
               <div className="flex space-x-2 mb-2">
                 <button
-                  onClick={() =>
-                    toggleAll(setSelectedSuppliers, selectedSuppliers, availableSuppliers)
-                  }
+                  onClick={() => toggleAll(setSelectedSuppliers, selectedSuppliers, availableSuppliers)}
                   className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
                 >
                   Select All
@@ -231,13 +221,12 @@ export default function Page() {
                         checked={selectedSuppliers.includes(s)}
                         onChange={() =>
                           setSelectedSuppliers((prev) =>
-                            prev.includes(s)
-                              ? prev.filter((x) => x !== s)
-                              : [...prev, s]
-                        )
-                      }
-                    />
-                    <span>{s}</span>
+                            prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                          )
+                        }
+                      />
+                      <span>{s}</span>
+                    </label>
                   ))}
               </div>
             </div>
@@ -275,12 +264,10 @@ export default function Page() {
                         checked={selectedCategories.includes(c)}
                         onChange={() =>
                           setSelectedCategories((prev) =>
-                            prev.includes(c)
-                              ? prev.filter((x) => x !== c)
-                              : [...prev, c]
-                        )
-                      }
-                    />
+                            prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+                          )
+                        }
+                      />
                       <span
                         className="flex items-center space-x-1"
                         style={{ color: categoryColors[c].color }}
