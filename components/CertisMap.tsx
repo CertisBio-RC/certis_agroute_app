@@ -118,9 +118,9 @@ export default function CertisMap({
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const geoDataRef = useRef<any>(null);
+  const masterFeaturesRef = useRef<any[]>([]);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251021k`;
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251023`;
 
   // ========================================
   // 🗺️ MAP INITIALIZATION
@@ -143,19 +143,26 @@ export default function CertisMap({
         const response = await fetch(geojsonPath, { cache: "no-store" });
         if (!response.ok) throw new Error(`GeoJSON fetch failed: ${response.status}`);
         const data = await response.json();
-        geoDataRef.current = data;
 
-        // Normalize categories
-        for (const f of data.features) {
+        // Normalize + filter out bad coordinates
+        const validFeatures = data.features.filter((f: any) => {
+          const coords = f.geometry?.coordinates;
+          return Array.isArray(coords) && coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1]);
+        });
+
+        for (const f of validFeatures) {
           f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
 
-        // Collect unique lists
+        // Save full set for future filters
+        masterFeaturesRef.current = validFeatures;
+
+        // Collect unique sets
         const stateSet = new Set<string>();
         const retailerSet = new Set<string>();
         const supplierSet = new Set<string>();
 
-        for (const f of data.features) {
+        for (const f of validFeatures) {
           const p = f.properties || {};
           const st = p.State;
           const r = p.Retailer;
@@ -170,8 +177,10 @@ export default function CertisMap({
         onRetailersLoaded?.(Array.from(retailerSet).sort());
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
 
-        // Add data source
-        map.addSource("retailers", { type: "geojson", data });
+        map.addSource("retailers", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: validFeatures },
+        });
 
         // Retailers layer
         map.addLayer({
@@ -199,10 +208,10 @@ export default function CertisMap({
             "circle-stroke-color": "#fff",
           },
           filter: ["!=", ["get", "DisplayCategory"], "Kingpin"],
-          layout: { visibility: "none" },
+          layout: { visibility: "visible" },
         });
 
-        // Kingpins layer (visible)
+        // Kingpins layer
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -294,16 +303,15 @@ export default function CertisMap({
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
   // ========================================
-  // 🔄 FILTERING (ADDITIVE CASCADE)
+  // 🔄 FILTERING (HYBRID ADDITIVE)
   // ========================================
   useEffect(() => {
-    if (!mapRef.current || !geoDataRef.current) return;
+    if (!mapRef.current || !masterFeaturesRef.current.length) return;
     const map = mapRef.current;
-    const data = geoDataRef.current;
     const source = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!source) return;
 
-    const filtered = data.features.filter((f: any) => {
+    const filtered = masterFeaturesRef.current.filter((f: any) => {
       const p = f.properties || {};
       const category = p.DisplayCategory;
       const retailer = p.Retailer || "";
@@ -326,8 +334,6 @@ export default function CertisMap({
     });
 
     source.setData({ type: "FeatureCollection", features: filtered });
-
-    map.setLayoutProperty("retailers-layer", "visibility", "visible");
 
     if (onRetailerSummary) {
       const summaryMap = new Map<
@@ -361,11 +367,22 @@ export default function CertisMap({
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
 
   // ========================================
-  // 🧱 RENDER MAP
+  // 🧱 RENDER MAP + LOGO OVERLAY
   // ========================================
   return (
     <div className="relative w-full h-full">
-      <div ref={mapContainer} className="w-full h-full" />
+      {/* ✅ Fixed Certis logo overlay */}
+      <div className="absolute top-2 left-3 z-50 flex items-center">
+        <img
+          src={`${basePath}/certis-logo.png`}
+          alt="Certis Biologicals"
+          className="w-28 h-auto opacity-90"
+        />
+      </div>
+
+      {/* 🗺️ Map Container */}
+      <div ref={mapContainer} className="w-full h-full border-t border-gray-400" />
     </div>
   );
 }
+
