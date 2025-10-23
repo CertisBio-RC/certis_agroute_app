@@ -65,6 +65,12 @@ function parseSuppliers(value: any): string[] {
 }
 
 // ========================================
+// 🧹 ADDRESS SCRUBBER
+// ========================================
+const cleanAddress = (addr: string): string =>
+  addr.replace(/\(.*?\)/g, "").replace(/\bP\.?O\.?\s*Box\b.*$/i, "").trim();
+
+// ========================================
 // 📍 TYPES
 // ========================================
 export interface Stop {
@@ -112,9 +118,6 @@ export default function CertisMap({
   onSuppliersLoaded,
   onRetailerSummary,
   onAddStop,
-  tripStops = [],
-  tripMode = "entered",
-  onOptimizedRoute,
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -144,7 +147,6 @@ export default function CertisMap({
         if (!response.ok) throw new Error(`GeoJSON fetch failed: ${response.status}`);
         const data = await response.json();
 
-        // Normalize + filter out bad coordinates
         const validFeatures = data.features.filter((f: any) => {
           const coords = f.geometry?.coordinates;
           return Array.isArray(coords) && coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1]);
@@ -154,10 +156,8 @@ export default function CertisMap({
           f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
 
-        // Save full set for future filters
         masterFeaturesRef.current = validFeatures;
 
-        // Collect unique sets
         const stateSet = new Set<string>();
         const retailerSet = new Set<string>();
         const supplierSet = new Set<string>();
@@ -166,8 +166,7 @@ export default function CertisMap({
           const p = f.properties || {};
           const st = p.State;
           const r = p.Retailer;
-          const rawSuppliers =
-            p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"];
+          const rawSuppliers = p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"];
           if (st) stateSet.add(st);
           if (r) retailerSet.add(r);
           parseSuppliers(rawSuppliers).forEach((s) => supplierSet.add(s));
@@ -182,7 +181,6 @@ export default function CertisMap({
           data: { type: "FeatureCollection", features: validFeatures },
         });
 
-        // Retailers layer
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -211,7 +209,6 @@ export default function CertisMap({
           layout: { visibility: "visible" },
         });
 
-        // Kingpins layer
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -243,6 +240,7 @@ export default function CertisMap({
           const retailer = p.Retailer || "Unknown";
           const siteName = p.Name || "";
           const category = p.DisplayCategory || "N/A";
+          const address = cleanAddress(p.Address || "");
           const stopLabel = siteName ? `${retailer} – ${siteName}` : retailer;
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
 
@@ -256,7 +254,7 @@ export default function CertisMap({
               </button>
               <strong>${retailer}</strong><br/>
               <em>${siteName}</em><br/>
-              ${p.Address || ""}<br/>
+              ${address}<br/>
               ${p.City || ""} ${p.State || ""} ${p.Zip || ""}<br/>
               <strong>Category:</strong> ${category}<br/>
               <strong>Suppliers:</strong> ${suppliers}
@@ -282,7 +280,7 @@ export default function CertisMap({
               btn.onclick = () =>
                 onAddStop({
                   label: stopLabel,
-                  address: p.Address || "",
+                  address,
                   city: p.City || "",
                   state: p.State || "",
                   zip: p.Zip || "",
@@ -334,55 +332,7 @@ export default function CertisMap({
     });
 
     source.setData({ type: "FeatureCollection", features: filtered });
+  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
 
-    if (onRetailerSummary) {
-      const summaryMap = new Map<
-        string,
-        { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }
-      >();
-
-      for (const f of filtered) {
-        const p = f.properties || {};
-        if (p.DisplayCategory === "Kingpin") continue;
-        const state = p.State || "Unknown";
-        const retailer = p.Retailer || "Unknown";
-        const suppliers = parseSuppliers(
-          p.Suppliers || p.Supplier || p["Supplier(s)"] || p["Suppliers(s)"]
-        );
-        const categories = expandCategories(p.Category || "");
-
-        if (!summaryMap.has(retailer)) {
-          summaryMap.set(retailer, { retailer, count: 0, suppliers: [], categories: [], states: [] });
-        }
-
-        const entry = summaryMap.get(retailer)!;
-        entry.count += 1;
-        if (state && !entry.states.includes(state)) entry.states.push(state);
-        suppliers.forEach((s) => !entry.suppliers.includes(s) && entry.suppliers.push(s));
-        categories.forEach((c) => !entry.categories.includes(c) && entry.categories.push(c));
-      }
-
-      onRetailerSummary(Array.from(summaryMap.values()));
-    }
-  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
-
-  // ========================================
-  // 🧱 RENDER MAP + LOGO OVERLAY
-  // ========================================
-  return (
-    <div className="relative w-full h-full">
-      {/* ✅ Fixed Certis logo overlay */}
-      <div className="absolute top-2 left-3 z-50 flex items-center">
-        <img
-          src={`${basePath}/certis-logo.png`}
-          alt="Certis Biologicals"
-          className="w-28 h-auto opacity-90"
-        />
-      </div>
-
-      {/* 🗺️ Map Container */}
-      <div ref={mapContainer} className="w-full h-full border-t border-gray-400" />
-    </div>
-  );
+  return <div ref={mapContainer} className="w-full h-full border-t border-gray-400" />;
 }
-

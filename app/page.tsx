@@ -20,7 +20,6 @@ export default function Page() {
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
-
   const [retailerStateMap, setRetailerStateMap] = useState<Record<string, string[]>>({});
 
   const [tripStops, setTripStops] = useState<Stop[]>([]);
@@ -78,6 +77,7 @@ export default function Page() {
   // ========================================
   return (
     <div className="flex flex-col h-screen w-full bg-gray-950 text-gray-100">
+      {/* Header */}
       <header className="flex items-center justify-between bg-gray-900 text-white px-4 py-2 shadow-md">
         <div className="flex items-center space-x-3">
           <button
@@ -104,8 +104,8 @@ export default function Page() {
         <aside
           className={`${
             sidebarOpen
-              ? "fixed inset-y-0 left-0 z-50 w-72 bg-gray-900/80 shadow-lg overflow-y-auto transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0"
-              : "hidden md:flex md:flex-col md:w-72 bg-gray-900/80 shadow-lg overflow-y-auto"
+              ? "fixed inset-y-0 left-0 z-50 w-80 min-w-[20rem] bg-gray-900/80 shadow-lg overflow-y-auto transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0"
+              : "hidden md:flex md:flex-col md:w-80 min-w-[20rem] bg-gray-900/80 shadow-lg overflow-y-auto"
           }`}
         >
           <div className="p-4 space-y-4 text-[15px] md:text-[16px]">
@@ -116,7 +116,7 @@ export default function Page() {
                 <input
                   type="text"
                   placeholder="Enter ZIP"
-                  className="flex-1 bg-gray-800 text-white px-2 py-1 rounded border border-gray-700 focus:outline-none"
+                  className="flex-1 bg-gray-800 text-white px-2 py-1 rounded border border-gray-700 focus:outline-none focus:border-b-2 focus:border-yellow-400"
                 />
                 <button className="bg-blue-600 px-3 py-1 rounded text-white font-semibold">
                   Set
@@ -221,23 +221,24 @@ export default function Page() {
                   Clear
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {availableSuppliers.map((s) => (
-                  <label key={s} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedSuppliers.includes(s)}
-                      onChange={() =>
-                        setSelectedSuppliers((prev) =>
-                          prev.includes(s)
-                            ? prev.filter((x) => x !== s)
-                            : [...prev, s]
+              <div className="flex flex-col space-y-1 h-48 overflow-y-auto">
+                {availableSuppliers
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((s) => (
+                    <label key={s} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedSuppliers.includes(s)}
+                        onChange={() =>
+                          setSelectedSuppliers((prev) =>
+                            prev.includes(s)
+                              ? prev.filter((x) => x !== s)
+                              : [...prev, s]
                         )
                       }
                     />
                     <span>{s}</span>
-                  </label>
-                ))}
+                  ))}
               </div>
             </div>
 
@@ -264,7 +265,7 @@ export default function Page() {
                   Clear
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-1 text-[15px]">
+              <div className="flex flex-col space-y-1 text-[15px]">
                 {Object.keys(categoryColors)
                   .filter((c) => c !== "Kingpin")
                   .map((c) => (
@@ -382,7 +383,10 @@ export default function Page() {
                 return newMap;
               });
             }}
-            onSuppliersLoaded={setAvailableSuppliers}
+            onSuppliersLoaded={(suppliers) => {
+              const deduped = Array.from(new Set(suppliers)).sort();
+              setAvailableSuppliers(deduped);
+            }}
             onRetailerSummary={(summaries) => {
               const newMap: Record<string, string[]> = {};
               summaries.forEach((entry) => {
