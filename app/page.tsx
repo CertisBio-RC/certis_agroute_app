@@ -240,9 +240,11 @@ export default function Page() {
                         checked={selectedSuppliers.includes(s)}
                         onChange={() =>
                           setSelectedSuppliers((prev) =>
-                            prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                            prev.includes(s)
+                              ? prev.filter((x) => x !== s)
+                              : [...prev, s]
                           )
-                        )}
+                        }
                       />
                       <span>{s}</span>
                     </label>
@@ -283,9 +285,11 @@ export default function Page() {
                         checked={selectedCategories.includes(c)}
                         onChange={() =>
                           setSelectedCategories((prev) =>
-                            prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+                            prev.includes(c)
+                              ? prev.filter((x) => x !== c)
+                              : [...prev, c]
                           )
-                        )}
+                        }
                       />
                       <span
                         className="flex items-center space-x-1"
@@ -343,7 +347,9 @@ export default function Page() {
 
             {/* Trip Optimization */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg mb-10">
-              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Trip Optimization</h2>
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">
+                Trip Optimization
+              </h2>
               <div className="flex space-x-3 mb-3">
                 <label className="flex items-center space-x-1">
                   <input
