@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import { useState, useMemo } from "react";
@@ -6,7 +5,6 @@ import Image from "next/image";
 import { Menu, X, ChevronDown, ChevronUp } from "lucide-react";
 import CertisMap, { Stop, categoryColors } from "@/components/CertisMap";
 
-const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app";
 
 export default function Page() {
@@ -14,11 +12,17 @@ export default function Page() {
   const [zipCode, setZipCode] = useState("");
   const [zipConfirmed, setZipConfirmed] = useState(false);
 
+  // ===============================
+  // Filter States
+  // ===============================
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
+  // ===============================
+  // Data from Map
+  // ===============================
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
@@ -27,33 +31,33 @@ export default function Page() {
     { retailer: string; count: number; suppliers: string[]; states: string[] }[]
   >([]);
 
+  // ===============================
+  // Trip Planner
+  // ===============================
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
   const [summaryOpen, setSummaryOpen] = useState(false);
 
-  // ========================================
   // Helpers
-  // ========================================
   const toggleAll = (setter: any, arr: string[], items: string[]) =>
     setter(arr.length === items.length ? [] : items);
   const clearAll = (setter: any) => setter([]);
 
-  // ========================================
-  // Trip Handling
-  // ========================================
+  // ===============================
+  // Trip Management
+  // ===============================
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label)) {
       setTripStops((prev) => [...prev, stop]);
     }
   };
-
   const handleClearStops = () => setTripStops([]);
   const handleRemoveStop = (idx: number) =>
     setTripStops((prev) => prev.filter((_, i) => i !== idx));
 
-  // ========================================
-  // Map Export
-  // ========================================
+  // ===============================
+  // Export Routes
+  // ===============================
   const exportToGoogleMaps = () => {
     if (!tripStops.length) return;
     const base = "https://www.google.com/maps/dir/";
@@ -68,9 +72,9 @@ export default function Page() {
     window.open(base + query, "_blank");
   };
 
-  // ========================================
-  // State → Retailer Cascade
-  // ========================================
+  // ===============================
+  // Filter Retailers by Selected States
+  // ===============================
   const filteredRetailers = useMemo(() => {
     if (!selectedStates.length) return availableRetailers;
     return availableRetailers.filter((r) =>
@@ -78,9 +82,9 @@ export default function Page() {
     );
   }, [selectedStates, availableRetailers, retailerStateMap]);
 
-  // ========================================
-  // UI Rendering
-  // ========================================
+  // ===============================
+  // Render UI
+  // ===============================
   return (
     <div className="flex flex-col h-screen w-full bg-gray-950 text-gray-100">
       {/* Header */}
@@ -240,9 +244,7 @@ export default function Page() {
                         checked={selectedSuppliers.includes(s)}
                         onChange={() =>
                           setSelectedSuppliers((prev) =>
-                            prev.includes(s)
-                              ? prev.filter((x) => x !== s)
-                              : [...prev, s]
+                            prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
                           )
                         }
                       />
@@ -285,9 +287,7 @@ export default function Page() {
                         checked={selectedCategories.includes(c)}
                         onChange={() =>
                           setSelectedCategories((prev) =>
-                            prev.includes(c)
-                              ? prev.filter((x) => x !== c)
-                              : [...prev, c]
+                            prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
                           )
                         }
                       />
@@ -347,9 +347,7 @@ export default function Page() {
 
             {/* Trip Optimization */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg mb-10">
-              <h2 className="text-yellow-400 text-lg font-semibold mb-2">
-                Trip Optimization
-              </h2>
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Trip Optimization</h2>
               <div className="flex space-x-3 mb-3">
                 <label className="flex items-center space-x-1">
                   <input
@@ -424,25 +422,22 @@ export default function Page() {
             selectedSuppliers={selectedSuppliers}
             selectedCategories={selectedCategories}
             onStatesLoaded={setAvailableStates}
-            onRetailersLoaded={(r) => {
-              setAvailableRetailers(r);
-              setRetailerStateMap((prev) => {
-                const newMap = { ...prev };
-                r.forEach((ret) => {
-                  if (!newMap[ret]) newMap[ret] = [];
-                });
-                return newMap;
-              });
-            }}
+            onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={(suppliers) => {
               const deduped = Array.from(new Set(suppliers)).sort();
               setAvailableSuppliers(deduped);
             }}
-            onRetailerSummary={(summaries) => setRetailerSummaries(summaries)}
+            onRetailerSummary={(summaries) => {
+              setRetailerSummaries(summaries);
+              // Build state mapping from summary data
+              const mapping: Record<string, string[]> = {};
+              summaries.forEach((s) => (mapping[s.retailer] = s.states));
+              setRetailerStateMap(mapping);
+            }}
             onAddStop={handleAddStop}
             tripStops={tripStops}
             tripMode={tripMode}
-            onOptimizedRoute={(stops) => setTripStops(stops)}
+            onOptimizedRoute={setTripStops}
           />
         </main>
       </div>
