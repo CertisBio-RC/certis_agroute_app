@@ -1,4 +1,3 @@
-// components/CertisMap.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -27,25 +26,24 @@ const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 const normalizeCategory = (cat: string) => {
   const c = norm(cat);
   if (["agronomy/grain", "agronomygrain", "agronomy hybrid"].includes(c))
-    return "agronomy/grain";
-  return c;
+    return "Agronomy/Grain";
+  return c.charAt(0).toUpperCase() + c.slice(1);
 };
 
 const expandCategories = (cat: string): string[] => {
   const c = normalizeCategory(cat);
-  if (c === "agronomy/grain") return ["agronomy", "grain"];
+  if (c.toLowerCase() === "agronomy/grain") return ["Agronomy", "Grain/Feed"];
   return [c];
 };
 
 const assignDisplayCategory = (cat: string): string => {
   const expanded = expandCategories(cat);
-  if (expanded.includes("agronomy")) return "Agronomy";
-  if (expanded.includes("grain")) return "Grain/Feed";
-  if (expanded.includes("feed")) return "Feed";
-  if (expanded.includes("officeservice") || expanded.includes("office/service"))
-    return "Office/Service";
-  if (expanded.includes("distribution")) return "Distribution";
-  if (expanded.includes("kingpin")) return "Kingpin";
+  if (expanded.includes("Agronomy")) return "Agronomy";
+  if (expanded.includes("Grain/Feed")) return "Grain/Feed";
+  if (expanded.includes("Feed")) return "Feed";
+  if (expanded.includes("Office/Service")) return "Office/Service";
+  if (expanded.includes("Distribution")) return "Distribution";
+  if (expanded.includes("Kingpin")) return "Kingpin";
   return "Unknown";
 };
 
@@ -110,15 +108,7 @@ export interface CertisMapProps {
   onStatesLoaded?: (states: string[]) => void;
   onRetailersLoaded?: (retailers: string[]) => void;
   onSuppliersLoaded?: (suppliers: string[]) => void;
-  onRetailerSummary?: (
-    summaries: {
-      retailer: string;
-      count: number;
-      suppliers: string[];
-      categories: string[];
-      states: string[];
-    }[]
-  ) => void;
+  onRetailerSummary?: (summaries: { retailer: string; count: number }[]) => void;
   onAddStop?: (stop: Stop) => void;
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
@@ -296,7 +286,7 @@ export default function CertisMap({
 
           setTimeout(() => {
             const btn = document.getElementById(btnId);
-            if (btn && onAddStop) {
+            if (btn && onAddStop && coords[0] && coords[1]) {
               btn.onclick = () =>
                 onAddStop({
                   label: stopLabel,
@@ -321,7 +311,7 @@ export default function CertisMap({
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
   // ========================================
-  // 🔄 FILTERING (HYBRID ADDITIVE + SUMMARY)
+  // 🔄 FILTERING + SUMMARY
   // ========================================
   useEffect(() => {
     if (!mapRef.current || !masterFeaturesRef.current.length) return;
@@ -331,7 +321,7 @@ export default function CertisMap({
 
     const filtered = masterFeaturesRef.current.filter((f: any) => {
       const p = f.properties || {};
-      const category = p.DisplayCategory;
+      const category = p.DisplayCategory || "Unknown";
       const retailer = p.Retailer || "";
       const state = p.State || "";
       const supplierList = parseSuppliers(p.Suppliers).map(norm);
@@ -341,7 +331,7 @@ export default function CertisMap({
       const matchState = selectedStates.length === 0 || selectedStates.includes(state);
       const matchRetailer = selectedRetailers.length === 0 || selectedRetailers.includes(retailer);
       const matchCategory =
-        selectedCategories.length === 0 || selectedCategories.includes(norm(category));
+        selectedCategories.length === 0 || selectedCategories.includes(category);
       const matchSupplier =
         selectedSuppliers.length === 0 ||
         selectedSuppliers.some((s) => supplierList.includes(norm(s)));
@@ -351,45 +341,18 @@ export default function CertisMap({
 
     source.setData({ type: "FeatureCollection", features: filtered });
 
-    // ✅ Build retailer summary
-    const summaryMap = new Map<
-      string,
-      { retailer: string; count: number; categories: Set<string>; states: Set<string>; suppliers: Set<string> }
-    >();
-
+    // ✅ Build simplified retailer summary
+    const summaryMap = new Map<string, number>();
     for (const f of filtered) {
-      const p = f.properties || {};
-      const retailer = p.Retailer || "Unknown";
-      const category = p.DisplayCategory || "N/A";
-      const state = p.State || "";
-      const suppliers = parseSuppliers(p.Suppliers);
-
-      if (!summaryMap.has(retailer)) {
-        summaryMap.set(retailer, {
-          retailer,
-          count: 0,
-          categories: new Set(),
-          states: new Set(),
-          suppliers: new Set(),
-        });
-      }
-
-      const entry = summaryMap.get(retailer)!;
-      entry.count++;
-      entry.categories.add(category);
-      entry.states.add(state);
-      suppliers.forEach((s) => entry.suppliers.add(s));
+      const retailer = f.properties?.Retailer || "Unknown";
+      summaryMap.set(retailer, (summaryMap.get(retailer) || 0) + 1);
     }
 
-    const summaries = Array.from(summaryMap.values()).map((v) => ({
-      retailer: v.retailer,
-      count: v.count,
-      categories: Array.from(v.categories),
-      states: Array.from(v.states),
-      suppliers: Array.from(v.suppliers),
+    const summaries = Array.from(summaryMap.entries()).map(([retailer, count]) => ({
+      retailer,
+      count,
     }));
 
-    console.log("📊 Retailer summaries:", summaries);
     onRetailerSummary?.(summaries);
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
 
