@@ -305,7 +305,7 @@ export default function Page() {
                           setSelectedCategories((prev) =>
                             prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
                           )
-                        )
+                        }
                       />
                       <span
                         className="flex items-center space-x-1"
