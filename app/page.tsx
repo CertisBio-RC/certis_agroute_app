@@ -8,12 +8,15 @@ import CertisMap, { Stop, categoryColors } from "@/components/CertisMap";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app";
 
 export default function Page() {
+  // ===============================
+  // Sidebar + Zip
+  // ===============================
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [zipCode, setZipCode] = useState("");
   const [zipConfirmed, setZipConfirmed] = useState(false);
 
   // ===============================
-  // Filter States
+  // Filters
   // ===============================
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
@@ -38,37 +41,50 @@ export default function Page() {
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
   const [summaryOpen, setSummaryOpen] = useState(false);
 
-  // Helpers
+  // ===============================
+  // Helper Utilities
+  // ===============================
   const toggleAll = (setter: any, arr: string[], items: string[]) =>
     setter(arr.length === items.length ? [] : items);
   const clearAll = (setter: any) => setter([]);
 
-  // ===============================
-  // Trip Management
-  // ===============================
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label)) {
       setTripStops((prev) => [...prev, stop]);
     }
   };
-  const handleClearStops = () => setTripStops([]);
   const handleRemoveStop = (idx: number) =>
     setTripStops((prev) => prev.filter((_, i) => i !== idx));
+  const handleClearStops = () => setTripStops([]);
 
   // ===============================
-  // Export Routes
+  // Route Exports (Use Addresses)
   // ===============================
   const exportToGoogleMaps = () => {
     if (!tripStops.length) return;
     const base = "https://www.google.com/maps/dir/";
-    const query = tripStops.map((s) => encodeURIComponent(s.address)).join("/");
+    const query = tripStops
+      .map(
+        (s) =>
+          encodeURIComponent(
+            `${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`
+          )
+      )
+      .join("/");
     window.open(base + query, "_blank");
   };
 
   const exportToAppleMaps = () => {
     if (!tripStops.length) return;
     const base = "https://maps.apple.com/?daddr=";
-    const query = tripStops.map((s) => encodeURIComponent(s.address)).join("+to:");
+    const query = tripStops
+      .map(
+        (s) =>
+          encodeURIComponent(
+            `${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`
+          )
+      )
+      .join("+to:");
     window.open(base + query, "_blank");
   };
 
@@ -83,13 +99,14 @@ export default function Page() {
   }, [selectedStates, availableRetailers, retailerStateMap]);
 
   // ===============================
-  // Render UI
+  // Render
   // ===============================
   return (
     <div className="flex flex-col h-screen w-full bg-gray-950 text-gray-100">
-      {/* Header */}
+      {/* HEADER */}
       <header className="flex items-center justify-between bg-gray-900 text-white px-4 py-2 shadow-md">
         <div className="flex items-center space-x-3">
+          {/* Mobile Toggle */}
           <button
             className="md:hidden p-2 rounded hover:bg-gray-800"
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -109,8 +126,9 @@ export default function Page() {
         </h1>
       </header>
 
+      {/* MAIN BODY */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {/* SIDEBAR */}
         <aside
           className={`${
             sidebarOpen
@@ -119,7 +137,7 @@ export default function Page() {
           }`}
         >
           <div className="p-4 space-y-4 text-[15px] md:text-[16px]">
-            {/* Home ZIP */}
+            {/* ZIP CODE */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Home ZIP Code</h2>
               <div className="flex space-x-2">
@@ -147,7 +165,7 @@ export default function Page() {
               )}
             </div>
 
-            {/* State Filter */}
+            {/* STATE FILTER */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select State(s)</h2>
               <div className="flex space-x-2 mb-2">
@@ -182,7 +200,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Retailer Filter */}
+            {/* RETAILER FILTER */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Retailer(s)</h2>
               <div className="flex space-x-2 mb-2">
@@ -217,7 +235,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Supplier Filter */}
+            {/* SUPPLIER FILTER */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Supplier(s)</h2>
               <div className="flex space-x-2 mb-2">
@@ -235,26 +253,24 @@ export default function Page() {
                 </button>
               </div>
               <div className="flex flex-col space-y-1 h-48 overflow-y-auto">
-                {availableSuppliers
-                  .sort((a, b) => a.localeCompare(b))
-                  .map((s) => (
-                    <label key={s} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedSuppliers.includes(s)}
-                        onChange={() =>
-                          setSelectedSuppliers((prev) =>
-                            prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
-                          )
-                        }
-                      />
-                      <span>{s}</span>
-                    </label>
-                  ))}
+                {availableSuppliers.sort().map((s) => (
+                  <label key={s} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedSuppliers.includes(s)}
+                      onChange={() =>
+                        setSelectedSuppliers((prev) =>
+                          prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                        )
+                      }
+                    />
+                    <span>{s}</span>
+                  </label>
+                ))}
               </div>
             </div>
 
-            {/* Category Filter */}
+            {/* CATEGORY FILTER */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Categories</h2>
               <div className="flex space-x-2 mb-2">
@@ -289,7 +305,7 @@ export default function Page() {
                           setSelectedCategories((prev) =>
                             prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
                           )
-                        }
+                        )
                       />
                       <span
                         className="flex items-center space-x-1"
@@ -306,7 +322,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Retailer Summary */}
+            {/* RETAILER SUMMARY */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <div className="flex justify-between items-center mb-2">
                 <h2 className="text-yellow-400 text-lg font-semibold">Retailer Summary</h2>
@@ -345,7 +361,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Trip Optimization */}
+            {/* TRIP PLANNER */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg mb-10">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Trip Optimization</h2>
               <div className="flex space-x-3 mb-3">
@@ -414,7 +430,7 @@ export default function Page() {
           </div>
         </aside>
 
-        {/* Map Area */}
+        {/* MAP AREA */}
         <main className="flex-1 relative">
           <CertisMap
             selectedStates={selectedStates}
@@ -423,22 +439,19 @@ export default function Page() {
             selectedCategories={selectedCategories}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
-            onSuppliersLoaded={(suppliers) => {
-              const deduped = Array.from(new Set(suppliers)).sort();
-              setAvailableSuppliers(deduped);
-            }}
-            // ✅ FIXED: normalize retailer summaries before setting state
+            onSuppliersLoaded={(suppliers) =>
+              setAvailableSuppliers(Array.from(new Set(suppliers)).sort())
+            }
             onRetailerSummary={(summaries) => {
-              const normalized = summaries.map((s) => ({
+              const normalized = summaries.map((s: any) => ({
                 retailer: s.retailer,
                 count: s.count,
                 suppliers: Array.isArray(s.suppliers) ? s.suppliers : [],
                 states: Array.isArray(s.states) ? s.states : [],
               }));
               setRetailerSummaries(normalized);
-
               const mapping: Record<string, string[]> = {};
-              normalized.forEach((s) => (mapping[s.retailer] = s.states || []));
+              normalized.forEach((s) => (mapping[s.retailer] = s.states));
               setRetailerStateMap(mapping);
             }}
             onAddStop={handleAddStop}
