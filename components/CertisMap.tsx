@@ -1,7 +1,7 @@
 // components/CertisMap.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import mapboxgl, { LngLatLike } from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -53,18 +53,14 @@ const assignDisplayCategory = (cat: string): string => {
 // 🧩 SUPPLIER NORMALIZATION
 // ========================================
 function parseSuppliers(value: any): string[] {
-  // Because Python now outputs clean arrays of suppliers,
-  // we only need to normalize those arrays or comma-separated strings.
   if (!value) return [];
-  if (Array.isArray(value)) {
-    return value.map((s) => s.toString().trim()).filter(Boolean);
-  }
-  if (typeof value === "string") {
+  if (Array.isArray(value)) return value.map((s) => s.toString().trim());
+  if (typeof value === "object") return Object.values(value).map((s: any) => s.toString().trim());
+  if (typeof value === "string")
     return value
       .split(/[,;/|]+/)
       .map((s) => s.trim())
       .filter(Boolean);
-  }
   return [];
 }
 
@@ -91,22 +87,11 @@ export interface CertisMapProps {
   selectedStates: string[];
   selectedSuppliers: string[];
   selectedRetailers: string[];
+  homeZip?: string;
   onStatesLoaded?: (states: string[]) => void;
   onRetailersLoaded?: (retailers: string[]) => void;
   onSuppliersLoaded?: (suppliers: string[]) => void;
-  onRetailerSummary?: (
-    summaries: {
-      retailer: string;
-      count: number;
-      suppliers: string[];
-      categories: string[];
-      states: string[];
-    }[]
-  ) => void;
   onAddStop?: (stop: Stop) => void;
-  tripStops?: Stop[];
-  tripMode?: "entered" | "optimize";
-  onOptimizedRoute?: (stops: Stop[]) => void;
 }
 
 // ========================================
@@ -117,16 +102,17 @@ export default function CertisMap({
   selectedStates,
   selectedSuppliers,
   selectedRetailers,
+  homeZip,
   onStatesLoaded,
   onRetailersLoaded,
   onSuppliersLoaded,
-  onRetailerSummary,
   onAddStop,
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const masterFeaturesRef = useRef<any[]>([]);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const [zipSet, setZipSet] = useState(false);
   const geojsonPath = `${basePath}/data/retailers.geojson?v=20251024`;
 
   // ========================================
@@ -162,27 +148,22 @@ export default function CertisMap({
 
         masterFeaturesRef.current = validFeatures;
 
-        // === Collect unique sets ===
         const stateSet = new Set<string>();
         const retailerSet = new Set<string>();
         const supplierSet = new Set<string>();
 
         for (const f of validFeatures) {
           const p = f.properties || {};
-          const st = p.State;
-          const r = p.Retailer;
-          const suppliers = parseSuppliers(p.Suppliers);
-
-          if (st) stateSet.add(st);
-          if (r) retailerSet.add(r);
-          suppliers.forEach((s) => supplierSet.add(s));
+          if (p.State) stateSet.add(p.State);
+          if (p.Retailer) retailerSet.add(p.Retailer);
+          const rawSuppliers = p.Suppliers || p.Supplier || p["Supplier(s)"];
+          parseSuppliers(rawSuppliers).forEach((s) => supplierSet.add(s));
         }
 
         onStatesLoaded?.(Array.from(stateSet).sort());
         onRetailersLoaded?.(Array.from(retailerSet).sort());
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
 
-        // === Map layers ===
         map.addSource("retailers", {
           type: "geojson",
           data: { type: "FeatureCollection", features: validFeatures },
@@ -213,7 +194,6 @@ export default function CertisMap({
             "circle-stroke-color": "#fff",
           },
           filter: ["!=", ["get", "DisplayCategory"], "Kingpin"],
-          layout: { visibility: "visible" },
         });
 
         map.addLayer({
@@ -227,10 +207,9 @@ export default function CertisMap({
             "circle-stroke-color": categoryColors.Kingpin.outline!,
           },
           filter: ["==", ["get", "DisplayCategory"], "Kingpin"],
-          layout: { visibility: "visible" },
         });
 
-        // === Popups ===
+        // Popups
         map.on("click", ["retailers-layer", "kingpins-layer"], (e) => {
           const f = e.features?.[0];
           if (!f) return;
@@ -240,7 +219,7 @@ export default function CertisMap({
             : [0, 0];
           const p = f.properties || {};
 
-          const suppliersArr = parseSuppliers(p.Suppliers);
+          const suppliersArr = parseSuppliers(p.Suppliers || p.Supplier || p["Supplier(s)"]);
           const suppliers = suppliersArr.length > 0 ? suppliersArr.join(", ") : "N/A";
           const retailer = p.Retailer || "Unknown";
           const siteName = p.Name || "";
@@ -294,11 +273,6 @@ export default function CertisMap({
             }
           }, 100);
         });
-
-        ["retailers-layer", "kingpins-layer"].forEach((layer) => {
-          map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
-          map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
-        });
       } catch (err) {
         console.error("❌ Failed to load GeoJSON", err);
       }
@@ -319,7 +293,7 @@ export default function CertisMap({
       const category = p.DisplayCategory;
       const retailer = p.Retailer || "";
       const state = p.State || "";
-      const supplierList = parseSuppliers(p.Suppliers).map(norm);
+      const supplierList = parseSuppliers(p.Suppliers || p.Supplier || p["Supplier(s)"]).map(norm);
 
       if (category === "Kingpin") return true;
 
@@ -338,7 +312,21 @@ export default function CertisMap({
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
 
   // ========================================
-  // 🧱 RENDER MAP
+  // 🟡 ZIP CONFIRMATION MESSAGE
   // ========================================
-  return <div ref={mapContainer} className="w-full h-full border-t border-gray-400" />;
+  useEffect(() => {
+    if (homeZip && homeZip.trim() !== "") setZipSet(true);
+    else setZipSet(false);
+  }, [homeZip]);
+
+  return (
+    <div className="relative w-full h-full border-t border-gray-400">
+      {zipSet && (
+        <div className="absolute top-2 left-3 text-yellow-400 italic text-sm z-[9999]">
+          Home location set to {homeZip}
+        </div>
+      )}
+      <div ref={mapContainer} className="w-full h-full" />
+    </div>
+  );
 }
