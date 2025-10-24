@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronDown, ChevronUp } from "lucide-react";
 import CertisMap, { Stop, categoryColors } from "@/components/CertisMap";
 
 const norm = (v: string) => (v || "").toString().trim().toLowerCase();
@@ -11,6 +11,8 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app";
 
 export default function Page() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [zipCode, setZipCode] = useState("");
+  const [zipConfirmed, setZipConfirmed] = useState(false);
 
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
@@ -21,9 +23,13 @@ export default function Page() {
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
   const [retailerStateMap, setRetailerStateMap] = useState<Record<string, string[]>>({});
+  const [retailerSummaries, setRetailerSummaries] = useState<
+    { retailer: string; count: number; suppliers: string[]; states: string[] }[]
+  >([]);
 
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   // ========================================
   // Helpers
@@ -46,7 +52,7 @@ export default function Page() {
     setTripStops((prev) => prev.filter((_, i) => i !== idx));
 
   // ========================================
-  // Export
+  // Map Export
   // ========================================
   const exportToGoogleMaps = () => {
     if (!tripStops.length) return;
@@ -116,15 +122,28 @@ export default function Page() {
                 <input
                   type="text"
                   placeholder="Enter ZIP"
+                  value={zipCode}
+                  onChange={(e) => {
+                    setZipCode(e.target.value);
+                    setZipConfirmed(false);
+                  }}
                   className="flex-1 bg-gray-800 text-white px-2 py-1 rounded border border-gray-700 focus:outline-none focus:border-b-2 focus:border-yellow-400"
                 />
-                <button className="bg-blue-600 px-3 py-1 rounded text-white font-semibold">
+                <button
+                  className="bg-blue-600 px-3 py-1 rounded text-white font-semibold"
+                  onClick={() => setZipConfirmed(true)}
+                >
                   Set
                 </button>
               </div>
+              {zipConfirmed && (
+                <p className="text-yellow-400 italic text-sm mt-1">
+                  ZIP code {zipCode} set as home location.
+                </p>
+              )}
             </div>
 
-            {/* States */}
+            {/* State Filter */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select State(s)</h2>
               <div className="flex space-x-2 mb-2">
@@ -159,7 +178,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Retailers */}
+            {/* Retailer Filter */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Retailer(s)</h2>
               <div className="flex space-x-2 mb-2">
@@ -194,7 +213,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Suppliers */}
+            {/* Supplier Filter */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Supplier(s)</h2>
               <div className="flex space-x-2 mb-2">
@@ -223,7 +242,7 @@ export default function Page() {
                           setSelectedSuppliers((prev) =>
                             prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
                           )
-                        }
+                        )}
                       />
                       <span>{s}</span>
                     </label>
@@ -231,7 +250,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Categories */}
+            {/* Category Filter */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Categories</h2>
               <div className="flex space-x-2 mb-2">
@@ -266,7 +285,7 @@ export default function Page() {
                           setSelectedCategories((prev) =>
                             prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
                           )
-                        }
+                        )}
                       />
                       <span
                         className="flex items-center space-x-1"
@@ -283,8 +302,47 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Trip Optimization */}
+            {/* Retailer Summary */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-yellow-400 text-lg font-semibold">Retailer Summary</h2>
+                <button
+                  className="md:hidden text-gray-300 hover:text-yellow-400"
+                  onClick={() => setSummaryOpen(!summaryOpen)}
+                >
+                  {summaryOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
+              </div>
+              <div className={`${summaryOpen ? "block" : "hidden md:block"} max-h-64 overflow-y-auto`}>
+                {retailerSummaries.length === 0 ? (
+                  <p className="text-gray-400 text-sm">No retailer summary available.</p>
+                ) : (
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="text-yellow-400 border-b border-gray-700">
+                        <th className="text-left py-1">Retailer</th>
+                        <th className="text-left py-1">Locs</th>
+                        <th className="text-left py-1">Suppliers</th>
+                        <th className="text-left py-1">States</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {retailerSummaries.map((r, idx) => (
+                        <tr key={idx} className="border-b border-gray-800">
+                          <td className="py-1">{r.retailer}</td>
+                          <td className="py-1">{r.count}</td>
+                          <td className="py-1">{r.suppliers.join(", ")}</td>
+                          <td className="py-1">{r.states.join(", ")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Trip Optimization */}
+            <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg mb-10">
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Trip Optimization</h2>
               <div className="flex space-x-3 mb-3">
                 <label className="flex items-center space-x-1">
@@ -374,17 +432,7 @@ export default function Page() {
               const deduped = Array.from(new Set(suppliers)).sort();
               setAvailableSuppliers(deduped);
             }}
-            onRetailerSummary={(summaries) => {
-              const newMap: Record<string, string[]> = {};
-              summaries.forEach((entry) => {
-                if (!newMap[entry.retailer]) newMap[entry.retailer] = [];
-                entry.states.forEach((s: string) => {
-                  if (!newMap[entry.retailer].includes(s))
-                    newMap[entry.retailer].push(s);
-                });
-              });
-              setRetailerStateMap(newMap);
-            }}
+            onRetailerSummary={(summaries) => setRetailerSummaries(summaries)}
             onAddStop={handleAddStop}
             tripStops={tripStops}
             tripMode={tripMode}
