@@ -427,11 +427,18 @@ export default function Page() {
               const deduped = Array.from(new Set(suppliers)).sort();
               setAvailableSuppliers(deduped);
             }}
+            // ✅ FIXED: normalize retailer summaries before setting state
             onRetailerSummary={(summaries) => {
-              setRetailerSummaries(summaries);
-              // Build state mapping from summary data
+              const normalized = summaries.map((s) => ({
+                retailer: s.retailer,
+                count: s.count,
+                suppliers: Array.isArray(s.suppliers) ? s.suppliers : [],
+                states: Array.isArray(s.states) ? s.states : [],
+              }));
+              setRetailerSummaries(normalized);
+
               const mapping: Record<string, string[]> = {};
-              summaries.forEach((s) => (mapping[s.retailer] = s.states));
+              normalized.forEach((s) => (mapping[s.retailer] = s.states || []));
               setRetailerStateMap(mapping);
             }}
             onAddStop={handleAddStop}
