@@ -1,68 +1,86 @@
-﻿# scripts/geocode_retailers.py
+﻿# ========================================
+# geocode_retailers.py
+# ========================================
+# Reads retailers.xlsx from /data, geocodes missing coordinates using Mapbox,
+# caches results to avoid redundant lookups, and writes
+# retailers_latlong.xlsx back into /data.
+# ========================================
+
 import os
 import json
 import pandas as pd
 import requests
 from time import sleep
 from pathlib import Path
+import re
 
 # ========================================
 # CONFIGURATION
 # ========================================
-DATA_DIR = Path("data")
+DATA_DIR = Path("../data")
 INPUT_FILE = DATA_DIR / "retailers.xlsx"
 OUTPUT_FILE = DATA_DIR / "retailers_latlong.xlsx"
 CACHE_FILE = DATA_DIR / "geocode_cache.json"
 
-# Hard-coded Mapbox token
+# ✅ Hardwired Mapbox token (John Bailey’s project)
 MAPBOX_TOKEN = "pk.eyJ1IjoiZG9jamJhaWxleTE5NzEiLCJhIjoiY21mempnNTBmMDNibjJtb2ZycTJycDB6YyJ9.9LIIYF2Bwn_aRSsuOBSI3g"
+
+# Mapbox recommends <600 requests/minute — this keeps us safe
+RATE_LIMIT_DELAY = 0.25  # seconds
 
 # ========================================
 # LOAD DATA
 # ========================================
-print("Loading retailer Excel file...")
+print("📥 Loading retailer Excel file...")
 
 if not INPUT_FILE.exists():
-    raise FileNotFoundError(f"ERROR: Input file not found: {INPUT_FILE}")
+    raise FileNotFoundError(f"❌ ERROR: Input file not found: {INPUT_FILE}")
 
 df = pd.read_excel(INPUT_FILE)
-print(f"Loaded {len(df)} rows from {INPUT_FILE}")
+print(f"✅ Loaded {len(df)} rows from {INPUT_FILE}")
 
 # ========================================
 # CLEANUP & COLUMN NORMALIZATION
 # ========================================
-expected_columns = ["Retailer", "Name", "Address", "City", "State", "Zip", "Category", "Suppliers"]
+expected_columns = [
+    "Retailer",
+    "Name",
+    "Address",
+    "City",
+    "State",
+    "Zip",
+    "Category",
+    "Suppliers",
+]
 
 for col in expected_columns:
     if col not in df.columns:
         df[col] = ""
 
-# Add or ensure Latitude and Longitude columns
+# Ensure Latitude and Longitude exist
 if "Latitude" not in df.columns:
     df["Latitude"] = None
 if "Longitude" not in df.columns:
     df["Longitude"] = None
 
 # ========================================
-# LOAD CACHE (to avoid duplicate lookups)
+# LOAD CACHE (avoid duplicate lookups)
 # ========================================
 if CACHE_FILE.exists():
     with open(CACHE_FILE, "r", encoding="utf-8") as f:
         cache = json.load(f)
-    print(f"Loaded existing cache: {len(cache):,} entries")
+    print(f"📂 Loaded existing cache: {len(cache):,} entries")
 else:
     cache = {}
-    print("No existing cache found — starting fresh.")
+    print("🆕 No existing cache found — starting fresh.")
 
 # ========================================
 # ADDRESS NORMALIZER
 # ========================================
-import re
-
 def normalize_address(addr: str) -> str:
     """Lowercase, remove punctuation and compress whitespace."""
     addr = str(addr).lower().strip()
-    addr = re.sub(r"[^a-z0-9\s,]", "", addr)  # remove stray symbols
+    addr = re.sub(r"[^a-z0-9\s,]", "", addr)  # remove punctuation
     addr = re.sub(r"\s+", " ", addr)
     return addr.strip()
 
@@ -81,7 +99,7 @@ def geocode_address(address: str):
 
     key = normalize_address(address)
 
-    # ✅ Use normalized key
+    # Check cache first
     if key in cache:
         cached_hits += 1
         return cache[key]
@@ -96,52 +114,51 @@ def geocode_address(address: str):
 
         if "features" in data and data["features"]:
             coords = data["features"][0]["geometry"]["coordinates"]
-            lat, lon = coords[1], coords[0]
+            lon, lat = coords[0], coords[1]
             cache[key] = (lat, lon)
             new_hits += 1
             return lat, lon
         else:
-            print(f"⚠️ No match found for: {address}")
+            print(f"⚠️ No result for: {address}")
             cache[key] = (None, None)
             return None, None
 
     except Exception as e:
-        print(f"Error geocoding '{address}': {e}")
+        print(f"❌ Error geocoding '{address}': {e}")
         cache[key] = (None, None)
         return None, None
 
 # ========================================
 # MAIN GEOCODING LOOP
 # ========================================
-print("Beginning geocoding process...")
+print("🧭 Beginning geocoding process...")
 
 for i, row in df.iterrows():
-    # Skip rows already geocoded
+    # Skip already geocoded
     if pd.notna(row["Latitude"]) and pd.notna(row["Longitude"]):
         continue
 
-    full_address = f"{row['Address']}, {row['City']}, {row['State']} {row['Zip']}"
+    full_address = f"{row['Address']}, {row['City']}, {row['State']} {row['Zip']}".strip()
     lat, lon = geocode_address(full_address)
 
     df.at[i, "Latitude"] = lat
     df.at[i, "Longitude"] = lon
 
     if (i + 1) % 25 == 0:
-        print(f"Processed {i + 1}/{len(df)}")
+        print(f"Processed {i + 1}/{len(df)} rows...")
 
-    sleep(0.25)  # Respect Mapbox rate limits
+    sleep(RATE_LIMIT_DELAY)
 
 # ========================================
 # SAVE UPDATED CACHE
 # ========================================
 with open(CACHE_FILE, "w", encoding="utf-8") as f:
     json.dump(cache, f, indent=2)
-print(f"✅ Updated geocode cache saved: {CACHE_FILE}")
+print(f"💾 Updated geocode cache saved: {CACHE_FILE}")
 
 # ========================================
 # EXPORT FINAL DATASET
 # ========================================
 df.to_excel(OUTPUT_FILE, index=False)
-
 print(f"✅ Geocoding complete! {len(df)} rows saved to {OUTPUT_FILE}")
 print(f"🔁 Cached hits: {cached_hits:,} | 🆕 New lookups: {new_hits:,}")

@@ -14,7 +14,7 @@ from pathlib import Path
 # ----------------------------------------
 # CONFIGURATION
 # ----------------------------------------
-DATA_DIR = Path("data")
+DATA_DIR = Path("../data")  # ✅ one level up
 INPUT_FILE = DATA_DIR / "retailers_latlong.xlsx"
 OUTPUT_FILE = DATA_DIR / "retailers.geojson"
 
