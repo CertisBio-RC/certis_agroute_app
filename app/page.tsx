@@ -20,7 +20,6 @@ export default function Page() {
   // ===============================
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   // ===============================
@@ -28,10 +27,9 @@ export default function Page() {
   // ===============================
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
-  const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
   const [retailerStateMap, setRetailerStateMap] = useState<Record<string, string[]>>({});
   const [retailerSummaries, setRetailerSummaries] = useState<
-    { retailer: string; count: number; suppliers: string[]; states: string[]; categories: string[] }[]
+    { retailer: string; count: number; suppliers: string[]; states: string[] }[]
   >([]);
 
   // ===============================
@@ -58,24 +56,12 @@ export default function Page() {
   const handleClearStops = () => setTripStops([]);
 
   // ===============================
-  // Route Exports (Include Home ZIP)
+  // Route Exports (Use Addresses)
   // ===============================
-  const withHomeZip = (stops: Stop[]): Stop[] => {
-    if (!zipConfirmed || !zipCode) return stops;
-    const homeStop: Stop = {
-      label: `Home (${zipCode})`,
-      address: zipCode,
-      coords: [0, 0],
-      zip: zipCode,
-    };
-    return [homeStop, ...stops, homeStop];
-  };
-
   const exportToGoogleMaps = () => {
-    const stops = withHomeZip(tripStops);
-    if (!stops.length) return;
+    if (!tripStops.length) return;
     const base = "https://www.google.com/maps/dir/";
-    const query = stops
+    const query = tripStops
       .map(
         (s) =>
           encodeURIComponent(
@@ -87,10 +73,9 @@ export default function Page() {
   };
 
   const exportToAppleMaps = () => {
-    const stops = withHomeZip(tripStops);
-    if (!stops.length) return;
+    if (!tripStops.length) return;
     const base = "https://maps.apple.com/?daddr=";
-    const query = stops
+    const query = tripStops
       .map(
         (s) =>
           encodeURIComponent(
@@ -119,6 +104,7 @@ export default function Page() {
       {/* HEADER */}
       <header className="flex items-center justify-between bg-gray-900 text-white px-4 py-2 shadow-md">
         <div className="flex items-center space-x-3">
+          {/* Mobile Toggle */}
           <button
             className="md:hidden p-2 rounded hover:bg-gray-800"
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -178,14 +164,131 @@ export default function Page() {
             </div>
 
             {/* STATE FILTER */}
-            {/* (unchanged code for state, retailer, supplier, category filters remains identical) */}
+            <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select State(s)</h2>
+              <div className="flex space-x-2 mb-2">
+                <button
+                  onClick={() => toggleAll(setSelectedStates, selectedStates, availableStates)}
+                  className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={() => clearAll(setSelectedStates)}
+                  className="bg-gray-600 text-white px-2 py-1 rounded text-sm"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-x-2">
+                {availableStates.map((st) => (
+                  <label key={st} className="flex items-center space-x-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedStates.includes(st)}
+                      onChange={() =>
+                        setSelectedStates((prev) =>
+                          prev.includes(st) ? prev.filter((x) => x !== st) : [...prev, st]
+                        )
+                      }
+                    />
+                    <span>{st}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* RETAILER FILTER */}
+            <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Retailer(s)</h2>
+              <div className="flex space-x-2 mb-2">
+                <button
+                  onClick={() => toggleAll(setSelectedRetailers, selectedRetailers, filteredRetailers)}
+                  className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={() => clearAll(setSelectedRetailers)}
+                  className="bg-gray-600 text-white px-2 py-1 rounded text-sm"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="h-48 overflow-y-auto space-y-1">
+                {filteredRetailers.map((r) => (
+                  <label key={r} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedRetailers.includes(r)}
+                      onChange={() =>
+                        setSelectedRetailers((prev) =>
+                          prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
+                        )
+                      }
+                    />
+                    <span>{r}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* CATEGORY FILTER */}
+            <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Categories</h2>
+              <div className="flex space-x-2 mb-2">
+                <button
+                  onClick={() =>
+                    toggleAll(
+                      setSelectedCategories,
+                      selectedCategories,
+                      Object.keys(categoryColors).filter((c) => c !== "Kingpin")
+                    )
+                  }
+                  className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={() => clearAll(setSelectedCategories)}
+                  className="bg-gray-600 text-white px-2 py-1 rounded text-sm"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="flex flex-col space-y-1 text-[15px]">
+                {Object.keys(categoryColors)
+                  .filter((c) => c !== "Kingpin")
+                  .map((c) => (
+                    <label key={c} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedCategories.includes(c)}
+                        onChange={() =>
+                          setSelectedCategories((prev) =>
+                            prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+                          )
+                        }
+                      />
+                      <span
+                        className="flex items-center space-x-1"
+                        style={{ color: categoryColors[c].color }}
+                      >
+                        <span
+                          className="inline-block w-3 h-3 rounded-full"
+                          style={{ backgroundColor: categoryColors[c].color }}
+                        ></span>
+                        <span>{c}</span>
+                      </span>
+                    </label>
+                  ))}
+              </div>
+            </div>
 
             {/* RETAILER SUMMARY */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg">
               <div className="flex justify-between items-center mb-2">
-                <h2 className="text-yellow-400 text-lg font-semibold">
-                  Retailer Summary
-                </h2>
+                <h2 className="text-yellow-400 text-lg font-semibold">Retailer Summary</h2>
                 <button
                   className="md:hidden text-gray-300 hover:text-yellow-400"
                   onClick={() => setSummaryOpen(!summaryOpen)}
@@ -193,50 +296,28 @@ export default function Page() {
                   {summaryOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </button>
               </div>
-              <div
-                className={`${
-                  summaryOpen ? "block" : "hidden md:block"
-                } max-h-64 overflow-y-auto`}
-              >
+              <div className={`${summaryOpen ? "block" : "hidden md:block"} max-h-64 overflow-y-auto`}>
                 {retailerSummaries.length === 0 ? (
-                  <p className="text-gray-400 text-sm">
-                    No retailer summary available.
-                  </p>
+                  <p className="text-gray-400 text-sm">No retailer summary available.</p>
                 ) : (
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="text-yellow-400 border-b border-gray-700">
                         <th className="text-left py-1">Retailer</th>
                         <th className="text-left py-1">Locs</th>
-                        <th className="text-left py-1">Categories</th>
                         <th className="text-left py-1">Suppliers</th>
                         <th className="text-left py-1">States</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {retailerSummaries
-                        .sort((a, b) => a.retailer.localeCompare(b.retailer))
-                        .map((r, idx) => (
-                          <tr key={idx} className="border-b border-gray-800">
-                            <td className="py-1 font-semibold text-gray-200">
-                              {r.retailer}
-                            </td>
-                            <td className="py-1">{r.count}</td>
-                            <td className="py-1">
-                              {r.categories?.length
-                                ? r.categories.join(", ")
-                                : "Agronomy"}
-                            </td>
-                            <td className="py-1 text-gray-300">
-                              {r.suppliers.length
-                                ? r.suppliers.join(", ")
-                                : "—"}
-                            </td>
-                            <td className="py-1 text-gray-300">
-                              {r.states.join(", ")}
-                            </td>
-                          </tr>
-                        ))}
+                      {retailerSummaries.map((r, idx) => (
+                        <tr key={idx} className="border-b border-gray-800">
+                          <td className="py-1">{r.retailer}</td>
+                          <td className="py-1">{r.count}</td>
+                          <td className="py-1">{r.suppliers.join(", ")}</td>
+                          <td className="py-1">{r.states.join(", ")}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 )}
@@ -245,9 +326,7 @@ export default function Page() {
 
             {/* TRIP PLANNER */}
             <div className="bg-gray-900/80 rounded-xl p-3 shadow-lg mb-10">
-              <h2 className="text-yellow-400 text-lg font-semibold mb-2">
-                Trip Optimization
-              </h2>
+              <h2 className="text-yellow-400 text-lg font-semibold mb-2">Trip Optimization</h2>
               <div className="flex space-x-3 mb-3">
                 <label className="flex items-center space-x-1">
                   <input
@@ -290,27 +369,22 @@ export default function Page() {
                 </ul>
               )}
 
-              <div className="mt-3 space-y-2">
-                {zipConfirmed && (
-                  <p className="text-xs text-yellow-400 italic">
-                    Home ZIP {zipCode} will be used as start and end point.
-                  </p>
-                )}
+              <div className="flex flex-col space-y-2 mt-3">
                 <button
                   onClick={exportToGoogleMaps}
-                  className="bg-green-600 text-white px-3 py-1 rounded font-semibold w-full"
+                  className="bg-green-600 text-white px-3 py-1 rounded font-semibold"
                 >
                   Send to Google Maps
                 </button>
                 <button
                   onClick={exportToAppleMaps}
-                  className="bg-yellow-600 text-white px-3 py-1 rounded font-semibold w-full"
+                  className="bg-yellow-600 text-white px-3 py-1 rounded font-semibold"
                 >
                   Send to Apple Maps
                 </button>
                 <button
                   onClick={handleClearStops}
-                  className="bg-gray-600 text-white px-3 py-1 rounded font-semibold w-full"
+                  className="bg-gray-600 text-white px-3 py-1 rounded font-semibold"
                 >
                   Clear Stops
                 </button>
@@ -324,22 +398,15 @@ export default function Page() {
           <CertisMap
             selectedStates={selectedStates}
             selectedRetailers={selectedRetailers}
-            selectedSuppliers={selectedSuppliers}
             selectedCategories={selectedCategories}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
-            onSuppliersLoaded={(suppliers) =>
-              setAvailableSuppliers(
-                [...new Set(suppliers)].filter(Boolean).sort()
-              )
-            }
             onRetailerSummary={(summaries) => {
               const normalized = summaries.map((s: any) => ({
                 retailer: s.retailer,
                 count: s.count,
                 suppliers: Array.isArray(s.suppliers) ? s.suppliers : [],
                 states: Array.isArray(s.states) ? s.states : [],
-                categories: Array.isArray(s.categories) ? s.categories : ["Agronomy"],
               }));
               setRetailerSummaries(normalized);
               const mapping: Record<string, string[]> = {};
