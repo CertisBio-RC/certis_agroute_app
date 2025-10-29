@@ -11,12 +11,13 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app";
 // 🎨 CATEGORY COLORS
 // ========================================
 export const categoryColors: Record<string, { color: string; outline?: string }> = {
-  Agronomy: { color: "#FFD700", outline: "#000" },
-  "Grain/Feed": { color: "#228B22", outline: "#000" },
-  Feed: { color: "#8B4513", outline: "#000" },
-  "Office/Service": { color: "#1E90FF", outline: "#000" },
-  Distribution: { color: "#FF8C00", outline: "#000" },
-  Kingpin: { color: "#FF0000", outline: "#FFFF00" },
+  Agronomy: { color: "#1E90FF", outline: "#FFFFFF" },       // Blue w/ white border
+  "Grain/Feed": { color: "#FFD700", outline: "#FFFFFF" },   // Yellow w/ white border
+  Feed: { color: "#FFD700", outline: "#FFFFFF" },
+  Grain: { color: "#FFD700", outline: "#FFFFFF" },
+  "Office/Service": { color: "#006400", outline: "#FFFFFF" }, // Dark green w/ white border
+  Distribution: { color: "#FF8C00", outline: "#FFFFFF" },    // Orange w/ white border
+  Kingpin: { color: "#FF0000", outline: "#FFFF00" },         // Red w/ yellow border
 };
 
 // ========================================
@@ -24,29 +25,34 @@ export const categoryColors: Record<string, { color: string; outline?: string }>
 // ========================================
 const norm = (v: string) => (v || "").toString().trim().toLowerCase();
 
-const normalizeCategory = (cat: string) => {
-  const c = norm(cat);
-  if (["agronomy/grain", "agronomygrain", "agronomy hybrid"].includes(c))
-    return "agronomy/grain";
-  return c;
-};
-
 const expandCategories = (cat: string): string[] => {
-  const c = normalizeCategory(cat);
-  if (c === "agronomy/grain") return ["agronomy", "grain"];
-  return [c];
+  const c = norm(cat);
+  switch (c) {
+    case "agronomy/grain":
+    case "agronomygrain":
+    case "agronomy hybrid":
+    case "agronomy/feed":
+    case "agronomyfeed":
+      return ["Agronomy"];
+    case "feed":
+    case "grain":
+    case "feed/grain":
+    case "grain/feed":
+      return ["Grain/Feed"];
+    case "office/service":
+      return ["Office/Service"];
+    case "distribution":
+      return ["Distribution"];
+    case "kingpin":
+      return ["Kingpin"];
+    default:
+      return ["Unknown"];
+  }
 };
 
 const assignDisplayCategory = (cat: string): string => {
-  const expanded = expandCategories(cat);
-  if (expanded.includes("agronomy")) return "Agronomy";
-  if (expanded.includes("grain")) return "Grain/Feed";
-  if (expanded.includes("feed")) return "Feed";
-  if (expanded.includes("officeservice") || expanded.includes("office/service"))
-    return "Office/Service";
-  if (expanded.includes("distribution")) return "Distribution";
-  if (expanded.includes("kingpin")) return "Kingpin";
-  return "Unknown";
+  const c = expandCategories(cat)[0];
+  return c;
 };
 
 // ========================================
@@ -123,6 +129,7 @@ export interface CertisMapProps {
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
   onOptimizedRoute?: (stops: Stop[]) => void;
+  zipCode?: string;
 }
 
 // ========================================
@@ -138,12 +145,14 @@ export default function CertisMap({
   onSuppliersLoaded,
   onRetailerSummary,
   onAddStop,
+  zipCode,
 }: CertisMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const masterFeaturesRef = useRef<any[]>([]);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251023`;
+  const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=20251028`;
 
   // ========================================
   // 🗺️ MAP INITIALIZATION
@@ -207,12 +216,13 @@ export default function CertisMap({
           data: { type: "FeatureCollection", features: validFeatures },
         });
 
+        // Normal retailer categories
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
           source: "retailers",
           paint: {
-            "circle-radius": 4,
+            "circle-radius": 2.5,
             "circle-color": [
               "match",
               ["get", "DisplayCategory"],
@@ -222,6 +232,8 @@ export default function CertisMap({
               categoryColors["Grain/Feed"].color,
               "Feed",
               categoryColors.Feed.color,
+              "Grain",
+              categoryColors.Grain.color,
               "Office/Service",
               categoryColors["Office/Service"].color,
               "Distribution",
@@ -229,24 +241,23 @@ export default function CertisMap({
               "#1d4ed8",
             ],
             "circle-stroke-width": 2,
-            "circle-stroke-color": "#fff",
+            "circle-stroke-color": "#FFFFFF",
           },
           filter: ["!=", ["get", "DisplayCategory"], "Kingpin"],
-          layout: { visibility: "visible" },
         });
 
+        // Kingpin layer
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
           source: "retailers",
           paint: {
-            "circle-radius": 6,
+            "circle-radius": 5,
             "circle-color": categoryColors.Kingpin.color,
-            "circle-stroke-width": 3,
+            "circle-stroke-width": 2.5,
             "circle-stroke-color": categoryColors.Kingpin.outline!,
           },
           filter: ["==", ["get", "DisplayCategory"], "Kingpin"],
-          layout: { visibility: "visible" },
         });
 
         // ========================================
@@ -330,6 +341,25 @@ export default function CertisMap({
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
   // ========================================
+  // 🏠 HOME MARKER
+  // ========================================
+  useEffect(() => {
+    if (!zipCode || !mapRef.current) return;
+    if (homeMarkerRef.current) homeMarkerRef.current.remove();
+
+    const el = document.createElement("img");
+    el.src = `${basePath}/Blue-Home.png`;
+    el.style.width = "5px";
+    el.style.height = "5px";
+
+    const marker = new mapboxgl.Marker({ element: el })
+      .setLngLat([-93.0, 42.0]) // Placeholder: replace with geocoded ZIP if available
+      .addTo(mapRef.current);
+
+    homeMarkerRef.current = marker;
+  }, [zipCode]);
+
+  // ========================================
   // 🔄 FILTERING + RETAILER SUMMARY
   // ========================================
   useEffect(() => {
@@ -352,7 +382,7 @@ export default function CertisMap({
         selectedRetailers.length === 0 || selectedRetailers.includes(retailer);
       const matchCategory =
         selectedCategories.length === 0 ||
-        selectedCategories.includes(norm(category));
+        selectedCategories.includes(category);
       const matchSupplier =
         selectedSuppliers.length === 0 ||
         selectedSuppliers.some((s) => supplierList.includes(norm(s)));
@@ -362,7 +392,6 @@ export default function CertisMap({
 
     source.setData({ type: "FeatureCollection", features: filtered });
 
-    // ✅ Build retailer summary (includes suppliers + states)
     const summaryMap = new Map<
       string,
       {
