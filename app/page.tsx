@@ -203,7 +203,9 @@ export default function Page() {
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Retailer(s)</h2>
               <div className="flex space-x-2 mb-2">
                 <button
-                  onClick={() => toggleAll(setSelectedRetailers, selectedRetailers, filteredRetailers)}
+                  onClick={() =>
+                    toggleAll(setSelectedRetailers, selectedRetailers, filteredRetailers)
+                  }
                   className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
                 >
                   Select All
@@ -399,8 +401,10 @@ export default function Page() {
             selectedStates={selectedStates}
             selectedRetailers={selectedRetailers}
             selectedCategories={selectedCategories}
+            selectedSuppliers={[]} // ✅ Required for TypeScript, no UI dependency
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
+            onSuppliersLoaded={() => {}}
             onRetailerSummary={(summaries) => {
               const normalized = summaries.map((s: any) => ({
                 retailer: s.retailer,
