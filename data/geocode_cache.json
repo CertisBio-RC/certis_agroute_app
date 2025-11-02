@@ -9590,5 +9590,1241 @@
   "500 s edison st, williamsfield, il 61489": [
     40.923338,
     -90.018421
+  ],
+  "307 n lincoln ave, jennings, ks 67643": [
+    38.729833,
+    -98.228383
+  ],
+  "hwy 9, logan, ks 67646": [
+    39.668908,
+    -99.56255
+  ],
+  "208 n hwy 283, norton, ks 67654": [
+    39.829109,
+    -99.888907
+  ],
+  "601 main st, arapahoe, ne 68922": [
+    40.301759,
+    -99.896741
+  ],
+  "county road 433, atlanta, ne 68923": [
+    40.639695,
+    -99.737845
+  ],
+  "402 commercial st, bartley, ne 69020": [
+    40.25218,
+    -100.306394
+  ],
+  "100 w 1st st, big springs, ne 69122": [
+    41.06235,
+    -102.07524
+  ],
+  "511 nasby st, cambridge, ne 69022": [
+    40.281964,
+    -100.168481
+  ],
+  "hwy 136, edison, ne 68936": [
+    40.284145,
+    -99.777963
+  ],
+  "113 e railroad st, eustis, ne 69028": [
+    40.661394,
+    -100.028693
+  ],
+  "107 tower st, holbrook, ne 68948": [
+    40.30296,
+    -100.005919
+  ],
+  "301 main st, indianola, ne 69034": [
+    40.234243,
+    -100.417242
+  ],
+  "203 elm st, maywood, ne 69038": [
+    40.658565,
+    -100.624195
+  ],
+  "402 e 7th st, north platte, ne 69103": [
+    41.124278,
+    -100.742107
+  ],
+  "205 s pine ave, orleans, ne 68966": [
+    40.128995,
+    -99.455132
+  ],
+  "406 ogden st, oxford, ne 68967": [
+    40.250873,
+    -99.633648
+  ],
+  "404 main st, wilsonville, ne 69046": [
+    40.111301,
+    -100.106983
+  ],
+  "502 s 2nd st, princeton, mn 55371": [
+    45.568735,
+    -93.580576
+  ],
+  "1740 3rd ave se, rochester, mn 55904": [
+    43.996814,
+    -92.458197
+  ],
+  "300 highway 12 s, akron, ia 51001": [
+    42.830385,
+    -96.558858
+  ],
+  "102 main st, boyden, ia 51234": [
+    43.187314,
+    -96.005785
+  ],
+  "107 main st, craig, ia 51017": [
+    42.896751,
+    -96.309483
+  ],
+  "208 main st, doon, ia 51235": [
+    43.27932,
+    -96.233981
+  ],
+  "200 1st st ne, hartley, ia 51346": [
+    43.182435,
+    -95.469726
+  ],
+  "301 1st st, ireton, ia 51027": [
+    42.977538,
+    -96.316083
+  ],
+  "295 main st, matlock, ia 51244": [
+    43.244108,
+    -95.935081
+  ],
+  "201 main st, maurice, ia 51036": [
+    42.965625,
+    -96.179929
+  ],
+  "210 broadway ave, melvin, ia 51350": [
+    43.056907,
+    -92.318874
+  ],
+  "140 main st, ocheyedan, ia 51354": [
+    43.416278,
+    -95.534788
+  ],
+  "311 3rd st nw, rock valley, ia 51247": [
+    43.07891,
+    -96.181004
+  ],
+  "1200 2nd ave, sheldon, ia 51201": [
+    43.177551,
+    -95.857712
+  ],
+  "411 3rd ave nw, sioux center, ia 51250": [
+    43.080816,
+    -96.179224
+  ],
+  "304 3rd street, alvord, ia 51230": [
+    43.341846,
+    -96.302987
+  ],
+  "127 1st avenue, ashton, ia 51232": [
+    43.310554,
+    -95.789436
+  ],
+  "101 w main street, doon, ia 51235": [
+    43.279304,
+    -96.232864
+  ],
+  "2294 kennedy avenue, george, ia 51237": [
+    43.317573,
+    -95.998417
+  ],
+  "305 s main street, harris, ia 51345": [
+    43.443632,
+    -95.434119
+  ],
+  "333 s central avenue, hartley, ia 51346": [
+    43.176971,
+    -95.477312
+  ],
+  "620 avenue e, hawarden, ia 51023": [
+    42.994243,
+    -96.488081
+  ],
+  "409 s main street, inwood, ia 51240": [
+    43.30454,
+    -96.43128
+  ],
+  "204 e railroad street, lake park, ia 51347": [
+    43.452871,
+    -95.319672
+  ],
+  "755 broadway street, larchwood, ia 51241": [
+    43.451257,
+    -96.434331
+  ],
+  "1776 210 street, milford, ia 51351": [
+    43.342511,
+    -95.233439
+  ],
+  "823 main street, ocheyedan, ia 51354": [
+    43.417387,
+    -95.535191
+  ],
+  "315 n 2nd avenue, rock rapids, ia 51246": [
+    43.43382,
+    -96.16869
+  ],
+  "1219 main street, rock valley, ia 51247": [
+    43.20265,
+    -96.293989
+  ],
+  "1107 2nd avenue, sibley, ia 51249": [
+    43.396568,
+    -95.752931
+  ],
+  "27730 340th street, bigelow, mn 56117": [
+    43.50071,
+    -95.6981
+  ],
+  "101 thompson avenue s, rushmore, mn 56168": [
+    43.61828,
+    -95.80145
+  ],
+  "309 hubbard street, hudson, sd 57034": [
+    43.12926,
+    -96.45361
+  ],
+  "48134 330th street, jefferson, sd 57038": [
+    42.604892,
+    -96.556093
+  ],
+  "2156 390th st, hawarden, ia 51023": [
+    43.084424,
+    -96.361022
+  ],
+  "1315 17th st, rock valley, ia 51247": [
+    43.208148,
+    -96.299133
+  ],
+  "1302 61st st, luverne, mn 56156": [
+    43.572232,
+    -96.211822
+  ],
+  "83755 s hwy 121, battle creek, ne 68715": [
+    41.999513,
+    -97.598207
+  ],
+  "229 n broadway st, bloomfield, ne 68718": [
+    42.602889,
+    -97.644958
+  ],
+  "115 front st 5585, ewing, ne 68735": [
+    42.26094,
+    -98.35046
+  ],
+  "210 n hwy 20, laurel, ne 68745": [
+    42.43175,
+    -97.09789
+  ],
+  "700 w 3rd st, madison, ne 68748": [
+    41.82824,
+    -97.46284
+  ],
+  "1001 e hwy 275, neligh, ne 68756": [
+    42.115095,
+    -98.016426
+  ],
+  "312 s 6th st, newman grove, ne 68758": [
+    41.74303,
+    -97.77697
+  ],
+  "6th broadwell, newman grove, ne 68758": [
+    41.746655,
+    -97.776588
+  ],
+  "415 e hwy 20, oneill, ne 68763": [
+    42.45241,
+    -98.63101
+  ],
+  "86411 hwy 121, osmond, ne 68765": [
+    42.35219,
+    -97.60456
+  ],
+  "85414 549 ave, pierce, ne 68767": [
+    42.20746,
+    -97.54246
+  ],
+  "53562 hwy 20, plainview, ne 68769": [
+    42.350301,
+    -97.804613
+  ],
+  "1st ash, snyder, ne 68057": [
+    40.23356,
+    -95.68571
+  ],
+  "104 e railway st, avon, sd 57315": [
+    43.003667,
+    -98.05898
+  ],
+  "2952 ia92, ainsworth, ia 52201": [
+    41.291141,
+    -91.571845
+  ],
+  "303 market st, batavia, ia 52533": [
+    40.992853,
+    -92.167447
+  ],
+  "14089 ia98, douds, ia 52551": [
+    40.8413,
+    -92.0862
+  ],
+  "121 w 1st st, hedrick, ia 52563": [
+    41.17065,
+    -92.3111
+  ],
+  "501 e broadway ave, keota, ia 52248": [
+    41.364182,
+    -91.949096
+  ],
+  "110 s keokuk washington rd, keota, ia 52248": [
+    41.363035,
+    -91.947376
+  ],
+  "2038 keokuk washington rd, keota, ia 52248": [
+    41.36329,
+    -91.94623
+  ],
+  "201 mill st, libertyville, ia 52567": [
+    40.959641,
+    -92.050642
+  ],
+  "709 hwy 78 east, richland, ia 52585": [
+    41.178709,
+    -91.990171
+  ],
+  "524 n jefferson st, sigourney, ia 52591": [
+    41.338735,
+    -92.20432
+  ],
+  "20709 255th st, sigourney, ia 52591": [
+    41.28706,
+    -92.2053
+  ],
+  "13794 rte w 30, stockport, ia 52651": [
+    40.86749,
+    -91.82671
+  ],
+  "1206 railway street, hull, ia 51239": [
+    43.18866,
+    -96.133706
+  ],
+  "207 north miller avenue, anthon, ia 51004": [
+    42.38984,
+    -95.86745
+  ],
+  "2015 highway 6, atalissa, ia 52720": [
+    41.56828,
+    -91.17043
+  ],
+  "114 main st nw, blairstown, ia 52209": [
+    41.910221,
+    -92.082914
+  ],
+  "104 e south st, blakesburg, ia 52536": [
+    40.960329,
+    -92.63578
+  ],
+  "906 karr ave, bloomfield, ia 52537": [
+    40.744369,
+    -92.42999
+  ],
+  "32730 215th st, bloomfield, ia 52537": [
+    40.748721,
+    -92.2027
+  ],
+  "1164 s avenue, boone, ia 50036": [
+    42.03881,
+    -93.81486
+  ],
+  "504 clinton st, brayton, ia 50042": [
+    41.545932,
+    -94.92222
+  ],
+  "1571 main avenue, clinton, ia 52732": [
+    41.873373,
+    -90.219285
+  ],
+  "2838 hackberry ave, coin, ia 51636": [
+    40.634211,
+    -95.22469
+  ],
+  "16950 330th street, conrad, ia 50621": [
+    42.224153,
+    -92.885663
+  ],
+  "1726 osage st, creston, ia 50801": [
+    41.053995,
+    -94.336
+  ],
+  "105 se street, danbury, ia 51019": [
+    42.23333,
+    -95.71973
+  ],
+  "2327 commerce court sw, dyersville, ia 52040": [
+    42.466539,
+    -91.152425
+  ],
+  "1213 12th avenue se suite 106, dyersville, ia 52040": [
+    42.475005,
+    -91.113605
+  ],
+  "1984 hwy 3 west, edgewood, ia 52042": [
+    42.64394,
+    -91.41111
+  ],
+  "311 w elm street, eldon, ia 52554": [
+    40.91767,
+    -92.22071
+  ],
+  "2091 115th st, fairfield, ia 52556": [
+    41.141777,
+    -91.967252
+  ],
+  "25245 hwy 52, garnavillo, ia 52049": [
+    42.859932,
+    -91.231641
+  ],
+  "209 s colorado st, glidden, ia 51443": [
+    42.0577,
+    -94.72625
+  ],
+  "709 w 6th, hedrick, ia 52563": [
+    41.177105,
+    -92.318964
+  ],
+  "1611 german avenue, holstein, ia 51025": [
+    42.473929,
+    -95.53749
+  ],
+  "3105 hwy 38, hopkinton, ia 52237": [
+    42.33794,
+    -91.239474
+  ],
+  "2383 jamestown avenue, independence, ia 50644": [
+    42.44736,
+    -91.89175
+  ],
+  "121 east street, irvington, ia 50560": [
+    43.008489,
+    -94.19386
+  ],
+  "1534 broad st, keosauqua, ia 52565": [
+    40.738828,
+    -91.957422
+  ],
+  "14303 hwy 22 south, keswick, ia 50136": [
+    41.448498,
+    -92.239553
+  ],
+  "205 railroad st, keystone, ia 52249": [
+    41.998041,
+    -92.197234
+  ],
+  "109 linn street, luverne, ia 50560": [
+    42.91646,
+    -94.08136
+  ],
+  "7381 16th avenue, luzerne, ia 52257": [
+    41.95247,
+    -92.18296
+  ],
+  "206 railroad, mingo, ia 50168": [
+    41.767299,
+    -93.283542
+  ],
+  "2774 hwy 5, moravia, ia 52571": [
+    40.90265,
+    -92.82933
+  ],
+  "22641 220th ave, mount union, ia 52644": [
+    41.010126,
+    -91.352775
+  ],
+  "201 north 1st st, moville, ia 51039": [
+    42.49337,
+    -96.07403
+  ],
+  "1034 ia146, new sharon, ia 50207": [
+    41.50437,
+    -92.650709
+  ],
+  "119 north walnut st, odebolt, ia 51458": [
+    42.314151,
+    -95.251909
+  ],
+  "3404 28th ave east, oskaloosa, ia 52577": [
+    41.269399,
+    -92.605109
+  ],
+  "2072 195th avenue, percival, ia 51648": [
+    40.748031,
+    -95.812582
+  ],
+  "406 east white street, preston, ia 52069": [
+    42.05374,
+    -90.38735
+  ],
+  "3316 255 st, sac city, ia 50583": [
+    42.421149,
+    -94.933441
+  ],
+  "4301 sergeant road suites 201 and 203, sioux city, ia 51106": [
+    42.448601,
+    -96.350829
+  ],
+  "301 prairie st, union, ia 50258": [
+    42.173383,
+    -93.092985
+  ],
+  "11236 aurora ave, urbandale, ia 50322": [
+    41.637391,
+    -93.772
+  ],
+  "200 1st avenue, van horne, ia 52346": [
+    42.006614,
+    -92.087217
+  ],
+  "1215 south center street, wall lake, ia 51466": [
+    42.255032,
+    -95.089521
+  ],
+  "202 e first st, wall lake, ia 51466": [
+    42.271019,
+    -95.087439
+  ],
+  "3601 e bremer avenue, waverly, ia 50677": [
+    42.716701,
+    -92.42958
+  ],
+  "107 n washington st, wellsburg, ia 50680": [
+    42.438941,
+    -92.925762
+  ],
+  "105 armor street, west union, ia 52175": [
+    42.9532,
+    -91.80602
+  ],
+  "810 hwy k 45 n, whiting, ia 51063": [
+    42.12678,
+    -96.14868
+  ],
+  "1435 w 220th st, winthrop, ia 50682": [
+    42.468807,
+    -91.669013
+  ],
+  "302 e jones street, wyoming, ia 52362": [
+    42.056394,
+    -91.000617
+  ],
+  "1847 richardson rd, amboy, il 61310": [
+    41.675713,
+    -89.275947
+  ],
+  "303 southwest arch street, atlanta, il 61723": [
+    40.255356,
+    -89.238851
+  ],
+  "11283 w green road, baileyville, il 61007": [
+    42.184702,
+    -89.556658
+  ],
+  "1601 state hwy 128, bethany, il 61914": [
+    39.638813,
+    -88.808977
+  ],
+  "1575 state highway 94, biggsville, il 61418": [
+    40.86186,
+    -90.86486
+  ],
+  "1575 n route 94, biggsville, il 61418": [
+    40.861491,
+    -90.852971
+  ],
+  "17040 e 200th, blandinsville, il 61420": [
+    40.533499,
+    -90.866009
+  ],
+  "1607 tullamore ave suite a, bloomington, il 61704": [
+    40.45744,
+    -88.915174
+  ],
+  "623 railroad street, browns, il 62818": [
+    38.377873,
+    -87.983782
+  ],
+  "740 county road 2550 n, burnt prairie, il 62820": [
+    38.249778,
+    -88.233782
+  ],
+  "8220 ulah road, cambridge, il 61238": [
+    41.269288,
+    -90.144689
+  ],
+  "illnois route 40 rr1, camp grove, il 61424": [
+    41.078187,
+    -89.633183
+  ],
+  "18929 stolletown road, carlyle, il 62231": [
+    38.69592,
+    -89.447299
+  ],
+  "1238 county road 1450 north, carmi, il 62821": [
+    38.091008,
+    -88.145871
+  ],
+  "1750 north county road 1600 east, carthage, il 62321": [
+    40.451812,
+    -91.200057
+  ],
+  "94 e 150 north rd, cerro gordo, il 61818": [
+    39.81479,
+    -88.72991
+  ],
+  "725 n main st, chadwick, il 61014": [
+    42.021397,
+    -89.891029
+  ],
+  "18478 state hwy 54, dewitt, il 61735": [
+    40.186679,
+    -88.791128
+  ],
+  "1076 corregidor, dixon, il 61021": [
+    41.74072,
+    -89.39955
+  ],
+  "1076 corregidor road, dixon, il 61021": [
+    41.74072,
+    -89.39955
+  ],
+  "418 e north st, dwight, il 60420": [
+    41.099719,
+    -88.417378
+  ],
+  "1113 north rt 37, edgewood, il 62426": [
+    38.950515,
+    -88.631081
+  ],
+  "8196 north 2000 east road, fairbury, il 61739": [
+    40.74617,
+    -88.54203
+  ],
+  "1285 carter st, fairview, il 61432": [
+    40.63251,
+    -90.17723
+  ],
+  "1913 state hwy 128, findlay, il 62534": [
+    39.494553,
+    -88.808536
+  ],
+  "56 industrial parkway, flora, il 62839": [
+    38.66881,
+    -88.485978
+  ],
+  "1 briscoe dr, flora, il 62839": [
+    38.6622,
+    -88.461156
+  ],
+  "54 industrial parkway, flora, il 62839": [
+    38.66881,
+    -88.485978
+  ],
+  "2901 4th st, fulton, il 61252": [
+    41.84846,
+    -90.16437
+  ],
+  "2015 hamburg road, galatia, il 62935": [
+    37.884254,
+    -88.569026
+  ],
+  "2084 windish drive, galesburg, il 61401": [
+    40.970206,
+    -90.362434
+  ],
+  "215 knox hwy 10, galesburg, il 61401": [
+    40.919704,
+    -90.400167
+  ],
+  "1051 midland rd, galva, il 61434": [
+    41.164795,
+    -89.985361
+  ],
+  "600 n 1800 east road, goodwine, il 60939": [
+    40.574375,
+    -87.784778
+  ],
+  "1373 east state route 108, greenfield, il 62044": [
+    39.304416,
+    -90.172552
+  ],
+  "601 ridge ave, greenville, il 62246": [
+    38.886356,
+    -89.405403
+  ],
+  "18759 us highway 136, havana, il 62644": [
+    40.296603,
+    -90.003257
+  ],
+  "12177 north road, hillsboro, il 62049": [
+    39.180201,
+    -89.492948
+  ],
+  "19052 state rd 9, hoopeston, il 60942": [
+    40.45975,
+    -87.59254
+  ],
+  "1924 sinclair rd, jacksonville, il 62650": [
+    39.80276,
+    -90.1214
+  ],
+  "1st and main street, johnsonville, il 62580": [
+    40.694958,
+    -89.541306
+  ],
+  "3240 hwy 16, kansas, il 61933": [
+    39.553679,
+    -87.900495
+  ],
+  "325 il hwy 15, keenes, il 62851": [
+    38.342889,
+    -88.64161
+  ],
+  "229 county road 1250n, keenes, il 62851": [
+    38.439268,
+    -88.659861
+  ],
+  "25885 il route 72, lanark, il 61046": [
+    42.155262,
+    -89.822852
+  ],
+  "13191 n us 24 hwy, lewistown, il 61542": [
+    40.38086,
+    -90.15724
+  ],
+  "15085 n 950th road, macomb, il 61455": [
+    40.416728,
+    -90.616898
+  ],
+  "11185 walmsley rd, macon, il 62544": [
+    39.686537,
+    -88.922892
+  ],
+  "11300 state rt 4, marissa, il 62257": [
+    38.218545,
+    -89.702496
+  ],
+  "1801 broadway street, marseilles, il 61341": [
+    41.319919,
+    -88.67611
+  ],
+  "5611 county road 1650n, mcleansboro, il 62859": [
+    38.147286,
+    -88.600563
+  ],
+  "335 e third street, melvin, il 60952": [
+    40.574004,
+    -88.241294
+  ],
+  "1921 old naples road, meredosia, il 62665": [
+    39.80509,
+    -90.56694
+  ],
+  "22437 n 1050th st, metcalf, il 61940": [
+    39.79884,
+    -87.77804
+  ],
+  "103 n main avenue, minier, il 61759": [
+    40.43395,
+    -89.31542
+  ],
+  "450 e 400 north rd, morrisonville, il 62546": [
+    39.406238,
+    -89.449684
+  ],
+  "2628 e1500 n road, moweaqua, il 62550": [
+    39.638155,
+    -88.915824
+  ],
+  "10650 mill rd, mt carroll, il 61053": [
+    42.081246,
+    -89.987664
+  ],
+  "759 w commercial st, mt carroll, il 61053": [
+    42.082579,
+    -89.98131
+  ],
+  "2575 county highway 2, mt erie, il 62446": [
+    38.519878,
+    -88.226446
+  ],
+  "rt 24 west, mt sterling, il 62353": [
+    39.987902,
+    -90.777485
+  ],
+  "1073 industrial park ave, neoga, il 62447": [
+    39.330179,
+    -88.437888
+  ],
+  "1073 north route 45, neoga, il 62447": [
+    39.494767,
+    -88.371075
+  ],
+  "1510 bottom road, new baden, il 62265": [
+    38.45834,
+    -89.676285
+  ],
+  "1768 45th st, new boston, il 61272": [
+    41.329914,
+    -91.011617
+  ],
+  "7250 east state highway 33, newton, il 62448": [
+    39.00994,
+    -88.24271
+  ],
+  "1175 e co rd n, niota, il 62358": [
+    40.595385,
+    -91.26961
+  ],
+  "192 north western ave, nokomis, il 62075": [
+    39.28677,
+    -89.306381
+  ],
+  "rt 133 and logan street, oakland, il 61943": [
+    39.667998,
+    -76.3792
+  ],
+  "112 w washington st, onarga, il 60955": [
+    40.722333,
+    -88.007888
+  ],
+  "611 east ontario, oneida, il 61467": [
+    41.079103,
+    -90.215982
+  ],
+  "1215 s oak st, patoka, il 62875": [
+    38.73659,
+    -89.09789
+  ],
+  "415 n market st, paxton, il 60957": [
+    40.464572,
+    -88.096206
+  ],
+  "25134 us highway 54, pittsfield, il 62363": [
+    39.604775,
+    -90.851082
+  ],
+  "108 king rd, pleasant hill, il 62366": [
+    39.43727,
+    -90.88043
+  ],
+  "601 n court st, pontiac, il 61764": [
+    40.882499,
+    -88.634731
+  ],
+  "11939 township road 00n, princeville, il 61559": [
+    40.974435,
+    -89.756082
+  ],
+  "5014 gardner expressway, quincy, il 62301": [
+    39.871317,
+    -91.395921
+  ],
+  "5425 chapman rd, ridgway, il 62979": [
+    37.82885,
+    -88.27384
+  ],
+  "205 west 5th street, saint peter, il 62880": [
+    38.86633,
+    -88.856
+  ],
+  "19433 n 2700 east road, saunemin, il 61769": [
+    40.91222,
+    -88.416018
+  ],
+  "101 e washington st, sciota, il 61475": [
+    40.556016,
+    -90.865276
+  ],
+  "6327 s montague rd, shannon, il 61078": [
+    42.20763,
+    -89.67624
+  ],
+  "20182 il hwy 40, sheffield, il 61361": [
+    41.44163,
+    -89.68403
+  ],
+  "1119 n morgan st, shelbyville, il 62565": [
+    39.41964,
+    -88.79336
+  ],
+  "1777 n 2800 e rd, sheldon, il 60966": [
+    40.770393,
+    -87.595859
+  ],
+  "220 n clark st, sheldon, il 60966": [
+    40.77173,
+    -87.575872
+  ],
+  "1155 e 900 ave, shobonier, il 62885": [
+    38.866633,
+    -89.028191
+  ],
+  "1907 county road 1000 n, sidney, il 61877": [
+    40.02522,
+    -88.102678
+  ],
+  "1 state st, smithshire, il 61478": [
+    40.792491,
+    -90.781304
+  ],
+  "4900 international parkway, springfield, il 62711": [
+    39.749068,
+    -89.742354
+  ],
+  "24009 lincoln rd, sterling, il 61081": [
+    41.77376,
+    -89.78496
+  ],
+  "1793 steward rd, steward, il 60553": [
+    41.84569,
+    -89.02506
+  ],
+  "13276 us rte 20 e, stockton, il 61085": [
+    42.35821,
+    -89.956004
+  ],
+  "25489 e 200 n road, strawn, il 61775": [
+    40.6467,
+    -88.442856
+  ],
+  "1052 cr 1125n, sullivan, il 61951": [
+    39.568527,
+    -88.61381
+  ],
+  "25366 tammsolive branch road, tamms, il 62988": [
+    37.20455,
+    -89.325743
+  ],
+  "1801 hillsboro road, vandalia, il 62471": [
+    38.97743,
+    -89.117152
+  ],
+  "1813 17th avenue, viola, il 61486": [
+    41.202311,
+    -90.577766
+  ],
+  "28411 1600 east street, walnut, il 61376": [
+    41.557575,
+    -89.550826
+  ],
+  "7762 main street, walsh, il 62297": [
+    38.090841,
+    -89.850329
+  ],
+  "9424 heman rd, warrensburg, il 62573": [
+    39.9477,
+    -89.109711
+  ],
+  "795 county road 3100 e, wenona, il 61377": [
+    41.0657,
+    -89.04803
+  ],
+  "2697 w brooklyn road, west brooklyn, il 61378": [
+    41.693241,
+    -89.149251
+  ],
+  "7847 n state hwy 1, west union, il 62477": [
+    39.26386,
+    -87.667076
+  ],
+  "426 east tunison ave, white hall, il 62092": [
+    39.436839,
+    -90.403652
+  ],
+  "1871 south depot road, yates city, il 61572": [
+    40.785177,
+    -90.08632
+  ],
+  "313 main street, alberta, mn 56207": [
+    45.57438,
+    -96.05178
+  ],
+  "63025 150th street, alden, mn 56009": [
+    43.571724,
+    -93.606143
+  ],
+  "20190 hwy 10 west, big lake, mn 55309": [
+    45.337285,
+    -93.782403
+  ],
+  "43096 85th street, blue earth, mn 56013": [
+    43.60771,
+    -94.00649
+  ],
+  "28868 780th avenue, clarks grove, mn 56016": [
+    43.7724,
+    -93.31118
+  ],
+  "540 atlantic ave e, dassel, mn 55325": [
+    45.080901,
+    -94.301609
+  ],
+  "2445 50th street, fairmont, mn 56031": [
+    43.557748,
+    -94.378641
+  ],
+  "hwy 52 south, harmony, mn 55939": [
+    43.53384,
+    -91.9418
+  ],
+  "972 east pearl street, kasota, mn 56050": [
+    44.290768,
+    -93.9563
+  ],
+  "44107 okabena rd, lakefield, mn 56150": [
+    43.682916,
+    -95.192608
+  ],
+  "612 w hatting st, luverne, mn 56156": [
+    43.64629,
+    -96.21906
+  ],
+  "5092 26th street se, maynard, mn 56260": [
+    44.984945,
+    -95.47525
+  ],
+  "905 pinewood circle, perham, mn 56573": [
+    46.603329,
+    -95.586391
+  ],
+  "653 81st street, pipestone, mn 56164": [
+    43.965,
+    -96.33752
+  ],
+  "807 4th st ne, pipestone, mn 56164": [
+    44.004281,
+    -96.305284
+  ],
+  "55162 241st avenue, plainview, mn 55964": [
+    44.181536,
+    -92.153029
+  ],
+  "304 w main st, sargeant, mn 55973": [
+    43.740642,
+    -92.86651
+  ],
+  "801 beltline rd, sauk centre, mn 56378": [
+    45.724465,
+    -94.9578
+  ],
+  "220 bottemiller dr, wadena, mn 56482": [
+    46.423841,
+    -95.132279
+  ],
+  "two n renville st, winthrop, mn 55396": [
+    44.542532,
+    -94.365821
+  ],
+  "2491 chelsie way, alliance, ne 69301": [
+    42.09718,
+    -102.8707
+  ],
+  "11398 719 road, alma, ne 68920": [
+    40.248412,
+    -99.369621
+  ],
+  "42136 hwy 6 and 34, arapahoe, ne 68922": [
+    40.306176,
+    -99.911541
+  ],
+  "7098 county road 15, arlington, ne 68002": [
+    41.4808,
+    -96.309372
+  ],
+  "1077 county road b, ashland, ne 68003": [
+    41.073798,
+    -96.497728
+  ],
+  "3400 north 8th street, beatrice, ne 68310": [
+    40.274249,
+    -96.743901
+  ],
+  "630 front st east highway 275, beemer, ne 68716": [
+    41.929213,
+    -96.813236
+  ],
+  "9262 so rr ave, bridgeport, ne 69336": [
+    41.647092,
+    -103.08168
+  ],
+  "421 croop street, chester, ne 68327": [
+    40.006653,
+    -97.615184
+  ],
+  "56603 875 rd, coleridge, ne 68727": [
+    42.511139,
+    -97.21178
+  ],
+  "207 s maple ave, davenport, ne 68335": [
+    40.31045,
+    -97.81366
+  ],
+  "5372 hwy 136, deshler, ne 68340": [
+    40.14747,
+    -97.73209
+  ],
+  "30251 road r, edgar, ne 68935": [
+    40.37213,
+    -97.97636
+  ],
+  "101 n calvert ave, elwood, ne 68937": [
+    40.591661,
+    -99.85812
+  ],
+  "71910 hwy 15, fairbury, ne 68352": [
+    40.248953,
+    -97.178743
+  ],
+  "56908 hwy 8, fairbury, ne 68352": [
+    40.121027,
+    -97.160458
+  ],
+  "2010 rd 11, fairmont, ne 68354": [
+    40.632681,
+    -97.634449
+  ],
+  "55503 887 road, fordyce, ne 68736": [
+    42.68567,
+    -97.42521
+  ],
+  "750 s union st, fremont, ne 68025": [
+    41.422754,
+    -96.491574
+  ],
+  "208 e jackson, fremont, ne 68025": [
+    41.42729,
+    -96.49622
+  ],
+  "76164 highway 61, grant, ne 69140": [
+    40.866323,
+    -101.727894
+  ],
+  "150 n blain ave, hastings, ne 68901": [
+    40.58338,
+    -98.33503
+  ],
+  "1613 41st rd, heartwell, ne 68945": [
+    40.569856,
+    -98.782615
+  ],
+  "2111 hwy 6, heartwell, ne 68945": [
+    40.565114,
+    -98.79864
+  ],
+  "1425 brewster road, holdrege, ne 68949": [
+    40.449675,
+    -99.342135
+  ],
+  "11828 733 road, holdrege, ne 68949": [
+    40.45175,
+    -99.29758
+  ],
+  "901 east highway 6, imperial, ne 69033": [
+    40.504724,
+    -101.623529
+  ],
+  "73905 328 avenue, imperial, ne 69033": [
+    40.538402,
+    -101.722241
+  ],
+  "63019 730 road, johnson, ne 68378": [
+    40.40361,
+    -96.00476
+  ],
+  "1720 16th ave, kearney, ne 68845": [
+    40.69241,
+    -99.10219
+  ],
+  "73994 avenue 314, lamar, ne 69023": [
+    40.512145,
+    -101.799276
+  ],
+  "86954 573 ave, laurel, ne 68745": [
+    42.432725,
+    -97.086755
+  ],
+  "205 w railroad service rd, mccook, ne 69001": [
+    40.196277,
+    -100.628928
+  ],
+  "201 road east 80, ogallala, ne 69153": [
+    41.106205,
+    -101.71373
+  ],
+  "71853 a road, oxford, ne 68967": [
+    40.243254,
+    -99.612646
+  ],
+  "33855 navaho rd, ravenna, ne 68869": [
+    41.0042,
+    -98.87335
+  ],
+  "1221 e 3rd street, superior, ne 68978": [
+    40.01825,
+    -98.05269
+  ],
+  "605 w lemmon hwy 87a, thurston, ne 68062": [
+    42.1771,
+    -96.700816
+  ],
+  "301 n front street, waterloo, ne 68069": [
+    41.287077,
+    -96.285569
+  ],
+  "26519 us hwy 81, bridgewater, sd 57319": [
+    43.540742,
+    -97.389008
+  ],
+  "2011 32nd ave, brookings, sd 57006": [
+    44.32901,
+    -96.75523
+  ],
+  "30195 sd highway 19, centerville, sd 57014": [
+    43.01215,
+    -96.96367
+  ],
+  "220 industrial road, emery, sd 57332": [
+    43.600005,
+    -97.614385
+  ],
+  "891 south dennis st, enfield, sd 27823": [
+    36.17296,
+    -77.67664
+  ],
+  "45682 w hwy 50, meckling, sd 57069": [
+    42.841968,
+    -97.065771
+  ],
+  "225 w 5th street, parker, sd 57053": [
+    43.400534,
+    -97.138581
+  ],
+  "41055 282nd street, parkston, sd 57366": [
+    43.29463,
+    -97.98171
+  ],
+  "5230 airport drive, spearfish, sd 57783": [
+    44.489561,
+    -103.773037
+  ],
+  "1614 317th st, vermillion, sd 57069": [
+    42.793859,
+    -96.905743
   ]
 }

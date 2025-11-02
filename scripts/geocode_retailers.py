@@ -1,12 +1,10 @@
 ﻿# ========================================
 # geocode_retailers.py
-# Certis AgRoute Planner – Phase A.2 Precision Patch (Final)
+# Certis AgRoute Planner – Phase A.3 Supplier Normalization Patch
 # ========================================
-# Reads retailers.xlsx from /data, geocodes addresses using Mapbox,
-# caches results, and writes both retailers_latlong.xlsx
-# and retailers.geojson into /data (with Suppliers included).
-# Includes 6-decimal coordinate rounding and numeric coercion
-# for sub-meter accuracy and data consistency.
+# Ensures consistent "Suppliers" field for popups & filters.
+# Builds retailers_latlong.xlsx + retailers.geojson with
+# 6-decimal precision and complete metadata.
 # ========================================
 
 import json
@@ -46,6 +44,11 @@ expected_columns = [
     "Long Name", "Retailer", "Name", "Address",
     "City", "State", "Zip", "Category", "Suppliers"
 ]
+# handle alternate supplier headings
+for alt in ["Supplier(s)", "Supplier", "supplier", "supplier(s)"]:
+    if alt in df.columns and "Suppliers" not in df.columns:
+        df.rename(columns={alt: "Suppliers"}, inplace=True)
+
 for col in expected_columns:
     if col not in df.columns:
         df[col] = ""
@@ -56,7 +59,24 @@ if "Longitude" not in df.columns:
     df["Longitude"] = None
 
 # ========================================
-# LOAD CACHE (avoid duplicate lookups)
+# SUPPLIER NORMALIZATION
+# ========================================
+def normalize_suppliers(val):
+    """Standardize supplier strings to a consistent comma-separated list."""
+    if pd.isna(val):
+        return ""
+    if isinstance(val, (list, tuple)):
+        vals = [str(x).strip() for x in val if str(x).strip()]
+    else:
+        s = str(val)
+        s = re.sub(r"[;/|]", ",", s)
+        vals = [x.strip() for x in s.split(",") if x.strip()]
+    return ", ".join(sorted(set(vals), key=str.lower))
+
+df["Suppliers"] = df["Suppliers"].apply(normalize_suppliers)
+
+# ========================================
+# LOAD CACHE
 # ========================================
 if CACHE_FILE.exists():
     with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -82,9 +102,7 @@ new_hits = 0
 cached_hits = 0
 
 def geocode_address(address: str):
-    """Return (lat, lon) tuple from Mapbox or cache."""
     global new_hits, cached_hits
-
     if not address.strip():
         return None, None
 
@@ -99,14 +117,13 @@ def geocode_address(address: str):
         "limit": 1,
         "country": "US",
         "types": "address,poi",
-        "proximity": "-96.5,42.5"  # Bias to Midwest region
+        "proximity": "-96.5,42.5"
     }
 
     try:
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         data = r.json()
-
         if data.get("features"):
             lon, lat = data["features"][0]["geometry"]["coordinates"]
             cache[key] = (lat, lon)
@@ -140,27 +157,27 @@ for i, row in df.iterrows():
     sleep(RATE_LIMIT_DELAY)
 
 # ========================================
-# SAVE UPDATED CACHE
+# SAVE CACHE
 # ========================================
 with open(CACHE_FILE, "w", encoding="utf-8") as f:
     json.dump(cache, f, indent=2)
 print(f"💾 Updated geocode cache saved: {CACHE_FILE}")
 
 # ========================================
-# ROUND COORDINATES FOR CONSISTENCY
+# ROUND COORDINATES
 # ========================================
 df["Latitude"] = pd.to_numeric(df["Latitude"], errors="coerce").round(6)
 df["Longitude"] = pd.to_numeric(df["Longitude"], errors="coerce").round(6)
 
 # ========================================
-# SAVE EXCEL OUTPUT
+# SAVE EXCEL
 # ========================================
 df.to_excel(OUTPUT_XLSX, index=False)
 print(f"✅ Geocoding complete! {len(df)} rows saved to {OUTPUT_XLSX}")
 print(f"🔁 Cached hits: {cached_hits:,} | 🆕 New lookups: {new_hits:,}")
 
 # ========================================
-# EXPORT TO GEOJSON (for Mapbox)
+# EXPORT GEOJSON
 # ========================================
 print("🌎 Exporting to GeoJSON...")
 
@@ -170,31 +187,20 @@ for _, r in df.iterrows():
     if pd.isna(lat) or pd.isna(lon):
         continue
 
-    props = {
-        "Long Name": r.get("Long Name", ""),
-        "Retailer": r.get("Retailer", ""),
-        "Name": r.get("Name", ""),
-        "Address": r.get("Address", ""),
-        "City": r.get("City", ""),
-        "State": r.get("State", ""),
-        "Zip": str(r.get("Zip", "")),
-        "Category": r.get("Category", ""),
-        "Suppliers": r.get("Suppliers", "")
-    }
-
-    features.append({
+    props = {col: str(r.get(col, "")).strip() for col in expected_columns}
+    feat = {
         "type": "Feature",
         "geometry": {
             "type": "Point",
             "coordinates": [round(float(lon), 6), round(float(lat), 6)]
         },
         "properties": props
-    })
+    }
+    features.append(feat)
 
 geojson = {"type": "FeatureCollection", "features": features}
-
 with open(OUTPUT_GEOJSON, "w", encoding="utf-8") as f:
     json.dump(geojson, f, indent=2)
 
 print(f"✅ Exported {len(features)} features to {OUTPUT_GEOJSON}")
-print("🏁 All data regeneration steps complete with 6-decimal precision!")
+print("🏁 Supplier normalization + precision export complete!")
