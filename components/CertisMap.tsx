@@ -1,5 +1,6 @@
 // ========================================
-// components/CertisMap.tsx — Phase A.7 (Kingpin Persistence + Filter-Synced Summary)
+// components/CertisMap.tsx — Phase B.1
+// Additive Filtering + ZIP Home Marker Fix
 // ========================================
 "use client";
 
@@ -166,6 +167,7 @@ export default function CertisMap({
 
         allFeaturesRef.current = valid;
 
+        // Populate filters
         const states = new Set<string>();
         const retailers = new Set<string>();
         const suppliers = new Set<string>();
@@ -179,11 +181,27 @@ export default function CertisMap({
         onRetailersLoaded?.([...retailers].sort());
         onSuppliersLoaded?.([...suppliers].sort());
 
-        // Separate sources for Kingpins and normal retailers
-        map.addSource("retailers", { type: "geojson", data: { type: "FeatureCollection", features: valid.filter((f: any) => f.properties.DisplayCategory !== "Kingpin") } });
-        map.addSource("kingpins", { type: "geojson", data: { type: "FeatureCollection", features: valid.filter((f: any) => f.properties.DisplayCategory === "Kingpin") } });
+        // --- Separate sources ---
+        const kingpins = valid.filter((f: any) => f.properties.DisplayCategory === "Kingpin");
+        const others = valid.filter((f: any) => f.properties.DisplayCategory !== "Kingpin");
 
-        // Retailer points
+        map.addSource("kingpins", { type: "geojson", data: { type: "FeatureCollection", features: kingpins } });
+        map.addSource("retailers", { type: "geojson", data: { type: "FeatureCollection", features: others } });
+
+        // --- Kingpins (always visible) ---
+        map.addLayer({
+          id: "kingpins-layer",
+          type: "circle",
+          source: "kingpins",
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4.5, 6, 6, 9, 7.5],
+            "circle-color": categoryColors.Kingpin.color,
+            "circle-stroke-width": 2.2,
+            "circle-stroke-color": categoryColors.Kingpin.outline!,
+          },
+        });
+
+        // --- Retailers (initially hidden until category added) ---
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -204,22 +222,10 @@ export default function CertisMap({
               "#1d4ed8",
             ],
           },
+          layout: { visibility: "none" },
         });
 
-        // Kingpins (always visible)
-        map.addLayer({
-          id: "kingpins-layer",
-          type: "circle",
-          source: "kingpins",
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4.5, 6, 6, 9, 7.5],
-            "circle-color": categoryColors.Kingpin.color,
-            "circle-stroke-width": 2.2,
-            "circle-stroke-color": categoryColors.Kingpin.outline!,
-          },
-        });
-
-        // Route line
+        // --- Route line ---
         map.addSource(routeSourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addLayer({
           id: "trip-route-layer",
@@ -229,7 +235,7 @@ export default function CertisMap({
           paint: { "line-color": "#0066FF", "line-width": 2.2 },
         });
 
-        // Popups
+        // --- Popups ---
         const popupHandler = (e: any) => {
           const f = e.features?.[0];
           if (!f) return;
@@ -289,18 +295,39 @@ export default function CertisMap({
   }, [geojsonPath]);
 
   // ========================================
-  // 🏠 HOME MARKER
+  // 🏠 ZIP → HOME MARKER
   // ========================================
   useEffect(() => {
-    if (!zipCode || !mapRef.current) return;
-    if (homeMarkerRef.current) homeMarkerRef.current.remove();
-    const el = document.createElement("img");
-    el.src = `${basePath}/icons/Blue-Home.png`;
-    el.style.width = "20px";
-    el.style.height = "20px";
-    homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-      .setLngLat([-93.0, 42.0])
-      .addTo(mapRef.current);
+    const map = mapRef.current;
+    if (!map || !zipCode) return;
+
+    async function setHomeMarker() {
+      try {
+        const resp = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+            zipCode
+          )}.json?country=US&limit=1&access_token=${mapboxgl.accessToken}`
+        );
+        const json = await resp.json();
+        const feature = json.features?.[0];
+        if (!feature) return;
+
+        const [lon, lat] = feature.geometry.coordinates;
+        if (homeMarkerRef.current) homeMarkerRef.current.remove();
+        const el = document.createElement("img");
+        el.src = `${basePath}/icons/Blue-Home.png`;
+        el.style.width = "24px";
+        el.style.height = "24px";
+
+        const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+          .setLngLat([lon, lat])
+          .addTo(map);
+        homeMarkerRef.current = marker;
+      } catch (e) {
+        console.error("❌ ZIP geocode failed:", e);
+      }
+    }
+    setHomeMarker();
   }, [zipCode]);
 
   // ========================================
@@ -329,36 +356,38 @@ export default function CertisMap({
   }, [tripStops, tripMode]);
 
   // ========================================
-  // 🔄 FILTERING + SUMMARY
+  // 🔄 FILTERING + ADDITIVE CATEGORIES + SUMMARY
   // ========================================
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !allFeaturesRef.current.length) return;
-
     const regularSrc = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!regularSrc) return;
 
-    const filteredRegular = allFeaturesRef.current.filter((f) => {
+    // Additive: if no categories selected, hide retailers
+    const filtered = allFeaturesRef.current.filter((f) => {
       const p = f.properties;
       if (p.DisplayCategory === "Kingpin") return false;
+      const cat = p.DisplayCategory;
       const state = p.State;
       const retailer = p.Retailer;
-      const cat = p.DisplayCategory;
       const supplierList = parseSuppliers(p.Suppliers || p.Supplier || p["Supplier(s)"]).map(norm);
       const okState = !selectedStates.length || selectedStates.includes(state);
       const okRetailer = !selectedRetailers.length || selectedRetailers.includes(retailer);
-      const okCat = !selectedCategories.length || selectedCategories.includes(cat);
       const okSupp = !selectedSuppliers.length || selectedSuppliers.some((s) => supplierList.includes(norm(s)));
-      return okState && okRetailer && okCat && okSupp;
+      const okCat = !selectedCategories.length ? false : selectedCategories.includes(cat);
+      return okState && okRetailer && okSupp && okCat;
     });
 
-    regularSrc.setData({ type: "FeatureCollection", features: filteredRegular });
+    regularSrc.setData({ type: "FeatureCollection", features: filtered });
+    map.setLayoutProperty("retailers-layer", "visibility", filtered.length ? "visible" : "none");
 
+    // Retailer summary synced with visible features
     const summaryMap = new Map<
       string,
       { retailer: string; count: number; cats: Set<string>; states: Set<string>; sups: Set<string> }
     >();
-    filteredRegular.forEach((f) => {
+    filtered.forEach((f) => {
       const p = f.properties;
       const r = p.Retailer || "Unknown";
       const c = p.DisplayCategory;
@@ -372,6 +401,7 @@ export default function CertisMap({
       e.states.add(s);
       sups.forEach((x) => e.sups.add(x));
     });
+
     const summaries = [...summaryMap.values()].map((x) => ({
       retailer: x.retailer,
       count: x.count,
@@ -380,7 +410,7 @@ export default function CertisMap({
       categories: [...x.cats],
     }));
     onRetailerSummary?.(summaries);
-  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
+  }, [selectedCategories, selectedStates, selectedSuppliers, selectedRetailers]);
 
   return <div ref={mapContainer} className="w-full h-full border-t border-gray-400" />;
 }

@@ -62,11 +62,10 @@ export default function Page() {
     if (!tripStops.length) return;
     const base = "https://www.google.com/maps/dir/";
     const query = tripStops
-      .map(
-        (s) =>
-          encodeURIComponent(
-            `${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`
-          )
+      .map((s) =>
+        encodeURIComponent(
+          `${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`
+        )
       )
       .join("/");
     window.open(base + query, "_blank");
@@ -76,11 +75,10 @@ export default function Page() {
     if (!tripStops.length) return;
     const base = "https://maps.apple.com/?daddr=";
     const query = tripStops
-      .map(
-        (s) =>
-          encodeURIComponent(
-            `${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`
-          )
+      .map((s) =>
+        encodeURIComponent(
+          `${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`
+        )
       )
       .join("+to:");
     window.open(base + query, "_blank");
@@ -270,7 +268,7 @@ export default function Page() {
                           setSelectedCategories((prev) =>
                             prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
                           )
-                        }
+                        )}
                       />
                       <span
                         className="flex items-center space-x-1"
@@ -401,7 +399,8 @@ export default function Page() {
             selectedStates={selectedStates}
             selectedRetailers={selectedRetailers}
             selectedCategories={selectedCategories}
-            selectedSuppliers={[]} // ✅ Required for TypeScript, no UI dependency
+            selectedSuppliers={[]} // suppliers filter not yet used in UI
+            zipCode={zipConfirmed ? zipCode : undefined} // ✅ Only pass when Set
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={() => {}}
