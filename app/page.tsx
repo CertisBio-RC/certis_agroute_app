@@ -104,7 +104,6 @@ export default function Page() {
       {/* HEADER */}
       <header className="flex items-center justify-between bg-gray-900 text-white px-4 py-2 shadow-md">
         <div className="flex items-center space-x-3">
-          {/* Mobile Toggle */}
           <button
             className="md:hidden p-2 rounded hover:bg-gray-800"
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -401,7 +400,8 @@ export default function Page() {
             selectedStates={selectedStates}
             selectedRetailers={selectedRetailers}
             selectedCategories={selectedCategories}
-            selectedSuppliers={[]} // ✅ Required for TypeScript, no UI dependency
+            selectedSuppliers={[]}
+            zipCode={zipConfirmed ? zipCode : undefined}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={() => {}}
@@ -420,7 +420,6 @@ export default function Page() {
             onAddStop={handleAddStop}
             tripStops={tripStops}
             tripMode={tripMode}
-            onOptimizedRoute={setTripStops}
           />
         </main>
       </div>
