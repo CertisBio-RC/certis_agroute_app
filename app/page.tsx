@@ -186,6 +186,9 @@ export default function Page() {
       .sort();
   }, [availableRetailers, retailerSummary, selectedStates]);
 
+  // ========================================
+  // 🧭 Render
+  // ========================================
   return (
     <div className="flex h-screen w-screen relative">
       {/* 📱 Mobile Hamburger Button */}
@@ -337,7 +340,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 5: Categories (Legend) */}
+        {/* 🟦 Tile 5: Categories */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Categories</h2>
           <div className="flex flex-wrap gap-2 mb-2">
@@ -498,7 +501,6 @@ export default function Page() {
           onSuppliersLoaded={setAvailableSuppliers}
           onRetailerSummary={setRetailerSummary}
           onAddStop={handleAddStop}
-          onRemoveStop={handleRemoveStop}
           tripStops={tripStops}
           tripMode={tripMode}
         />
