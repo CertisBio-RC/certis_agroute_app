@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2021",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "es2021"
-    ],
+    "lib": ["dom", "dom.iterable", "es2021"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
@@ -19,9 +15,7 @@
     "incremental": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     },
     "plugins": [
       {
@@ -39,6 +33,7 @@
     "node_modules",
     "baseline",
     ".next",
-    "out"
+    "out",
+    "backups"
   ]
 }
