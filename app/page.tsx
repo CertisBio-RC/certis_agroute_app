@@ -268,11 +268,12 @@ export default function Page() {
                         checked={selectedCategories.includes(c)}
                         onChange={() =>
                           setSelectedCategories((prev) =>
-                            prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+                            prev.includes(c)
+                              ? prev.filter((x) => x !== c)
+                              : [...prev, c]
                           )
-                        )
-                      }
-                    />
+                        }
+                      />
                       <span
                         className="flex items-center space-x-1"
                         style={{ color: categoryColors[c].color }}
@@ -299,7 +300,11 @@ export default function Page() {
                   {summaryOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </button>
               </div>
-              <div className={`${summaryOpen ? "block" : "hidden md:block"} max-h-64 overflow-y-auto`}>
+              <div
+                className={`${
+                  summaryOpen ? "block" : "hidden md:block"
+                } max-h-64 overflow-y-auto`}
+              >
                 {retailerSummaries.length === 0 ? (
                   <p className="text-gray-400 text-sm">No retailer summary available.</p>
                 ) : (
