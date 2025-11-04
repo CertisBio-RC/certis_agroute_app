@@ -1,5 +1,5 @@
 // ========================================
-// components/CertisMap.tsx — Phase A.7 (Kingpin Persistence + Filter-Synced Summary)
+// components/CertisMap.tsx — Phase B.3 (ZIP Geocode + Supplier Fix)
 // ========================================
 "use client";
 
@@ -102,7 +102,6 @@ export interface CertisMapProps {
   onAddStop?: (stop: Stop) => void;
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
-  onOptimizedRoute?: (stops: Stop[]) => void;
   zipCode?: string;
 }
 
@@ -179,11 +178,17 @@ export default function CertisMap({
         onRetailersLoaded?.([...retailers].sort());
         onSuppliersLoaded?.([...suppliers].sort());
 
-        // Separate sources for Kingpins and normal retailers
-        map.addSource("retailers", { type: "geojson", data: { type: "FeatureCollection", features: valid.filter((f: any) => f.properties.DisplayCategory !== "Kingpin") } });
-        map.addSource("kingpins", { type: "geojson", data: { type: "FeatureCollection", features: valid.filter((f: any) => f.properties.DisplayCategory === "Kingpin") } });
+        // Separate sources
+        map.addSource("retailers", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: valid.filter((f: any) => f.properties.DisplayCategory !== "Kingpin") },
+        });
+        map.addSource("kingpins", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: valid.filter((f: any) => f.properties.DisplayCategory === "Kingpin") },
+        });
 
-        // Retailer points
+        // Retailers
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -206,7 +211,7 @@ export default function CertisMap({
           },
         });
 
-        // Kingpins (always visible)
+        // Kingpins
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -219,7 +224,7 @@ export default function CertisMap({
           },
         });
 
-        // Route line
+        // Route
         map.addSource(routeSourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addLayer({
           id: "trip-route-layer",
@@ -289,18 +294,42 @@ export default function CertisMap({
   }, [geojsonPath]);
 
   // ========================================
-  // 🏠 HOME MARKER
+  // 🏠 ZIP CODE HOME MARKER (Geocode)
   // ========================================
   useEffect(() => {
     if (!zipCode || !mapRef.current) return;
-    if (homeMarkerRef.current) homeMarkerRef.current.remove();
-    const el = document.createElement("img");
-    el.src = `${basePath}/icons/Blue-Home.png`;
-    el.style.width = "20px";
-    el.style.height = "20px";
-    homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-      .setLngLat([-93.0, 42.0])
-      .addTo(mapRef.current);
+    (async () => {
+      try {
+        const resp = await fetch(
+          `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(
+            zipCode
+          )}&country=US&access_token=${mapboxgl.accessToken}`
+        );
+        const data = await resp.json();
+        const coords = data?.features?.[0]?.geometry?.coordinates;
+        if (!coords) return;
+
+        // remove previous
+        homeMarkerRef.current?.remove();
+
+        // new marker (house icon)
+        const el = document.createElement("img");
+        el.src = `${basePath}/icons/Blue-Home.png`;
+        el.style.width = "22px";
+        el.style.height = "22px";
+        el.style.borderRadius = "50%";
+        el.style.boxShadow = "0 0 5px rgba(0,0,0,0.5)";
+
+        const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+          .setLngLat(coords as [number, number])
+          .addTo(mapRef.current!);
+        homeMarkerRef.current = marker;
+
+        mapRef.current!.flyTo({ center: coords as [number, number], zoom: 7 });
+      } catch (e) {
+        console.error("ZIP code geocode error:", e);
+      }
+    })();
   }, [zipCode]);
 
   // ========================================
@@ -334,7 +363,6 @@ export default function CertisMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !allFeaturesRef.current.length) return;
-
     const regularSrc = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!regularSrc) return;
 
