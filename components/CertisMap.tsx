@@ -10,12 +10,12 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 // CATEGORY COLORS
 // ========================================
 export const categoryColors: Record<string, { color: string; outline?: string }> = {
-  Agronomy: { color: "#FFD700", outline: "#fff" },        // yellow
-  "Grain/Feed": { color: "#228B22", outline: "#fff" },    // green
-  Feed: { color: "#8B4513", outline: "#fff" },            // brown
-  "Office/Service": { color: "#1E90FF", outline: "#fff" },// blue
-  Distribution: { color: "#FF8C00", outline: "#fff" },    // orange
-  Kingpin: { color: "#FF0000", outline: "#FFFF00" },      // red w/ yellow border
+  Agronomy: { color: "#FFD700", outline: "#fff" },
+  "Grain/Feed": { color: "#228B22", outline: "#fff" },
+  Feed: { color: "#8B4513", outline: "#fff" },
+  "Office/Service": { color: "#1E90FF", outline: "#fff" },
+  Distribution: { color: "#FF8C00", outline: "#fff" },
+  Kingpin: { color: "#FF0000", outline: "#FFFF00" },
 };
 
 // ========================================
@@ -23,17 +23,26 @@ export const categoryColors: Record<string, { color: string; outline?: string }>
 // ========================================
 const normalizeCategory = (cat: string) => {
   switch ((cat || "").trim().toLowerCase()) {
-    case "agronomy": return "agronomy";
+    case "agronomy":
+      return "agronomy";
     case "grain/feed":
-    case "grainfeed": return "grainfeed";
-    case "grain": return "grain";
-    case "feed": return "feed";
-    case "agronomy/grain": return "agronomy/grain";
+    case "grainfeed":
+      return "grainfeed";
+    case "grain":
+      return "grain";
+    case "feed":
+      return "feed";
+    case "agronomy/grain":
+      return "agronomy/grain";
     case "office/service":
-    case "officeservice": return "officeservice";
-    case "distribution": return "distribution";
-    case "kingpin": return "kingpin";
-    default: return (cat || "").trim().toLowerCase();
+    case "officeservice":
+      return "officeservice";
+    case "distribution":
+      return "distribution";
+    case "kingpin":
+      return "kingpin";
+    default:
+      return (cat || "").trim().toLowerCase();
   }
 };
 
@@ -194,7 +203,7 @@ export default function CertisMap({
 
         map.addSource("retailers", { type: "geojson", data });
 
-        // non-Kingpins
+        // Non-Kingpins
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -204,11 +213,16 @@ export default function CertisMap({
             "circle-color": [
               "match",
               ["get", "DisplayCategory"],
-              "Agronomy", categoryColors.Agronomy.color,
-              "Grain/Feed", categoryColors["Grain/Feed"].color,
-              "Feed", categoryColors.Feed.color,
-              "Office/Service", categoryColors["Office/Service"].color,
-              "Distribution", categoryColors.Distribution.color,
+              "Agronomy",
+              categoryColors.Agronomy.color,
+              "Grain/Feed",
+              categoryColors["Grain/Feed"].color,
+              "Feed",
+              categoryColors.Feed.color,
+              "Office/Service",
+              categoryColors["Office/Service"].color,
+              "Distribution",
+              categoryColors.Distribution.color,
               "#1d4ed8",
             ],
             "circle-stroke-width": 2,
@@ -217,7 +231,7 @@ export default function CertisMap({
           filter: ["!=", ["get", "DisplayCategory"], "Kingpin"],
         });
 
-        // Kingpins with white halo
+        // Kingpins with halo
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -231,7 +245,7 @@ export default function CertisMap({
           filter: ["==", ["get", "DisplayCategory"], "Kingpin"],
         });
 
-        // popups
+        // Popups
         const popup = new mapboxgl.Popup({
           closeButton: false,
           closeOnClick: false,
@@ -297,7 +311,10 @@ export default function CertisMap({
               ?.coordinates.slice() as [number, number];
             const props = e.features?.[0].properties;
             if (coords && props)
-              popup.setLngLat(coords).setHTML(buildPopupHTML(props, coords)).addTo(map);
+              popup
+                .setLngLat(coords)
+                .setHTML(buildPopupHTML(props, coords))
+                .addTo(map);
           });
           map.on("mouseleave", layerId, () => {
             map.getCanvas().style.cursor = "";
@@ -319,7 +336,6 @@ export default function CertisMap({
         bindPopup("retailers-layer");
         bindPopup("kingpins-layer");
 
-        // diagnostic totals
         console.log("✅ Total locations:", data.features.length);
         console.log(
           "✅ Filtered Kingpins:",
@@ -369,7 +385,9 @@ export default function CertisMap({
             const supplierList = splitAndStandardizeSuppliers(props.Suppliers).map(norm);
             const supplierMatch =
               selectedSuppliers.length === 0 ||
-              selectedSuppliers.map(norm).some((s) => supplierList.includes(s));
+              selectedSuppliers
+                .map(norm)
+                .some((s) => supplierList.includes(s));
 
             return stateMatch && retailerMatch && categoryMatch && supplierMatch;
           }),
@@ -387,31 +405,53 @@ export default function CertisMap({
         if (onRetailerSummary) {
           const summaryMap = new Map<
             string,
-            { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }
+            {
+              retailer: string;
+              count: number;
+              suppliers: string[];
+              categories: string[];
+              states: string[];
+            }
           >();
           for (const f of filtered.features) {
             const props = f.properties || {};
             if (norm(props.DisplayCategory) === "kingpin") continue;
-
             const state = props.State || "Unknown";
             const retailer = props.Retailer || "Unknown";
             const suppliers = splitAndStandardizeSuppliers(props.Suppliers);
             const categories = expandCategories(props.Category || "");
-
             if (!summaryMap.has(retailer)) {
-              summaryMap.set(retailer, { retailer, count: 0, suppliers: [], categories: [], states: [] });
+              summaryMap.set(retailer, {
+                retailer,
+                count: 0,
+                suppliers: [],
+                categories: [],
+                states: [],
+              });
             }
             const entry = summaryMap.get(retailer)!;
             entry.count += 1;
             if (state && !entry.states.includes(state)) entry.states.push(state);
-            suppliers.forEach((s) => { if (s && !entry.suppliers.includes(s)) entry.suppliers.push(s); });
-            categories.forEach((c) => { if (c && !entry.categories.includes(c)) entry.categories.push(c); });
+            suppliers.forEach((s) => {
+              if (s && !entry.suppliers.includes(s)) entry.suppliers.push(s);
+            });
+            categories.forEach((c) => {
+              if (c && !entry.categories.includes(c))
+                entry.categories.push(c);
+            });
           }
           onRetailerSummary(Array.from(summaryMap.values()));
         }
       })
       .catch((err) => console.error("Filter update error:", err));
-  }, [geojsonPath, selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
+  }, [
+    geojsonPath,
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+    onRetailerSummary,
+  ]);
 
   // ========================================
   // TRIP ROUTE LOGIC
@@ -432,7 +472,9 @@ export default function CertisMap({
 
     const home = tripStops[0];
     const middle = tripStops.slice(1);
-    const coordsParam = [home, ...middle, home].map((s) => s.coords.join(",")).join(";");
+    const coordsParam = [home, ...middle, home]
+      .map((s) => s.coords.join(","))
+      .join(";");
 
     const url =
       tripMode === "optimize"
@@ -442,7 +484,10 @@ export default function CertisMap({
     fetch(url)
       .then((res) => res.json())
       .then((data) => {
-        const route = tripMode === "optimize" ? data.trips?.[0]?.geometry : data.routes?.[0]?.geometry;
+        const route =
+          tripMode === "optimize"
+            ? data.trips?.[0]?.geometry
+            : data.routes?.[0]?.geometry;
         if (!route) return;
 
         if (map.getLayer("trip-route")) {
@@ -453,7 +498,9 @@ export default function CertisMap({
           type: "geojson",
           data: {
             type: "FeatureCollection",
-            features: [{ type: "Feature", geometry: route, properties: {} }],
+            features: [
+              { type: "Feature", geometry: route, properties: {} },
+            ],
           },
         });
         map.addLayer({
@@ -465,17 +512,68 @@ export default function CertisMap({
 
         let orderedStops = [home, ...middle, home];
         if (tripMode === "optimize" && data.waypoints) {
-          const sorted = [...data.waypoints].sort((a: any, b: any) => a.wayGot it — the file you just posted matches your previous B.7 baseline, and the next phase (C.1) requires exactly the additions we discussed: extending the `Stop` interface, adding `city/state/zip` handling, pointer cursor, and diagnostic logs.  
+          const sorted = [...data.waypoints].sort(
+            (a: any, b: any) => a.waypoint_index - b.waypoint_index
+          );
+          orderedStops = sorted.map((wp: any) => {
+            const [lng, lat] = wp.location;
+            return (
+              tripStops.find(
+                (s) => s.coords[0] === lng && s.coords[1] === lat
+              ) || {
+                label: wp.name || "Stop",
+                address: "",
+                coords: [lng, lat] as [number, number],
+              }
+            );
+          });
+        }
 
-✅ I’ve now reviewed everything line by line and will regenerate **`components/CertisMap.tsx`** as a **complete, self-contained file** with:  
-- Fixed type definition (`Stop` extended)  
-- Correct `onAddStop()` parameter population  
-- Diagnostic total/Kingpin logs  
-- Retained map + popup logic  
-- Explicit pointer cursor  
-- White halo retained for Kingpins  
-- No path/name changes  
+        const stopsGeoJSON: GeoJSON.FeatureCollection = {
+          type: "FeatureCollection",
+          features: orderedStops.map((s, i) => ({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: s.coords },
+            properties: { order: i + 1, label: s.label },
+          })),
+        };
 
-If you confirm, I’ll output the **final full file (Phase C.1)** ready to paste and build — and include your PowerShell deploy block underneath.  
+        ["trip-stops-circle", "trip-stops-label"].forEach((id) => {
+          if (map.getLayer(id)) map.removeLayer(id);
+        });
+        if (map.getSource("trip-stops")) map.removeSource("trip-stops");
+        map.addSource("trip-stops", { type: "geojson", data: stopsGeoJSON });
 
-Proceed with regeneration?
+        map.addLayer({
+          id: "trip-stops-circle",
+          type: "circle",
+          source: "trip-stops",
+          paint: {
+            "circle-radius": 14,
+            "circle-color": "#1E90FF",
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 3,
+          },
+        });
+        map.addLayer({
+          id: "trip-stops-label",
+          type: "symbol",
+          source: "trip-stops",
+          layout: {
+            "text-field": ["get", "order"],
+            "text-size": 12,
+            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+            "text-anchor": "center",
+          },
+          paint: {
+            "text-color": "#ffffff",
+            "text-halo-color": "#000000",
+            "text-halo-width": 1,
+          },
+        });
+      })
+      .catch((err) => console.error("Directions/Optimization API error:", err));
+  }, [tripStops, tripMode]);
+
+  return <div ref={mapContainer} className="w-full h-full" />;
+}
