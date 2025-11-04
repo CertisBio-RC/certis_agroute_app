@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import { useState, useMemo } from "react";
@@ -105,6 +104,7 @@ export default function Page() {
       {/* HEADER */}
       <header className="flex items-center justify-between bg-gray-900 text-white px-4 py-2 shadow-md">
         <div className="flex items-center space-x-3">
+          {/* Mobile Toggle */}
           <button
             className="md:hidden p-2 rounded hover:bg-gray-800"
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -268,9 +268,7 @@ export default function Page() {
                         checked={selectedCategories.includes(c)}
                         onChange={() =>
                           setSelectedCategories((prev) =>
-                            prev.includes(c)
-                              ? prev.filter((x) => x !== c)
-                              : [...prev, c]
+                            prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
                           )
                         }
                       />
@@ -300,11 +298,7 @@ export default function Page() {
                   {summaryOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </button>
               </div>
-              <div
-                className={`${
-                  summaryOpen ? "block" : "hidden md:block"
-                } max-h-64 overflow-y-auto`}
-              >
+              <div className={`${summaryOpen ? "block" : "hidden md:block"} max-h-64 overflow-y-auto`}>
                 {retailerSummaries.length === 0 ? (
                   <p className="text-gray-400 text-sm">No retailer summary available.</p>
                 ) : (
@@ -407,7 +401,7 @@ export default function Page() {
             selectedStates={selectedStates}
             selectedRetailers={selectedRetailers}
             selectedCategories={selectedCategories}
-            selectedSuppliers={[]}
+            selectedSuppliers={[]} // ✅ Required for TypeScript, no UI dependency
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={() => {}}
@@ -426,6 +420,7 @@ export default function Page() {
             onAddStop={handleAddStop}
             tripStops={tripStops}
             tripMode={tripMode}
+            onOptimizedRoute={setTripStops}
           />
         </main>
       </div>
