@@ -1,6 +1,6 @@
 // ========================================
-// components/CertisMap.tsx — Phase B.2c
-// Fix: “Style is not done loading” guard
+// components/CertisMap.tsx — Phase B.2d
+// Fixes: “Style is not done loading” guard + add onOptimizedRoute typing
 // ========================================
 "use client";
 
@@ -80,6 +80,7 @@ export default function CertisMap({
   onSuppliersLoaded,
   onRetailerSummary,
   onAddStop,
+  onOptimizedRoute, // ✅ NEW PROP TYPED
   tripStops = [],
   tripMode = "entered",
   zipCode,
@@ -101,6 +102,7 @@ export default function CertisMap({
     }[]
   ) => void;
   onAddStop?: (stop: Stop) => void;
+  onOptimizedRoute?: (stops: Stop[]) => void; // ✅ ADDED HERE
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
   zipCode?: string;
@@ -300,6 +302,7 @@ export default function CertisMap({
         const src = map.getSource(routeSourceId) as mapboxgl.GeoJSONSource;
         if (route && src)
           src.setData({ type: "FeatureCollection", features: [{ type: "Feature", geometry: route, properties: {} }] });
+        if (onOptimizedRoute) onOptimizedRoute(tripStops); // ✅ notify parent
       } catch (e) {
         console.error("Route error:", e);
       }
