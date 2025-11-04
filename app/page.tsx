@@ -1,3 +1,4 @@
+// app/page.tsx
 "use client";
 
 import { useState, useMemo } from "react";
@@ -269,8 +270,9 @@ export default function Page() {
                           setSelectedCategories((prev) =>
                             prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
                           )
-                        }
-                      />
+                        )
+                      }
+                    />
                       <span
                         className="flex items-center space-x-1"
                         style={{ color: categoryColors[c].color }}
@@ -401,7 +403,6 @@ export default function Page() {
             selectedRetailers={selectedRetailers}
             selectedCategories={selectedCategories}
             selectedSuppliers={[]}
-            zipCode={zipConfirmed ? zipCode : undefined}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={() => {}}
