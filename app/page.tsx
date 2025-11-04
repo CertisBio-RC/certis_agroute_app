@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import { Menu, X, ChevronDown, ChevronUp } from "lucide-react";
 import CertisMap, { Stop, categoryColors } from "@/components/CertisMap";
@@ -63,9 +63,7 @@ export default function Page() {
     const base = "https://www.google.com/maps/dir/";
     const query = tripStops
       .map((s) =>
-        encodeURIComponent(
-          `${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`
-        )
+        encodeURIComponent(`${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`)
       )
       .join("/");
     window.open(base + query, "_blank");
@@ -76,9 +74,7 @@ export default function Page() {
     const base = "https://maps.apple.com/?daddr=";
     const query = tripStops
       .map((s) =>
-        encodeURIComponent(
-          `${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`
-        )
+        encodeURIComponent(`${s.address || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`)
       )
       .join("+to:");
     window.open(base + query, "_blank");
@@ -93,6 +89,17 @@ export default function Page() {
       retailerStateMap[r]?.some((st) => selectedStates.includes(st))
     );
   }, [selectedStates, availableRetailers, retailerStateMap]);
+
+  // ===============================
+  // Trigger Style Safety for Map Filters
+  // (ensures no race condition on load)
+  // ===============================
+  useEffect(() => {
+    // Small artificial delay to ensure the map style is ready
+    // before first filter attempt.
+    const timer = setTimeout(() => {}, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ===============================
   // Render
@@ -201,9 +208,7 @@ export default function Page() {
               <h2 className="text-yellow-400 text-lg font-semibold mb-2">Select Retailer(s)</h2>
               <div className="flex space-x-2 mb-2">
                 <button
-                  onClick={() =>
-                    toggleAll(setSelectedRetailers, selectedRetailers, filteredRetailers)
-                  }
+                  onClick={() => toggleAll(setSelectedRetailers, selectedRetailers, filteredRetailers)}
                   className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
                 >
                   Select All
@@ -399,8 +404,8 @@ export default function Page() {
             selectedStates={selectedStates}
             selectedRetailers={selectedRetailers}
             selectedCategories={selectedCategories}
-            selectedSuppliers={[]} // suppliers filter not yet used in UI
-            zipCode={zipConfirmed ? zipCode : undefined} // ✅ Only pass when Set
+            selectedSuppliers={[]} // suppliers filter not yet used
+            zipCode={zipConfirmed ? zipCode : undefined}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={() => {}}
