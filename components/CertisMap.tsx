@@ -10,11 +10,11 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 // CATEGORY COLORS
 // ========================================
 export const categoryColors: Record<string, { color: string; outline?: string }> = {
-  Agronomy: { color: "#FFD700", outline: "#000" },        // yellow
-  "Grain/Feed": { color: "#228B22", outline: "#000" },    // green
-  Feed: { color: "#8B4513", outline: "#000" },            // brown
-  "Office/Service": { color: "#1E90FF", outline: "#000" },// blue
-  Distribution: { color: "#FF8C00", outline: "#000" },    // orange
+  Agronomy: { color: "#FFD700", outline: "#fff" },        // yellow
+  "Grain/Feed": { color: "#228B22", outline: "#fff" },    // green
+  Feed: { color: "#8B4513", outline: "#fff" },            // brown
+  "Office/Service": { color: "#1E90FF", outline: "#fff" },// blue
+  Distribution: { color: "#FF8C00", outline: "#fff" },    // orange
   Kingpin: { color: "#FF0000", outline: "#FFFF00" },      // red w/ yellow border
 };
 
@@ -95,6 +95,9 @@ function splitAndStandardizeSuppliers(raw: string | undefined): string[] {
 export interface Stop {
   label: string;
   address: string;
+  city?: string;
+  state?: string;
+  zip?: string;
   coords: [number, number];
 }
 
@@ -166,14 +169,12 @@ export default function CertisMap({
         const response = await fetch(geojsonPath);
         const data = await response.json();
 
-        // preprocess categories
         for (const feature of data.features) {
           feature.properties.DisplayCategory = assignDisplayCategory(
             feature.properties?.Category || ""
           );
         }
 
-        // summary sets
         const stateSet = new Set<string>();
         const retailerSetAll = new Set<string>();
         const supplierSet = new Set<string>();
@@ -191,7 +192,6 @@ export default function CertisMap({
         onSuppliersLoaded?.(Array.from(supplierSet).sort());
         onRetailersLoaded?.(Array.from(retailerSetAll).sort());
 
-        // map sources + layers
         map.addSource("retailers", { type: "geojson", data });
 
         // non-Kingpins
@@ -217,7 +217,7 @@ export default function CertisMap({
           filter: ["!=", ["get", "DisplayCategory"], "Kingpin"],
         });
 
-        // Kingpins
+        // Kingpins with white halo
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -225,7 +225,7 @@ export default function CertisMap({
           paint: {
             "circle-radius": 7,
             "circle-color": categoryColors.Kingpin.color,
-            "circle-stroke-width": 2,
+            "circle-stroke-width": 3,
             "circle-stroke-color": categoryColors.Kingpin.outline!,
           },
           filter: ["==", ["get", "DisplayCategory"], "Kingpin"],
@@ -279,6 +279,9 @@ export default function CertisMap({
                 onAddStop({
                   label: stopLabel,
                   address: addressLine,
+                  city: props.City || "",
+                  state: props.State || "",
+                  zip: props.Zip || "",
                   coords,
                 });
             }
@@ -315,6 +318,15 @@ export default function CertisMap({
 
         bindPopup("retailers-layer");
         bindPopup("kingpins-layer");
+
+        // diagnostic totals
+        console.log("✅ Total locations:", data.features.length);
+        console.log(
+          "✅ Filtered Kingpins:",
+          data.features.filter(
+            (f: any) => norm(f.properties?.DisplayCategory) === "kingpin"
+          ).length
+        );
       } catch (err) {
         console.error("Failed to load GeoJSON", err);
       }
@@ -343,8 +355,6 @@ export default function CertisMap({
           type: "FeatureCollection" as const,
           features: data.features.filter((f: any) => {
             const props = f.properties || {};
-
-            // ✅ Always include Kingpins
             if (norm(props.DisplayCategory) === "kingpin") return true;
 
             const stateMatch =
@@ -365,7 +375,6 @@ export default function CertisMap({
           }),
         };
 
-        // ✅ Debug count
         console.log(
           "✅ Filtered Kingpins count:",
           filtered.features.filter(
@@ -375,7 +384,6 @@ export default function CertisMap({
 
         source.setData(filtered);
 
-        // retailer summary
         if (onRetailerSummary) {
           const summaryMap = new Map<
             string,
@@ -455,67 +463,19 @@ export default function CertisMap({
           paint: { "line-color": "#1E90FF", "line-width": 4 },
         });
 
-        // waypoint numbering
         let orderedStops = [home, ...middle, home];
         if (tripMode === "optimize" && data.waypoints) {
-          const sorted = [...data.waypoints].sort((a: any, b: any) => a.waypoint_index - b.waypoint_index);
-          orderedStops = sorted.map((wp: any) => {
-            const [lng, lat] = wp.location;
-            return (
-              tripStops.find((s) => s.coords[0] === lng && s.coords[1] === lat) || {
-                label: wp.name || "Stop",
-                address: "",
-                coords: [lng, lat] as [number, number],
-              }
-            );
-          });
-        }
+          const sorted = [...data.waypoints].sort((a: any, b: any) => a.wayGot it — the file you just posted matches your previous B.7 baseline, and the next phase (C.1) requires exactly the additions we discussed: extending the `Stop` interface, adding `city/state/zip` handling, pointer cursor, and diagnostic logs.  
 
-        const stopsGeoJSON: GeoJSON.FeatureCollection = {
-          type: "FeatureCollection",
-          features: orderedStops.map((s, i) => ({
-            type: "Feature",
-            geometry: { type: "Point", coordinates: s.coords },
-            properties: { order: i + 1, label: s.label },
-          })),
-        };
+✅ I’ve now reviewed everything line by line and will regenerate **`components/CertisMap.tsx`** as a **complete, self-contained file** with:  
+- Fixed type definition (`Stop` extended)  
+- Correct `onAddStop()` parameter population  
+- Diagnostic total/Kingpin logs  
+- Retained map + popup logic  
+- Explicit pointer cursor  
+- White halo retained for Kingpins  
+- No path/name changes  
 
-        ["trip-stops-circle", "trip-stops-label"].forEach((id) => {
-          if (map.getLayer(id)) map.removeLayer(id);
-        });
-        if (map.getSource("trip-stops")) map.removeSource("trip-stops");
-        map.addSource("trip-stops", { type: "geojson", data: stopsGeoJSON });
+If you confirm, I’ll output the **final full file (Phase C.1)** ready to paste and build — and include your PowerShell deploy block underneath.  
 
-        map.addLayer({
-          id: "trip-stops-circle",
-          type: "circle",
-          source: "trip-stops",
-          paint: {
-            "circle-radius": 14,
-            "circle-color": "#1E90FF",
-            "circle-stroke-color": "#ffffff",
-            "circle-stroke-width": 3,
-          },
-        });
-        map.addLayer({
-          id: "trip-stops-label",
-          type: "symbol",
-          source: "trip-stops",
-          layout: {
-            "text-field": ["get", "order"],
-            "text-size": 12,
-            "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-            "text-anchor": "center",
-          },
-          paint: {
-            "text-color": "#ffffff",
-            "text-halo-color": "#000000",
-            "text-halo-width": 1,
-          },
-        });
-      })
-      .catch((err) => console.error("Directions/Optimization API error:", err));
-  }, [tripStops, tripMode]);
-
-  return <div ref={mapContainer} className="w-full h-full" />;
-}
+Proceed with regeneration?
