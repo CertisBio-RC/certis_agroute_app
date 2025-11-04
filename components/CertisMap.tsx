@@ -1,6 +1,6 @@
 // ========================================
-// components/CertisMap.tsx — Phase B.2a
-// Additive Filtering + State-Retailer Cascade Fix
+// components/CertisMap.tsx — Phase B.2b
+// Additive Filtering + Type Fix for Mapbox Filters
 // ========================================
 "use client";
 
@@ -341,16 +341,16 @@ export default function CertisMap({
     const stateFilter =
       selectedStates.length > 0
         ? ["in", ["get", "State"], ["literal", selectedStates]]
-        : ["boolean", true];
+        : ["all"];
     const retailerFilter =
       selectedRetailers.length > 0
         ? ["in", ["get", "Retailer"], ["literal", selectedRetailers]]
-        : ["boolean", true];
+        : ["all"];
 
-    const combinedFilter = ["all", catFilter, stateFilter, retailerFilter];
+    const combinedFilter = ["all", catFilter, stateFilter, retailerFilter] as any;
+
     map.setFilter("retailers-layer", combinedFilter);
 
-    // --- Retailer Summary ---
     const feats = map.querySourceFeatures("retailers-all", { filter: combinedFilter });
     const summaryMap = new Map<
       string,
