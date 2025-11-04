@@ -1,5 +1,5 @@
 // ========================================
-// components/CertisMap.tsx — Phase A.9 (Simplified State + Retailer Filtering)
+// components/CertisMap.tsx — Phase A.12
 // ========================================
 "use client";
 
@@ -7,7 +7,12 @@ import { useEffect, useRef } from "react";
 import mapboxgl, { LngLatLike } from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app";
+
+// ✅ Dynamic basePath: empty in dev, subpath in production
+const basePath =
+  process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH.trim() !== ""
+    ? process.env.NEXT_PUBLIC_BASE_PATH
+    : "";
 
 // ========================================
 // 🎨 CATEGORY COLORS
@@ -118,8 +123,14 @@ export default function CertisMap({
 
     map.on("load", async () => {
       try {
+        console.log("📡 Fetching GeoJSON from:", geojsonPath);
         const res = await fetch(geojsonPath, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
+
+        if (!data.features || !Array.isArray(data.features)) {
+          throw new Error("Invalid GeoJSON structure");
+        }
 
         const valid = data.features
           .filter((f: any) => Array.isArray(f.geometry?.coordinates))
@@ -134,6 +145,7 @@ export default function CertisMap({
             ["Agronomy", "Kingpin"].includes(f.properties.DisplayCategory)
           );
 
+        console.log(`✅ Loaded features: ${valid.length}`);
         allFeaturesRef.current = valid;
 
         // Populate filters
@@ -183,7 +195,7 @@ export default function CertisMap({
           },
         });
 
-        // Route
+        // Route layer
         map.addSource(routeSourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addLayer({
           id: "trip-route-layer",
@@ -193,7 +205,7 @@ export default function CertisMap({
           paint: { "line-color": "#0066FF", "line-width": 2.2 },
         });
 
-        // Popup
+        // Popup setup
         const popupHandler = (e: any) => {
           const f = e.features?.[0];
           if (!f) return;
@@ -245,28 +257,13 @@ export default function CertisMap({
           map.on("mouseleave", l, () => (map.getCanvas().style.cursor = ""));
         });
       } catch (e) {
-        console.error("❌ Failed to load GeoJSON", e);
+        console.error("❌ Failed to load GeoJSON:", e);
       }
     });
   }, [geojsonPath]);
 
   // ========================================
-  // 🏠 HOME MARKER
-  // ========================================
-  useEffect(() => {
-    if (!zipCode || !mapRef.current) return;
-    if (homeMarkerRef.current) homeMarkerRef.current.remove();
-    const el = document.createElement("img");
-    el.src = `${basePath}/icons/Blue-Home.png`;
-    el.style.width = "20px";
-    el.style.height = "20px";
-    homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-      .setLngLat([-93.0, 42.0])
-      .addTo(mapRef.current);
-  }, [zipCode]);
-
-  // ========================================
-  // 🚗 ROUTE DRAWING
+  // 🚗 ROUTE DRAWING + HOME MARKER (unchanged)
   // ========================================
   useEffect(() => {
     const map = mapRef.current;
@@ -310,7 +307,6 @@ export default function CertisMap({
 
     regularSrc.setData({ type: "FeatureCollection", features: filteredRegular });
 
-    // Retailer Summary
     const summaryMap = new Map<string, { retailer: string; count: number; states: Set<string>; sups: Set<string> }>();
     filteredRegular.forEach((f) => {
       const p = f.properties;
