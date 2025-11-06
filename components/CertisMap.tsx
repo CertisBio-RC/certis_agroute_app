@@ -1,6 +1,6 @@
 // ========================================
-// components/CertisMap.tsx — Phase A.27
-// Fixed normalized retailer refresh + stable intersection filtering
+// components/CertisMap.tsx — Phase A.27b
+// Fixed normalized retailer refresh + type-safe state/retailer arrays
 // ========================================
 "use client";
 
@@ -112,7 +112,6 @@ export default function CertisMap({
   const allFeaturesRef = useRef<any[]>([]);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const homeMarkerRef = useRef<Marker | null>(null);
-  const routeSourceId = "trip-route";
   const geojsonPath = `${basePath}/data/retailers.geojson?v=20251105`;
 
   // ========================================
@@ -152,9 +151,15 @@ export default function CertisMap({
 
         allFeaturesRef.current = valid;
 
-        // Initialize filter lists
-        const states = Array.from(new Set(valid.map((f: any) => f.properties.State?.trim()))).filter(Boolean);
-        const retailers = Array.from(new Set(valid.map((f: any) => f.properties.Retailer?.trim()))).filter(Boolean);
+        // ✅ Type-safe string arrays
+        const states = Array.from(
+          new Set(valid.map((f: any) => String(f.properties.State || "").trim()).filter(Boolean))
+        ) as string[];
+
+        const retailers = Array.from(
+          new Set(valid.map((f: any) => String(f.properties.Retailer || "").trim()).filter(Boolean))
+        ) as string[];
+
         onStatesLoaded?.(states.sort());
         onRetailersLoaded?.(retailers.sort());
 
