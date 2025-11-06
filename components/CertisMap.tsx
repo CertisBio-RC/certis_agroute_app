@@ -1,5 +1,6 @@
 // ========================================
-// components/CertisMap.tsx — Phase A.28f (Blue-Home Icon No-Fly)
+// components/CertisMap.tsx — Phase A.29 Hotfix
+// ✅ Fix Retailer filter normalization + Blue-Home icon rendering
 // ========================================
 "use client";
 
@@ -331,7 +332,7 @@ export default function CertisMap({
       onExportLinksReady?.({ google, apple });
     }
 
-    // 🏠 Home marker (static icon)
+    // 🏠 Home marker (static Blue-Home icon, no fly)
     if (homeCoords) {
       homeMarkerRef.current?.remove();
 
@@ -369,10 +370,12 @@ export default function CertisMap({
       const isKingpin = norm(p.DisplayCategory).includes("kingpin");
       if (isKingpin) return false;
 
-      const stateVal = norm(p.State || "");
-      const retailerVal = norm(p.Retailer || "");
-      const sMatch = !selectedStates.length || selectedStates.some((s) => s === stateVal);
-      const rMatch = !selectedRetailers.length || selectedRetailers.some((r) => r === retailerVal);
+      const sMatch =
+        !selectedStates.length ||
+        selectedStates.some((s) => norm(s) === norm(p.State || ""));
+      const rMatch =
+        !selectedRetailers.length ||
+        selectedRetailers.some((r) => norm(r) === norm(p.Retailer || ""));
       return sMatch && rMatch;
     });
 
@@ -381,7 +384,8 @@ export default function CertisMap({
       const isKP = norm(p.DisplayCategory).includes("kingpin");
       if (!isKP) return false;
       const sMatch =
-        !selectedStates.length || selectedStates.some((s) => s === norm(p.State || ""));
+        !selectedStates.length ||
+        selectedStates.some((s) => norm(s) === norm(p.State || ""));
       return sMatch;
     });
 
