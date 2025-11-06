@@ -1,4 +1,4 @@
-// app/page.tsx
+// app/page.tsx — Phase A.21 – Full Corrections
 "use client";
 
 import { useState, useMemo } from "react";
@@ -9,7 +9,9 @@ import { Menu, X } from "lucide-react";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-// ✅ Helpers
+// ========================================
+// 🔧 Helpers
+// ========================================
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
@@ -17,12 +19,21 @@ const capitalizeState = (val: string) => (val || "").toUpperCase();
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "https://www.google.com/maps/dir/?api=1";
-  const origin = encodeURIComponent(stops[0].address);
-  const destination = encodeURIComponent(stops[stops.length - 1].address);
-  const waypoints = stops
-    .slice(1, -1)
-    .map((s) => encodeURIComponent(s.address))
-    .join("|");
+
+  const formatAddress = (s: Stop) =>
+    encodeURIComponent(
+      [
+        s.address || "",
+        s.label?.match(/[A-Z]{2}/)?.[0] ? "" : s.label || "",
+      ]
+        .filter(Boolean)
+        .join(", ")
+    );
+
+  const origin = formatAddress(stops[0]);
+  const destination = formatAddress(stops[stops.length - 1]);
+  const waypoints = stops.slice(1, -1).map(formatAddress).join("|");
+
   return `${base}&origin=${origin}&destination=${destination}${
     waypoints ? `&waypoints=${waypoints}` : ""
   }`;
@@ -31,56 +42,56 @@ function buildGoogleMapsUrl(stops: Stop[]) {
 function buildAppleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "http://maps.apple.com/?dirflg=d";
-  const origin = encodeURIComponent(stops[0].address);
-  const daddr = stops
-    .slice(1)
-    .map((s) => encodeURIComponent(s.address))
-    .join("+to:");
+
+  const formatAddress = (s: Stop) =>
+    encodeURIComponent(
+      [
+        s.address || "",
+        s.label?.match(/[A-Z]{2}/)?.[0] ? "" : s.label || "",
+      ]
+        .filter(Boolean)
+        .join(", ")
+    );
+
+  const origin = formatAddress(stops[0]);
+  const daddr = stops.slice(1).map(formatAddress).join("+to:");
+
   return `${base}&saddr=${origin}&daddr=${daddr}`;
 }
 
+// ========================================
+// 🧭 Main Page Component
+// ========================================
 export default function Page() {
-  // ========================================
   // 🎛️ State Hooks
-  // ========================================
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
-
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
-
   const [retailerSummary, setRetailerSummary] = useState<
-    {
-      retailer: string;
-      count: number;
-      suppliers: string[];
-      states: string[];
-    }[]
+    { retailer: string; count: number; suppliers: string[]; states: string[] }[]
   >([]);
-
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // ✅ Trip Optimization
+  // 🚗 Trip Management
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
-
-  // ✅ Home Zip
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
+  // ========================================
+  // 🚗 Trip Handlers
+  // ========================================
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label && s.address === stop.address)) {
       setTripStops((prev) => [...prev, stop]);
     }
   };
-
-  const handleRemoveStop = (index: number) => {
+  const handleRemoveStop = (index: number) =>
     setTripStops((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleClearStops = () => setTripStops([]);
 
-  // ✅ Geocode ZIP → coords
+  // ✅ ZIP → Coordinates
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
     try {
@@ -109,7 +120,7 @@ export default function Page() {
   };
 
   // ========================================
-  // 🔘 State Handlers
+  // 🧭 Filters
   // ========================================
   const handleToggleState = (state: string) => {
     const normalized = norm(state);
@@ -117,24 +128,22 @@ export default function Page() {
       prev.includes(normalized) ? prev.filter((s) => s !== normalized) : [...prev, normalized]
     );
   };
-
   const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
-  // ========================================
-  // 🔘 Retailer Handlers
-  // ========================================
   const handleToggleRetailer = (retailer: string) => {
     const normalized = norm(retailer);
     setSelectedRetailers((prev) =>
-      prev.includes(normalized) ? prev.filter((r) => r !== normalized) : [...prev, normalized]
+      prev.includes(normalized)
+        ? prev.filter((r) => r !== normalized)
+        : [...prev, normalized]
     );
   };
   const handleSelectAllRetailers = () => setSelectedRetailers(availableRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // ========================================
-  // 🟦 Derived summaries
+  // 📊 Derived Summaries
   // ========================================
   const kingpinSummary = retailerSummary.filter((s) => norm(s.retailer) === "kingpin");
   const normalSummary = retailerSummary.filter((s) => norm(s.retailer) !== "kingpin");
@@ -153,7 +162,7 @@ export default function Page() {
   // ========================================
   return (
     <div className="flex h-screen w-screen relative">
-      {/* 📱 Mobile Hamburger Button */}
+      {/* 📱 Mobile Toggle */}
       <button
         className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -164,7 +173,7 @@ export default function Page() {
 
       {/* 📌 Sidebar */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-96 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
+        className={`fixed md:static top-0 left-0 h-full w-[430px] bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
         {/* Logo */}
@@ -178,9 +187,9 @@ export default function Page() {
           />
         </div>
 
-        {/* 🟦 Tile 1: Home Zip Code */}
+        {/* 🟦 Tile 1: Home ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home Zip Code</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home ZIP Code</h2>
           <div className="flex space-x-2">
             <input
               type="text"
@@ -203,20 +212,14 @@ export default function Page() {
           )}
         </div>
 
-        {/* 🟦 Tile 2: State Filter */}
+        {/* 🟦 Tile 2: States */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">States</h2>
           <div className="flex flex-wrap gap-2 mb-2">
-            <button
-              onClick={handleSelectAllStates}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-            >
+            <button onClick={handleSelectAllStates} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
               Select All
             </button>
-            <button
-              onClick={handleClearAllStates}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
-            >
+            <button onClick={handleClearAllStates} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
               Clear
             </button>
           </div>
@@ -237,20 +240,14 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 3: Retailer Filter */}
+        {/* 🟦 Tile 3: Retailers */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Retailers</h2>
           <div className="flex flex-wrap gap-2 mb-2">
-            <button
-              onClick={handleSelectAllRetailers}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-            >
+            <button onClick={handleSelectAllRetailers} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
               Select All
             </button>
-            <button
-              onClick={handleClearAllRetailers}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
-            >
+            <button onClick={handleClearAllRetailers} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
               Clear
             </button>
           </div>
@@ -271,28 +268,66 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 4: Channel Summary */}
+        {/* 🟦 Tile 4: Channel Summary (Table Format) */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Channel Summary
-          </h2>
-          <div className="text-sm text-gray-700 dark:text-gray-300 max-h-40 overflow-y-auto">
-            {normalSummary.map((s, i) => (
-              <div key={i} className="mb-2">
-                <strong>
-                  {s.retailer} ({s.states.map(capitalizeState).join(", ")})
-                </strong>{" "}
-                ({s.count} sites) <br />
-                Suppliers: {s.suppliers.join(", ") || "N/A"}
-              </div>
-            ))}
-            {kingpinSummary.length > 0 && (
-              <div className="mt-2 text-red-600 dark:text-red-400">
-                <strong>Kingpins:</strong>{" "}
-                {kingpinSummary.map((s) => s.retailer).join(", ")}
-              </div>
-            )}
-          </div>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Channel Summary</h2>
+
+          {normalSummary.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No data available.</p>
+          ) : (
+            <div className="max-h-64 overflow-y-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                    <th className="text-left py-2 px-3 border-b border-gray-300 dark:border-gray-600">
+                      Retailer
+                    </th>
+                    <th className="text-left py-2 px-3 border-b border-gray-300 dark:border-gray-600">
+                      State(s)
+                    </th>
+                    <th className="text-left py-2 px-3 border-b border-gray-300 dark:border-gray-600">
+                      # Sites
+                    </th>
+                    <th className="text-left py-2 px-3 border-b border-gray-300 dark:border-gray-600">
+                      Suppliers
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...normalSummary]
+                    .sort((a, b) => a.retailer.localeCompare(b.retailer))
+                    .map((s, idx) => (
+                      <tr
+                        key={s.retailer}
+                        className={`${
+                          idx % 2 === 0
+                            ? "bg-gray-50 dark:bg-gray-900/40"
+                            : "bg-white/70 dark:bg-gray-800/40"
+                        } hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors`}
+                      >
+                        <td className="py-2 px-3 font-semibold text-gray-900 dark:text-white">
+                          {s.retailer}
+                        </td>
+                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">
+                          {s.states.map(capitalizeState).join(", ") || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">{s.count}</td>
+                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300 truncate">
+                          {s.suppliers.length ? s.suppliers.join(", ") : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+
+              {kingpinSummary.length > 0 && (
+                <div className="mt-3 text-red-600 dark:text-red-400 text-sm">
+                  <strong>Kingpins:</strong>{" "}
+                  {kingpinSummary.map((s) => s.retailer).join(", ")}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 🟦 Tile 5: Trip Optimization */}
@@ -373,9 +408,7 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              No stops added yet.
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
           )}
         </div>
       </aside>
