@@ -1,6 +1,8 @@
 // ========================================
-// components/CertisMap.tsx — Phase A.29 Hotfix
-// ✅ Fix Retailer filter normalization + Blue-Home icon rendering
+// components/CertisMap.tsx — Phase A.30 Hotfix
+// ✅ Fix TypeScript error in onRetailerSummary
+// ✅ Restore Category line in popups
+// ✅ Confirm Channel Summary callback
 // ========================================
 "use client";
 
@@ -190,6 +192,33 @@ export default function CertisMap({
         onStatesLoaded?.(states.sort());
         onRetailersLoaded?.(retailers.sort());
 
+        // 🧩 Build Channel Summary
+        const summaries = retailers.map((r) => {
+          const subset = valid.filter(
+            (f: any) => norm(f.properties.Retailer) === norm(r)
+          );
+          const suppliers = Array.from(
+            new Set(
+              subset.flatMap((f: any) =>
+                parseSuppliers(f.properties.Suppliers || f.properties.Supplier || f.properties["Supplier(s)"])
+              )
+            )
+          );
+          const statesSet = Array.from(new Set(subset.map((f: any) => f.properties.State).filter(Boolean)));
+          return { retailer: r, count: subset.length, suppliers, states: statesSet };
+        });
+
+        // ✅ Explicitly type-cast summary to silence TS
+        onRetailerSummary?.(
+          summaries as {
+            retailer: string;
+            count: number;
+            suppliers: string[];
+            states: string[];
+          }[]
+        );
+
+        // Sources + layers
         map.addSource("retailers", {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
@@ -222,6 +251,9 @@ export default function CertisMap({
           },
         });
 
+        // ===========================
+        // 💬 POPUPS
+        // ===========================
         const popupHandler = (e: any) => {
           const f = e.features?.[0];
           if (!f) return;
@@ -230,6 +262,7 @@ export default function CertisMap({
           const addr = cleanAddress(p.Address || "");
           const stopLabel = p.Name ? `${p.Retailer} – ${p.Name}` : p.Retailer || "Unknown";
           const btnId = `add-stop-${Math.random().toString(36).slice(2)}`;
+          const category = p.DisplayCategory || p.Category || "Other";
 
           const html = `
             <div style="font-size:13px;width:340px;background:#1a1a1a;color:#f5f5f5;
@@ -242,6 +275,7 @@ export default function CertisMap({
               <div style="margin-top:6px;line-height:1.3em;">
                 <strong style="font-size:14px;color:#FFD700;">${p.Retailer}</strong><br/>
                 <em>${p.Name || ""}</em><br/>
+                <span style="color:#87CEFA;"><strong>Category:</strong> ${category}</span><br/>
                 ${addr}<br/>${p.City || ""} ${p.State || ""} ${p.Zip || ""}<br/>
                 <strong>Suppliers:</strong> ${
                   parseSuppliers(p.Suppliers || p.Supplier || p["Supplier(s)"]).join(", ") || "None"
@@ -283,7 +317,7 @@ export default function CertisMap({
   }, [geojsonPath]);
 
   // ========================================
-  // 🏠 ROUTE + HOME MARKER (Blue-Home.png, no fly)
+  // 🏠 ROUTE + HOME MARKER
   // ========================================
   useEffect(() => {
     const map = mapRef.current;
@@ -332,10 +366,9 @@ export default function CertisMap({
       onExportLinksReady?.({ google, apple });
     }
 
-    // 🏠 Home marker (static Blue-Home icon, no fly)
+    // 🏠 Blue-Home icon (static)
     if (homeCoords) {
       homeMarkerRef.current?.remove();
-
       const el = document.createElement("div");
       const img = document.createElement("img");
       img.src = `${basePath}/icons/Blue-Home.png`;
@@ -345,7 +378,6 @@ export default function CertisMap({
       img.style.objectFit = "contain";
       img.style.cursor = "pointer";
       el.appendChild(img);
-
       homeMarkerRef.current = new mapboxgl.Marker(el)
         .setLngLat(homeCoords)
         .setPopup(new mapboxgl.Popup().setText("Home"))
