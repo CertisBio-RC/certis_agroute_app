@@ -1,38 +1,49 @@
-﻿name: Deploy Certis AgRoute Planner
+name: Deploy Certis AgRoute Planner (Gold Baseline)
 
 on:
+  # Allow both manual and automatic deploys
+  workflow_dispatch:
   push:
     branches:
-      - main
+      - gold-baseline-local
+      - restore-baseline-ui
+      - main  # keep for future production merges
+
+permissions:
+  contents: write
 
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: 🧩 Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: npm ci
 
-      - name: Build static site
+      - name: 🏗️ Build static site (Next.js export)
         run: |
           npm run build
+          # ✅ Prevent GH Pages from ignoring the _next folder
+          touch out/.nojekyll
+          # 🧠 Include build metadata for diagnostics
           echo "{" > out/build-info.json
+          echo "  \"branch\": \"${GITHUB_REF_NAME}\"," >> out/build-info.json
           echo "  \"commit\": \"${GITHUB_SHA}\"," >> out/build-info.json
           echo "  \"date\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"" >> out/build-info.json
           echo "}" >> out/build-info.json
 
-      - name: Debug out folder
+      - name: 🧾 Inspect out directory
         run: ls -R ./out
 
-      - name: Deploy to GitHub Pages
+      - name: 🚀 Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
