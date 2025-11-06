@@ -1,5 +1,5 @@
 // ========================================
-// next.config.js — Phase A.31 Finalized GH Pages Static Export
+// next.config.js — GH Pages Compatibility Fix (Next 15+)
 // ========================================
 
 /** @type {import('next').NextConfig} */
@@ -10,13 +10,14 @@ const nextConfig = {
   trailingSlash: true,
   distDir: '.next',
 
-  // ✅ Required for GitHub Pages deployment
-  basePath: '/certis_agroute_app',
+  // ✅ Remove basePath; keep only assetPrefix
   assetPrefix: '/certis_agroute_app/',
 
-  // ✅ Ensure Next.js rewrites all internal asset URLs correctly
-  compiler: {
-    removeConsole: false,
+  // ✅ Critical: manually correct the exportPathMap
+  exportPathMap: async function () {
+    return {
+      '/': { page: '/' },
+    };
   },
 
   env: {
