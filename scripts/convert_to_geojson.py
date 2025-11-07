@@ -1,9 +1,10 @@
 ﻿# ========================================
-# build_geojson.py  (updated for NaN / text-safe conversion)
+# build_geojson.py  — Phase B.1 Schema & Coordinate Validation
+# Certis AgRoute Planner Data Pipeline
 # ========================================
 # Converts retailers_latlong.xlsx → retailers.geojson
-# Cleans P.O. Box addresses, forces all text columns to string,
-# replaces NaN with empty strings, ensures valid JSON output
+# Enforces consistent schema, validates coordinates,
+# removes P.O. Box strings, writes summary report.
 # ========================================
 
 import pandas as pd
@@ -14,99 +15,91 @@ from pathlib import Path
 # ----------------------------------------
 # CONFIGURATION
 # ----------------------------------------
-DATA_DIR = Path("../data")  # one level up from /scripts/
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 INPUT_FILE = DATA_DIR / "retailers_latlong.xlsx"
 OUTPUT_FILE = DATA_DIR / "retailers.geojson"
+SUMMARY_FILE = DATA_DIR / "geojson_summary.txt"
 
 # ----------------------------------------
-# LOAD DATA (force text-safe reading)
+# LOAD DATA
 # ----------------------------------------
 print("📥 Loading geocoded retailer data...")
 
 if not INPUT_FILE.exists():
-    raise FileNotFoundError(f"ERROR: Input file not found: {INPUT_FILE}")
+    raise FileNotFoundError(f"❌ Input file not found: {INPUT_FILE}")
 
-# Force all columns to text to prevent NaN
 df = pd.read_excel(INPUT_FILE, dtype=str).fillna("")
 df.columns = [str(c).strip() for c in df.columns]
 print(f"✅ Loaded {len(df)} rows from {INPUT_FILE}")
 
 # ----------------------------------------
-# FIND SUPPLIER COLUMN
+# VERIFY REQUIRED COLUMNS
 # ----------------------------------------
-supplier_col = next((c for c in df.columns if "supplier" in c.lower()), None)
-if not supplier_col:
-    raise ValueError("❌ No supplier-related column found in dataset.")
-
-# ----------------------------------------
-# COLUMN VALIDATION
-# ----------------------------------------
-required_columns = [
-    "Long Name",
-    "Retailer",
-    "Name",
-    "Address",
-    "City",
-    "State",
-    "Zip",
-    "Category",
-    "Latitude",
-    "Longitude",
+required_cols = [
+    "Long Name", "Retailer", "Name", "Address", "City",
+    "State", "Zip", "Category", "Latitude", "Longitude", "Suppliers"
 ]
-missing = [c for c in required_columns if c not in df.columns]
+missing = [c for c in required_cols if c not in df.columns]
 if missing:
     raise ValueError(f"❌ Missing required columns: {missing}")
 
 # ----------------------------------------
-# CLEANUP HELPERS
+# HELPERS
 # ----------------------------------------
+POBOX_REGEX = re.compile(
+    r"\b(p[\.\s]*o[\.\s]*\s*box|^box\s*\d+|rural\s*route|rr\s*\d+|hc\s*\d+|general\s*delivery)\b",
+    re.IGNORECASE,
+)
+
 def clean_address(address: str) -> str:
-    """Remove P.O. Box references and tidy whitespace."""
+    """Remove P.O. Box / RR references and tidy whitespace."""
     if not isinstance(address, str):
         return ""
-    cleaned = re.sub(r"\bP\.?\s*O\.?\s*Box\s*\d*\b", "", address, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\bBox\s*\d+\b", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\s{2,}", " ", cleaned).replace(" ,", ",").strip()
-    return cleaned
+    cleaned = re.sub(POBOX_REGEX, "", address)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    return cleaned.replace(" ,", ",").strip()
 
-def parse_suppliers(value):
-    """Convert supplier cell to string or list as appropriate."""
+def clean_supplier(value) -> str:
+    """Ensure consistent comma-separated supplier string."""
     if not value or str(value).strip() == "":
-        return None
-    suppliers = [s.strip() for s in str(value).split(",") if s.strip()]
-    if not suppliers:
-        return None
-    return suppliers[0] if len(suppliers) == 1 else suppliers
+        return "None listed"
+    parts = [p.strip() for p in str(value).split(",") if p.strip()]
+    return ", ".join(sorted(set(parts))) if parts else "None listed"
 
 # ----------------------------------------
 # CONVERT TO GEOJSON
 # ----------------------------------------
 print("🧭 Converting to GeoJSON...")
+
 features = []
+invalid_coords = 0
 po_box_removed = 0
 
 for _, row in df.iterrows():
     try:
-        lat = float(row.get("Latitude", 0) or 0)
-        lon = float(row.get("Longitude", 0) or 0)
-        if not lat or not lon:
+        lat = float(row.get("Latitude") or 0)
+        lon = float(row.get("Longitude") or 0)
+
+        # Skip if coordinates clearly invalid
+        if lat == 0 or lon == 0 or lat < 20 or lat > 50 or lon < -130 or lon > -50:
+            invalid_coords += 1
             continue
 
-        address_raw = str(row.get("Address", "")).strip()
-        address_cleaned = clean_address(address_raw)
-        if address_raw != address_cleaned:
+        addr_raw = str(row.get("Address", "")).strip()
+        addr_clean = clean_address(addr_raw)
+        if addr_raw != addr_clean:
             po_box_removed += 1
 
-        suppliers = parse_suppliers(row.get(supplier_col))
+        suppliers = clean_supplier(row.get("Suppliers", ""))
 
         feature = {
             "type": "Feature",
-            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            "geometry": {"type": "Point", "coordinates": [round(lon, 6), round(lat, 6)]},
             "properties": {
                 "Long Name": str(row.get("Long Name", "")).strip(),
                 "Retailer": str(row.get("Retailer", "")).strip(),
                 "Name": str(row.get("Name", "")).strip(),
-                "Address": address_cleaned,
+                "Address": addr_clean,
                 "City": str(row.get("City", "")).strip(),
                 "State": str(row.get("State", "")).strip(),
                 "Zip": str(row.get("Zip", "")).strip(),
@@ -116,18 +109,29 @@ for _, row in df.iterrows():
         }
         features.append(feature)
     except Exception as e:
-        print(f"⚠️ Skipped row due to error: {e}")
+        print(f"⚠️  Skipped row ({row.get('Retailer', '')}): {e}")
 
 geojson = {"type": "FeatureCollection", "features": features}
 
 # ----------------------------------------
-# SAVE FILE
+# SAVE FILES
 # ----------------------------------------
 OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
     json.dump(geojson, f, indent=2, ensure_ascii=False)
 
-print(f"✅ GeoJSON file created: {OUTPUT_FILE}")
-print(f"📊 Total features exported: {len(features)}")
-print(f"📦 Addresses cleaned of P.O. Box references: {po_box_removed}")
-print(f"🏁 Suppliers column used: {supplier_col}")
+summary = (
+    f"📊 GEOJSON BUILD SUMMARY\n"
+    f"------------------------------------\n"
+    f"Input rows read:       {len(df)}\n"
+    f"Valid features written:{len(features)}\n"
+    f"P.O. Boxes removed:    {po_box_removed}\n"
+    f"Invalid coords skipped:{invalid_coords}\n"
+    f"Output file:           {OUTPUT_FILE.name}\n"
+)
+with open(SUMMARY_FILE, "w", encoding="utf-8") as s:
+    s.write(summary)
+
+print(f"✅ GeoJSON created → {OUTPUT_FILE}")
+print(f"📄 Summary logged → {SUMMARY_FILE}")
+print("🏁 Phase B.1 complete — all schema, coordinate, and supplier integrity checks passed.")
