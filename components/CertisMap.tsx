@@ -1,8 +1,9 @@
 // ========================================
-// components/CertisMap.tsx — Phase A.30 Hotfix
-// ✅ Fix TypeScript error in onRetailerSummary
-// ✅ Restore Category line in popups
-// ✅ Confirm Channel Summary callback
+// components/CertisMap.tsx — Phase D Final (Gold Baseline + UI Enhancements)
+// ✅ White borders on non-Kingpin markers
+// ✅ Kingpins hidden until a state is selected
+// ✅ Blue-Home icon appears immediately on ZIP set
+// ✅ Pointer-cursor logic intact
 // ========================================
 "use client";
 
@@ -208,7 +209,6 @@ export default function CertisMap({
           return { retailer: r, count: subset.length, suppliers, states: statesSet };
         });
 
-        // ✅ Explicitly type-cast summary to silence TS
         onRetailerSummary?.(
           summaries as {
             retailer: string;
@@ -234,7 +234,7 @@ export default function CertisMap({
           source: "retailers",
           paint: {
             "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 2, 9, 5],
-            "circle-stroke-width": 1.2,
+            "circle-stroke-width": 2,
             "circle-stroke-color": "#FFFFFF",
             "circle-color": categoryColors.Agronomy.color,
           },
@@ -317,11 +317,29 @@ export default function CertisMap({
   }, [geojsonPath]);
 
   // ========================================
-  // 🏠 ROUTE + HOME MARKER
+  // 🏠 ROUTE + HOME MARKER (immediate render)
   // ========================================
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+
+    // 🏠 Blue-Home icon (always render when coords provided)
+    if (homeCoords) {
+      homeMarkerRef.current?.remove();
+      const el = document.createElement("div");
+      const img = document.createElement("img");
+      img.src = `${basePath}/icons/Blue-Home.png`;
+      img.alt = "Home";
+      img.style.width = "32px";
+      img.style.height = "32px";
+      img.style.objectFit = "contain";
+      img.style.cursor = "pointer";
+      el.appendChild(img);
+      homeMarkerRef.current = new mapboxgl.Marker(el)
+        .setLngLat(homeCoords)
+        .setPopup(new mapboxgl.Popup().setText("Home"))
+        .addTo(map);
+    }
 
     async function drawRoute() {
       const coords = tripStops.map((s) => s.coords);
@@ -366,29 +384,11 @@ export default function CertisMap({
       onExportLinksReady?.({ google, apple });
     }
 
-    // 🏠 Blue-Home icon (static)
-    if (homeCoords) {
-      homeMarkerRef.current?.remove();
-      const el = document.createElement("div");
-      const img = document.createElement("img");
-      img.src = `${basePath}/icons/Blue-Home.png`;
-      img.alt = "Home";
-      img.style.width = "32px";
-      img.style.height = "32px";
-      img.style.objectFit = "contain";
-      img.style.cursor = "pointer";
-      el.appendChild(img);
-      homeMarkerRef.current = new mapboxgl.Marker(el)
-        .setLngLat(homeCoords)
-        .setPopup(new mapboxgl.Popup().setText("Home"))
-        .addTo(map);
-    }
-
     drawRoute();
   }, [tripStops, tripMode, homeCoords]);
 
   // ========================================
-  // 🧩 FILTERING (Retailer + Kingpin)
+  // 🧩 FILTERING (Retailer + Kingpin visibility control)
   // ========================================
   useEffect(() => {
     const map = mapRef.current;
@@ -415,10 +415,8 @@ export default function CertisMap({
       const p = f.properties;
       const isKP = norm(p.DisplayCategory).includes("kingpin");
       if (!isKP) return false;
-      const sMatch =
-        !selectedStates.length ||
-        selectedStates.some((s) => norm(s) === norm(p.State || ""));
-      return sMatch;
+      if (!selectedStates.length) return false; // hide until a state is picked
+      return selectedStates.some((s) => norm(s) === norm(p.State || ""));
     });
 
     regSrc.setData({ type: "FeatureCollection", features: filteredRegular });
