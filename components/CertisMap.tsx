@@ -1,8 +1,9 @@
 // ================================================================
-// 💠 CERTIS AGROUTE “GOLD BASELINE” FILTERING LOGIC — PHASE A.23b FINAL
+// 💠 CERTIS AGROUTE “GOLD BASELINE” FILTERING LOGIC — PHASE A.23c FINAL
+//   • Adds live Channel Summary + Retailer List refresh after every filter
 //   • Client-side in-memory intersection filtering (non-destructive)
 //   • All categories normalized before filtering
-//   • “Unknown” categories reclassified → Agronomy
+//   • “Unknown” → Agronomy
 //   • Kingpins visible only if in data (no forced persistence)
 //   • Trip builder props fully restored (tripStops, tripMode, onAddStop, onOptimizedRoute)
 //   • Static export (Next 15 → output:"export")
@@ -16,10 +17,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 // ================================================================
 // 🎨 CATEGORY COLORS — Gold Parity Palette
 // ================================================================
-export const categoryColors: Record<
-  string,
-  { color: string; outline?: string }
-> = {
+export const categoryColors: Record<string, { color: string; outline?: string }> = {
   Agronomy: { color: "#4CB5FF" },
   "Grain/Feed": { color: "#FFD60A" },
   Feed: { color: "#F2B705" },
@@ -47,14 +45,11 @@ function assignDisplayCategory(cat: string): string {
     ].includes(c)
   )
     return "Agronomy";
-  if (
-    ["grain", "feed", "grain/feed", "grain feed", "grain & feed"].includes(c)
-  )
-    return "Grain/Feed";
+  if (["grain", "feed", "grain/feed", "grain feed", "grain & feed"].includes(c)) return "Grain/Feed";
   if (c.includes("office")) return "Office/Service";
   if (c.includes("distribution")) return "Distribution";
   if (c.includes("kingpin")) return "Kingpin";
-  return "Agronomy"; // default fallback (never Unknown)
+  return "Agronomy";
 }
 
 function parseSuppliers(v: any): string[] {
@@ -166,9 +161,7 @@ export default function CertisMap({
         });
 
         for (const f of valid) {
-          f.properties.DisplayCategory = assignDisplayCategory(
-            f.properties?.Category || ""
-          );
+          f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
         masterFeatures.current = valid;
 
@@ -230,7 +223,7 @@ export default function CertisMap({
         });
 
         // ================================================================
-        // 📍 POPUP BEHAVIOR (NOW WITH ACTIVE ADD-TO-TRIP HANDLER)
+        // 📍 POPUP + Add-to-Trip
         // ================================================================
         map.on("click", "retailers-layer", (e) => {
           const f = e.features?.[0];
@@ -264,7 +257,6 @@ export default function CertisMap({
             .setHTML(html)
             .addTo(map);
 
-          // ✅ Attach Add-to-Trip click listener
           const popupEl = popupRef.current?.getElement();
           if (popupEl && onAddStop) {
             const btn = popupEl.querySelector("button[id^='add-']") as HTMLButtonElement | null;
@@ -311,7 +303,7 @@ export default function CertisMap({
   }, [homeCoords]);
 
   // ================================================================
-  // 🔄 FILTERING (IN-MEMORY INTERSECTION)
+  // 🔄 FILTERING (IN-MEMORY INTERSECTION + SUMMARY REFRESH)
   // ================================================================
   useEffect(() => {
     const map = mapRef.current;
@@ -339,11 +331,46 @@ export default function CertisMap({
       return stMatch && rtMatch && ctMatch && spMatch;
     });
 
+    // Update map layer
     src.setData({
       type: "FeatureCollection",
       features: filtered.length > 0 ? filtered : masterFeatures.current,
     });
-  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
+
+    // ✅ Compute and emit summary
+    if (onRetailerSummary) {
+      const summaryMap: Record<
+        string,
+        { count: number; suppliers: Set<string>; states: Set<string>; categories: Set<string> }
+      > = {};
+
+      (filtered.length > 0 ? filtered : masterFeatures.current).forEach((f) => {
+        const p = f.properties || {};
+        const r = p.Retailer?.trim() || "Unknown";
+        if (!summaryMap[r])
+          summaryMap[r] = {
+            count: 0,
+            suppliers: new Set(),
+            states: new Set(),
+            categories: new Set(),
+          };
+        summaryMap[r].count++;
+        parseSuppliers(p.Suppliers).forEach((s) => summaryMap[r].suppliers.add(s));
+        if (p.State) summaryMap[r].states.add(p.State.trim());
+        if (p.DisplayCategory) summaryMap[r].categories.add(p.DisplayCategory);
+      });
+
+      const summaries = Object.entries(summaryMap).map(([retailer, d]) => ({
+        retailer,
+        count: d.count,
+        suppliers: Array.from(d.suppliers).sort(),
+        states: Array.from(d.states).sort(),
+        categories: Array.from(d.categories).sort(),
+      }));
+
+      onRetailerSummary(summaries);
+    }
+  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
 
   // ================================================================
   // 🧭 TRIP BUILDER
