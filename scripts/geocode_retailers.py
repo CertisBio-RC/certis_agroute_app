@@ -1,8 +1,9 @@
 ﻿# ========================================
 # geocode_retailers.py
-# Certis AgRoute Planner — Phase B: Coordinate Integrity Validation
+# Certis AgRoute Planner — Phase B: Coordinate Integrity Validation + Auto Public Sync
 # ========================================
-# Adds automatic sanity checks, east-coast filters, and anomaly reporting.
+# Adds automatic sanity checks, east-coast filters, anomaly reporting,
+# and now automatically syncs retailers.geojson to /public/data.
 # ========================================
 
 import json
@@ -17,10 +18,14 @@ import os
 # ========================================
 # CONFIGURATION
 # ========================================
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+PUBLIC_DATA_DIR = BASE_DIR / "public" / "data"
+
 INPUT_FILE = DATA_DIR / "retailers.xlsx"
 OUTPUT_XLSX = DATA_DIR / "retailers_latlong.xlsx"
 OUTPUT_GEOJSON = DATA_DIR / "retailers.geojson"
+OUTPUT_GEOJSON_PUBLIC = PUBLIC_DATA_DIR / "retailers.geojson"
 CACHE_FILE = DATA_DIR / "geocode_cache.json"
 ANOMALY_FILE = DATA_DIR / "geocode_anomalies.xlsx"
 
@@ -31,7 +36,7 @@ MIDWEST_BIAS = "-96.5,42.5"
 # ========================================
 # LOAD DATA
 # ========================================
-print("📥 Loading retailer Excel file...")
+print(f"📥 Loading retailer Excel file: {INPUT_FILE}")
 
 if not INPUT_FILE.exists():
     raise FileNotFoundError(f"❌ ERROR: Input file not found: {INPUT_FILE}")
@@ -41,8 +46,8 @@ print(f"✅ Loaded {len(df)} rows from {INPUT_FILE}")
 
 # Ensure required columns
 expected_columns = [
-    "Long Name","Retailer","Name","Address","City",
-    "State","Zip","Category","Suppliers"
+    "Long Name", "Retailer", "Name", "Address", "City",
+    "State", "Zip", "Category", "Suppliers"
 ]
 for col in expected_columns:
     if col not in df.columns:
@@ -203,7 +208,19 @@ for _, r in df.iterrows():
     })
 
 geojson = {"type": "FeatureCollection", "features": features}
+
+# Save primary GeoJSON
 with open(OUTPUT_GEOJSON, "w", encoding="utf-8") as f:
     json.dump(geojson, f, indent=2, ensure_ascii=False)
 print(f"✅ Exported {len(features)} features → {OUTPUT_GEOJSON}")
-print("🏁 Phase B complete: coordinates validated, anomalies logged, and data exported.")
+
+# Also export live copy to /public/data
+try:
+    PUBLIC_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_GEOJSON_PUBLIC, "w", encoding="utf-8") as f:
+        json.dump(geojson, f, indent=2, ensure_ascii=False)
+    print(f"🌍 Synced public dataset → {OUTPUT_GEOJSON_PUBLIC}")
+except Exception as e:
+    print(f"⚠️  Failed to write public copy: {e}")
+
+print("🏁 Phase B complete — coordinates validated, anomalies logged, and data exported.")

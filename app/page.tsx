@@ -1,7 +1,13 @@
-// app/page.tsx — Phase A.21 – Full Corrections
+// ================================================================
+// 💠 CERTIS AGRROUTE – PHASE A.23
+//   • Restores Retailer filter linkage to State selection
+//   • Re-enables Trip Builder (“Add to Trip”) routing chain
+//   • Preserves all A.22 layout/styling conventions
+// ================================================================
+
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import CertisMap, { Stop } from "@/components/CertisMap";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
@@ -9,9 +15,9 @@ import { Menu, X } from "lucide-react";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-// ========================================
-// 🔧 Helpers
-// ========================================
+// ---------------------------------------------------------------
+// 🧩 Utility Helpers
+// ---------------------------------------------------------------
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
@@ -19,21 +25,15 @@ const capitalizeState = (val: string) => (val || "").toUpperCase();
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "https://www.google.com/maps/dir/?api=1";
-
-  const formatAddress = (s: Stop) =>
+  const fmt = (s: Stop) =>
     encodeURIComponent(
-      [
-        s.address || "",
-        s.label?.match(/[A-Z]{2}/)?.[0] ? "" : s.label || "",
-      ]
+      [s.address || "", s.label?.match(/[A-Z]{2}/)?.[0] ? "" : s.label || ""]
         .filter(Boolean)
         .join(", ")
     );
-
-  const origin = formatAddress(stops[0]);
-  const destination = formatAddress(stops[stops.length - 1]);
-  const waypoints = stops.slice(1, -1).map(formatAddress).join("|");
-
+  const origin = fmt(stops[0]);
+  const destination = fmt(stops[stops.length - 1]);
+  const waypoints = stops.slice(1, -1).map(fmt).join("|");
   return `${base}&origin=${origin}&destination=${destination}${
     waypoints ? `&waypoints=${waypoints}` : ""
   }`;
@@ -42,32 +42,29 @@ function buildGoogleMapsUrl(stops: Stop[]) {
 function buildAppleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "http://maps.apple.com/?dirflg=d";
-
-  const formatAddress = (s: Stop) =>
+  const fmt = (s: Stop) =>
     encodeURIComponent(
-      [
-        s.address || "",
-        s.label?.match(/[A-Z]{2}/)?.[0] ? "" : s.label || "",
-      ]
+      [s.address || "", s.label?.match(/[A-Z]{2}/)?.[0] ? "" : s.label || ""]
         .filter(Boolean)
         .join(", ")
     );
-
-  const origin = formatAddress(stops[0]);
-  const daddr = stops.slice(1).map(formatAddress).join("+to:");
-
+  const origin = fmt(stops[0]);
+  const daddr = stops.slice(1).map(fmt).join("+to:");
   return `${base}&saddr=${origin}&daddr=${daddr}`;
 }
 
-// ========================================
+// ---------------------------------------------------------------
 // 🧭 Main Page Component
-// ========================================
+// ---------------------------------------------------------------
 export default function Page() {
-  // 🎛️ State Hooks
+  // 🎛️ Filter + UI State
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [retailerSummary, setRetailerSummary] = useState<
     { retailer: string; count: number; suppliers: string[]; states: string[] }[]
   >([]);
@@ -79,9 +76,9 @@ export default function Page() {
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
-  // ========================================
+  // ---------------------------------------------------------------
   // 🚗 Trip Handlers
-  // ========================================
+  // ---------------------------------------------------------------
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label && s.address === stop.address)) {
       setTripStops((prev) => [...prev, stop]);
@@ -101,7 +98,7 @@ export default function Page() {
         )}.json?access_token=${mapboxToken}&limit=1`
       );
       const data = await res.json();
-      if (data.features && data.features.length > 0) {
+      if (data.features?.length > 0) {
         const [lng, lat] = data.features[0].center;
         setHomeCoords([lng, lat]);
         const homeStop: Stop = {
@@ -119,9 +116,9 @@ export default function Page() {
     }
   };
 
-  // ========================================
-  // 🧭 Filters
-  // ========================================
+  // ---------------------------------------------------------------
+  // 🧭 Filter Handlers
+  // ---------------------------------------------------------------
   const handleToggleState = (state: string) => {
     const normalized = norm(state);
     setSelectedStates((prev) =>
@@ -139,27 +136,30 @@ export default function Page() {
         : [...prev, normalized]
     );
   };
-  const handleSelectAllRetailers = () => setSelectedRetailers(availableRetailers.map(norm));
+  const handleSelectAllRetailers = () => setSelectedRetailers(filteredRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
-  // ========================================
-  // 📊 Derived Summaries
-  // ========================================
+  // ---------------------------------------------------------------
+  // 📊 Derived + Filtered Lists
+  // ---------------------------------------------------------------
   const kingpinSummary = retailerSummary.filter((s) => norm(s.retailer) === "kingpin");
   const normalSummary = retailerSummary.filter((s) => norm(s.retailer) !== "kingpin");
 
-  const filteredRetailersForSummary = useMemo(() => {
+  const filteredRetailers = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
     return retailerSummary
-      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
-      .map((s) => s.retailer)
+      .filter((r) => r.states.some((st) => selectedStates.includes(norm(st))))
+      .map((r) => r.retailer)
       .filter((r, i, arr) => arr.indexOf(r) === i)
       .sort();
-  }, [availableRetailers, retailerSummary, selectedStates]);
+  }, [selectedStates, retailerSummary, availableRetailers]);
 
-  // ========================================
+  // optional: clear mismatched retailer selections when states change
+  useEffect(() => setSelectedRetailers([]), [selectedStates]);
+
+  // ---------------------------------------------------------------
   // 🧭 Render
-  // ========================================
+  // ---------------------------------------------------------------
   return (
     <div className="flex h-screen w-screen relative">
       {/* 📱 Mobile Toggle */}
@@ -187,7 +187,7 @@ export default function Page() {
           />
         </div>
 
-        {/* 🟦 Tile 1: Home ZIP */}
+        {/* 🟦 Home ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home ZIP Code</h2>
           <div className="flex space-x-2">
@@ -212,7 +212,7 @@ export default function Page() {
           )}
         </div>
 
-        {/* 🟦 Tile 2: States */}
+        {/* 🟦 States */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">States</h2>
           <div className="flex flex-wrap gap-2 mb-2">
@@ -240,7 +240,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 3: Retailers */}
+        {/* 🟦 Retailers */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Retailers</h2>
           <div className="flex flex-wrap gap-2 mb-2">
@@ -252,7 +252,7 @@ export default function Page() {
             </button>
           </div>
           <div className="max-h-40 overflow-y-auto text-sm">
-            {availableRetailers.map((retailer) => {
+            {filteredRetailers.map((retailer) => {
               const normalized = norm(retailer);
               return (
                 <label key={retailer} className="flex items-center space-x-1">
@@ -268,10 +268,9 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🟦 Tile 4: Channel Summary (Table Format) */}
+        {/* 🟦 Channel Summary */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Channel Summary</h2>
-
           {normalSummary.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">No data available.</p>
           ) : (
@@ -319,7 +318,6 @@ export default function Page() {
                     ))}
                 </tbody>
               </table>
-
               {kingpinSummary.length > 0 && (
                 <div className="mt-3 text-red-600 dark:text-red-400 text-sm">
                   <strong>Kingpins:</strong>{" "}
@@ -330,7 +328,7 @@ export default function Page() {
           )}
         </div>
 
-        {/* 🟦 Tile 5: Trip Optimization */}
+        {/* 🟦 Trip Optimization */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Trip Optimization
@@ -418,8 +416,12 @@ export default function Page() {
         <CertisMap
           selectedStates={selectedStates}
           selectedRetailers={selectedRetailers}
+          selectedCategories={selectedCategories}
+          selectedSuppliers={selectedSuppliers}
+          homeCoords={homeCoords ?? undefined}
           onStatesLoaded={setAvailableStates}
           onRetailersLoaded={setAvailableRetailers}
+          onSuppliersLoaded={setAvailableSuppliers}
           onRetailerSummary={setRetailerSummary}
           onAddStop={handleAddStop}
           tripStops={tripStops}
