@@ -1,12 +1,8 @@
 // ================================================================
-// 💠 CERTIS AGROUTE “GOLD BASELINE” FILTERING LOGIC — PHASE A.23c FINAL
-//   • Adds live Channel Summary + Retailer List refresh after every filter
-//   • Client-side in-memory intersection filtering (non-destructive)
-//   • All categories normalized before filtering
-//   • “Unknown” → Agronomy
-//   • Kingpins visible only if in data (no forced persistence)
-//   • Trip builder props fully restored (tripStops, tripMode, onAddStop, onOptimizedRoute)
-//   • Static export (Next 15 → output:"export")
+// 💠 CERTIS AGROUTE “GOLD BASELINE” FILTERING LOGIC — PHASE A.23d FINAL
+//   • Multi-retailer selection enabled (union logic)
+//   • Live Channel Summary + Retailer Sync retained
+//   • Trip builder, Kingpin colors, static export preserved
 // ================================================================
 
 "use client";
@@ -303,7 +299,7 @@ export default function CertisMap({
   }, [homeCoords]);
 
   // ================================================================
-  // 🔄 FILTERING (IN-MEMORY INTERSECTION + SUMMARY REFRESH)
+  // 🔄 FILTERING (UNION LOGIC + SUMMARY REFRESH)
   // ================================================================
   useEffect(() => {
     const map = mapRef.current;
@@ -321,7 +317,8 @@ export default function CertisMap({
       const stMatch =
         selectedStates.length === 0 || selectedStates.map(norm).includes(state);
       const rtMatch =
-        selectedRetailers.length === 0 || selectedRetailers.map(norm).includes(retailer);
+        selectedRetailers.length === 0 ||
+        selectedRetailers.some((r) => retailer === norm(r));
       const ctMatch =
         selectedCategories.length === 0 || selectedCategories.map(norm).includes(category);
       const spMatch =
@@ -331,13 +328,11 @@ export default function CertisMap({
       return stMatch && rtMatch && ctMatch && spMatch;
     });
 
-    // Update map layer
     src.setData({
       type: "FeatureCollection",
       features: filtered.length > 0 ? filtered : masterFeatures.current,
     });
 
-    // ✅ Compute and emit summary
     if (onRetailerSummary) {
       const summaryMap: Record<
         string,
