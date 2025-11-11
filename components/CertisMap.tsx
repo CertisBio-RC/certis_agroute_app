@@ -1,8 +1,8 @@
 // ================================================================
-// 💠 CERTIS AGROUTE “GOLD BASELINE” FILTERING LOGIC — PHASE A.23g FINAL
-//   • Multi-retailer selection persistence across state toggles
-//   • Fixes unwanted clearing of selectedRetailers[]
-//   • Compatible with Phase A.23f page.tsx and Gold Baseline layout
+// 💠 CERTIS AGROUTE “GOLD FINAL” — PHASE A.24
+//   • Fully persistent multi-retailer filtering architecture
+//   • Decouples React prop churn from map data filtering
+//   • Prevents clearing when toggling states or reselecting filters
 // ================================================================
 
 "use client";
@@ -128,6 +128,9 @@ export default function CertisMap({
   const masterFeatures = useRef<any[]>([]);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const homeMarker = useRef<mapboxgl.Marker | null>(null);
+  const currentVisible = useRef<any[]>([]);
+  const currentRetailers = useRef<string[]>([]);
+  const currentStates = useRef<string[]>([]);
 
   const geojsonPath = `${
     process.env.NEXT_PUBLIC_BASE_PATH || ""
@@ -151,18 +154,16 @@ export default function CertisMap({
       try {
         const res = await fetch(geojsonPath, { cache: "no-store" });
         const data = await res.json();
-
         const valid = data.features.filter((f: any) => {
           const c = f.geometry?.coordinates;
           return Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
         });
-
         for (const f of valid) {
           f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
         }
         masterFeatures.current = valid;
 
-        // Dropdown population
+        // Populate dropdowns
         const states = new Set<string>();
         const retailers = new Set<string>();
         const suppliers = new Set<string>();
@@ -176,7 +177,7 @@ export default function CertisMap({
         onRetailersLoaded?.(Array.from(retailers).sort());
         onSuppliersLoaded?.(Array.from(suppliers).sort());
 
-        // Base layer
+        // Add source + layer
         map.addSource("retailers", {
           type: "geojson",
           data: { type: "FeatureCollection", features: valid },
@@ -219,16 +220,13 @@ export default function CertisMap({
           },
         });
 
-        // ================================================================
-        // 📍 POPUP + Add-to-Trip
-        // ================================================================
+        // POPUP + Add-to-Trip
         map.on("click", "retailers-layer", (e) => {
           const f = e.features?.[0];
           if (!f) return;
           const coords = (f.geometry as any).coordinates.slice(0, 2);
           const p = f.properties || {};
           const suppliers = parseSuppliers(p.Suppliers).join(", ") || "None listed";
-
           const html = `
             <div style="font-size:13px;width:360px;background:#1a1a1a;color:#f5f5f5;
                         padding:8px;border-radius:6px;position:relative;">
@@ -247,13 +245,11 @@ export default function CertisMap({
                 <strong>Suppliers:</strong> ${suppliers}
               </div>
             </div>`;
-
           popupRef.current?.remove();
           popupRef.current = new mapboxgl.Popup({ closeButton: true, maxWidth: "none" })
             .setLngLat(coords)
             .setHTML(html)
             .addTo(map);
-
           const popupEl = popupRef.current?.getElement();
           if (popupEl && onAddStop) {
             const btn = popupEl.querySelector("button[id^='add-']") as HTMLButtonElement | null;
@@ -271,9 +267,6 @@ export default function CertisMap({
             }
           }
         });
-
-        map.on("mouseenter", "retailers-layer", () => (map.getCanvas().style.cursor = "pointer"));
-        map.on("mouseleave", "retailers-layer", () => (map.getCanvas().style.cursor = ""));
       } catch (e) {
         console.error("GeoJSON load failed:", e);
       }
@@ -300,15 +293,17 @@ export default function CertisMap({
   }, [homeCoords]);
 
   // ================================================================
-  // 🔄 FILTERING (UNION LOGIC + STABLE RETAILER PERSISTENCE)
+  // 🔄 STABLE FILTERING
   // ================================================================
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || masterFeatures.current.length === 0) return;
     const src = map.getSource("retailers") as mapboxgl.GeoJSONSource;
-    if (!src || masterFeatures.current.length === 0) return;
+    if (!src) return;
 
-    const previousFilteredRef = (map as any)._previousFilteredRef || { features: [] };
+    // persist current selections
+    if (selectedRetailers.length > 0) currentRetailers.current = [...selectedRetailers];
+    if (selectedStates.length > 0) currentStates.current = [...selectedStates];
 
     const filtered = masterFeatures.current.filter((f) => {
       const p = f.properties || {};
@@ -318,16 +313,13 @@ export default function CertisMap({
       const suppliers = parseSuppliers(p.Suppliers).map(norm);
 
       const stMatch =
-        selectedStates.length === 0 || selectedStates.map(norm).includes(state);
-
+        currentStates.current.length === 0 || currentStates.current.map(norm).includes(state);
       const rtMatch =
-        selectedRetailers.length === 0 ||
-        selectedRetailers.some((r) => retailer === norm(r));
-
+        currentRetailers.current.length === 0 ||
+        currentRetailers.current.map(norm).includes(retailer);
       const ctMatch =
         selectedCategories.length === 0 ||
         selectedCategories.map(norm).includes(category);
-
       const spMatch =
         selectedSuppliers.length === 0 ||
         selectedSuppliers.some((s) => suppliers.includes(norm(s)));
@@ -335,23 +327,15 @@ export default function CertisMap({
       return stMatch && rtMatch && ctMatch && spMatch;
     });
 
-    const output =
-      filtered.length === 0 && selectedRetailers.length > 0
-        ? previousFilteredRef.features
-        : filtered.length > 0
-        ? filtered
-        : masterFeatures.current;
-
-    src.setData({ type: "FeatureCollection", features: output });
-    (map as any)._previousFilteredRef = { features: output };
+    currentVisible.current = filtered.length > 0 ? filtered : masterFeatures.current;
+    src.setData({ type: "FeatureCollection", features: currentVisible.current });
 
     if (onRetailerSummary) {
       const summaryMap: Record<
         string,
         { count: number; suppliers: Set<string>; states: Set<string>; categories: Set<string> }
       > = {};
-
-      output.forEach((f) => {
+      currentVisible.current.forEach((f) => {
         const p = f.properties || {};
         const r = p.Retailer?.trim() || "Unknown";
         if (!summaryMap[r])
@@ -366,7 +350,6 @@ export default function CertisMap({
         if (p.State) summaryMap[r].states.add(p.State.trim());
         if (p.DisplayCategory) summaryMap[r].categories.add(p.DisplayCategory);
       });
-
       const summaries = Object.entries(summaryMap).map(([retailer, d]) => ({
         retailer,
         count: d.count,
@@ -374,10 +357,15 @@ export default function CertisMap({
         states: Array.from(d.states).sort(),
         categories: Array.from(d.categories).sort(),
       }));
-
       onRetailerSummary(summaries);
     }
-  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+    onRetailerSummary,
+  ]);
 
   // ================================================================
   // 🧭 TRIP BUILDER
