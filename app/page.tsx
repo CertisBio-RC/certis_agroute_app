@@ -1,9 +1,9 @@
 // ================================================================
-// 💠 CERTIS AGROUTE – PHASE E.4d.1 (STABLE GOLD)
-//   • Removes type violation in Stop (no icon property)
-//   • Non-destructive multi-retailer filtering persists
-//   • Home marker URL corrected for GitHub Pages
-//   • Compatible with Gold Baseline CertisMap.tsx
+// 💠 CERTIS AGROUTE – PHASE A.24.2 (GOLD FINAL)
+//   • Non-destructive persistent multi-retailer filtering
+//   • Compatible with Gold Baseline CertisMap.tsx (A.24.1)
+//   • Home ZIP marker fixed for GitHub Pages
+//   • Fully stable across State/Retailer toggles
 // ================================================================
 
 "use client";
@@ -53,7 +53,6 @@ export default function Page() {
   // 🎛️ Filter + UI State
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
-  const [allRetailers, setAllRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
@@ -78,8 +77,8 @@ export default function Page() {
       setTripStops((prev) => [...prev, stop]);
     }
   };
-  const handleRemoveStop = (i: number) =>
-    setTripStops((prev) => prev.filter((_, idx) => idx !== i));
+  const handleRemoveStop = (index: number) =>
+    setTripStops((prev) => prev.filter((_, i) => i !== index));
   const handleClearStops = () => setTripStops([]);
 
   // ✅ ZIP → Coordinates
@@ -128,8 +127,7 @@ export default function Page() {
       prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
     );
   };
-  const handleSelectAllRetailers = () =>
-    setSelectedRetailers(filteredRetailers.map(norm));
+  const handleSelectAllRetailers = () => setSelectedRetailers(filteredRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // ---------------------------------------------------------------
@@ -139,27 +137,22 @@ export default function Page() {
   const normalSummary = retailerSummary.filter((s) => norm(s.retailer) !== "kingpin");
 
   const filteredRetailers = useMemo(() => {
-    if (selectedStates.length === 0)
-      return allRetailers.length ? allRetailers : availableRetailers;
-    const retailersByState = retailerSummary
+    if (selectedStates.length === 0) return availableRetailers;
+    const filtered = retailerSummary
       .filter((r) => r.states.some((st) => selectedStates.includes(norm(st))))
       .map((r) => r.retailer);
-    return Array.from(new Set(retailersByState)).sort();
-  }, [selectedStates, retailerSummary, allRetailers, availableRetailers]);
+    return Array.from(new Set(filtered)).sort();
+  }, [selectedStates, retailerSummary, availableRetailers]);
 
-  // 🧠 Preserve valid retailer selections when states change (non-destructive)
+  // 🧠 Preserve valid retailer selections when states change (fully non-destructive)
   useEffect(() => {
-    if (availableRetailers.length && !allRetailers.length) {
-      setAllRetailers(availableRetailers);
-    }
     setSelectedRetailers((prev) => {
       const stillValid = prev.filter((r) =>
         filteredRetailers.some((fr) => norm(fr) === norm(r))
       );
-      if (selectedStates.length === 0) return allRetailers.map(norm);
-      return stillValid.length ? stillValid : [];
+      return stillValid.length ? stillValid : prev.length ? prev : filteredRetailers.map(norm);
     });
-  }, [selectedStates, filteredRetailers, availableRetailers, allRetailers]);
+  }, [filteredRetailers]);
 
   // ---------------------------------------------------------------
   // 🧭 Render
@@ -194,9 +187,7 @@ export default function Page() {
 
         {/* 🟦 Home ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Home ZIP Code
-          </h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home ZIP Code</h2>
           <div className="flex space-x-2">
             <input
               type="text"
@@ -408,8 +399,7 @@ export default function Page() {
                     href={buildGoogleMapsUrl(tripStops) || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-2 py-1 bg-green-600
-                   text-white rounded text-xs hover:bg-green-700"
+                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
                   >
                     Open in Google Maps
                   </a>
@@ -427,9 +417,7 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              No stops added yet.
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
           )}
         </div>
       </aside>

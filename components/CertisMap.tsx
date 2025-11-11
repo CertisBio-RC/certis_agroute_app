@@ -1,8 +1,9 @@
 // ================================================================
-// 💠 CERTIS AGROUTE “GOLD FINAL” — PHASE A.24
+// 💠 CERTIS AGROUTE “GOLD FINAL” — PHASE A.24.1 (STABLE)
 //   • Fully persistent multi-retailer filtering architecture
 //   • Decouples React prop churn from map data filtering
-//   • Prevents clearing when toggling states or reselecting filters
+//   • Prevents clearing when toggling states or re-selecting filters
+//   • ✅ Fixed Blue Home marker for GitHub Pages static export
 // ================================================================
 
 "use client";
@@ -274,18 +275,25 @@ export default function CertisMap({
   }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
 
   // ================================================================
-  // 🏠 HOME MARKER
+  // 🏠 HOME MARKER (Fixed for GitHub Pages / Static Export)
   // ================================================================
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     homeMarker.current?.remove();
     homeMarker.current = null;
+
     if (homeCoords && Array.isArray(homeCoords)) {
-      const el = document.createElement("img");
-      el.src = "/icons/Blue-Home.png";
-      el.style.width = "28px";
-      el.style.height = "28px";
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      const el = document.createElement("div");
+      el.className = "home-marker";
+      el.style.backgroundImage = `url(${basePath}/icons/Blue_Home.png)`;
+      el.style.backgroundSize = "contain";
+      el.style.backgroundRepeat = "no-repeat";
+      el.style.width = "30px";
+      el.style.height = "30px";
+      el.style.borderRadius = "50%";
+
       homeMarker.current = new mapboxgl.Marker({ element: el })
         .setLngLat(homeCoords as LngLatLike)
         .addTo(map);
@@ -301,7 +309,6 @@ export default function CertisMap({
     const src = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!src) return;
 
-    // persist current selections
     if (selectedRetailers.length > 0) currentRetailers.current = [...selectedRetailers];
     if (selectedStates.length > 0) currentStates.current = [...selectedStates];
 
