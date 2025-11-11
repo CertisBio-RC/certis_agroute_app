@@ -15,7 +15,7 @@
     "build:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next build",
     "export:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next export",
     "start:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next start",
-    "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages"
+    "deploy:local": "cmd /C \"\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages\""
   },
   "dependencies": {
     "@types/mapbox-gl": "^3.4.1",

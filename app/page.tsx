@@ -1,41 +1,30 @@
-// ================================================================
-// 💠 CERTIS AGROUTE – PHASE A.24.4 (GOLD TRUE BASELINE FILTERING)
-//   • Blank map on initial load
-//   • Selecting State(s) shows locations only in those states
-//   • Retailer list dynamically filters to selected states
-//   • Checking Retailer(s) filters intersection of State + Retailer
-//   • Unchecking all → blank map
-//   • Kingpins always visible
-//   • Preserves Channel Summary + Trip Builder UI
-// ================================================================
-
+// app/page.tsx
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import CertisMap, { Stop } from "@/components/CertisMap";
+import { useState, useMemo } from "react";
+import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-// ---------------------------------------------------------------
-// 🧩 Utility Helpers
-// ---------------------------------------------------------------
+// ✅ Normalizer
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
+
+// ✅ Capitalizer for state abbreviations
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
-// ---------------------------------------------------------------
-// 🌍 Map URL Builders
-// ---------------------------------------------------------------
+// ✅ Build external map URLs
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "https://www.google.com/maps/dir/?api=1";
-  const fmt = (s: Stop) =>
-    encodeURIComponent([s.address || "", s.label || ""].filter(Boolean).join(", "));
-  const origin = fmt(stops[0]);
-  const destination = fmt(stops[stops.length - 1]);
-  const waypoints = stops.slice(1, -1).map(fmt).join("|");
+  const origin = encodeURIComponent(stops[0].address);
+  const destination = encodeURIComponent(stops[stops.length - 1].address);
+  const waypoints = stops
+    .slice(1, -1)
+    .map((s) => encodeURIComponent(s.address))
+    .join("|");
   return `${base}&origin=${origin}&destination=${destination}${
     waypoints ? `&waypoints=${waypoints}` : ""
   }`;
@@ -44,48 +33,60 @@ function buildGoogleMapsUrl(stops: Stop[]) {
 function buildAppleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "http://maps.apple.com/?dirflg=d";
-  const fmt = (s: Stop) =>
-    encodeURIComponent([s.address || "", s.label || ""].filter(Boolean).join(", "));
-  const origin = fmt(stops[0]);
-  const daddr = stops.slice(1).map(fmt).join("+to:");
+  const origin = encodeURIComponent(stops[0].address);
+  const daddr = stops
+    .slice(1)
+    .map((s) => encodeURIComponent(s.address))
+    .join("+to:");
   return `${base}&saddr=${origin}&daddr=${daddr}`;
 }
 
-// ---------------------------------------------------------------
-// 🧭 Main Page Component
-// ---------------------------------------------------------------
 export default function Page() {
-  // 🎛️ Filter + UI State
+  // ========================================
+  // 🎛️ State Hooks
+  // ========================================
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
-  const [selectedStates, setSelectedStates] = useState<string[]>([]);
-  const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
+
   const [retailerSummary, setRetailerSummary] = useState<
-    { retailer: string; count: number; suppliers: string[]; states: string[] }[]
+    {
+      retailer: string;
+      count: number;
+      suppliers: string[];
+      categories: string[];
+      states: string[];
+    }[]
   >([]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // 🚗 Trip Management
+  // ✅ Trip Optimization
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
+
+  // ✅ Home Zip
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
-  // ---------------------------------------------------------------
-  // 🚗 Trip Handlers
-  // ---------------------------------------------------------------
   const handleAddStop = (stop: Stop) => {
     if (!tripStops.some((s) => s.label === stop.label && s.address === stop.address)) {
       setTripStops((prev) => [...prev, stop]);
     }
   };
-  const handleRemoveStop = (index: number) =>
+
+  const handleRemoveStop = (index: number) => {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleClearStops = () => setTripStops([]);
 
+  // ✅ Geocode ZIP → coords
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
     try {
@@ -95,7 +96,7 @@ export default function Page() {
         )}.json?access_token=${mapboxToken}&limit=1`
       );
       const data = await res.json();
-      if (data.features?.length > 0) {
+      if (data.features && data.features.length > 0) {
         const [lng, lat] = data.features[0].center;
         setHomeCoords([lng, lat]);
         const homeStop: Stop = {
@@ -113,61 +114,81 @@ export default function Page() {
     }
   };
 
-  // ---------------------------------------------------------------
-  // 🧭 Filtering Logic (Gold True Baseline)
-  // ---------------------------------------------------------------
-  // Step 1: Filter retailer list → only those in selected states
-  const filteredRetailers = useMemo(() => {
-    if (selectedStates.length === 0) return [];
-    const filtered = retailerSummary
-      .filter((r) => r.states.some((st) => selectedStates.includes(norm(st))))
-      .map((r) => r.retailer);
-    return Array.from(new Set(filtered)).sort();
-  }, [selectedStates, retailerSummary]);
-
-  // Step 2: Ensure selected retailers stay valid when states change
-  useEffect(() => {
-    setSelectedRetailers((prev) =>
-      prev.filter((r) => filteredRetailers.some((fr) => norm(fr) === norm(r)))
-    );
-  }, [filteredRetailers]);
-
-  // Step 3: If no states selected → map blank (no locations)
-  const effectiveSelectedRetailers =
-    selectedStates.length === 0
-      ? []
-      : selectedRetailers.length === 0
-      ? [] // none checked → map blank
-      : selectedRetailers;
-
-  // ---------------------------------------------------------------
-  // 🧭 Filter Handlers
-  // ---------------------------------------------------------------
-  const handleToggleState = (state: string) => {
-    const s = norm(state);
-    setSelectedStates((prev) =>
-      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+  // ========================================
+  // 🔘 Category Handlers
+  // ========================================
+  const handleToggleCategory = (category: string) => {
+    const normalized = norm(category);
+    setSelectedCategories((prev) =>
+      prev.includes(normalized) ? prev.filter((c) => c !== normalized) : [...prev, normalized]
     );
   };
+
+  const handleSelectAllCategories = () => {
+    setSelectedCategories(Object.keys(categoryColors).filter((c) => c !== "Kingpin").map(norm));
+  };
+
+  const handleClearAllCategories = () => setSelectedCategories([]);
+
+  // ========================================
+  // 🔘 State Handlers
+  // ========================================
+  const handleToggleState = (state: string) => {
+    const normalized = norm(state);
+    setSelectedStates((prev) =>
+      prev.includes(normalized) ? prev.filter((s) => s !== normalized) : [...prev, normalized]
+    );
+  };
+
   const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
-  const handleToggleRetailer = (retailer: string) => {
-    const r = norm(retailer);
-    setSelectedRetailers((prev) =>
-      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
+  // ========================================
+  // 🔘 Supplier Handlers
+  // ========================================
+  const handleToggleSupplier = (supplier: string) => {
+    setSelectedSuppliers((prev) =>
+      prev.includes(supplier) ? prev.filter((s) => s !== supplier) : [...prev, supplier]
     );
   };
-  const handleSelectAllRetailers = () =>
-    setSelectedRetailers(filteredRetailers.map(norm));
+  const handleSelectAllSuppliers = () => setSelectedSuppliers(availableSuppliers);
+  const handleClearAllSuppliers = () => setSelectedSuppliers([]);
+
+  // ========================================
+  // 🔘 Retailer Handlers
+  // ========================================
+  const handleToggleRetailer = (retailer: string) => {
+    const normalized = norm(retailer);
+    setSelectedRetailers((prev) =>
+      prev.includes(normalized) ? prev.filter((r) => r !== normalized) : [...prev, normalized]
+    );
+  };
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
-  // ---------------------------------------------------------------
-  // 🧭 Render
-  // ---------------------------------------------------------------
+  // ========================================
+  // 🟦 Derived summaries
+  // ========================================
+  const kingpinSummary = retailerSummary.filter(
+    (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
+  );
+
+  const normalSummary = retailerSummary.filter(
+    (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
+  );
+
+  // ✅ Retailers filtered by selected states (drives the list + Select All)
+  const filteredRetailersForSummary = useMemo(() => {
+    if (selectedStates.length === 0) return availableRetailers;
+    return retailerSummary
+      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
+      .map((s) => s.retailer)
+      .filter((r, i, arr) => arr.indexOf(r) === i)
+      .sort();
+  }, [availableRetailers, retailerSummary, selectedStates]);
+
   return (
     <div className="flex h-screen w-screen relative">
-      {/* 📱 Mobile Toggle */}
+      {/* 📱 Mobile Hamburger Button */}
       <button
         className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -178,9 +199,8 @@ export default function Page() {
 
       {/* 📌 Sidebar */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-[430px] bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
+        className={`fixed md:static top-0 left-0 h-full w-96 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
         {/* Logo */}
         <div className="flex items-center justify-center mb-6">
@@ -193,11 +213,9 @@ export default function Page() {
           />
         </div>
 
-        {/* 🟦 Home ZIP */}
+        {/* 🟦 Tile 1: Home Zip Code */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-            Home ZIP Code
-          </h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home Zip Code</h2>
           <div className="flex space-x-2">
             <input
               type="text"
@@ -220,7 +238,7 @@ export default function Page() {
           )}
         </div>
 
-        {/* 🟦 States */}
+        {/* 🟦 Tile 2: State Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">States</h2>
           <div className="flex flex-wrap gap-2 mb-2">
@@ -238,28 +256,28 @@ export default function Page() {
             </button>
           </div>
           <div className="grid grid-cols-3 gap-1 text-sm">
-            {availableStates.map((s) => {
-              const n = norm(s);
+            {availableStates.map((state) => {
+              const normalized = norm(state);
               return (
-                <label key={s} className="flex items-center space-x-1">
+                <label key={state} className="flex items-center space-x-1">
                   <input
                     type="checkbox"
-                    checked={selectedStates.includes(n)}
-                    onChange={() => handleToggleState(s)}
+                    checked={selectedStates.includes(normalized)}
+                    onChange={() => handleToggleState(state)}
                   />
-                  <span>{capitalizeState(s)}</span>
+                  <span>{capitalizeState(state)}</span>
                 </label>
               );
             })}
           </div>
         </div>
 
-        {/* 🟦 Retailers */}
+        {/* 🟦 Tile 3: Retailer Filter */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Retailers</h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-              onClick={handleSelectAllRetailers}
+              onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
               className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
             >
               Select All
@@ -272,87 +290,118 @@ export default function Page() {
             </button>
           </div>
           <div className="max-h-40 overflow-y-auto text-sm">
-            {filteredRetailers.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400 text-xs">
-                Select a state to see retailers.
-              </p>
-            ) : (
-              filteredRetailers.map((r) => {
-                const n = norm(r);
-                return (
-                  <label key={r} className="flex items-center space-x-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedRetailers.includes(n)}
-                      onChange={() => handleToggleRetailer(r)}
-                    />
-                    <span>{r}</span>
-                  </label>
-                );
-              })
-            )}
+            {filteredRetailersForSummary.map((retailer) => {
+              const normalized = norm(retailer);
+              return (
+                <label key={retailer} className="flex items-center space-x-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedRetailers.includes(normalized)}
+                    onChange={() => handleToggleRetailer(retailer)}
+                  />
+                  <span>{retailer}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
 
-        {/* 🟦 Channel Summary */}
+        {/* 🟦 Tile 4: Supplier Filter */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Suppliers</h2>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <button
+              onClick={handleSelectAllSuppliers}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
+              Select All
+            </button>
+            <button
+              onClick={handleClearAllSuppliers}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="max-h-40 overflow-y-auto text-sm">
+            {availableSuppliers.map((supplier) => (
+              <label key={supplier} className="flex items-center space-x-1">
+                <input
+                  type="checkbox"
+                  checked={selectedSuppliers.includes(supplier)}
+                  onChange={() => handleToggleSupplier(supplier)}
+                />
+                <span>{supplier}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* 🟦 Tile 5: Categories (Legend) */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Categories</h2>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <button
+              onClick={handleSelectAllCategories}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
+              Select All
+            </button>
+            <button
+              onClick={handleClearAllCategories}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-1 text-sm">
+            {Object.entries(categoryColors)
+              .filter(([key]) => key !== "Kingpin")
+              .map(([key, { color }]) => (
+                <label key={key} className="flex items-center space-x-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(norm(key))}
+                    onChange={() => handleToggleCategory(key)}
+                  />
+                  <span className="flex items-center">
+                    <span
+                      className="inline-block w-3 h-3 rounded-full mr-1"
+                      style={{ backgroundColor: color }}
+                    ></span>
+                    {key}
+                  </span>
+                </label>
+              ))}
+          </div>
+        </div>
+
+        {/* 🟦 Tile 6: Channel Summary */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Channel Summary
           </h2>
-          {retailerSummary.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No data available.</p>
-          ) : (
-            <div className="max-h-64 overflow-y-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                    <th className="text-left py-2 px-3 border-b border-gray-300 dark:border-gray-600">
-                      Retailer
-                    </th>
-                    <th className="text-left py-2 px-3 border-b border-gray-300 dark:border-gray-600">
-                      State(s)
-                    </th>
-                    <th className="text-left py-2 px-3 border-b border-gray-300 dark:border-gray-600">
-                      # Sites
-                    </th>
-                    <th className="text-left py-2 px-3 border-b border-gray-300 dark:border-gray-600">
-                      Suppliers
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...retailerSummary]
-                    .sort((a, b) => a.retailer.localeCompare(b.retailer))
-                    .map((s, i) => (
-                      <tr
-                        key={s.retailer}
-                        className={`${
-                          i % 2 === 0
-                            ? "bg-gray-50 dark:bg-gray-900/40"
-                            : "bg-white/70 dark:bg-gray-800/40"
-                        } hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors`}
-                      >
-                        <td className="py-2 px-3 font-semibold text-gray-900 dark:text-white">
-                          {s.retailer}
-                        </td>
-                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">
-                          {s.states.map(capitalizeState).join(", ") || "—"}
-                        </td>
-                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">
-                          {s.count}
-                        </td>
-                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300 truncate">
-                          {s.suppliers.length ? s.suppliers.join(", ") : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="text-sm text-gray-700 dark:text-gray-300 max-h-40 overflow-y-auto">
+            {normalSummary.map((s, i) => (
+              <div key={i} className="mb-2">
+                <strong>
+                  {s.retailer} ({s.states.map(capitalizeState).join(", ")})
+                </strong>{" "}
+                ({s.count} sites) <br />
+                Suppliers: {s.suppliers.join(", ") || "N/A"} <br />
+                Categories: {s.categories.join(", ") || "N/A"}
+              </div>
+            ))}
+            {kingpinSummary.length > 0 && (
+              <div className="mt-2 text-red-600 dark:text-red-400">
+                <strong>Kingpins:</strong>{" "}
+                {kingpinSummary.map((s) => s.retailer).join(", ")}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* 🟦 Trip Optimization */}
+        {/* 🟦 Tile 7: Trip Optimization */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Trip Optimization
@@ -406,11 +455,6 @@ export default function Page() {
                   className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
                 >
                   Clear All
-                <button
-                  onClick={handleClearStops}
-                  className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
-                >
-                  Clear All
                 </button>
                 {buildGoogleMapsUrl(tripStops) && (
                   <a
@@ -445,11 +489,10 @@ export default function Page() {
       {/* 🗺️ Map Area */}
       <main className="flex-1 relative">
         <CertisMap
-          selectedStates={selectedStates}
-          selectedRetailers={effectiveSelectedRetailers}
           selectedCategories={selectedCategories}
+          selectedStates={selectedStates}
           selectedSuppliers={selectedSuppliers}
-          homeCoords={homeCoords ?? undefined}
+          selectedRetailers={selectedRetailers}
           onStatesLoaded={setAvailableStates}
           onRetailersLoaded={setAvailableRetailers}
           onSuppliersLoaded={setAvailableSuppliers}

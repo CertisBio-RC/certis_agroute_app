@@ -1,9 +1,9 @@
 // ================================================================
-// 💠 CERTIS AGROUTE “GOLD FINAL” — PHASE A.24.1 (STABLE)
-//   • Fully persistent multi-retailer filtering architecture
-//   • Decouples React prop churn from map data filtering
-//   • Prevents clearing when toggling states or re-selecting filters
-//   • ✅ Fixed Blue Home marker for GitHub Pages static export
+// 💠 CERTIS AGROUTE “GOLD FINAL” — PHASE A.24.5
+//   • True intersection-based multi-retailer filtering
+//   • Non-destructive synchronization of state/retailer selections
+//   • Blank-map logic when all filters cleared
+//   • ✅ Stable Blue Home marker for GitHub Pages static export
 // ================================================================
 
 "use client";
@@ -129,9 +129,6 @@ export default function CertisMap({
   const masterFeatures = useRef<any[]>([]);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const homeMarker = useRef<mapboxgl.Marker | null>(null);
-  const currentVisible = useRef<any[]>([]);
-  const currentRetailers = useRef<string[]>([]);
-  const currentStates = useRef<string[]>([]);
 
   const geojsonPath = `${
     process.env.NEXT_PUBLIC_BASE_PATH || ""
@@ -301,7 +298,7 @@ export default function CertisMap({
   }, [homeCoords]);
 
   // ================================================================
-  // 🔄 STABLE FILTERING
+  // 🔄 STABLE FILTERING (Fixed intersection logic)
   // ================================================================
   useEffect(() => {
     const map = mapRef.current;
@@ -309,8 +306,8 @@ export default function CertisMap({
     const src = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!src) return;
 
-    if (selectedRetailers.length > 0) currentRetailers.current = [...selectedRetailers];
-    if (selectedStates.length > 0) currentStates.current = [...selectedStates];
+    const currentStates = [...selectedStates];
+    const currentRetailers = [...selectedRetailers];
 
     const filtered = masterFeatures.current.filter((f) => {
       const p = f.properties || {};
@@ -320,10 +317,9 @@ export default function CertisMap({
       const suppliers = parseSuppliers(p.Suppliers).map(norm);
 
       const stMatch =
-        currentStates.current.length === 0 || currentStates.current.map(norm).includes(state);
+        currentStates.length === 0 || currentStates.map(norm).includes(state);
       const rtMatch =
-        currentRetailers.current.length === 0 ||
-        currentRetailers.current.map(norm).includes(retailer);
+        currentRetailers.length === 0 || currentRetailers.map(norm).includes(retailer);
       const ctMatch =
         selectedCategories.length === 0 ||
         selectedCategories.map(norm).includes(category);
@@ -334,15 +330,14 @@ export default function CertisMap({
       return stMatch && rtMatch && ctMatch && spMatch;
     });
 
-    currentVisible.current = filtered.length > 0 ? filtered : masterFeatures.current;
-    src.setData({ type: "FeatureCollection", features: currentVisible.current });
+    src.setData({ type: "FeatureCollection", features: filtered });
 
     if (onRetailerSummary) {
       const summaryMap: Record<
         string,
         { count: number; suppliers: Set<string>; states: Set<string>; categories: Set<string> }
       > = {};
-      currentVisible.current.forEach((f) => {
+      filtered.forEach((f) => {
         const p = f.properties || {};
         const r = p.Retailer?.trim() || "Unknown";
         if (!summaryMap[r])
