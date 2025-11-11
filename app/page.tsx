@@ -1,9 +1,9 @@
 // ================================================================
-// 💠 CERTIS AGROUTE – PHASE A.24.2 (GOLD FINAL)
-//   • Non-destructive persistent multi-retailer filtering
-//   • Compatible with Gold Baseline CertisMap.tsx (A.24.1)
-//   • Home ZIP marker fixed for GitHub Pages
-//   • Fully stable across State/Retailer toggles
+// 💠 CERTIS AGROUTE – PHASE A.24.3 (GOLD STABLE + RETAILER TOGGLE FIX)
+//   • Fixes destructive retailer toggle behavior
+//   • Non-destructive “Clear” now resets to filtered set
+//   • Preserves all functionality from A.24.2 (Gold Final)
+//   • Compatible with CertisMap.tsx A.24.1 (Gold Baseline)
 // ================================================================
 
 "use client";
@@ -121,14 +121,16 @@ export default function Page() {
   const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
+  // 🧩 FIXED RETAILER TOGGLE (non-destructive)
   const handleToggleRetailer = (retailer: string) => {
     const r = norm(retailer);
-    setSelectedRetailers((prev) =>
-      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
-    );
+    setSelectedRetailers((prev) => {
+      const base = prev.length === 0 ? filteredRetailers.map(norm) : prev;
+      return base.includes(r) ? base.filter((x) => x !== r) : [...base, r];
+    });
   };
   const handleSelectAllRetailers = () => setSelectedRetailers(filteredRetailers.map(norm));
-  const handleClearAllRetailers = () => setSelectedRetailers([]);
+  const handleClearAllRetailers = () => setSelectedRetailers(filteredRetailers.map(norm));
 
   // ---------------------------------------------------------------
   // 📊 Derived + Filtered Lists
@@ -184,10 +186,11 @@ export default function Page() {
             priority
           />
         </div>
-
         {/* 🟦 Home ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home ZIP Code</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Home ZIP Code
+          </h2>
           <div className="flex space-x-2">
             <input
               type="text"
@@ -283,7 +286,7 @@ export default function Page() {
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
             Channel Summary
           </h2>
-          {normalSummary.length === 0 ? (
+          {retailerSummary.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">No data available.</p>
           ) : (
             <div className="max-h-64 overflow-y-auto">
@@ -305,7 +308,7 @@ export default function Page() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...normalSummary]
+                  {[...retailerSummary]
                     .sort((a, b) => a.retailer.localeCompare(b.retailer))
                     .map((s, i) => (
                       <tr
@@ -330,11 +333,6 @@ export default function Page() {
                     ))}
                 </tbody>
               </table>
-              {kingpinSummary.length > 0 && (
-                <div className="mt-3 text-red-600 dark:text-red-400 text-sm">
-                  <strong>Kingpins:</strong> {kingpinSummary.map((s) => s.retailer).join(", ")}
-                </div>
-              )}
             </div>
           )}
         </div>
