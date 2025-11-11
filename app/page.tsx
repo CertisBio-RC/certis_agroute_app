@@ -1,7 +1,8 @@
 // ================================================================
-// 💠 CERTIS AGRROUTE – PHASE A.23f-GOLD FINAL
-//   • Multi-retailer selection persists across State toggles
-//   • Fixes unwanted clearing of selectedRetailers[]
+// 💠 CERTIS AGROUTE – PHASE E.4d.1 (STABLE GOLD)
+//   • Removes type violation in Stop (no icon property)
+//   • Non-destructive multi-retailer filtering persists
+//   • Home marker URL corrected for GitHub Pages
 //   • Compatible with Gold Baseline CertisMap.tsx
 // ================================================================
 
@@ -26,11 +27,7 @@ function buildGoogleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "https://www.google.com/maps/dir/?api=1";
   const fmt = (s: Stop) =>
-    encodeURIComponent(
-      [s.address || "", s.label?.match(/[A-Z]{2}/)?.[0] ? "" : s.label || ""]
-        .filter(Boolean)
-        .join(", ")
-    );
+    encodeURIComponent([s.address || "", s.label || ""].filter(Boolean).join(", "));
   const origin = fmt(stops[0]);
   const destination = fmt(stops[stops.length - 1]);
   const waypoints = stops.slice(1, -1).map(fmt).join("|");
@@ -43,11 +40,7 @@ function buildAppleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "http://maps.apple.com/?dirflg=d";
   const fmt = (s: Stop) =>
-    encodeURIComponent(
-      [s.address || "", s.label?.match(/[A-Z]{2}/)?.[0] ? "" : s.label || ""]
-        .filter(Boolean)
-        .join(", ")
-    );
+    encodeURIComponent([s.address || "", s.label || ""].filter(Boolean).join(", "));
   const origin = fmt(stops[0]);
   const daddr = stops.slice(1).map(fmt).join("+to:");
   return `${base}&saddr=${origin}&daddr=${daddr}`;
@@ -60,6 +53,7 @@ export default function Page() {
   // 🎛️ Filter + UI State
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
+  const [allRetailers, setAllRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
@@ -84,8 +78,8 @@ export default function Page() {
       setTripStops((prev) => [...prev, stop]);
     }
   };
-  const handleRemoveStop = (index: number) =>
-    setTripStops((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveStop = (i: number) =>
+    setTripStops((prev) => prev.filter((_, idx) => idx !== i));
   const handleClearStops = () => setTripStops([]);
 
   // ✅ ZIP → Coordinates
@@ -120,25 +114,22 @@ export default function Page() {
   // 🧭 Filter Handlers
   // ---------------------------------------------------------------
   const handleToggleState = (state: string) => {
-    const normalized = norm(state);
+    const s = norm(state);
     setSelectedStates((prev) =>
-      prev.includes(normalized)
-        ? prev.filter((s) => s !== normalized)
-        : [...prev, normalized]
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
     );
   };
   const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
   const handleToggleRetailer = (retailer: string) => {
-    const normalized = norm(retailer);
+    const r = norm(retailer);
     setSelectedRetailers((prev) =>
-      prev.includes(normalized)
-        ? prev.filter((r) => r !== normalized)
-        : [...prev, normalized]
+      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
     );
   };
-  const handleSelectAllRetailers = () => setSelectedRetailers(filteredRetailers.map(norm));
+  const handleSelectAllRetailers = () =>
+    setSelectedRetailers(filteredRetailers.map(norm));
   const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // ---------------------------------------------------------------
@@ -148,26 +139,27 @@ export default function Page() {
   const normalSummary = retailerSummary.filter((s) => norm(s.retailer) !== "kingpin");
 
   const filteredRetailers = useMemo(() => {
-    if (selectedStates.length === 0) return availableRetailers;
-    return retailerSummary
+    if (selectedStates.length === 0)
+      return allRetailers.length ? allRetailers : availableRetailers;
+    const retailersByState = retailerSummary
       .filter((r) => r.states.some((st) => selectedStates.includes(norm(st))))
-      .map((r) => r.retailer)
-      .filter((r, i, arr) => arr.indexOf(r) === i)
-      .sort();
-  }, [selectedStates, retailerSummary, availableRetailers]);
+      .map((r) => r.retailer);
+    return Array.from(new Set(retailersByState)).sort();
+  }, [selectedStates, retailerSummary, allRetailers, availableRetailers]);
 
-  // 🧠 Preserve valid retailer selections when states change
+  // 🧠 Preserve valid retailer selections when states change (non-destructive)
   useEffect(() => {
+    if (availableRetailers.length && !allRetailers.length) {
+      setAllRetailers(availableRetailers);
+    }
     setSelectedRetailers((prev) => {
-      const valid = prev.filter((r) =>
+      const stillValid = prev.filter((r) =>
         filteredRetailers.some((fr) => norm(fr) === norm(r))
       );
-      if (valid.length === 0 && selectedStates.length === 0) {
-        return availableRetailers.map(norm);
-      }
-      return valid;
+      if (selectedStates.length === 0) return allRetailers.map(norm);
+      return stillValid.length ? stillValid : [];
     });
-  }, [selectedStates, filteredRetailers, availableRetailers]);
+  }, [selectedStates, filteredRetailers, availableRetailers, allRetailers]);
 
   // ---------------------------------------------------------------
   // 🧭 Render
@@ -202,7 +194,9 @@ export default function Page() {
 
         {/* 🟦 Home ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home ZIP Code</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Home ZIP Code
+          </h2>
           <div className="flex space-x-2">
             <input
               type="text"
@@ -243,16 +237,16 @@ export default function Page() {
             </button>
           </div>
           <div className="grid grid-cols-3 gap-1 text-sm">
-            {availableStates.map((state) => {
-              const normalized = norm(state);
+            {availableStates.map((s) => {
+              const n = norm(s);
               return (
-                <label key={state} className="flex items-center space-x-1">
+                <label key={s} className="flex items-center space-x-1">
                   <input
                     type="checkbox"
-                    checked={selectedStates.includes(normalized)}
-                    onChange={() => handleToggleState(state)}
+                    checked={selectedStates.includes(n)}
+                    onChange={() => handleToggleState(s)}
                   />
-                  <span>{capitalizeState(state)}</span>
+                  <span>{capitalizeState(s)}</span>
                 </label>
               );
             })}
@@ -277,16 +271,16 @@ export default function Page() {
             </button>
           </div>
           <div className="max-h-40 overflow-y-auto text-sm">
-            {filteredRetailers.map((retailer) => {
-              const normalized = norm(retailer);
+            {filteredRetailers.map((r) => {
+              const n = norm(r);
               return (
-                <label key={retailer} className="flex items-center space-x-1">
+                <label key={r} className="flex items-center space-x-1">
                   <input
                     type="checkbox"
-                    checked={selectedRetailers.includes(normalized)}
-                    onChange={() => handleToggleRetailer(retailer)}
+                    checked={selectedRetailers.includes(n)}
+                    onChange={() => handleToggleRetailer(r)}
                   />
-                  <span>{retailer}</span>
+                  <span>{r}</span>
                 </label>
               );
             })}
@@ -322,11 +316,11 @@ export default function Page() {
                 <tbody>
                   {[...normalSummary]
                     .sort((a, b) => a.retailer.localeCompare(b.retailer))
-                    .map((s, idx) => (
+                    .map((s, i) => (
                       <tr
                         key={s.retailer}
                         className={`${
-                          idx % 2 === 0
+                          i % 2 === 0
                             ? "bg-gray-50 dark:bg-gray-900/40"
                             : "bg-white/70 dark:bg-gray-800/40"
                         } hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors`}
@@ -347,8 +341,7 @@ export default function Page() {
               </table>
               {kingpinSummary.length > 0 && (
                 <div className="mt-3 text-red-600 dark:text-red-400 text-sm">
-                  <strong>Kingpins:</strong>{" "}
-                  {kingpinSummary.map((s) => s.retailer).join(", ")}
+                  <strong>Kingpins:</strong> {kingpinSummary.map((s) => s.retailer).join(", ")}
                 </div>
               )}
             </div>
@@ -415,7 +408,8 @@ export default function Page() {
                     href={buildGoogleMapsUrl(tripStops) || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                    className="px-2 py-1 bg-green-600
+                   text-white rounded text-xs hover:bg-green-700"
                   >
                     Open in Google Maps
                   </a>
@@ -433,7 +427,9 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No stops added yet.
+            </p>
           )}
         </div>
       </aside>
