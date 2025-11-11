@@ -1,8 +1,8 @@
 // ================================================================
-// 💠 CERTIS AGROUTE “GOLD BASELINE” FILTERING LOGIC — PHASE A.23d FINAL
-//   • Multi-retailer selection enabled (union logic)
-//   • Live Channel Summary + Retailer Sync retained
-//   • Trip builder, Kingpin colors, static export preserved
+// 💠 CERTIS AGROUTE “GOLD BASELINE” FILTERING LOGIC — PHASE A.23g FINAL
+//   • Multi-retailer selection persistence across state toggles
+//   • Fixes unwanted clearing of selectedRetailers[]
+//   • Compatible with Phase A.23f page.tsx and Gold Baseline layout
 // ================================================================
 
 "use client";
@@ -41,7 +41,8 @@ function assignDisplayCategory(cat: string): string {
     ].includes(c)
   )
     return "Agronomy";
-  if (["grain", "feed", "grain/feed", "grain feed", "grain & feed"].includes(c)) return "Grain/Feed";
+  if (["grain", "feed", "grain/feed", "grain feed", "grain & feed"].includes(c))
+    return "Grain/Feed";
   if (c.includes("office")) return "Office/Service";
   if (c.includes("distribution")) return "Distribution";
   if (c.includes("kingpin")) return "Kingpin";
@@ -299,13 +300,15 @@ export default function CertisMap({
   }, [homeCoords]);
 
   // ================================================================
-  // 🔄 FILTERING (UNION LOGIC + SUMMARY REFRESH)
+  // 🔄 FILTERING (UNION LOGIC + STABLE RETAILER PERSISTENCE)
   // ================================================================
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const src = map.getSource("retailers") as mapboxgl.GeoJSONSource;
     if (!src || masterFeatures.current.length === 0) return;
+
+    const previousFilteredRef = (map as any)._previousFilteredRef || { features: [] };
 
     const filtered = masterFeatures.current.filter((f) => {
       const p = f.properties || {};
@@ -316,11 +319,15 @@ export default function CertisMap({
 
       const stMatch =
         selectedStates.length === 0 || selectedStates.map(norm).includes(state);
+
       const rtMatch =
         selectedRetailers.length === 0 ||
         selectedRetailers.some((r) => retailer === norm(r));
+
       const ctMatch =
-        selectedCategories.length === 0 || selectedCategories.map(norm).includes(category);
+        selectedCategories.length === 0 ||
+        selectedCategories.map(norm).includes(category);
+
       const spMatch =
         selectedSuppliers.length === 0 ||
         selectedSuppliers.some((s) => suppliers.includes(norm(s)));
@@ -328,10 +335,15 @@ export default function CertisMap({
       return stMatch && rtMatch && ctMatch && spMatch;
     });
 
-    src.setData({
-      type: "FeatureCollection",
-      features: filtered.length > 0 ? filtered : masterFeatures.current,
-    });
+    const output =
+      filtered.length === 0 && selectedRetailers.length > 0
+        ? previousFilteredRef.features
+        : filtered.length > 0
+        ? filtered
+        : masterFeatures.current;
+
+    src.setData({ type: "FeatureCollection", features: output });
+    (map as any)._previousFilteredRef = { features: output };
 
     if (onRetailerSummary) {
       const summaryMap: Record<
@@ -339,7 +351,7 @@ export default function CertisMap({
         { count: number; suppliers: Set<string>; states: Set<string>; categories: Set<string> }
       > = {};
 
-      (filtered.length > 0 ? filtered : masterFeatures.current).forEach((f) => {
+      output.forEach((f) => {
         const p = f.properties || {};
         const r = p.Retailer?.trim() || "Unknown";
         if (!summaryMap[r])
@@ -376,5 +388,13 @@ export default function CertisMap({
     }
   }, [tripMode, tripStops, onOptimizedRoute]);
 
-  return <div ref={mapContainer} className="w-full h-full border-t border-gray-400" />;
+  // ================================================================
+  // ✅ FINAL RETURN (MAP CONTAINER)
+  // ================================================================
+  return (
+    <div
+      ref={mapContainer}
+      className="w-full h-full border-t border-gray-400 cursor-crosshair"
+    />
+  );
 }
