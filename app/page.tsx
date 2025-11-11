@@ -1,8 +1,8 @@
 // ================================================================
-// 💠 CERTIS AGRROUTE – PHASE A.23
-//   • Restores Retailer filter linkage to State selection
-//   • Re-enables Trip Builder (“Add to Trip”) routing chain
-//   • Preserves all A.22 layout/styling conventions
+// 💠 CERTIS AGRROUTE – PHASE A.23f-GOLD FINAL
+//   • Multi-retailer selection persists across State toggles
+//   • Fixes unwanted clearing of selectedRetailers[]
+//   • Compatible with Gold Baseline CertisMap.tsx
 // ================================================================
 
 "use client";
@@ -122,7 +122,9 @@ export default function Page() {
   const handleToggleState = (state: string) => {
     const normalized = norm(state);
     setSelectedStates((prev) =>
-      prev.includes(normalized) ? prev.filter((s) => s !== normalized) : [...prev, normalized]
+      prev.includes(normalized)
+        ? prev.filter((s) => s !== normalized)
+        : [...prev, normalized]
     );
   };
   const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
@@ -154,8 +156,18 @@ export default function Page() {
       .sort();
   }, [selectedStates, retailerSummary, availableRetailers]);
 
-  // optional: clear mismatched retailer selections when states change
-  useEffect(() => setSelectedRetailers([]), [selectedStates]);
+  // 🧠 Preserve valid retailer selections when states change
+  useEffect(() => {
+    setSelectedRetailers((prev) => {
+      const valid = prev.filter((r) =>
+        filteredRetailers.some((fr) => norm(fr) === norm(r))
+      );
+      if (valid.length === 0 && selectedStates.length === 0) {
+        return availableRetailers.map(norm);
+      }
+      return valid;
+    });
+  }, [selectedStates, filteredRetailers, availableRetailers]);
 
   // ---------------------------------------------------------------
   // 🧭 Render
@@ -173,8 +185,9 @@ export default function Page() {
 
       {/* 📌 Sidebar */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-[430px] bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+        className={`fixed md:static top-0 left-0 h-full w-[430px] bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0`}
       >
         {/* Logo */}
         <div className="flex items-center justify-center mb-6">
@@ -216,10 +229,16 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">States</h2>
           <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={handleSelectAllStates} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
+            <button
+              onClick={handleSelectAllStates}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
               Select All
             </button>
-            <button onClick={handleClearAllStates} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
+            <button
+              onClick={handleClearAllStates}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
               Clear
             </button>
           </div>
@@ -244,10 +263,16 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Retailers</h2>
           <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={handleSelectAllRetailers} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
+            <button
+              onClick={handleSelectAllRetailers}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
               Select All
             </button>
-            <button onClick={handleClearAllRetailers} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
+            <button
+              onClick={handleClearAllRetailers}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
               Clear
             </button>
           </div>
@@ -270,7 +295,9 @@ export default function Page() {
 
         {/* 🟦 Channel Summary */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Channel Summary</h2>
+          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+            Channel Summary
+          </h2>
           {normalSummary.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">No data available.</p>
           ) : (
