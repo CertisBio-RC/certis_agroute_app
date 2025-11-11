@@ -1,9 +1,12 @@
 // ================================================================
-// 💠 CERTIS AGROUTE – PHASE A.24.3 (GOLD STABLE + RETAILER TOGGLE FIX)
-//   • Fixes destructive retailer toggle behavior
-//   • Non-destructive “Clear” now resets to filtered set
-//   • Preserves all functionality from A.24.2 (Gold Final)
-//   • Compatible with CertisMap.tsx A.24.1 (Gold Baseline)
+// 💠 CERTIS AGROUTE – PHASE A.24.4 (GOLD TRUE BASELINE FILTERING)
+//   • Blank map on initial load
+//   • Selecting State(s) shows locations only in those states
+//   • Retailer list dynamically filters to selected states
+//   • Checking Retailer(s) filters intersection of State + Retailer
+//   • Unchecking all → blank map
+//   • Kingpins always visible
+//   • Preserves Channel Summary + Trip Builder UI
 // ================================================================
 
 "use client";
@@ -22,7 +25,9 @@ const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
-// ✅ Map URL Builders
+// ---------------------------------------------------------------
+// 🌍 Map URL Builders
+// ---------------------------------------------------------------
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "https://www.google.com/maps/dir/?api=1";
@@ -81,7 +86,6 @@ export default function Page() {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
   const handleClearStops = () => setTripStops([]);
 
-  // ✅ ZIP → Coordinates
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
     try {
@@ -110,6 +114,33 @@ export default function Page() {
   };
 
   // ---------------------------------------------------------------
+  // 🧭 Filtering Logic (Gold True Baseline)
+  // ---------------------------------------------------------------
+  // Step 1: Filter retailer list → only those in selected states
+  const filteredRetailers = useMemo(() => {
+    if (selectedStates.length === 0) return [];
+    const filtered = retailerSummary
+      .filter((r) => r.states.some((st) => selectedStates.includes(norm(st))))
+      .map((r) => r.retailer);
+    return Array.from(new Set(filtered)).sort();
+  }, [selectedStates, retailerSummary]);
+
+  // Step 2: Ensure selected retailers stay valid when states change
+  useEffect(() => {
+    setSelectedRetailers((prev) =>
+      prev.filter((r) => filteredRetailers.some((fr) => norm(fr) === norm(r)))
+    );
+  }, [filteredRetailers]);
+
+  // Step 3: If no states selected → map blank (no locations)
+  const effectiveSelectedRetailers =
+    selectedStates.length === 0
+      ? []
+      : selectedRetailers.length === 0
+      ? [] // none checked → map blank
+      : selectedRetailers;
+
+  // ---------------------------------------------------------------
   // 🧭 Filter Handlers
   // ---------------------------------------------------------------
   const handleToggleState = (state: string) => {
@@ -121,40 +152,15 @@ export default function Page() {
   const handleSelectAllStates = () => setSelectedStates(availableStates.map(norm));
   const handleClearAllStates = () => setSelectedStates([]);
 
-  // 🧩 FIXED RETAILER TOGGLE (non-destructive)
   const handleToggleRetailer = (retailer: string) => {
     const r = norm(retailer);
-    setSelectedRetailers((prev) => {
-      const base = prev.length === 0 ? filteredRetailers.map(norm) : prev;
-      return base.includes(r) ? base.filter((x) => x !== r) : [...base, r];
-    });
+    setSelectedRetailers((prev) =>
+      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
+    );
   };
-  const handleSelectAllRetailers = () => setSelectedRetailers(filteredRetailers.map(norm));
-  const handleClearAllRetailers = () => setSelectedRetailers(filteredRetailers.map(norm));
-
-  // ---------------------------------------------------------------
-  // 📊 Derived + Filtered Lists
-  // ---------------------------------------------------------------
-  const kingpinSummary = retailerSummary.filter((s) => norm(s.retailer) === "kingpin");
-  const normalSummary = retailerSummary.filter((s) => norm(s.retailer) !== "kingpin");
-
-  const filteredRetailers = useMemo(() => {
-    if (selectedStates.length === 0) return availableRetailers;
-    const filtered = retailerSummary
-      .filter((r) => r.states.some((st) => selectedStates.includes(norm(st))))
-      .map((r) => r.retailer);
-    return Array.from(new Set(filtered)).sort();
-  }, [selectedStates, retailerSummary, availableRetailers]);
-
-  // 🧠 Preserve valid retailer selections when states change (fully non-destructive)
-  useEffect(() => {
-    setSelectedRetailers((prev) => {
-      const stillValid = prev.filter((r) =>
-        filteredRetailers.some((fr) => norm(fr) === norm(r))
-      );
-      return stillValid.length ? stillValid : prev.length ? prev : filteredRetailers.map(norm);
-    });
-  }, [filteredRetailers]);
+  const handleSelectAllRetailers = () =>
+    setSelectedRetailers(filteredRetailers.map(norm));
+  const handleClearAllRetailers = () => setSelectedRetailers([]);
 
   // ---------------------------------------------------------------
   // 🧭 Render
@@ -186,6 +192,7 @@ export default function Page() {
             priority
           />
         </div>
+
         {/* 🟦 Home ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
@@ -265,19 +272,25 @@ export default function Page() {
             </button>
           </div>
           <div className="max-h-40 overflow-y-auto text-sm">
-            {filteredRetailers.map((r) => {
-              const n = norm(r);
-              return (
-                <label key={r} className="flex items-center space-x-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedRetailers.includes(n)}
-                    onChange={() => handleToggleRetailer(r)}
-                  />
-                  <span>{r}</span>
-                </label>
-              );
-            })}
+            {filteredRetailers.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-xs">
+                Select a state to see retailers.
+              </p>
+            ) : (
+              filteredRetailers.map((r) => {
+                const n = norm(r);
+                return (
+                  <label key={r} className="flex items-center space-x-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedRetailers.includes(n)}
+                      onChange={() => handleToggleRetailer(r)}
+                    />
+                    <span>{r}</span>
+                  </label>
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -325,7 +338,9 @@ export default function Page() {
                         <td className="py-2 px-3 text-gray-700 dark:text-gray-300">
                           {s.states.map(capitalizeState).join(", ") || "—"}
                         </td>
-                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">{s.count}</td>
+                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">
+                          {s.count}
+                        </td>
                         <td className="py-2 px-3 text-gray-700 dark:text-gray-300 truncate">
                           {s.suppliers.length ? s.suppliers.join(", ") : "—"}
                         </td>
@@ -391,6 +406,11 @@ export default function Page() {
                   className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
                 >
                   Clear All
+                <button
+                  onClick={handleClearStops}
+                  className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                >
+                  Clear All
                 </button>
                 {buildGoogleMapsUrl(tripStops) && (
                   <a
@@ -415,7 +435,9 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No stops added yet.
+            </p>
           )}
         </div>
       </aside>
@@ -424,7 +446,7 @@ export default function Page() {
       <main className="flex-1 relative">
         <CertisMap
           selectedStates={selectedStates}
-          selectedRetailers={selectedRetailers}
+          selectedRetailers={effectiveSelectedRetailers}
           selectedCategories={selectedCategories}
           selectedSuppliers={selectedSuppliers}
           homeCoords={homeCoords ?? undefined}

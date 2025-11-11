@@ -4,11 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next dev",
-    "build": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next build",
-    "export": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next export",
-    "start": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next start",
-    "deploy": "%USERPROFILE%\\node-portable\\node.exe node_modules/next/dist/bin/next build && %USERPROFILE%\\node-portable\\node.exe node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages"
+    "//": "💠 UNIVERSAL NODE SCRIPTS — Compatible with Windows (Portable Node) + GitHub Actions",
+    "dev": "node_modules/.bin/next dev",
+    "build": "node_modules/.bin/next build",
+    "export": "node_modules/.bin/next export",
+    "start": "node_modules/.bin/next start",
+    "deploy": "node_modules/.bin/next build && node_modules/.bin/gh-pages -d out -b gh-pages",
+    "//local": "For local PowerShell usage with Portable Node:",
+    "dev:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next dev",
+    "build:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next build",
+    "export:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next export",
+    "start:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next start",
+    "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages"
   },
   "dependencies": {
     "@types/mapbox-gl": "^3.4.1",
