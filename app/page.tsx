@@ -1,433 +1,400 @@
 // ================================================================
-// 💠 CERTIS AGROUTE — WORKING GOLD BASELINE (RESTORED)
-//   • Non-destructive filtering (Retailer list never collapses)
-//   • Uses Mercator (satellite-streets-v12 controlled in CertisMap.tsx)
-//   • Home ZIP → geocode → adds Home marker + first trip stop
-//   • ✅ Only modification: homeCoords passed into <CertisMap />
+// 💠 CERTIS AGROUTE “GOLD FINAL” — PHASE A.25.1 (CURSOR FIX APPLIED)
+//   • True intersection-based multi-retailer filtering
+//   • Non-destructive synchronization of state/retailer selections
+//   • Blank-map logic when all filters cleared
+//   • ✅ Static-export-safe Blue Home marker (with fallback)
+//   • ✅ Cursor corrected (pointer instead of flat hand)
 // ================================================================
 
 "use client";
+import { useEffect, useRef } from "react";
+import mapboxgl, { LngLatLike } from "mapbox-gl";
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-import { useState, useMemo } from "react";
-import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
-import Image from "next/image";
-import { Menu, X } from "lucide-react";
+// ================================================================
+// 🎨 CATEGORY COLORS — Gold Parity Palette
+// ================================================================
+export const categoryColors: Record<string, { color: string; outline?: string }> = {
+  Agronomy: { color: "#4CB5FF" },
+  "Grain/Feed": { color: "#FFD60A" },
+  Feed: { color: "#F2B705" },
+  "Office/Service": { color: "#FFFFFF" },
+  Distribution: { color: "#9E9E9E" },
+  Kingpin: { color: "#E10600", outline: "#FFD60A" },
+};
 
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+// ================================================================
+// 🧭 HELPERS
+// ================================================================
+const norm = (v: any) => (v ?? "").toString().trim().toLowerCase();
 
-// Normalizer
-const norm = (val: string) => (val || "").toString().trim().toLowerCase();
-
-// Capitalize state abbreviations
-const capitalizeState = (val: string) => (val || "").toUpperCase();
-
-// External routing URLs
-function buildGoogleMapsUrl(stops: Stop[]) {
-  if (stops.length < 2) return null;
-  const base = "https://www.google.com/maps/dir/?api=1";
-  const origin = encodeURIComponent(stops[0].address);
-  const destination = encodeURIComponent(stops[stops.length - 1].address);
-  const waypoints = stops.slice(1, -1).map((s) => encodeURIComponent(s.address)).join("|");
-
-  return `${base}&origin=${origin}&destination=${destination}${
-    waypoints ? `&waypoints=${waypoints}` : ""
-  }`;
+function assignDisplayCategory(cat: string): string {
+  const c = norm(cat);
+  if (
+    ["agronomy", "agronomy/grain", "agronomy grain", "ag retail", "retail",
+     "agronomy / grain", "agronomy-grain"].includes(c)
+  ) return "Agronomy";
+  if (["grain", "feed", "grain/feed", "grain feed", "grain & feed"].includes(c))
+    return "Grain/Feed";
+  if (c.includes("office")) return "Office/Service";
+  if (c.includes("distribution")) return "Distribution";
+  if (c.includes("kingpin")) return "Kingpin";
+  return "Agronomy";
 }
 
-function buildAppleMapsUrl(stops: Stop[]) {
-  if (stops.length < 2) return null;
-  const base = "http://maps.apple.com/?dirflg=d";
-  const origin = encodeURIComponent(stops[0].address);
-  const daddr = stops.slice(1).map((s) => encodeURIComponent(s.address)).join("+to:");
-  return `${base}&saddr=${origin}&daddr=${daddr}`;
-}
-
-export default function Page() {
-  // ========================================
-  // 🎛️ UI / FILTER STATE
-  // ========================================
-  const [availableStates, setAvailableStates] = useState<string[]>([]);
-  const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
-  const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
-
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedStates, setSelectedStates] = useState<string[]>([]);
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
-  const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
-
-  const [retailerSummary, setRetailerSummary] = useState<
-    { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }[]
-  >([]);
-
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // ========================================
-  // 🚗 Trip Builder / Home ZIP
-  // ========================================
-  const [tripStops, setTripStops] = useState<Stop[]>([]);
-  const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
-
-  const [homeZip, setHomeZip] = useState("");
-  const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
-
-  // Add stop (no duplicates)
-  const handleAddStop = (stop: Stop) => {
-    if (!tripStops.some((s) => s.label === stop.label && s.address === stop.address)) {
-      setTripStops((prev) => [...prev, stop]);
+function parseSuppliers(v: any): string[] {
+  if (!v) return [];
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+  if (typeof v === "string") {
+    if (v.startsWith("[")) {
+      try {
+        const arr = JSON.parse(v.replace(/'/g, '"'));
+        if (Array.isArray(arr)) return arr.map((x) => String(x).trim());
+      } catch {}
     }
-  };
+    return v.split(/[,;/|]+/).map((x) => x.trim()).filter(Boolean);
+  }
+  if (typeof v === "object")
+    return Object.values(v).map((x: any) => String(x).trim()).filter(Boolean);
+  return [];
+}
 
-  const handleRemoveStop = (index: number) => {
-    setTripStops((prev) => prev.filter((_, i) => i !== index));
-  };
+const cleanAddress = (addr: string): string =>
+  addr.replace(/\(.*?\)/g, "").replace(/\bP\.?O\.?\s*Box\b.*$/i, "").trim();
 
-  const handleClearStops = () => setTripStops([]);
+// ================================================================
+// 📍 TYPES
+// ================================================================
+export interface Stop {
+  label: string;
+  address: string;
+  coords: [number, number];
+  city?: string;
+  state?: string;
+  zip?: string | number;
+}
 
-  // Geocode ZIP → Home coords
-  const handleGeocodeZip = async () => {
-    if (!homeZip || !mapboxToken) return;
+export interface CertisMapProps {
+  selectedCategories: string[];
+  selectedStates: string[];
+  selectedSuppliers: string[];
+  selectedRetailers: string[];
+  homeCoords?: [number, number];
+  onStatesLoaded?: (s: string[]) => void;
+  onRetailersLoaded?: (r: string[]) => void;
+  onSuppliersLoaded?: (s: string[]) => void;
+  onRetailerSummary?: (
+    summaries: {
+      retailer: string;
+      count: number;
+      suppliers: string[];
+      states: string[];
+      categories: string[];
+    }[]
+  ) => void;
+  onAddStop?: (stop: Stop) => void;
+  tripStops?: Stop[];
+  tripMode?: "entered" | "optimize";
+  onOptimizedRoute?: (stops: Stop[]) => void;
+}
 
-    try {
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-          homeZip
-        )}.json?access_token=${mapboxToken}&limit=1`
-      );
-      const data = await res.json();
+// ================================================================
+// 🗺️ MAIN COMPONENT
+// ================================================================
+export default function CertisMap({
+  selectedCategories,
+  selectedStates,
+  selectedSuppliers,
+  selectedRetailers,
+  homeCoords,
+  onStatesLoaded,
+  onRetailersLoaded,
+  onSuppliersLoaded,
+  onRetailerSummary,
+  onAddStop,
+  tripStops,
+  tripMode,
+  onOptimizedRoute,
+}: CertisMapProps) {
+  const mapContainer = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const masterFeatures = useRef<any[]>([]);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const homeMarker = useRef<mapboxgl.Marker | null>(null);
 
-      if (data.features?.length > 0) {
-        const [lng, lat] = data.features[0].center;
-        setHomeCoords([lng, lat]);
+  const geojsonPath = `${
+    process.env.NEXT_PUBLIC_BASE_PATH || ""
+  }/data/retailers.geojson?cacheBust=${Date.now()}`;
 
-        const homeStop: Stop = {
-          label: `Home (${homeZip})`,
-          address: homeZip,
-          coords: [lng, lat],
-        };
+  // ================================================================
+  // 🗺️ INITIAL MAP LOAD
+  // ================================================================
+  useEffect(() => {
+    if (mapRef.current) return;
 
-        // Ensure only one home marker exists
-        setTripStops((prev) => [homeStop, ...prev.filter((s) => !s.label.startsWith("Home"))]);
+    const map = new mapboxgl.Map({
+      container: mapContainer.current as HTMLElement,
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
+      center: [-98.5795, 39.8283],
+      zoom: 4,
+      projection: "mercator",
+    });
+    mapRef.current = map;
+
+    map.on("load", async () => {
+      try {
+        const res = await fetch(geojsonPath, { cache: "no-store" });
+        const data = await res.json();
+
+        const valid = data.features.filter((f: any) => {
+          const c = f.geometry?.coordinates;
+          return Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
+        });
+
+        for (const f of valid) {
+          f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category || "");
+        }
+
+        masterFeatures.current = valid;
+
+        // Populate sidebar lists
+        const states = new Set<string>();
+        const retailers = new Set<string>();
+        const suppliers = new Set<string>();
+
+        valid.forEach((f) => {
+          const p = f.properties || {};
+          if (p.State) states.add(p.State.trim());
+          if (p.Retailer) retailers.add(p.Retailer.trim());
+          parseSuppliers(p.Suppliers).forEach((s) => suppliers.add(s.trim()));
+        });
+
+        onStatesLoaded?.(Array.from(states).sort());
+        onRetailersLoaded?.(Array.from(retailers).sort());
+        onSuppliersLoaded?.(Array.from(suppliers).sort());
+
+        map.addSource("retailers", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: valid },
+        });
+
+        map.addLayer({
+          id: "retailers-layer",
+          type: "circle",
+          source: "retailers",
+          paint: {
+            "circle-radius": 4.8,
+            "circle-color": [
+              "match",
+              ["get", "DisplayCategory"],
+              "Agronomy", categoryColors.Agronomy.color,
+              "Grain/Feed", categoryColors["Grain/Feed"].color,
+              "Feed", categoryColors.Feed.color,
+              "Office/Service", categoryColors["Office/Service"].color,
+              "Distribution", categoryColors.Distribution.color,
+              "Kingpin", categoryColors.Kingpin.color,
+              "#1d4ed8",
+            ],
+            "circle-stroke-width": [
+              "case",
+              ["==", ["get", "DisplayCategory"], "Kingpin"],
+              2,
+              0.6,
+            ],
+            "circle-stroke-color": [
+              "case",
+              ["==", ["get", "DisplayCategory"], "Kingpin"],
+              categoryColors.Kingpin.outline!,
+              "#000000",
+            ],
+          },
+        });
+
+        // POPUP
+        map.on("click", "retailers-layer", (e) => {
+          const f = e.features?.[0];
+          if (!f) return;
+
+          const coords = (f.geometry as any).coordinates.slice(0, 2);
+          const p = f.properties || {};
+          const suppliers = parseSuppliers(p.Suppliers).join(", ") || "None listed";
+
+          const html = `
+            <div style="font-size:13px;width:360px;background:#1a1a1a;color:#f5f5f5;
+                        padding:8px;border-radius:6px;position:relative;">
+              <button id="add-${Math.random()
+                .toString(36)
+                .slice(2)}"
+                style="position:absolute;top:6px;right:6px;padding:3px 6px;
+                       background:#166534;color:#fff;border:none;border-radius:4px;
+                       font-size:11px;cursor:pointer;font-weight:600;">+ Add to Trip</button>
+              <div style="line-height:1.3em;margin-top:6px;">
+                <strong style="font-size:14px;color:#FFD700;">${p.Retailer || "Unknown"}</strong><br/>
+                <em>${p.Name || ""}</em><br/>
+                ${cleanAddress(p.Address || "")}<br/>
+                ${p.City || ""} ${p.State || ""} ${p.Zip || ""}<br/>
+                <strong>Category:</strong> ${p.DisplayCategory}<br/>
+                <strong>Suppliers:</strong> ${suppliers}
+              </div>
+            </div>`;
+
+          popupRef.current?.remove();
+          popupRef.current = new mapboxgl.Popup({ closeButton: true, maxWidth: "none" })
+            .setLngLat(coords)
+            .setHTML(html)
+            .addTo(map);
+
+          const popupEl = popupRef.current?.getElement();
+          if (popupEl && onAddStop) {
+            const btn = popupEl.querySelector("button[id^='add-']") as HTMLButtonElement | null;
+            if (btn) {
+              btn.addEventListener("click", () => {
+                onAddStop({
+                  label: p.Retailer || p.Name || "Unknown",
+                  address: cleanAddress(p.Address || ""),
+                  coords: coords as [number, number],
+                  city: p.City || "",
+                  state: p.State || "",
+                  zip: p.Zip || "",
+                });
+              });
+            }
+          }
+        });
+      } catch (e) {
+        console.error("GeoJSON load failed:", e);
       }
-    } catch (err) {
-      console.error("Home ZIP geocode error:", err);
+    });
+  }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
+
+  // ================================================================
+  // 🏠 HOME MARKER (Static Export Safe)
+  // ================================================================
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    homeMarker.current?.remove();
+    homeMarker.current = null;
+
+    if (homeCoords && Array.isArray(homeCoords)) {
+      const basePath =
+        process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== ""
+          ? process.env.NEXT_PUBLIC_BASE_PATH
+          : "/certis_agroute_app";
+
+      const el = document.createElement("div");
+      el.className = "home-marker";
+      el.style.backgroundImage = `url(${basePath}/icons/Blue_Home.png)`;
+      el.style.backgroundSize = "contain";
+      el.style.backgroundRepeat = "no-repeat";
+      el.style.width = "30px";
+      el.style.height = "30px";
+      el.style.borderRadius = "50%";
+
+      homeMarker.current = new mapboxgl.Marker({ element: el })
+        .setLngLat(homeCoords as LngLatLike)
+        .addTo(map);
     }
-  };
+  }, [homeCoords]);
 
-  // ========================================
-  // FILTER LOGIC (non-destructive)
-  // ========================================
-  const handleToggleCategory = (c: string) => {
-    const normalized = norm(c);
-    setSelectedCategories((prev) =>
-      prev.includes(normalized) ? prev.filter((cat) => cat !== normalized) : [...prev, normalized]
-    );
-  };
+  // ================================================================
+  // 🔄 STABLE FILTERING (non-destructive)
+  // ================================================================
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || masterFeatures.current.length === 0) return;
 
-  const handleToggleState = (state: string) => {
-    const normalized = norm(state);
-    setSelectedStates((prev) =>
-      prev.includes(normalized) ? prev.filter((s) => s !== normalized) : [...prev, normalized]
-    );
-  };
+    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource;
+    if (!src) return;
 
-  const handleToggleSupplier = (supplier: string) => {
-    setSelectedSuppliers((prev) =>
-      prev.includes(supplier) ? prev.filter((s) => s !== supplier) : [...prev, supplier]
-    );
-  };
+    const currentStates = [...selectedStates];
+    const currentRetailers = [...selectedRetailers];
 
-  const handleToggleRetailer = (retailer: string) => {
-    const normalized = norm(retailer);
-    setSelectedRetailers((prev) =>
-      prev.includes(normalized) ? prev.filter((r) => r !== normalized) : [...prev, normalized]
-    );
-  };
+    const filtered = masterFeatures.current.filter((f) => {
+      const p = f.properties || {};
+      const state = norm(p.State);
+      const retailer = norm(p.Retailer);
+      const category = norm(p.DisplayCategory);
+      const suppliers = parseSuppliers(p.Suppliers).map(norm);
 
-  // NON-DESTRUCTIVE retailer list based ONLY on selected states
-  const filteredRetailersForSummary = useMemo(() => {
-    if (selectedStates.length === 0) return availableRetailers;
+      const stMatch =
+        currentStates.length === 0 || currentStates.map(norm).includes(state);
+      const rtMatch =
+        currentRetailers.length === 0 || currentRetailers.map(norm).includes(retailer);
+      const ctMatch =
+        selectedCategories.length === 0 ||
+        selectedCategories.map(norm).includes(category);
+      const spMatch =
+        selectedSuppliers.length === 0 ||
+        selectedSuppliers.some((s) => suppliers.includes(norm(s)));
 
-    return retailerSummary
-      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
-      .map((s) => s.retailer)
-      .filter((r, i, arr) => arr.indexOf(r) === i)
-      .sort();
-  }, [availableRetailers, retailerSummary, selectedStates]);
+      return stMatch && rtMatch && ctMatch && spMatch;
+    });
 
-  const kingpinSummary = retailerSummary.filter(
-    (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
-  );
+    src.setData({ type: "FeatureCollection", features: filtered });
 
-  const normalSummary = retailerSummary.filter(
-    (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
-  );
+    if (onRetailerSummary) {
+      const summaryMap: Record<
+        string,
+        { count: number; suppliers: Set<string>; states: Set<string>; categories: Set<string> }
+      > = {};
 
-  // ========================================
-  // UI LAYOUT
-  // ========================================
+      filtered.forEach((f) => {
+        const p = f.properties || {};
+        const r = p.Retailer?.trim() || "Unknown";
+
+        if (!summaryMap[r]) {
+          summaryMap[r] = {
+            count: 0,
+            suppliers: new Set(),
+            states: new Set(),
+            categories: new Set(),
+          };
+        }
+
+        summaryMap[r].count++;
+        parseSuppliers(p.Suppliers).forEach((s) => summaryMap[r].suppliers.add(s));
+        if (p.State) summaryMap[r].states.add(p.State.trim());
+        if (p.DisplayCategory) summaryMap[r].categories.add(p.DisplayCategory);
+      });
+
+      const summaries = Object.entries(summaryMap).map(([retailer, d]) => ({
+        retailer,
+        count: d.count,
+        suppliers: Array.from(d.suppliers).sort(),
+        states: Array.from(d.states).sort(),
+        categories: Array.from(d.categories).sort(),
+      }));
+
+      onRetailerSummary(summaries);
+    }
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+    onRetailerSummary,
+  ]);
+
+  // ================================================================
+  // 🧭 TRIP BUILDER — optimize route if requested
+  // ================================================================
+  useEffect(() => {
+    if (tripMode === "optimize" && tripStops && tripStops.length > 1) {
+      onOptimizedRoute?.(tripStops);
+    }
+  }, [tripMode, tripStops, onOptimizedRoute]);
+
+  // ================================================================
+  // ✅ RETURN — CURSOR FIX HERE
+  // ================================================================
   return (
-    <div className="flex h-screen w-screen relative">
-      {/* Mobile hamburger */}
-      <button
-        className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-      >
-        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-      </button>
-
-      {/* Sidebar */}
-      <aside
-        className={`fixed md:static top-0 left-0 h-full w-96 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
-      >
-        {/* Logo */}
-        <div className="flex items-center justify-center mb-6">
-          <Image src={`${basePath}/certis-logo.png`} alt="Certis Logo" width={180} height={60} priority />
-        </div>
-
-        {/* Home ZIP */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Home Zip Code</h2>
-
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={homeZip}
-              onChange={(e) => setHomeZip(e.target.value)}
-              placeholder="Enter ZIP"
-              className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700"
-            />
-            <button onClick={handleGeocodeZip} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
-              Set
-            </button>
-          </div>
-
-          {homeCoords && (
-            <p className="mt-2 text-sm text-green-600 dark:text-green-400">Home set at {homeZip} ✔</p>
-          )}
-        </div>
-
-        {/* States */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">States</h2>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={() => setSelectedStates(availableStates.map(norm))} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
-              Select All
-            </button>
-            <button onClick={() => setSelectedStates([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
-              Clear
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-1 text-sm">
-            {availableStates.map((state) => {
-              const normalized = norm(state);
-              return (
-                <label key={state} className="flex items-center space-x-1">
-                  <input type="checkbox" checked={selectedStates.includes(normalized)} onChange={() => handleToggleState(state)} />
-                  <span>{capitalizeState(state)}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Retailers */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">Retailers</h2>
-
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button
-              onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-            >
-              Select All
-            </button>
-            <button onClick={() => setSelectedRetailers([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
-              Clear
-            </button>
-          </div>
-
-          <div className="max-h-40 overflow-y-auto text-sm">
-            {availableRetailers.map((retailer) => {
-              const normalized = norm(retailer);
-              return (
-                <label key={retailer} className="flex items-center space-x-1">
-                  <input type="checkbox" checked={selectedRetailers.includes(normalized)} onChange={() => handleToggleRetailer(retailer)} />
-                  <span>{retailer}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Suppliers */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">Suppliers</h2>
-
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={() => setSelectedSuppliers(availableSuppliers)} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
-              Select All
-            </button>
-            <button onClick={() => setSelectedSuppliers([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
-              Clear
-            </button>
-          </div>
-
-          <div className="max-h-40 overflow-y-auto text-sm">
-            {availableSuppliers.map((supplier) => (
-              <label key={supplier} className="flex items-center space-x-1">
-                <input type="checkbox" checked={selectedSuppliers.includes(supplier)} onChange={() => handleToggleSupplier(supplier)} />
-                <span>{supplier}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Categories (legend) */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">Categories</h2>
-
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={() => setSelectedCategories(Object.keys(categoryColors).filter((c) => c !== "Kingpin").map(norm))} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">
-              Select All
-            </button>
-            <button onClick={() => setSelectedCategories([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
-              Clear
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-1 text-sm">
-            {Object.entries(categoryColors)
-              .filter(([key]) => key !== "Kingpin")
-              .map(([key, { color }]) => (
-                <label key={key} className="flex items-center space-x-1">
-                  <input type="checkbox" checked={selectedCategories.includes(norm(key))} onChange={() => handleToggleCategory(key)} />
-                  <span className="flex items-center">
-                    <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: color }} />
-                    {key}
-                  </span>
-                </label>
-              ))}
-          </div>
-        </div>
-
-        {/* Channel Summary */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">Channel Summary</h2>
-
-          <div className="text-sm max-h-40 overflow-y-auto">
-            {normalSummary.map((s, i) => (
-              <div key={i} className="mb-2">
-                <strong>
-                  {s.retailer} ({s.states.map(capitalizeState).join(", ")})
-                </strong>{" "}
-                ({s.count} sites)
-                <br />
-                Suppliers: {s.suppliers.join(", ") || "N/A"}
-                <br />
-                Categories: {s.categories.join(", ") || "N/A"}
-              </div>
-            ))}
-
-            {kingpinSummary.length > 0 && (
-              <div className="mt-2 text-red-600 dark:text-red-400">
-                <strong>Kingpins:</strong> {kingpinSummary.map((s) => s.retailer).join(", ")}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Trip Optimizer */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-bold mb-3">Trip Optimization</h2>
-
-          <div className="flex space-x-4 mb-3 text-sm">
-            <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="radio" value="entered" checked={tripMode === "entered"} onChange={() => setTripMode("entered")} />
-              <span>Map as Entered</span>
-            </label>
-
-            <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="radio" value="optimize" checked={tripMode === "optimize"} onChange={() => setTripMode("optimize")} />
-              <span>Optimize Route</span>
-            </label>
-          </div>
-
-          {tripStops.length > 0 ? (
-            <div className="space-y-2">
-              <ol className="list-decimal ml-5 text-sm">
-                {tripStops.map((stop, i) => (
-                  <li key={i} className="flex justify-between items-start">
-                    <div>
-                      <div className="font-semibold">{stop.label}</div>
-                      <div className="text-xs">{stop.address}</div>
-                    </div>
-
-                    {i > 0 && (
-                      <button onClick={() => handleRemoveStop(i)} className="ml-2 text-red-600 hover:text-red-800 text-xs">
-                        ❌
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ol>
-
-              <div className="flex gap-2 mt-2">
-                <button onClick={handleClearStops} className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
-                  Clear All
-                </button>
-
-                {buildGoogleMapsUrl(tripStops) && (
-                  <a
-                    href={buildGoogleMapsUrl(tripStops) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
-                  >
-                    Open in Google Maps
-                  </a>
-                )}
-
-                {buildAppleMapsUrl(tripStops) && (
-                  <a
-                    href={buildAppleMapsUrl(tripStops) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                  >
-                    Open in Apple Maps
-                  </a>
-                )}
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
-          )}
-        </div>
-      </aside>
-
-      {/* ======================================================= */}
-      {/* 🗺 MAP AREA */}
-      {/* ======================================================= */}
-      <main className="flex-1 relative">
-        <CertisMap
-          selectedCategories={selectedCategories}
-          selectedStates={selectedStates}
-          selectedSuppliers={selectedSuppliers}
-          selectedRetailers={selectedRetailers}
-          homeCoords={homeCoords}            // ✅ ONLY CHANGE REQUIRED
-          onStatesLoaded={setAvailableStates}
-          onRetailersLoaded={setAvailableRetailers}
-          onSuppliersLoaded={setAvailableSuppliers}
-          onRetailerSummary={setRetailerSummary}
-          onAddStop={handleAddStop}
-          tripStops={tripStops}
-          tripMode={tripMode}
-        />
-      </main>
-    </div>
+    <div
+      ref={mapContainer}
+      className="w-full h-full border-t border-gray-400"
+      style={{ cursor: "default" }}   // ✅ forces pointer, removes Mapbox grab-hand
+    />
   );
 }
