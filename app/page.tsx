@@ -393,3 +393,74 @@ export default function Page() {
                     </div>
                     {!stop.label.startsWith("Home") && (
                       <button onClick={() => handleRemoveStop(i)} className="ml-2 text-red-600 hover:text-red-800 text-xs">
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ol>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleClearStops}
+                  className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                >
+                  Clear All
+                </button>
+
+                {/* ✅ Export using forced [Home, stops, Home] */}
+                {buildGoogleMapsUrl(stopsForRoute) && (
+                  <a
+                    href={buildGoogleMapsUrl(stopsForRoute) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                  >
+                    Open in Google Maps
+                  </a>
+                )}
+
+                {buildAppleMapsUrl(stopsForRoute) && (
+                  <a
+                    href={buildAppleMapsUrl(stopsForRoute) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                  >
+                    Open in Apple Maps
+                  </a>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No stops added yet.
+            </p>
+          )}
+        </div>
+      </aside>
+
+      {/* =============================== */}
+      {/* MAP */}
+      {/* =============================== */}
+      <main className="flex-1 relative">
+        <CertisMap
+          selectedCategories={selectedCategories}
+          selectedStates={selectedStates}
+          selectedSuppliers={selectedSuppliers}
+          selectedRetailers={selectedRetailers}
+          homeCoords={homeCoords}
+          onStatesLoaded={setAvailableStates}
+          onRetailersLoaded={setAvailableRetailers}
+          onSuppliersLoaded={setAvailableSuppliers}
+          onRetailerSummary={setRetailerSummary}
+          onAddStop={handleAddStop}
+          tripStops={stopsForRoute}  // ✅ Force Home → Stops → Home
+          tripMode={tripMode}
+          onRouteSummary={setRouteSummary}
+          onOptimizedRoute={handleOptimizedRoute}
+        />
+      </main>
+    </div>
+  );
+}
