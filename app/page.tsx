@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
+import SearchLocationsTile from "@/components/SearchLocationsTile";   // ⬅️ NEW IMPORT
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
@@ -72,9 +73,7 @@ export default function Page() {
   // ---------------------- Add / Remove Stops ----------------------
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
-      // prevent duplicates
       if (prev.some((s) => s.label === stop.label && s.address === stop.address)) return prev;
-      // keep Home at index 0 if exists
       const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
       const home = prev.find((s) => s.label.startsWith("Home"));
       return home ? [home, ...nonHome, stop] : [...prev, stop];
@@ -125,7 +124,6 @@ export default function Page() {
     if (!homeCoords) return tripStops;
     const homeStop: Stop = { label: `Home (${homeZip})`, address: homeZip, coords: homeCoords };
     const nonHomeStops = tripStops.filter((s) => !s.label.startsWith("Home"));
-    // guarantee both endpoints are Home
     return [homeStop, ...nonHomeStops, homeStop];
   }, [tripStops, homeCoords, homeZip]);
 
@@ -133,7 +131,6 @@ export default function Page() {
   // 🧭 HANDLE OPTIMIZED ROUTE RETURN
   // =========================================================
   const handleOptimizedRoute = (optimizedStops: Stop[]) => {
-    // replace middle section with optimized result while keeping Home endpoints
     if (optimizedStops.length < 2) return;
     const start = optimizedStops[0];
     const end = optimizedStops[optimizedStops.length - 1];
@@ -299,13 +296,20 @@ export default function Page() {
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() =>
-                setSelectedCategories(Object.keys(categoryColors).filter((c) => c !== "Kingpin").map(norm))
+                setSelectedCategories(
+                  Object.keys(categoryColors)
+                    .filter((c) => c !== "Kingpin")
+                    .map(norm)
+                )
               }
               className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
             >
               Select All
             </button>
-            <button onClick={() => setSelectedCategories([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
+            <button
+              onClick={() => setSelectedCategories([])}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
               Clear
             </button>
           </div>
@@ -358,16 +362,31 @@ export default function Page() {
           </div>
         </div>
 
+        {/* ============================================================ */}
+        {/* NEW SEARCH LOCATIONS TILE (Option B placement)               */}
+        {/* ============================================================ */}
+        <SearchLocationsTile onAddStop={handleAddStop} />
+
         {/* TRIP BUILDER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
           <h2 className="text-lg font-bold mb-3">Trip Optimization</h2>
           <div className="flex space-x-4 mb-3 text-sm">
             <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="radio" value="entered" checked={tripMode === "entered"} onChange={() => setTripMode("entered")} />
+              <input
+                type="radio"
+                value="entered"
+                checked={tripMode === "entered"}
+                onChange={() => setTripMode("entered")}
+              />
               <span>Map as Entered</span>
             </label>
             <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="radio" value="optimize" checked={tripMode === "optimize"} onChange={() => setTripMode("optimize")} />
+              <input
+                type="radio"
+                value="optimize"
+                checked={tripMode === "optimize"}
+                onChange={() => setTripMode("optimize")}
+              />
               <span>Optimize Route</span>
             </label>
           </div>
@@ -375,10 +394,13 @@ export default function Page() {
           {routeSummary && (
             <div className="text-xs text-gray-700 dark:text-gray-300 mb-2 p-2 bg-gray-200 dark:bg-gray-700 rounded">
               <strong>
-                {(routeSummary.distance_m / 1609.34).toFixed(1)} miles • {(routeSummary.duration_s / 60).toFixed(0)} minutes
+                {(routeSummary.distance_m / 1609.34).toFixed(1)} miles •{" "}
+                {(routeSummary.duration_s / 60).toFixed(0)} minutes
               </strong>
               <br />
-              {tripMode === "optimize" ? "Optimized for shortest driving time" : "Mapped in entered order"}
+              {tripMode === "optimize"
+                ? "Optimized for shortest driving time"
+                : "Mapped in entered order"}
             </div>
           )}
 
@@ -392,14 +414,17 @@ export default function Page() {
                       <div className="text-xs">{stop.address}</div>
                     </div>
                     {!stop.label.startsWith("Home") && (
-                      <button onClick={() => handleRemoveStop(i)} className="ml-2 text-red-600 hover:text-red-800 text-xs">
+                      <button
+                        onClick={() => handleRemoveStop(i)}
+                        className="ml-2 text-red-600 hover:text-red-800 text-xs"
+                      >
+                        ❌
                       </button>
                     )}
                   </li>
                 ))}
               </ol>
 
-              {/* Action buttons */}
               <div className="flex gap-2 mt-2">
                 <button
                   onClick={handleClearStops}
@@ -408,7 +433,6 @@ export default function Page() {
                   Clear All
                 </button>
 
-                {/* ✅ Export using forced [Home, stops, Home] */}
                 {buildGoogleMapsUrl(stopsForRoute) && (
                   <a
                     href={buildGoogleMapsUrl(stopsForRoute) || "#"}
@@ -433,16 +457,12 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              No stops added yet.
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
           )}
         </div>
       </aside>
 
-      {/* =============================== */}
       {/* MAP */}
-      {/* =============================== */}
       <main className="flex-1 relative">
         <CertisMap
           selectedCategories={selectedCategories}
@@ -455,7 +475,7 @@ export default function Page() {
           onSuppliersLoaded={setAvailableSuppliers}
           onRetailerSummary={setRetailerSummary}
           onAddStop={handleAddStop}
-          tripStops={stopsForRoute}  // ✅ Force Home → Stops → Home
+          tripStops={stopsForRoute}
           tripMode={tripMode}
           onRouteSummary={setRouteSummary}
           onOptimizedRoute={handleOptimizedRoute}
