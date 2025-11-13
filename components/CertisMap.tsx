@@ -1,9 +1,16 @@
 // components/CertisMap.tsx
 
 // ================================================================
-// 💠 CERTIS AGROUTE — A.28 FINAL S2 GOLD (TYPE-SAFE ENHANCED)
-//   • All LngLatLike usage validated and safely cast
-//   • No changes to logic, filters, or UI behavior
+// 💠 CERTIS AGROUTE — A.28 FINAL S2 GOLD (TYPE-SAFE)
+//   • True intersection filtering (State ∩ Retailer ∩ Category ∩ Supplier)
+//   • Kingpin layer always visible and clickable
+//   • Route mode: As Entered (Directions API) OR Optimize (Optimization API)
+//   • Always enforces HOME → STOPS → HOME when home is set
+//   • Popup uses complete address + supplier parsing
+//   • Stable cursor + stable routing layer cleanup
+//   • Marker sizes: retailers=5, kingpins=5.5
+//   • Projection: MERCATOR (immutable user rule)
+//   • NOW TYPE-SAFE (all list loaders properly cast to string[])
 // ================================================================
 
 "use client";
@@ -145,7 +152,7 @@ export default function CertisMap(props: CertisMapProps) {
     const map = new mapboxgl.Map({
       container: mapContainer.current as HTMLElement,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [-96.25, 41.25] as LngLatLike,
+      center: [-96.25, 41.25],
       zoom: 4,
       projection: "mercator",
     });
@@ -167,9 +174,7 @@ export default function CertisMap(props: CertisMapProps) {
 
         masterFeatures.current = valid;
 
-        // ----------------------
-        // UNIQUE LISTS (TYPE-SAFE)
-        // ----------------------
+        // UNIQUE LISTS
         const states = [
           ...new Set(valid.map((f) => String(f.properties?.State || "").trim())),
         ].filter(Boolean);
@@ -186,14 +191,13 @@ export default function CertisMap(props: CertisMapProps) {
         onRetailersLoaded?.((retailers as string[]).sort());
         onSuppliersLoaded?.((suppliers as string[]).sort());
 
-        // ----------------------
-        // ADD SOURCE + LAYERS
-        // ----------------------
+        // GEOJSON SOURCE
         map.addSource("retailers", {
           type: "geojson",
           data: { type: "FeatureCollection", features: valid },
         });
 
+        // Retailers Layer
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -221,6 +225,7 @@ export default function CertisMap(props: CertisMapProps) {
           },
         });
 
+        // Kingpins
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -234,9 +239,7 @@ export default function CertisMap(props: CertisMapProps) {
           },
         });
 
-        // ----------------------
-        // Cursor behavior
-        // ----------------------
+        // Cursor
         map.getCanvas().style.cursor = "grab";
         const enter = () => (map.getCanvas().style.cursor = "pointer");
         const leave = () => (map.getCanvas().style.cursor = "grab");
@@ -246,14 +249,12 @@ export default function CertisMap(props: CertisMapProps) {
         map.on("mouseenter", "kingpins-layer", enter);
         map.on("mouseleave", "kingpins-layer", leave);
 
-        // ----------------------
-        // POPUP HANDLER
-        // ----------------------
+        // POPUP
         const popupHandler = (e: any) => {
           const f = e.features?.[0];
           if (!f) return;
 
-          const coords = f.geometry?.coordinates as LngLatLike;
+          const coords = f.geometry?.coordinates;
           if (!coords) return;
 
           const p = f.properties || {};
@@ -288,7 +289,7 @@ export default function CertisMap(props: CertisMapProps) {
             closeButton: true,
             maxWidth: "none",
           })
-            .setLngLat(coords)
+            .setLngLat(coords as LngLatLike)
             .setHTML(html)
             .addTo(map);
 
@@ -300,7 +301,7 @@ export default function CertisMap(props: CertisMapProps) {
                 onAddStop({
                   label: p.Retailer || p.Name || "Unknown",
                   address: cleanAddress(p.Address || ""),
-                  coords: coords,
+                  coords: coords as [number, number],   // ✅ FIX APPLIED HERE
                   city: p.City || "",
                   state: p.State || "",
                   zip: p.Zip || "",
@@ -483,9 +484,7 @@ export default function CertisMap(props: CertisMapProps) {
 
     const doRoute = async () => {
       try {
-        // ----------------------
         // OPTIMIZED ROUTE
-        // ----------------------
         if (tripMode === "optimize" && interior.length > 1) {
           const coordsStr = coordsToString(ordered);
 
@@ -501,7 +500,7 @@ export default function CertisMap(props: CertisMapProps) {
 
             const feature: GeoJSON.Feature = {
               type: "Feature",
-              geometry: trip.geometry as any,
+              geometry: trip.geometry,
               properties: {},
             };
 
@@ -536,9 +535,7 @@ export default function CertisMap(props: CertisMapProps) {
           }
         }
 
-        // ----------------------
-        // FALLBACK — AS ENTERED
-        // ----------------------
+        // AS ENTERED
         const dirUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsToString(
           ordered
         )}?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(
@@ -551,7 +548,7 @@ export default function CertisMap(props: CertisMapProps) {
         if (dirData?.routes?.length > 0) {
           const feature: GeoJSON.Feature = {
             type: "Feature",
-            geometry: dirData.routes[0].geometry as any,
+            geometry: dirData.routes[0].geometry,
             properties: {},
           };
 
