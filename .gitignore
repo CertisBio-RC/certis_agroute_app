@@ -10,3 +10,7 @@ PortableGit/
 data/*.xlsx
 
 !public/data/token.txt
+
+# Archive of working versions
+__archive/
+
