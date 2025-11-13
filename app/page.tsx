@@ -69,6 +69,7 @@ export default function Page() {
       states: string[];
     }[]
   >([]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // --------------------------------------
@@ -182,7 +183,7 @@ export default function Page() {
   // =========================================================
   return (
     <div className="flex h-screen w-screen relative overflow-hidden">
-      {/* Hamburger (Mobile) */}
+      {/* Mobile Hamburger */}
       <button
         className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -209,53 +210,56 @@ export default function Page() {
         </div>
 
         {/* ====================== HOME ZIP ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
-          <h2 className="text-lg font-bold mb-3">Home Zip Code</h2>
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">
+            Home Zip Code
+          </h2>
           <div className="flex space-x-2">
             <input
               type="text"
               value={homeZip}
               onChange={(e) => setHomeZip(e.target.value)}
               placeholder="Enter ZIP"
-              className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700"
+              className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-[16px]"
             />
             <button
               onClick={handleGeocodeZip}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-[16px]"
             >
               Set
             </button>
           </div>
           {homeCoords && (
-            <p className="mt-2 text-sm text-green-600">
+            <p className="mt-2 text-sm text-yellow-400">
               Home set at {homeZip} ✔
             </p>
           )}
         </div>
 
-        {/* ====================== FILTER PANELS ====================== */}
-        {/* STATES */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
-          <h2 className="text-lg font-bold mb-3">States</h2>
-          <div className="flex flex-wrap gap-2 mb-2 text-sm">
+        {/* ====================== STATES ====================== */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">States</h2>
+
+          <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setSelectedStates(availableStates.map(norm))}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+              className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
             </button>
             <button
               onClick={() => setSelectedStates([])}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+              className="px-2 py-1 bg-gray-400 text-white rounded text-sm"
             >
               Clear
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-1 text-sm">
+
+          <div className="grid grid-cols-3 gap-1 text-[16px]">
             {availableStates.map((state) => {
               const normalized = norm(state);
               return (
-                <label key={state} className="flex items-center space-x-1">
+                <label key={state} className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     checked={selectedStates.includes(normalized)}
@@ -267,40 +271,44 @@ export default function Page() {
                       )
                     }
                   />
-                  <span>{capitalizeState(state)}</span>
+                  <span className="text-white dark:text-yellow-300">
+                    {capitalizeState(state)}
+                  </span>
                 </label>
               );
             })}
           </div>
         </div>
 
-        {/* =================== SEARCH LOCATIONS TILE =================== */}
+        {/* ====================== SEARCH LOCATIONS TILE ====================== */}
         <SearchLocationsTile onAddStop={handleAddStop} />
+        {/* ====================== RETAILERS ====================== */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
 
-        {/* RETAILERS */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
-          <h2 className="text-lg font-bold mb-3">Retailers</h2>
-          <div className="flex flex-wrap gap-2 mb-2 text-sm">
+          <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() =>
                 setSelectedRetailers(filteredRetailersForSummary.map(norm))
               }
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+              className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
             </button>
             <button
               onClick={() => setSelectedRetailers([])}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+              className="px-2 py-1 bg-gray-400 text-white rounded text-sm"
             >
               Clear
             </button>
           </div>
-          <div className="max-h-40 overflow-y-auto text-sm">
+
+          {/* TWO-COLUMN layout */}
+          <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto text-[16px]">
             {availableRetailers.map((retailer) => {
               const normalized = norm(retailer);
               return (
-                <label key={retailer} className="flex items-center space-x-1">
+                <label key={retailer} className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     checked={selectedRetailers.includes(normalized)}
@@ -312,33 +320,38 @@ export default function Page() {
                       )
                     }
                   />
-                  <span>{retailer}</span>
+                  <span className="text-white dark:text-yellow-300">
+                    {retailer}
+                  </span>
                 </label>
               );
             })}
           </div>
         </div>
 
-        {/* SUPPLIERS */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
-          <h2 className="text-lg font-bold mb-3">Suppliers</h2>
-          <div className="flex flex-wrap gap-2 mb-2 text-sm">
+        {/* ====================== SUPPLIERS ====================== */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Suppliers</h2>
+
+          <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setSelectedSuppliers(availableSuppliers)}
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+              className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
             </button>
             <button
               onClick={() => setSelectedSuppliers([])}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+              className="px-2 py-1 bg-gray-400 text-white rounded text-sm"
             >
               Clear
             </button>
           </div>
-          <div className="max-h-40 overflow-y-auto text-sm">
+
+          {/* TWO-COLUMN layout */}
+          <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto text-[16px]">
             {availableSuppliers.map((supplier) => (
-              <label key={supplier} className="flex items-center space-x-1">
+              <label key={supplier} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
                   checked={selectedSuppliers.includes(supplier)}
@@ -350,16 +363,19 @@ export default function Page() {
                     )
                   }
                 />
-                <span>{supplier}</span>
+                <span className="text-white dark:text-yellow-300">
+                  {supplier}
+                </span>
               </label>
             ))}
           </div>
         </div>
 
-        {/* CATEGORIES */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
-          <h2 className="text-lg font-bold mb-3">Categories</h2>
-          <div className="flex flex-wrap gap-2 mb-2 text-sm">
+        {/* ====================== CATEGORIES ====================== */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
+
+          <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() =>
                 setSelectedCategories(
@@ -368,22 +384,23 @@ export default function Page() {
                     .map(norm)
                 )
               }
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+              className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
             </button>
             <button
               onClick={() => setSelectedCategories([])}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+              className="px-2 py-1 bg-gray-400 text-white rounded text-sm"
             >
               Clear
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-1 text-sm">
+
+          <div className="grid grid-cols-2 gap-2 text-[16px]">
             {Object.entries(categoryColors)
               .filter(([key]) => key !== "Kingpin")
               .map(([key, { color }]) => (
-                <label key={key} className="flex items-center space-x-1">
+                <label key={key} className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     checked={selectedCategories.includes(norm(key))}
@@ -395,7 +412,7 @@ export default function Page() {
                       )
                     }
                   />
-                  <span className="flex items-center">
+                  <span className="flex items-center text-white dark:text-yellow-300">
                     <span
                       className="inline-block w-3 h-3 rounded-full mr-1"
                       style={{ backgroundColor: color }}
@@ -407,10 +424,13 @@ export default function Page() {
           </div>
         </div>
 
-        {/* =================== CHANNEL SUMMARY =================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
-          <h2 className="text-lg font-bold mb-3">Channel Summary</h2>
-          <div className="text-sm max-h-40 overflow-y-auto">
+        {/* ====================== CHANNEL SUMMARY ====================== */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">
+            Channel Summary
+          </h2>
+
+          <div className="text-[15px] max-h-48 overflow-y-auto text-white dark:text-yellow-200">
             {normalSummary.map((s, i) => (
               <div key={i} className="mb-3">
                 <strong>
@@ -424,7 +444,7 @@ export default function Page() {
               </div>
             ))}
             {kingpinSummary.length > 0 && (
-              <div className="mt-2 text-yellow-500 dark:text-yellow-300">
+              <div className="mt-2 text-yellow-300">
                 <strong>Kingpins:</strong>{" "}
                 {kingpinSummary.map((s) => s.retailer).join(", ")}
               </div>
@@ -432,35 +452,41 @@ export default function Page() {
           </div>
         </div>
 
-        {/* =================== TRIP BUILDER =================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4 text-[15px] leading-tight">
-          <h2 className="text-lg font-bold mb-3">Trip Optimization</h2>
+        {/* ====================== TRIP BUILDER ====================== */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow text-[17px] leading-tight mt-4">
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">
+            Trip Optimization
+          </h2>
 
           {/* Mode selector */}
-          <div className="flex space-x-4 mb-3 text-sm">
-            <label className="flex items-center space-x-1 cursor-pointer">
+          <div className="flex space-x-4 mb-3 text-[15px]">
+            <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="radio"
                 value="entered"
                 checked={tripMode === "entered"}
                 onChange={() => setTripMode("entered")}
               />
-              <span>Map as Entered</span>
+              <span className="text-white dark:text-yellow-300">
+                Map as Entered
+              </span>
             </label>
-            <label className="flex items-center space-x-1 cursor-pointer">
+            <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="radio"
                 value="optimize"
                 checked={tripMode === "optimize"}
                 onChange={() => setTripMode("optimize")}
               />
-              <span>Optimize Route</span>
+              <span className="text-white dark:text-yellow-300">
+                Optimize Route
+              </span>
             </label>
           </div>
 
           {/* Route Summary */}
           {routeSummary && (
-            <div className="text-xs text-gray-700 dark:text-gray-300 mb-3 p-2 bg-gray-200 dark:bg-gray-700 rounded">
+            <div className="text-[14px] text-gray-900 dark:text-gray-200 mb-3 p-2 bg-gray-200 dark:bg-gray-700 rounded">
               <strong>
                 {(routeSummary.distance_m / 1609.34).toFixed(1)} miles •{" "}
                 {(routeSummary.duration_s / 60).toFixed(0)} minutes
@@ -475,15 +501,17 @@ export default function Page() {
           {/* Trip Stops */}
           {tripStops.length > 0 ? (
             <div className="space-y-3">
-              <ol className="ml-5 space-y-3 text-sm">
+              <ol className="ml-5 space-y-3 text-[15px]">
                 {tripStops.map((stop, i) => (
                   <li
                     key={i}
                     className="flex justify-between items-start pb-2 border-b border-gray-300 dark:border-gray-600"
                   >
                     <div>
-                      <div className="font-semibold">{stop.label}</div>
-                      <div className="text-xs">
+                      <div className="font-semibold text-yellow-300">
+                        {stop.label}
+                      </div>
+                      <div className="text-[14px] text-white dark:text-gray-200">
                         {stop.address}
                         <br />
                         {stop.city}, {stop.state} {stop.zip}
@@ -493,7 +521,7 @@ export default function Page() {
                     {!stop.label.startsWith("Home") && (
                       <button
                         onClick={() => handleRemoveStop(i)}
-                        className="ml-2 text-yellow-500 hover:text-yellow-300 text-xs"
+                        className="ml-2 text-yellow-400 hover:text-yellow-200 text-[14px]"
                       >
                         Remove
                       </button>
@@ -502,34 +530,31 @@ export default function Page() {
                 ))}
               </ol>
 
-              {/* Action Buttons */}
               <div className="flex flex-wrap gap-2 mt-2">
                 <button
                   onClick={handleClearStops}
-                  className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                  className="px-2 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                 >
                   Clear All
                 </button>
 
-                {/* Export to Google */}
                 {buildGoogleMapsUrl(stopsForRoute) && (
                   <a
                     href={buildGoogleMapsUrl(stopsForRoute) || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                    className="px-2 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
                   >
                     Open in Google Maps
                   </a>
                 )}
 
-                {/* Export to Apple */}
                 {buildAppleMapsUrl(stopsForRoute) && (
                   <a
                     href={buildAppleMapsUrl(stopsForRoute) || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                    className="px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
                   >
                     Open in Apple Maps
                   </a>
@@ -537,7 +562,7 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-[15px] text-gray-500 dark:text-gray-300">
               No stops added yet.
             </p>
           )}
@@ -548,9 +573,8 @@ export default function Page() {
       {/* MAP + TITLE */}
       {/* =============================== */}
       <main className="flex-1 relative flex flex-col">
-        {/* Title aligned with right edge of map container */}
         <div className="w-full flex justify-end pr-6 pt-4">
-          <h1 className="text-3xl font-bold text-yellow-400">
+          <h1 className="text-4xl font-bold text-yellow-400 tracking-wide">
             Certis AgRoute Intelligence Engine
           </h1>
         </div>
