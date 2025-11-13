@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
-import SearchLocationsTile from "@/components/SearchLocationsTile";   // ⬅️ NEW IMPORT
+import SearchLocationsTile from "@/components/SearchLocationsTile";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
@@ -89,7 +89,7 @@ export default function Page() {
     setRouteSummary(null);
   };
 
-  // ---------------------- Home ZIP → coordinates (Mapbox geocode) ----------------------
+  // ---------------------- Home ZIP → coordinates ----------------------
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
     try {
@@ -118,7 +118,7 @@ export default function Page() {
   };
 
   // =========================================================
-  // ✅ ALWAYS ENFORCE HOME → STOPS → HOME
+  // ALWAYS ENFORCE HOME → STOPS → HOME
   // =========================================================
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
@@ -128,7 +128,7 @@ export default function Page() {
   }, [tripStops, homeCoords, homeZip]);
 
   // =========================================================
-  // 🧭 HANDLE OPTIMIZED ROUTE RETURN
+  // HANDLE OPTIMIZED ROUTE RETURN
   // =========================================================
   const handleOptimizedRoute = (optimizedStops: Stop[]) => {
     if (optimizedStops.length < 2) return;
@@ -158,7 +158,7 @@ export default function Page() {
   );
 
   // =========================================================
-  // 🖥️ UI
+  // UI
   // =========================================================
   return (
     <div className="flex h-screen w-screen relative">
@@ -296,20 +296,13 @@ export default function Page() {
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() =>
-                setSelectedCategories(
-                  Object.keys(categoryColors)
-                    .filter((c) => c !== "Kingpin")
-                    .map(norm)
-                )
+                setSelectedCategories(Object.keys(categoryColors).filter((c) => c !== "Kingpin").map(norm))
               }
               className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
             >
               Select All
             </button>
-            <button
-              onClick={() => setSelectedCategories([])}
-              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
-            >
+            <button onClick={() => setSelectedCategories([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
               Clear
             </button>
           </div>
@@ -338,12 +331,12 @@ export default function Page() {
           </div>
         </div>
 
-        {/* CHANNEL SUMMARY */}
+        {/* =================== CHANNEL SUMMARY =================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3">Channel Summary</h2>
           <div className="text-sm max-h-40 overflow-y-auto">
             {normalSummary.map((s, i) => (
-              <div key={i} className="mb-2">
+              <div key={i} className="mb-3">
                 <strong>
                   {s.retailer} ({s.states.map(capitalizeState).join(", ")})
                 </strong>{" "}
@@ -362,70 +355,65 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ============================================================ */}
-        {/* NEW SEARCH LOCATIONS TILE (Option B placement)               */}
-        {/* ============================================================ */}
+        {/* =================== SEARCH LOCATIONS TILE =================== */}
         <SearchLocationsTile onAddStop={handleAddStop} />
 
-        {/* TRIP BUILDER */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+        {/* =================== TRIP BUILDER =================== */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4">
           <h2 className="text-lg font-bold mb-3">Trip Optimization</h2>
+
+          {/* Mode selector */}
           <div className="flex space-x-4 mb-3 text-sm">
             <label className="flex items-center space-x-1 cursor-pointer">
-              <input
-                type="radio"
-                value="entered"
-                checked={tripMode === "entered"}
-                onChange={() => setTripMode("entered")}
-              />
+              <input type="radio" value="entered" checked={tripMode === "entered"} onChange={() => setTripMode("entered")} />
               <span>Map as Entered</span>
             </label>
             <label className="flex items-center space-x-1 cursor-pointer">
-              <input
-                type="radio"
-                value="optimize"
-                checked={tripMode === "optimize"}
-                onChange={() => setTripMode("optimize")}
-              />
+              <input type="radio" value="optimize" checked={tripMode === "optimize"} onChange={() => setTripMode("optimize")} />
               <span>Optimize Route</span>
             </label>
           </div>
 
+          {/* Route Summary */}
           {routeSummary && (
-            <div className="text-xs text-gray-700 dark:text-gray-300 mb-2 p-2 bg-gray-200 dark:bg-gray-700 rounded">
+            <div className="text-xs text-gray-700 dark:text-gray-300 mb-3 p-2 bg-gray-200 dark:bg-gray-700 rounded">
               <strong>
-                {(routeSummary.distance_m / 1609.34).toFixed(1)} miles •{" "}
-                {(routeSummary.duration_s / 60).toFixed(0)} minutes
+                {(routeSummary.distance_m / 1609.34).toFixed(1)} miles • {(routeSummary.duration_s / 60).toFixed(0)} minutes
               </strong>
               <br />
-              {tripMode === "optimize"
-                ? "Optimized for shortest driving time"
-                : "Mapped in entered order"}
+              {tripMode === "optimize" ? "Optimized for shortest driving time" : "Mapped in entered order"}
             </div>
           )}
 
+          {/* Trip Stops */}
           {tripStops.length > 0 ? (
-            <div className="space-y-2">
-              <ol className="list-decimal ml-5 text-sm">
+            <div className="space-y-3">
+              <ol className="ml-5 space-y-3 text-sm">
                 {tripStops.map((stop, i) => (
-                  <li key={i} className="flex justify-between items-start">
+                  <li key={i} className="flex justify-between items-start pb-2 border-b border-gray-300 dark:border-gray-600">
                     <div>
                       <div className="font-semibold">{stop.label}</div>
-                      <div className="text-xs">{stop.address}</div>
+                      <div className="text-xs">
+                        {stop.address}
+                        <br />
+                        {stop.city}, {stop.state} {stop.zip}
+                      </div>
                     </div>
+
                     {!stop.label.startsWith("Home") && (
                       <button
                         onClick={() => handleRemoveStop(i)}
                         className="ml-2 text-red-600 hover:text-red-800 text-xs"
                       >
-                        ❌
+                        Remove
                       </button>
                     )}
                   </li>
                 ))}
               </ol>
 
-              <div className="flex gap-2 mt-2">
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-2 mt-2">
                 <button
                   onClick={handleClearStops}
                   className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
@@ -433,6 +421,7 @@ export default function Page() {
                   Clear All
                 </button>
 
+                {/* Export to Google */}
                 {buildGoogleMapsUrl(stopsForRoute) && (
                   <a
                     href={buildGoogleMapsUrl(stopsForRoute) || "#"}
@@ -444,6 +433,7 @@ export default function Page() {
                   </a>
                 )}
 
+                {/* Export to Apple */}
                 {buildAppleMapsUrl(stopsForRoute) && (
                   <a
                     href={buildAppleMapsUrl(stopsForRoute) || "#"}
@@ -457,12 +447,16 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No stops added yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No stops added yet.
+            </p>
           )}
         </div>
       </aside>
 
+      {/* =============================== */}
       {/* MAP */}
+      {/* =============================== */}
       <main className="flex-1 relative">
         <CertisMap
           selectedCategories={selectedCategories}
