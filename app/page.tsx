@@ -234,6 +234,9 @@ export default function Page() {
           </div>
         </div>
 
+        {/* =================== SEARCH LOCATIONS TILE (NEW POSITION) =================== */}
+        <SearchLocationsTile onAddStop={handleAddStop} />
+
         {/* RETAILERS */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold mb-3">Retailers</h2>
@@ -355,9 +358,6 @@ export default function Page() {
             )}
           </div>
         </div>
-
-        {/* =================== SEARCH LOCATIONS TILE =================== */}
-        <SearchLocationsTile onAddStop={handleAddStop} />
 
         {/* =================== TRIP BUILDER =================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4">
