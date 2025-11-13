@@ -8,7 +8,7 @@
 //   • Always enforces HOME → STOPS → HOME when home is set
 //   • Popup uses complete address + supplier parsing
 //   • Stable cursor + stable routing layer cleanup
-//   • Marker sizes: retailers=5, kingpins=5.5
+//   • Marker sizes: retailers=5, kingpins=5.5 (FINAL)
 //   • Projection: MERCATOR (immutable user rule)
 // ================================================================
 
@@ -37,9 +37,7 @@ const norm = (v: any) => (v ?? "").toString().trim().toLowerCase();
 
 function assignDisplayCategory(cat: string): string {
   const c = norm(cat);
-  if (
-    ["agronomy", "ag retail", "retail", "agronomy/grain", "agronomy grain"].includes(c)
-  )
+  if (["agronomy", "ag retail", "retail", "agronomy/grain", "agronomy grain"].includes(c))
     return "Agronomy";
   if (c.includes("grain") || c.includes("feed")) return "Grain/Feed";
   if (c.includes("office")) return "Office/Service";
@@ -179,19 +177,19 @@ export default function CertisMap(props: CertisMapProps) {
         masterFeatures.current = valid;
 
         // ---------------------------------------
-        // UNIQUE LISTS
+        // UNIQUE LISTS (FIXED WITH STRING[] CASTS)
         // ---------------------------------------
         const states = [
           ...new Set(valid.map((f) => String(f.properties?.State || "").trim())),
-        ].filter(Boolean);
+        ].filter(Boolean) as string[];
 
         const retailers = [
           ...new Set(valid.map((f) => String(f.properties?.Retailer || "").trim())),
-        ].filter(Boolean);
+        ].filter(Boolean) as string[];
 
         const suppliers = [
           ...new Set(valid.flatMap((f) => parseSuppliers(f.properties?.Suppliers))),
-        ].filter(Boolean);
+        ].filter(Boolean) as string[];
 
         onStatesLoaded?.(states.sort());
         onRetailersLoaded?.(retailers.sort());
@@ -240,7 +238,7 @@ export default function CertisMap(props: CertisMapProps) {
           source: "retailers",
           filter: ["==", ["get", "DisplayCategory"], "Kingpin"],
           paint: {
-            "circle-radius": 5.5, // FINAL VALUE
+            "circle-radius": 5.5, // FINAL KINGPIN SIZE
             "circle-color": categoryColors.Kingpin.color,
             "circle-stroke-width": 2,
             "circle-stroke-color": categoryColors.Kingpin.outline,
@@ -303,6 +301,7 @@ export default function CertisMap(props: CertisMapProps) {
             .setHTML(html)
             .addTo(map);
 
+          // Add-to-trip button
           const el = popupRef.current.getElement();
           if (el && onAddStop) {
             const btn = el.querySelector("button[id^='add-']") as HTMLButtonElement | null;
@@ -326,7 +325,13 @@ export default function CertisMap(props: CertisMapProps) {
         console.error("❌ Map initialization failed:", err);
       }
     });
-  }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
+  }, [
+    geojsonPath,
+    onStatesLoaded,
+    onRetailersLoaded,
+    onSuppliersLoaded,
+    onAddStop,
+  ]);
 
   // ----------------------------
   // HOME MARKER
@@ -394,7 +399,7 @@ export default function CertisMap(props: CertisMapProps) {
 
     src.setData({ type: "FeatureCollection", features: filtered });
 
-    // SUMMARY
+    // SUMMARY CALLBACK
     if (onRetailerSummary) {
       const summary = filtered.reduce((acc: any, f: any) => {
         const p = f.properties || {};

@@ -1,480 +1,618 @@
+// components/CertisMap.tsx
+
+// ================================================================
+// 💠 CERTIS AGROUTE — A.28 FINAL S2 GOLD
+//   • True intersection filtering (State ∩ Retailer ∩ Category ∩ Supplier)
+//   • Kingpin layer always visible and clickable
+//   • Route mode: As Entered (Directions API) OR Optimize (Optimization API)
+//   • Always enforces HOME → STOPS → HOME when home is set
+//   • Popup uses complete address + supplier parsing
+//   • Stable cursor + stable routing layer cleanup
+//   • Marker sizes: retailers=5, kingpins=5.5
+//   • Projection: MERCATOR (immutable user rule)
+// ================================================================
+
 "use client";
+import { useEffect, useRef, useCallback } from "react";
+import mapboxgl, { LngLatLike } from "mapbox-gl";
 
-import { useState, useMemo } from "react";
-import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
-import SearchLocationsTile from "@/components/SearchLocationsTile";
-import Image from "next/image";
-import { Menu, X } from "lucide-react";
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+// ----------------------------
+// CATEGORY COLORS
+// ----------------------------
+export const categoryColors: Record<string, { color: string; outline?: string }> = {
+  Agronomy: { color: "#4CB5FF" },
+  "Grain/Feed": { color: "#FFD60A" },
+  Feed: { color: "#F2B705" },
+  "Office/Service": { color: "#FFFFFF" },
+  Distribution: { color: "#9E9E9E" },
+  Kingpin: { color: "#E10600", outline: "#FFD60A" },
+};
 
-// ----------------------------------------------
-// 🧭 UTILITIES
-// ----------------------------------------------
-const norm = (val: string) => (val || "").toString().trim().toLowerCase();
-const capitalizeState = (val: string) => (val || "").toUpperCase();
+// ----------------------------
+// NORMALIZERS
+// ----------------------------
+const norm = (v: any) => (v ?? "").toString().trim().toLowerCase();
 
-// ----------------------------------------------
-// 🌍 EXPORT TO GOOGLE / APPLE MAPS
-// ----------------------------------------------
-function buildGoogleMapsUrl(stops: Stop[]) {
-  if (stops.length < 2) return null;
-  const base = "https://www.google.com/maps/dir/?api=1";
-  const origin = encodeURIComponent(stops[0].address);
-  const destination = encodeURIComponent(stops[stops.length - 1].address);
-  const MAX_WAYPOINTS = 8;
-  const subset = stops.slice(1, -1).slice(0, MAX_WAYPOINTS).map((s) => encodeURIComponent(s.address));
-  return `${base}&origin=${origin}&destination=${destination}${
-    subset.length > 0 ? `&waypoints=${subset.join("|")}` : ""
-  }`;
+function assignDisplayCategory(cat: string): string {
+  const c = norm(cat);
+  if (["agronomy", "ag retail", "retail", "agronomy/grain", "agronomy grain"].includes(c))
+    return "Agronomy";
+  if (c.includes("grain") || c.includes("feed")) return "Grain/Feed";
+  if (c.includes("office")) return "Office/Service";
+  if (c.includes("distribution")) return "Distribution";
+  if (c.includes("kingpin")) return "Kingpin";
+  return "Agronomy";
 }
 
-function buildAppleMapsUrl(stops: Stop[]) {
-  if (stops.length < 2) return null;
-  const base = "http://maps.apple.com/?dirflg=d";
-  const origin = encodeURIComponent(stops[0].address);
-  const daddr = stops.slice(1).map((s) => encodeURIComponent(s.address)).join("+to:");
-  return `${base}&saddr=${origin}&daddr=${daddr}`;
-}
+function parseSuppliers(v: any): string[] {
+  if (!v) return [];
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
 
-// =========================================================
-// 🌟 MAIN PAGE COMPONENT
-// =========================================================
-export default function Page() {
-  // --------------------------------------
-  // 🎛 FILTER STATE
-  // --------------------------------------
-  const [availableStates, setAvailableStates] = useState<string[]>([]);
-  const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
-  const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedStates, setSelectedStates] = useState<string[]>([]);
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
-  const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
-  const [retailerSummary, setRetailerSummary] = useState<
-    { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }[]
-  >([]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // --------------------------------------
-  // 🚗 TRIP BUILDER
-  // --------------------------------------
-  const [tripStops, setTripStops] = useState<Stop[]>([]);
-  const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
-
-  const [homeZip, setHomeZip] = useState("");
-  const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
-
-  const [routeSummary, setRouteSummary] = useState<{ distance_m: number; duration_s: number } | null>(
-    null
-  );
-
-  // ---------------------- Add / Remove Stops ----------------------
-  const handleAddStop = (stop: Stop) => {
-    setTripStops((prev) => {
-      if (prev.some((s) => s.label === stop.label && s.address === stop.address)) return prev;
-      const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
-      const home = prev.find((s) => s.label.startsWith("Home"));
-      return home ? [home, ...nonHome, stop] : [...prev, stop];
-    });
-  };
-
-  const handleRemoveStop = (index: number) => {
-    setTripStops((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleClearStops = () => {
-    setTripStops((prev) => prev.filter((s) => s.label.startsWith("Home")));
-    setRouteSummary(null);
-  };
-
-  // ---------------------- Home ZIP → coordinates ----------------------
-  const handleGeocodeZip = async () => {
-    if (!homeZip || !mapboxToken) return;
-    try {
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-          homeZip
-        )}.json?access_token=${mapboxToken}&limit=1`
-      );
-      const data = await res.json();
-      if (data.features?.length > 0) {
-        const [lng, lat] = data.features[0].center;
-        const newHome: Stop = {
-          label: `Home (${homeZip})`,
-          address: homeZip,
-          coords: [lng, lat],
-        };
-        setHomeCoords([lng, lat]);
-        setTripStops((prev) => {
-          const others = prev.filter((s) => !s.label.startsWith("Home"));
-          return [newHome, ...others];
-        });
-      }
-    } catch (err) {
-      console.error("Home ZIP geocode error:", err);
+  if (typeof v === "string") {
+    if (v.startsWith("[")) {
+      try {
+        const arr = JSON.parse(v.replace(/'/g, '"'));
+        if (Array.isArray(arr)) return arr.map((x: any) => String(x).trim());
+      } catch {}
     }
-  };
+    return v.split(/[,;/|]+/).map((x) => x.trim()).filter(Boolean);
+  }
 
-  // =========================================================
-  // ALWAYS ENFORCE HOME → STOPS → HOME
-  // =========================================================
-  const stopsForRoute = useMemo(() => {
-    if (!homeCoords) return tripStops;
-    const homeStop: Stop = { label: `Home (${homeZip})`, address: homeZip, coords: homeCoords };
-    const nonHomeStops = tripStops.filter((s) => !s.label.startsWith("Home"));
-    return [homeStop, ...nonHomeStops, homeStop];
-  }, [tripStops, homeCoords, homeZip]);
+  if (typeof v === "object") {
+    return Object.values(v).map((x) => String(x).trim()).filter(Boolean);
+  }
 
-  // =========================================================
-  // HANDLE OPTIMIZED ROUTE RETURN
-  // =========================================================
-  const handleOptimizedRoute = (optimizedStops: Stop[]) => {
-    if (optimizedStops.length < 2) return;
-    const start = optimizedStops[0];
-    const end = optimizedStops[optimizedStops.length - 1];
-    const middle = optimizedStops.slice(1, -1);
-    setTripStops([start, ...middle, end]);
-  };
+  return [];
+}
 
-  // =========================================================
-  // NON-DESTRUCTIVE RETAILER SUMMARY
-  // =========================================================
-  const filteredRetailersForSummary = useMemo(() => {
-    if (selectedStates.length === 0) return availableRetailers;
-    return retailerSummary
-      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
-      .map((s) => s.retailer)
-      .filter((r, i, arr) => arr.indexOf(r) === i)
-      .sort();
-  }, [availableRetailers, retailerSummary, selectedStates]);
+const cleanAddress = (addr: string): string =>
+  (addr || "").replace(/\(.*?\)/g, "").replace(/\bP\.?O\.?\s*Box\b.*$/i, "").trim();
 
-  const kingpinSummary = retailerSummary.filter(
-    (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
-  );
-  const normalSummary = retailerSummary.filter(
-    (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
-  );
+// ----------------------------
+// TYPES
+// ----------------------------
+export interface Stop {
+  label: string;
+  address: string;
+  coords: [number, number];
+  city?: string;
+  state?: string;
+  zip?: string | number;
+}
 
-  // =========================================================
-  // UI
-  // =========================================================
+export interface CertisMapProps {
+  selectedCategories: string[];
+  selectedStates: string[];
+  selectedSuppliers: string[];
+  selectedRetailers: string[];
+  homeCoords?: [number, number] | null;
+
+  onStatesLoaded?: (s: string[]) => void;
+  onRetailersLoaded?: (r: string[]) => void;
+  onSuppliersLoaded?: (s: string[]) => void;
+
+  onRetailerSummary?: (
+    summaries: {
+      retailer: string;
+      count: number;
+      suppliers: string[];
+      states: string[];
+      categories: string[];
+    }[]
+  ) => void;
+
+  onAddStop?: (stop: Stop) => void;
+
+  tripStops?: Stop[];
+  tripMode?: "entered" | "optimize";
+  onOptimizedRoute?: (stops: Stop[]) => void;
+
+  onRouteSummary?: (summary: { distance_m: number; duration_s: number } | null) => void;
+}
+
+// ----------------------------
+// COMPONENT
+// ----------------------------
+export default function CertisMap(props: CertisMapProps) {
+  const {
+    selectedCategories,
+    selectedStates,
+    selectedSuppliers,
+    selectedRetailers,
+    homeCoords,
+    onStatesLoaded,
+    onRetailersLoaded,
+    onSuppliersLoaded,
+    onRetailerSummary,
+    onAddStop,
+    tripStops,
+    tripMode,
+    onOptimizedRoute,
+    onRouteSummary,
+  } = props;
+
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapContainer = useRef<HTMLDivElement | null>(null);
+  const masterFeatures = useRef<any[]>([]);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const homeMarker = useRef<mapboxgl.Marker | null>(null);
+
+  const geojsonPath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/data/retailers.geojson`;
+
+  // ----------------------------
+  // MAP INITIALIZATION
+  // ----------------------------
+  useEffect(() => {
+    if (mapRef.current) return;
+
+    const map = new mapboxgl.Map({
+      container: mapContainer.current as HTMLElement,
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
+      center: [-96.25, 41.25],
+      zoom: 4,
+      projection: "mercator", // immutable per your rule
+    });
+
+    mapRef.current = map;
+
+    map.on("load", async () => {
+      try {
+        const data = await fetch(geojsonPath).then((r) => r.json());
+        const valid = (Array.isArray(data.features) ? data.features : []).filter((f) => {
+          const c = f?.geometry?.coordinates;
+          return Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
+        });
+
+        valid.forEach((f) => {
+          f.properties = f.properties || {};
+          f.properties.DisplayCategory = assignDisplayCategory(f.properties?.Category);
+        });
+
+        masterFeatures.current = valid;
+
+        // ---------------------------------------
+        // UNIQUE LISTS — TYPE-SAFE CASTS
+        // ---------------------------------------
+        const states = [
+          ...new Set(valid.map((f) => String(f.properties?.State || "").trim())),
+        ].filter(Boolean) as string[];
+
+        const retailers = [
+          ...new Set(valid.map((f) => String(f.properties?.Retailer || "").trim())),
+        ].filter(Boolean) as string[];
+
+        const suppliers = [
+          ...new Set(valid.flatMap((f) => parseSuppliers(f.properties?.Suppliers))),
+        ].filter(Boolean) as string[];
+
+        onStatesLoaded?.((states as string[]).sort());
+        onRetailersLoaded?.((retailers as string[]).sort());
+        onSuppliersLoaded?.((suppliers as string[]).sort());
+
+        // ---------------------------------------
+        // ADD SOURCE + LAYERS
+        // ---------------------------------------
+        map.addSource("retailers", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: valid },
+        });
+
+        // Retailers
+        map.addLayer({
+          id: "retailers-layer",
+          type: "circle",
+          source: "retailers",
+          filter: ["!=", ["get", "DisplayCategory"], "Kingpin"],
+          paint: {
+            "circle-radius": 5,
+            "circle-color": [
+              "match",
+              ["get", "DisplayCategory"],
+              "Agronomy",
+              categoryColors.Agronomy.color,
+              "Grain/Feed",
+              categoryColors["Grain/Feed"].color,
+              "Feed",
+              categoryColors.Feed.color,
+              "Office/Service",
+              categoryColors["Office/Service"].color,
+              "Distribution",
+              categoryColors.Distribution.color,
+              "#4CB5FF",
+            ],
+            "circle-stroke-width": 0.6,
+            "circle-stroke-color": "#000000",
+          },
+        });
+
+        // Kingpins
+        map.addLayer({
+          id: "kingpins-layer",
+          type: "circle",
+          source: "retailers",
+          filter: ["==", ["get", "DisplayCategory"], "Kingpin"],
+          paint: {
+            "circle-radius": 5.5, // FINAL — your requested reduction
+            "circle-color": categoryColors.Kingpin.color,
+            "circle-stroke-width": 2,
+            "circle-stroke-color": categoryColors.Kingpin.outline,
+          },
+        });
+
+        // Cursor behavior
+        map.getCanvas().style.cursor = "grab";
+        const enter = () => (map.getCanvas().style.cursor = "pointer");
+        const leave = () => (map.getCanvas().style.cursor = "grab");
+
+        map.on("mouseenter", "retailers-layer", enter);
+        map.on("mouseleave", "retailers-layer", leave);
+        map.on("mouseenter", "kingpins-layer", enter);
+        map.on("mouseleave", "kingpins-layer", leave);
+
+        // ---------------------------------------
+        // POPUP HANDLER
+        // ---------------------------------------
+        const popupHandler = (e: any) => {
+          const f = e.features?.[0];
+          if (!f) return;
+
+          const coords = f.geometry?.coordinates;
+          if (!coords) return;
+
+          const p = f.properties || {};
+          const suppliers = parseSuppliers(p.Suppliers).join(", ") || "None listed";
+
+          const html = `
+            <div style="font-size:13px;width:360px;background:#1a1a1a;color:#f5f5f5;
+                        padding:8px;border-radius:6px;position:relative;">
+              <button id="add-${Math.random().toString(36).slice(2)}"
+                style="position:absolute;top:6px;right:6px;padding:3px 6px;
+                       background:#166534;color:#fff;border:none;border-radius:4px;
+                       font-size:11px;cursor:pointer;font-weight:600;">
+                + Add to Trip
+              </button>
+
+              <div style="line-height:1.35em;margin-top:6px;">
+                <strong style="font-size:14px;color:#FFD700;">
+                  ${p.Retailer || "Unknown"}
+                </strong><br/>
+                <em>${p.Name || ""}</em><br/>
+                ${cleanAddress(p.Address || "")}<br/>
+                ${p.City || ""} ${p.State || ""} ${p.Zip || ""}<br/>
+
+                <strong>Category:</strong> ${p.DisplayCategory}<br/>
+                <strong>Suppliers:</strong> ${suppliers}
+              </div>
+            </div>
+          `;
+
+          popupRef.current?.remove();
+          popupRef.current = new mapboxgl.Popup({
+            closeButton: true,
+            maxWidth: "none",
+          })
+            .setLngLat(coords)
+            .setHTML(html)
+            .addTo(map);
+
+          const el = popupRef.current.getElement();
+          if (el && onAddStop) {
+            const btn = el.querySelector("button[id^='add-']") as HTMLButtonElement | null;
+            if (btn) {
+              btn.onclick = () =>
+                onAddStop({
+                  label: p.Retailer || p.Name || "Unknown",
+                  address: cleanAddress(p.Address || ""),
+                  coords,
+                  city: p.City || "",
+                  state: p.State || "",
+                  zip: p.Zip || "",
+                });
+            }
+          }
+        };
+
+        map.on("click", "retailers-layer", popupHandler);
+        map.on("click", "kingpins-layer", popupHandler);
+      } catch (err) {
+        console.error("❌ Map initialization failed:", err);
+      }
+    });
+  }, [
+    geojsonPath,
+    onStatesLoaded,
+    onRetailersLoaded,
+    onSuppliersLoaded,
+    onAddStop,
+  ]);
+
+  // ----------------------------
+  // HOME MARKER
+  // ----------------------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    homeMarker.current?.remove();
+    homeMarker.current = null;
+
+    if (!homeCoords) return;
+
+    const basePath =
+      process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== ""
+        ? process.env.NEXT_PUBLIC_BASE_PATH
+        : "/certis_agroute_app";
+
+    const el = document.createElement("div");
+    el.className = "home-marker";
+    el.style.backgroundImage = `url(${basePath}/icons/Blue_Home.png)`;
+    el.style.backgroundSize = "contain";
+    el.style.backgroundRepeat = "no-repeat";
+    el.style.width = "30px";
+    el.style.height = "30px";
+
+    homeMarker.current = new mapboxgl.Marker({ element: el })
+      .setLngLat(homeCoords as LngLatLike)
+      .addTo(map);
+  }, [homeCoords]);
+
+  // ----------------------------
+  // FILTERING
+  // ----------------------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | null;
+    if (!src) return;
+
+    const filtered = masterFeatures.current.filter((f) => {
+      const p = f.properties || {};
+      const state = norm(p.State);
+      const retailer = norm(p.Retailer);
+      const category = norm(p.DisplayCategory);
+      const suppliers = parseSuppliers(p.Suppliers).map(norm);
+
+      const stMatch =
+        selectedStates.length === 0 || selectedStates.includes(state);
+
+      const rtMatch =
+        selectedRetailers.length === 0 || selectedRetailers.includes(retailer);
+
+      const spMatch =
+        selectedSuppliers.length === 0 ||
+        selectedSuppliers.some((s) => suppliers.includes(norm(s)));
+
+      const ctMatch =
+        category === "kingpin" ||
+        selectedCategories.length === 0 ||
+        selectedCategories.includes(category);
+
+      return stMatch && rtMatch && spMatch && ctMatch;
+    });
+
+    src.setData({ type: "FeatureCollection", features: filtered });
+
+    // SUMMARY
+    if (onRetailerSummary) {
+      const summary = filtered.reduce((acc: any, f: any) => {
+        const p = f.properties || {};
+        const r = String(p.Retailer || "Unknown").trim();
+
+        if (!acc[r])
+          acc[r] = {
+            retailer: r,
+            count: 0,
+            suppliers: new Set<string>(),
+            states: new Set<string>(),
+            categories: new Set<string>(),
+          };
+
+        acc[r].count++;
+        parseSuppliers(p.Suppliers).forEach((s) => acc[r].suppliers.add(s));
+        if (p.State) acc[r].states.add(String(p.State).trim());
+        if (p.DisplayCategory)
+          acc[r].categories.add(String(p.DisplayCategory).trim());
+
+        return acc;
+      }, {});
+
+      onRetailerSummary(
+        Object.values(summary).map((x: any) => ({
+          retailer: x.retailer,
+          count: x.count,
+          suppliers: [...x.suppliers].sort(),
+          states: [...x.states].sort(),
+          categories: [...x.categories].sort(),
+        }))
+      );
+    }
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedSuppliers,
+    selectedCategories,
+    onRetailerSummary,
+  ]);
+
+  // ----------------------------
+  // ROUTING
+  // ----------------------------
+  const clearRoute = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (map.getLayer("route-line")) map.removeLayer("route-line");
+    if (map.getSource("route")) map.removeSource("route");
+
+    onRouteSummary?.(null);
+  }, [onRouteSummary]);
+
+  const coordsToString = (stops: Stop[]) =>
+    stops.map((s) => `${s.coords[0]},${s.coords[1]}`).join(";");
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!tripStops || tripStops.length < 2) {
+      clearRoute();
+      return;
+    }
+
+    const token =
+      mapboxgl.accessToken || process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+
+    let ordered = [...tripStops];
+
+    const hasHomeStart = ordered[0]?.label?.startsWith("Home");
+    const hasHomeEnd = ordered[ordered.length - 1]?.label?.startsWith("Home");
+
+    if (!hasHomeStart && homeCoords) {
+      ordered.unshift({
+        label: "Home",
+        address: "Home",
+        coords: homeCoords,
+      });
+    }
+
+    if (!hasHomeEnd && homeCoords) {
+      ordered.push({
+        label: "Home",
+        address: "Home",
+        coords: homeCoords,
+      });
+    }
+
+    const interior = ordered.slice(1, -1);
+
+    const doRoute = async () => {
+      try {
+        // ----------------------
+        // OPTIMIZED ROUTE
+        // ----------------------
+        if (tripMode === "optimize" && interior.length > 1) {
+          const coordsStr = coordsToString(ordered);
+
+          const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsStr}?geometries=geojson&overview=full&source=first&destination=last&roundtrip=false&access_token=${encodeURIComponent(
+            token
+          )}`;
+
+          const resp = await fetch(url);
+          const data = await resp.json();
+
+          if (data?.trips?.length > 0) {
+            const trip = data.trips[0];
+
+            const feature: GeoJSON.Feature = {
+              type: "Feature",
+              geometry: trip.geometry,
+              properties: {},
+            };
+
+            const src = map.getSource("route") as mapboxgl.GeoJSONSource;
+            if (src) src.setData(feature);
+            else map.addSource("route", { type: "geojson", data: feature });
+
+            if (!map.getLayer("route-line")) {
+              map.addLayer({
+                id: "route-line",
+                type: "line",
+                source: "route",
+                paint: {
+                  "line-color": "#00B7FF",
+                  "line-width": 4,
+                },
+              });
+            }
+
+            onRouteSummary?.({
+              distance_m: trip.distance ?? 0,
+              duration_s: trip.duration ?? 0,
+            });
+
+            if (onOptimizedRoute && data.waypoints) {
+              const indices = trip.waypoint_indices;
+              const reordered = indices.map((i: number) => ordered[i]);
+              onOptimizedRoute(reordered);
+            }
+
+            return;
+          }
+        }
+
+        // ----------------------
+        // FALLBACK — AS ENTERED
+        // ----------------------
+        const dirUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsToString(
+          ordered
+        )}?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(
+          token
+        )}`;
+
+        const dirResp = await fetch(dirUrl);
+        const dirData = await dirResp.json();
+
+        if (dirData?.routes?.length > 0) {
+          const feature: GeoJSON.Feature = {
+            type: "Feature",
+            geometry: dirData.routes[0].geometry,
+            properties: {},
+          };
+
+          const src = map.getSource("route") as mapboxgl.GeoJSONSource;
+          if (src) src.setData(feature);
+          else map.addSource("route", { type: "geojson", data: feature });
+
+          if (!map.getLayer("route-line")) {
+            map.addLayer({
+              id: "route-line",
+              type: "line",
+              source: "route",
+              paint: {
+                "line-color": "#00B7FF",
+                "line-width": 4,
+              },
+            });
+          }
+
+          onRouteSummary?.({
+            distance_m: dirData.routes[0].distance ?? 0,
+            duration_s: dirData.routes[0].duration ?? 0,
+          });
+        }
+      } catch {
+        clearRoute();
+      }
+    };
+
+    doRoute();
+  }, [
+    tripStops,
+    tripMode,
+    homeCoords,
+    clearRoute,
+    onRouteSummary,
+    onOptimizedRoute,
+  ]);
+
+  // ----------------------------
+  // UNMOUNT CLEANUP
+  // ----------------------------
+  useEffect(() => {
+    return () => {
+      popupRef.current?.remove();
+      homeMarker.current?.remove();
+      mapRef.current?.remove();
+    };
+  }, []);
+
   return (
-    <div className="flex h-screen w-screen relative">
-      {/* Hamburger (Mobile) */}
-      <button
-        className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-      >
-        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-      </button>
-
-      {/* Sidebar */}
-      <aside
-        className={`fixed md:static top-0 left-0 h-full w-96 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
-      >
-        {/* Logo */}
-        <div className="flex items-center justify-center mb-6">
-          <Image src={`${basePath}/certis-logo.png`} alt="Certis Logo" width={180} height={60} priority />
-        </div>
-
-        {/* ====================== HOME ZIP ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">Home Zip Code</h2>
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={homeZip}
-              onChange={(e) => setHomeZip(e.target.value)}
-              placeholder="Enter ZIP"
-              className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700"
-            />
-            <button
-              onClick={handleGeocodeZip}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Set
-            </button>
-          </div>
-          {homeCoords && <p className="mt-2 text-sm text-green-600">Home set at {homeZip} ✔</p>}
-        </div>
-
-        {/* ====================== FILTER PANELS ====================== */}
-        {/* STATES */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">States</h2>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={() => setSelectedStates(availableStates.map(norm))} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Select All</button>
-            <button onClick={() => setSelectedStates([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">Clear</button>
-          </div>
-          <div className="grid grid-cols-3 gap-1 text-sm">
-            {availableStates.map((state) => {
-              const normalized = norm(state);
-              return (
-                <label key={state} className="flex items-center space-x-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedStates.includes(normalized)}
-                    onChange={() =>
-                      setSelectedStates((prev) =>
-                        prev.includes(normalized)
-                          ? prev.filter((s) => s !== normalized)
-                          : [...prev, normalized]
-                      )
-                    }
-                  />
-                  <span>{capitalizeState(state)}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* RETAILERS */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">Retailers</h2>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Select All</button>
-            <button onClick={() => setSelectedRetailers([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">Clear</button>
-          </div>
-          <div className="max-h-40 overflow-y-auto text-sm">
-            {availableRetailers.map((retailer) => {
-              const normalized = norm(retailer);
-              return (
-                <label key={retailer} className="flex items-center space-x-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedRetailers.includes(normalized)}
-                    onChange={() =>
-                      setSelectedRetailers((prev) =>
-                        prev.includes(normalized)
-                          ? prev.filter((r) => r !== normalized)
-                          : [...prev, normalized]
-                      )
-                    }
-                  />
-                  <span>{retailer}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* SUPPLIERS */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">Suppliers</h2>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={() => setSelectedSuppliers(availableSuppliers)} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Select All</button>
-            <button onClick={() => setSelectedSuppliers([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">Clear</button>
-          </div>
-          <div className="max-h-40 overflow-y-auto text-sm">
-            {availableSuppliers.map((supplier) => (
-              <label key={supplier} className="flex items-center space-x-1">
-                <input
-                  type="checkbox"
-                  checked={selectedSuppliers.includes(supplier)}
-                  onChange={() =>
-                    setSelectedSuppliers((prev) =>
-                      prev.includes(supplier)
-                        ? prev.filter((s) => s !== supplier)
-                        : [...prev, supplier]
-                    )
-                  }
-                />
-                <span>{supplier}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* CATEGORIES */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">Categories</h2>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button
-              onClick={() =>
-                setSelectedCategories(Object.keys(categoryColors).filter((c) => c !== "Kingpin").map(norm))
-              }
-              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-            >
-              Select All
-            </button>
-            <button onClick={() => setSelectedCategories([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
-              Clear
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-1 text-sm">
-            {Object.entries(categoryColors)
-              .filter(([key]) => key !== "Kingpin")
-              .map(([key, { color }]) => (
-                <label key={key} className="flex items-center space-x-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(norm(key))}
-                    onChange={() =>
-                      setSelectedCategories((prev) =>
-                        prev.includes(norm(key))
-                          ? prev.filter((c) => c !== norm(key))
-                          : [...prev, norm(key)]
-                      )
-                    }
-                  />
-                  <span className="flex items-center">
-                    <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: color }} />
-                    {key}
-                  </span>
-                </label>
-              ))}
-          </div>
-        </div>
-
-        {/* =================== CHANNEL SUMMARY =================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold mb-3">Channel Summary</h2>
-          <div className="text-sm max-h-40 overflow-y-auto">
-            {normalSummary.map((s, i) => (
-              <div key={i} className="mb-3">
-                <strong>
-                  {s.retailer} ({s.states.map(capitalizeState).join(", ")})
-                </strong>{" "}
-                ({s.count} sites)
-                <br />
-                Suppliers: {s.suppliers.join(", ") || "N/A"}
-                <br />
-                Categories: {s.categories.join(", ") || "N/A"}
-              </div>
-            ))}
-            {kingpinSummary.length > 0 && (
-              <div className="mt-2 text-red-600 dark:text-red-400">
-                <strong>Kingpins:</strong> {kingpinSummary.map((s) => s.retailer).join(", ")}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* =================== SEARCH LOCATIONS TILE =================== */}
-        <SearchLocationsTile onAddStop={handleAddStop} />
-
-        {/* =================== TRIP BUILDER =================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4">
-          <h2 className="text-lg font-bold mb-3">Trip Optimization</h2>
-
-          {/* Mode selector */}
-          <div className="flex space-x-4 mb-3 text-sm">
-            <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="radio" value="entered" checked={tripMode === "entered"} onChange={() => setTripMode("entered")} />
-              <span>Map as Entered</span>
-            </label>
-            <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="radio" value="optimize" checked={tripMode === "optimize"} onChange={() => setTripMode("optimize")} />
-              <span>Optimize Route</span>
-            </label>
-          </div>
-
-          {/* Route Summary */}
-          {routeSummary && (
-            <div className="text-xs text-gray-700 dark:text-gray-300 mb-3 p-2 bg-gray-200 dark:bg-gray-700 rounded">
-              <strong>
-                {(routeSummary.distance_m / 1609.34).toFixed(1)} miles • {(routeSummary.duration_s / 60).toFixed(0)} minutes
-              </strong>
-              <br />
-              {tripMode === "optimize" ? "Optimized for shortest driving time" : "Mapped in entered order"}
-            </div>
-          )}
-
-          {/* Trip Stops */}
-          {tripStops.length > 0 ? (
-            <div className="space-y-3">
-              <ol className="ml-5 space-y-3 text-sm">
-                {tripStops.map((stop, i) => (
-                  <li key={i} className="flex justify-between items-start pb-2 border-b border-gray-300 dark:border-gray-600">
-                    <div>
-                      <div className="font-semibold">{stop.label}</div>
-                      <div className="text-xs">
-                        {stop.address}
-                        <br />
-                        {stop.city}, {stop.state} {stop.zip}
-                      </div>
-                    </div>
-
-                    {!stop.label.startsWith("Home") && (
-                      <button
-                        onClick={() => handleRemoveStop(i)}
-                        className="ml-2 text-red-600 hover:text-red-800 text-xs"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ol>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2 mt-2">
-                <button
-                  onClick={handleClearStops}
-                  className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
-                >
-                  Clear All
-                </button>
-
-                {/* Export to Google */}
-                {buildGoogleMapsUrl(stopsForRoute) && (
-                  <a
-                    href={buildGoogleMapsUrl(stopsForRoute) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
-                  >
-                    Open in Google Maps
-                  </a>
-                )}
-
-                {/* Export to Apple */}
-                {buildAppleMapsUrl(stopsForRoute) && (
-                  <a
-                    href={buildAppleMapsUrl(stopsForRoute) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                  >
-                    Open in Apple Maps
-                  </a>
-                )}
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              No stops added yet.
-            </p>
-          )}
-        </div>
-      </aside>
-
-      {/* =============================== */}
-      {/* MAP */}
-      {/* =============================== */}
-      <main className="flex-1 relative">
-        <CertisMap
-          selectedCategories={selectedCategories}
-          selectedStates={selectedStates}
-          selectedSuppliers={selectedSuppliers}
-          selectedRetailers={selectedRetailers}
-          homeCoords={homeCoords}
-          onStatesLoaded={setAvailableStates}
-          onRetailersLoaded={setAvailableRetailers}
-          onSuppliersLoaded={setAvailableSuppliers}
-          onRetailerSummary={setRetailerSummary}
-          onAddStop={handleAddStop}
-          tripStops={stopsForRoute}
-          tripMode={tripMode}
-          onRouteSummary={setRouteSummary}
-          onOptimizedRoute={handleOptimizedRoute}
-        />
-      </main>
-    </div>
+    <div
+      ref={mapContainer}
+      className="w-full h-full border-t border-gray-400"
+    />
   );
 }
