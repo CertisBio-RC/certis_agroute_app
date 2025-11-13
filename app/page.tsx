@@ -24,17 +24,25 @@ function buildGoogleMapsUrl(stops: Stop[]) {
   const origin = encodeURIComponent(stops[0].address);
   const destination = encodeURIComponent(stops[stops.length - 1].address);
   const MAX_WAYPOINTS = 8;
-  const subset = stops.slice(1, -1).slice(0, MAX_WAYPOINTS).map((s) => encodeURIComponent(s.address));
-  return `${base}&origin=${origin}&destination=${destination}${
-    subset.length > 0 ? `&waypoints=${subset.join("|")}` : ""
-  }`;
+  const subset = stops
+    .slice(1, -1)
+    .slice(0, MAX_WAYPOINTS)
+    .map((s) => encodeURIComponent(s.address));
+
+  return (
+    `${base}&origin=${origin}&destination=${destination}` +
+    (subset.length > 0 ? `&waypoints=${subset.join("|")}` : "")
+  );
 }
 
 function buildAppleMapsUrl(stops: Stop[]) {
   if (stops.length < 2) return null;
   const base = "http://maps.apple.com/?dirflg=d";
   const origin = encodeURIComponent(stops[0].address);
-  const daddr = stops.slice(1).map((s) => encodeURIComponent(s.address)).join("+to:");
+  const daddr = stops
+    .slice(1)
+    .map((s) => encodeURIComponent(s.address))
+    .join("+to:");
   return `${base}&saddr=${origin}&daddr=${daddr}`;
 }
 
@@ -53,7 +61,13 @@ export default function Page() {
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
   const [retailerSummary, setRetailerSummary] = useState<
-    { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }[]
+    {
+      retailer: string;
+      count: number;
+      suppliers: string[];
+      categories: string[];
+      states: string[];
+    }[]
   >([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -66,14 +80,16 @@ export default function Page() {
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
-  const [routeSummary, setRouteSummary] = useState<{ distance_m: number; duration_s: number } | null>(
-    null
-  );
+  const [routeSummary, setRouteSummary] = useState<{
+    distance_m: number;
+    duration_s: number;
+  } | null>(null);
 
   // ---------------------- Add / Remove Stops ----------------------
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
-      if (prev.some((s) => s.label === stop.label && s.address === stop.address)) return prev;
+      if (prev.some((s) => s.label === stop.label && s.address === stop.address))
+        return prev;
       const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
       const home = prev.find((s) => s.label.startsWith("Home"));
       return home ? [home, ...nonHome, stop] : [...prev, stop];
@@ -122,7 +138,11 @@ export default function Page() {
   // =========================================================
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
-    const homeStop: Stop = { label: `Home (${homeZip})`, address: homeZip, coords: homeCoords };
+    const homeStop: Stop = {
+      label: `Home (${homeZip})`,
+      address: homeZip,
+      coords: homeCoords,
+    };
     const nonHomeStops = tripStops.filter((s) => !s.label.startsWith("Home"));
     return [homeStop, ...nonHomeStops, homeStop];
   }, [tripStops, homeCoords, homeZip]);
@@ -172,18 +192,24 @@ export default function Page() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-96 bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 
+        className={`fixed md:static top-0 left-0 h-full w-[600px] bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 
           transform transition-transform duration-300
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
           md:translate-x-0`}
       >
         {/* Logo */}
         <div className="flex items-center justify-center mb-6">
-          <Image src={`${basePath}/certis-logo.png`} alt="Certis Logo" width={180} height={60} priority />
+          <Image
+            src={`${basePath}/certis-logo.png`}
+            alt="Certis Logo"
+            width={180}
+            height={60}
+            priority
+          />
         </div>
 
         {/* ====================== HOME ZIP ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
           <h2 className="text-lg font-bold mb-3">Home Zip Code</h2>
           <div className="flex space-x-2">
             <input
@@ -200,16 +226,30 @@ export default function Page() {
               Set
             </button>
           </div>
-          {homeCoords && <p className="mt-2 text-sm text-green-600">Home set at {homeZip} ✔</p>}
+          {homeCoords && (
+            <p className="mt-2 text-sm text-green-600">
+              Home set at {homeZip} ✔
+            </p>
+          )}
         </div>
 
         {/* ====================== FILTER PANELS ====================== */}
         {/* STATES */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
           <h2 className="text-lg font-bold mb-3">States</h2>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={() => setSelectedStates(availableStates.map(norm))} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Select All</button>
-            <button onClick={() => setSelectedStates([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">Clear</button>
+          <div className="flex flex-wrap gap-2 mb-2 text-sm">
+            <button
+              onClick={() => setSelectedStates(availableStates.map(norm))}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
+              Select All
+            </button>
+            <button
+              onClick={() => setSelectedStates([])}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
+              Clear
+            </button>
           </div>
           <div className="grid grid-cols-3 gap-1 text-sm">
             {availableStates.map((state) => {
@@ -234,15 +274,27 @@ export default function Page() {
           </div>
         </div>
 
-        {/* =================== SEARCH LOCATIONS TILE (NEW POSITION) =================== */}
+        {/* =================== SEARCH LOCATIONS TILE =================== */}
         <SearchLocationsTile onAddStop={handleAddStop} />
 
         {/* RETAILERS */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
           <h2 className="text-lg font-bold mb-3">Retailers</h2>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Select All</button>
-            <button onClick={() => setSelectedRetailers([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">Clear</button>
+          <div className="flex flex-wrap gap-2 mb-2 text-sm">
+            <button
+              onClick={() =>
+                setSelectedRetailers(filteredRetailersForSummary.map(norm))
+              }
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
+              Select All
+            </button>
+            <button
+              onClick={() => setSelectedRetailers([])}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
+              Clear
+            </button>
           </div>
           <div className="max-h-40 overflow-y-auto text-sm">
             {availableRetailers.map((retailer) => {
@@ -268,11 +320,21 @@ export default function Page() {
         </div>
 
         {/* SUPPLIERS */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
           <h2 className="text-lg font-bold mb-3">Suppliers</h2>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <button onClick={() => setSelectedSuppliers(availableSuppliers)} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Select All</button>
-            <button onClick={() => setSelectedSuppliers([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">Clear</button>
+          <div className="flex flex-wrap gap-2 mb-2 text-sm">
+            <button
+              onClick={() => setSelectedSuppliers(availableSuppliers)}
+              className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+            >
+              Select All
+            </button>
+            <button
+              onClick={() => setSelectedSuppliers([])}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
+              Clear
+            </button>
           </div>
           <div className="max-h-40 overflow-y-auto text-sm">
             {availableSuppliers.map((supplier) => (
@@ -295,18 +357,25 @@ export default function Page() {
         </div>
 
         {/* CATEGORIES */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
           <h2 className="text-lg font-bold mb-3">Categories</h2>
-          <div className="flex flex-wrap gap-2 mb-2">
+          <div className="flex flex-wrap gap-2 mb-2 text-sm">
             <button
               onClick={() =>
-                setSelectedCategories(Object.keys(categoryColors).filter((c) => c !== "Kingpin").map(norm))
+                setSelectedCategories(
+                  Object.keys(categoryColors)
+                    .filter((c) => c !== "Kingpin")
+                    .map(norm)
+                )
               }
               className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
             >
               Select All
             </button>
-            <button onClick={() => setSelectedCategories([])} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">
+            <button
+              onClick={() => setSelectedCategories([])}
+              className="px-2 py-1 bg-gray-400 text-white rounded text-xs"
+            >
               Clear
             </button>
           </div>
@@ -327,7 +396,10 @@ export default function Page() {
                     }
                   />
                   <span className="flex items-center">
-                    <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: color }} />
+                    <span
+                      className="inline-block w-3 h-3 rounded-full mr-1"
+                      style={{ backgroundColor: color }}
+                    />
                     {key}
                   </span>
                 </label>
@@ -336,7 +408,7 @@ export default function Page() {
         </div>
 
         {/* =================== CHANNEL SUMMARY =================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[15px] leading-tight">
           <h2 className="text-lg font-bold mb-3">Channel Summary</h2>
           <div className="text-sm max-h-40 overflow-y-auto">
             {normalSummary.map((s, i) => (
@@ -352,25 +424,36 @@ export default function Page() {
               </div>
             ))}
             {kingpinSummary.length > 0 && (
-              <div className="mt-2 text-red-600 dark:text-red-400">
-                <strong>Kingpins:</strong> {kingpinSummary.map((s) => s.retailer).join(", ")}
+              <div className="mt-2 text-yellow-500 dark:text-yellow-300">
+                <strong>Kingpins:</strong>{" "}
+                {kingpinSummary.map((s) => s.retailer).join(", ")}
               </div>
             )}
           </div>
         </div>
 
         {/* =================== TRIP BUILDER =================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4 text-[15px] leading-tight">
           <h2 className="text-lg font-bold mb-3">Trip Optimization</h2>
 
           {/* Mode selector */}
           <div className="flex space-x-4 mb-3 text-sm">
             <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="radio" value="entered" checked={tripMode === "entered"} onChange={() => setTripMode("entered")} />
+              <input
+                type="radio"
+                value="entered"
+                checked={tripMode === "entered"}
+                onChange={() => setTripMode("entered")}
+              />
               <span>Map as Entered</span>
             </label>
             <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="radio" value="optimize" checked={tripMode === "optimize"} onChange={() => setTripMode("optimize")} />
+              <input
+                type="radio"
+                value="optimize"
+                checked={tripMode === "optimize"}
+                onChange={() => setTripMode("optimize")}
+              />
               <span>Optimize Route</span>
             </label>
           </div>
@@ -379,10 +462,13 @@ export default function Page() {
           {routeSummary && (
             <div className="text-xs text-gray-700 dark:text-gray-300 mb-3 p-2 bg-gray-200 dark:bg-gray-700 rounded">
               <strong>
-                {(routeSummary.distance_m / 1609.34).toFixed(1)} miles • {(routeSummary.duration_s / 60).toFixed(0)} minutes
+                {(routeSummary.distance_m / 1609.34).toFixed(1)} miles •{" "}
+                {(routeSummary.duration_s / 60).toFixed(0)} minutes
               </strong>
               <br />
-              {tripMode === "optimize" ? "Optimized for shortest driving time" : "Mapped in entered order"}
+              {tripMode === "optimize"
+                ? "Optimized for shortest driving time"
+                : "Mapped in entered order"}
             </div>
           )}
 
@@ -391,7 +477,10 @@ export default function Page() {
             <div className="space-y-3">
               <ol className="ml-5 space-y-3 text-sm">
                 {tripStops.map((stop, i) => (
-                  <li key={i} className="flex justify-between items-start pb-2 border-b border-gray-300 dark:border-gray-600">
+                  <li
+                    key={i}
+                    className="flex justify-between items-start pb-2 border-b border-gray-300 dark:border-gray-600"
+                  >
                     <div>
                       <div className="font-semibold">{stop.label}</div>
                       <div className="text-xs">
@@ -404,7 +493,7 @@ export default function Page() {
                     {!stop.label.startsWith("Home") && (
                       <button
                         onClick={() => handleRemoveStop(i)}
-                        className="ml-2 text-red-600 hover:text-red-800 text-xs"
+                        className="ml-2 text-yellow-500 hover:text-yellow-300 text-xs"
                       >
                         Remove
                       </button>
@@ -456,25 +545,34 @@ export default function Page() {
       </aside>
 
       {/* =============================== */}
-      {/* MAP */}
+      {/* MAP + TITLE */}
       {/* =============================== */}
-      <main className="flex-1 relative">
-        <CertisMap
-          selectedCategories={selectedCategories}
-          selectedStates={selectedStates}
-          selectedSuppliers={selectedSuppliers}
-          selectedRetailers={selectedRetailers}
-          homeCoords={homeCoords}
-          onStatesLoaded={setAvailableStates}
-          onRetailersLoaded={setAvailableRetailers}
-          onSuppliersLoaded={setAvailableSuppliers}
-          onRetailerSummary={setRetailerSummary}
-          onAddStop={handleAddStop}
-          tripStops={stopsForRoute}
-          tripMode={tripMode}
-          onRouteSummary={setRouteSummary}
-          onOptimizedRoute={handleOptimizedRoute}
-        />
+      <main className="flex-1 relative flex flex-col">
+        {/* Title aligned with right edge of map container */}
+        <div className="w-full flex justify-end pr-6 pt-4">
+          <h1 className="text-3xl font-bold text-yellow-400">
+            Certis AgRoute Intelligence Engine
+          </h1>
+        </div>
+
+        <div className="flex-1">
+          <CertisMap
+            selectedCategories={selectedCategories}
+            selectedStates={selectedStates}
+            selectedSuppliers={selectedSuppliers}
+            selectedRetailers={selectedRetailers}
+            homeCoords={homeCoords}
+            onStatesLoaded={setAvailableStates}
+            onRetailersLoaded={setAvailableRetailers}
+            onSuppliersLoaded={setAvailableSuppliers}
+            onRetailerSummary={setRetailerSummary}
+            onAddStop={handleAddStop}
+            tripStops={stopsForRoute}
+            tripMode={tripMode}
+            onRouteSummary={setRouteSummary}
+            onOptimizedRoute={handleOptimizedRoute}
+          />
+        </div>
       </main>
     </div>
   );
