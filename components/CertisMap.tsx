@@ -147,7 +147,14 @@ export default function CertisMap(props: CertisMapProps) {
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const homeMarker = useRef<mapboxgl.Marker | null>(null);
 
-const geojsonPath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/data/retailers.geojson`;
+// Correct static base path for local + GitHub Pages
+const basePath =
+  process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== ""
+    ? process.env.NEXT_PUBLIC_BASE_PATH
+    : "/certis_agroute_app";
+
+const geojsonPath = `${basePath}/data/retailers.geojson`;
+
 
   // ----------------------------
   // POPUP HANDLER (Option A)
