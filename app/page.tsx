@@ -79,8 +79,7 @@ export default function Page() {
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
 
   const [homeZip, setHomeZip] = useState("");
-  const [homeCoords, setHomeCoords] =
-    useState<[number, number] | null>(null);
+  const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
   const [routeSummary, setRouteSummary] = useState<{
     distance_m: number;
@@ -148,6 +147,7 @@ export default function Page() {
     const nonHomeStops = tripStops.filter((s) => !s.label.startsWith("Home"));
     return [homeStop, ...nonHomeStops, homeStop];
   }, [tripStops, homeCoords, homeZip]);
+
   // =========================================================
   // HANDLE OPTIMIZED ROUTE RETURN
   // =========================================================
@@ -178,8 +178,7 @@ export default function Page() {
   );
   const normalSummary = retailerSummary.filter(
     (s) =>
-      !s.categories.includes("kingpin") &&
-      norm(s.retailer) !== "kingpin"
+      !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
   );
 
   // =========================================================
@@ -275,7 +274,7 @@ export default function Page() {
                       )
                     }
                   />
-                  <span className="text-white dark:text-yellow-300">
+                  <span className="text-white">
                     {capitalizeState(state)}
                   </span>
                 </label>
@@ -325,7 +324,7 @@ export default function Page() {
                       )
                     }
                   />
-                  <span className="text-white dark:text-yellow-300">
+                  <span className="text-white">
                     {retailer}
                   </span>
                 </label>
@@ -368,7 +367,7 @@ export default function Page() {
                     )
                   }
                 />
-                <span className="text-white dark:text-yellow-300">
+                <span className="text-white">
                   {supplier}
                 </span>
               </label>
@@ -416,7 +415,7 @@ export default function Page() {
                       )
                     }
                   />
-                  <span className="flex items-center text-white dark:text-yellow-300">
+                  <span className="flex items-center text-white">
                     <span
                       className="inline-block w-3 h-3 rounded-full mr-1"
                       style={{ backgroundColor: color }}
@@ -434,7 +433,7 @@ export default function Page() {
             Channel Summary
           </h2>
 
-          <div className="text-[15px] max-h-48 overflow-y-auto text-white dark:text-yellow-200">
+          <div className="text-[15px] max-h-48 overflow-y-auto text-white">
             {normalSummary.map((s, i) => (
               <div key={i} className="mb-3">
                 <strong>
@@ -472,7 +471,7 @@ export default function Page() {
                 checked={tripMode === "entered"}
                 onChange={() => setTripMode("entered")}
               />
-              <span className="text-white dark:text-yellow-300">
+              <span className="text-white">
                 Map as Entered
               </span>
             </label>
@@ -484,7 +483,7 @@ export default function Page() {
                 checked={tripMode === "optimize"}
                 onChange={() => setTripMode("optimize")}
               />
-              <span className="text-white dark:text-yellow-300">
+              <span className="text-white">
                 Optimize Route
               </span>
             </label>
@@ -579,9 +578,9 @@ export default function Page() {
       {/* MAP + TITLE */}
       {/* =============================== */}
       <main className="flex-1 relative flex flex-col">
-        {/* Main Title — now spaced correctly */}
+        {/* Main Title — slightly smaller, with breathing room */}
         <div className="w-full flex justify-end pr-6 pt-4 mb-3">
-          <h1 className="text-3xl font-bold text-yellow-400 tracking-wide">
+          <h1 className="text-2xl font-bold text-yellow-400 tracking-wide">
             Certis AgRoute Intelligence Engine
           </h1>
         </div>
@@ -608,4 +607,3 @@ export default function Page() {
     </div>
   );
 }
-
