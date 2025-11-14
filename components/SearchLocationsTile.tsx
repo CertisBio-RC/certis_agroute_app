@@ -3,19 +3,32 @@
 import { useState } from "react";
 import { Stop } from "./CertisMap";
 
+type SearchResult = {
+  label: string;
+  address: string;
+  city?: string;
+  state?: string;
+  zip?: string | number;
+  coords: [number, number];
+
+  // Retailer search metadata
+  states?: string[];              // <-- plural for multi–state retailers
+  totalLocations?: number;        // count of locations under that retailer
+};
+
 type Props = {
   onAddStop: (stop: Stop) => void;
 };
 
 export default function SearchLocationsTile({ onAddStop }: Props) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Stop[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
-
     setLoading(true);
+
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
       const data = await res.json();
@@ -24,13 +37,14 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
       console.error("SearchLocationsTile error:", err);
       setResults([]);
     }
+
     setLoading(false);
   };
 
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
       {/* Header */}
-      <h2 className="text-[18px] font-bold mb-3 dark:text-yellow-400 text-black">
+      <h2 className="text-[18px] font-bold mb-3 dark:text-yellow-400 text-blue-800">
         Search Locations
       </h2>
 
@@ -79,22 +93,43 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
               <strong
                 className="
                   text-[18px] font-bold block mb-1
-                  dark:text-yellow-300 text-black
+                  dark:text-yellow-300 text-blue-800
                 "
               >
                 {item.label}
               </strong>
 
               {/* Stacked metadata — states + total locations */}
-              <div className="text-[16px] text-black dark:text-white">
-                {Array.isArray(item.states) ? item.states.join(", ") : item.states}
-                {" • "}
-                {item.totalLocations} {item.totalLocations === 1 ? "location" : "locations"}
+              {(item.states || item.totalLocations !== undefined) && (
+                <div className="text-[16px] text-black dark:text-white">
+                  {Array.isArray(item.states)
+                    ? item.states.join(", ")
+                    : item.state ?? ""}
+                  {" • "}
+                  {item.totalLocations}{" "}
+                  {item.totalLocations === 1 ? "location" : "locations"}
+                </div>
+              )}
+
+              {/* Address Lines — 16px body font */}
+              <div className="text-[16px] text-black dark:text-white mt-1">
+                {item.address}
+                <br />
+                {item.city}, {item.state} {item.zip}
               </div>
 
-              {/* Add Stop Button */}
+              {/* Add Stop */}
               <button
-                onClick={() => onAddStop(item)}
+                onClick={() =>
+                  onAddStop({
+                    label: item.label,
+                    address: item.address,
+                    coords: item.coords,
+                    city: item.city,
+                    state: item.state,
+                    zip: item.zip,
+                  })
+                }
                 className="
                   mt-2 px-2 py-1 rounded text-sm
                   bg-green-600 hover:bg-green-700
