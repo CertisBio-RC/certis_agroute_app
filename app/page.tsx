@@ -1,3 +1,9 @@
+// ================================================================
+// 💠 CERTIS AGROUTE PLANNER — page.tsx (REGENERATED)
+// PART 1 OF 3 — DO NOT MODIFY HEADERS OR ORDER
+// This part includes app startup logic and first 3 sidebar tiles
+// ================================================================
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -111,6 +117,7 @@ export default function Page() {
     distance_m: number;
     duration_s: number;
   } | null>(null);
+
   // ---------------------- Add / Remove Stops ----------------------
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
@@ -320,8 +327,16 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ====================== SEARCH LOCATIONS TILE ====================== */}
+        {/* ====================== SEARCH LOCATIONS TILE (MOVED HERE) ====================== */}
         <SearchLocationsTile onAddStop={handleAddStop} />
+
+        {/* END OF PART 1 — CONTINUE WITH PART 2 NEXT */}
+// ================================================================
+// 💠 CERTIS AGROUTE PLANNER — page.tsx
+// PART 2 OF 3 — DO NOT MODIFY HEADERS OR ORDER
+// Retailers → Suppliers → Categories → Channel Summary
+// ================================================================
+
         {/* ====================== RETAILERS ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
@@ -507,7 +522,14 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ====================== TRIP BUILDER ====================== */}
+        {/* END OF PART 2 — CONTINUE WITH PART 3 NEXT */}
+// ================================================================
+// 💠 CERTIS AGROUTE PLANNER — page.tsx
+// PART 3 OF 3 — DO NOT MODIFY HEADERS OR ORDER
+// Trip Optimization → Map → Closing JSX
+// ================================================================
+
+        {/* ====================== TRIP BUILDER / OPTIMIZATION ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow text-[16px] leading-tight mt-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">
             Trip Optimization

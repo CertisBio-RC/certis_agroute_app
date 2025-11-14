@@ -30,13 +30,7 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
       {/* Header */}
-      <h2
-        className="
-          text-[18px] font-bold mb-3
-          dark:text-yellow-400
-          text-blue-800
-        "
-      >
+      <h2 className="text-[18px] font-bold mb-3 dark:text-yellow-400 text-black">
         Search Locations
       </h2>
 
@@ -85,18 +79,17 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
               <strong
                 className="
                   text-[18px] font-bold block mb-1
-                  dark:text-yellow-300
-                  text-blue-800
+                  dark:text-yellow-300 text-black
                 "
               >
                 {item.label}
               </strong>
 
-              {/* Address Lines — 16px body font */}
+              {/* Stacked metadata — states + total locations */}
               <div className="text-[16px] text-black dark:text-white">
-                {item.address}
-                <br />
-                {item.city}, {item.state} {item.zip}
+                {Array.isArray(item.states) ? item.states.join(", ") : item.states}
+                {" • "}
+                {item.totalLocations} {item.totalLocations === 1 ? "location" : "locations"}
               </div>
 
               {/* Add Stop Button */}
