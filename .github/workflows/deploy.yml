@@ -21,16 +21,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build static site
+      - name: Build static site (Next.js 15 → Static Export)
         run: |
           npm run build
+          npx next export
           echo "{" > out/build-info.json
           echo "  \"commit\": \"${GITHUB_SHA}\"," >> out/build-info.json
           echo "  \"date\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"" >> out/build-info.json
           echo "}" >> out/build-info.json
 
-      - name: Debug out folder
-        run: ls -R ./out
+      - name: Verify out directory exists
+        run: |
+          if [ ! -d "out" ]; then
+            echo "❌ ERROR: 'out' directory missing — static export failed"
+            exit 1
+          fi
+          echo "📁 Static export contents:"
+          ls -R ./out
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
