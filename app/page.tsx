@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
 import SearchLocationsTile from "@/components/SearchLocationsTile";
 import Image from "next/image";
@@ -8,6 +8,30 @@ import { Menu, X } from "lucide-react";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+
+// ----------------------------------------------
+// 🌓 THEME HANDLER — forced dark mode on first load
+// ----------------------------------------------
+function useTheme() {
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+
+  // Force dark on first load, then honor stored preference
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    const initial = stored ? (stored as "light" | "dark") : "dark";
+    setTheme(initial);
+    document.documentElement.classList.toggle("dark", initial === "dark");
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("theme", next);
+    document.documentElement.classList.toggle("dark", next === "dark");
+  };
+
+  return { theme, toggleTheme };
+}
 
 // ----------------------------------------------
 // 🧭 UTILITIES
@@ -50,6 +74,8 @@ function buildAppleMapsUrl(stops: Stop[]) {
 // 🌟 MAIN PAGE COMPONENT
 // =========================================================
 export default function Page() {
+  const { theme, toggleTheme } = useTheme();
+
   // --------------------------------------
   // 🎛 FILTER STATE
   // --------------------------------------
@@ -85,7 +111,6 @@ export default function Page() {
     distance_m: number;
     duration_s: number;
   } | null>(null);
-
   // ---------------------- Add / Remove Stops ----------------------
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
@@ -147,6 +172,7 @@ export default function Page() {
     const nonHomeStops = tripStops.filter((s) => !s.label.startsWith("Home"));
     return [homeStop, ...nonHomeStops, homeStop];
   }, [tripStops, homeCoords, homeZip]);
+
   // =========================================================
   // HANDLE OPTIMIZED ROUTE RETURN
   // =========================================================
@@ -205,7 +231,7 @@ export default function Page() {
           md:translate-x-0`}
       >
         {/* Logo */}
-        <div className="flex items-center justify-center mb-6">
+        <div className="flex flex-col items-center justify-center mb-6 gap-3">
           <Image
             src={`${basePath}/certis-logo.png`}
             alt="Certis Logo"
@@ -213,10 +239,18 @@ export default function Page() {
             height={60}
             priority
           />
+
+          {/* 🌙 Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="px-3 py-1 rounded text-[14px] font-semibold border border-yellow-500 text-yellow-400 hover:bg-yellow-600/20"
+          >
+            {theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          </button>
         </div>
 
         {/* ====================== HOME ZIP ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">
             Home Zip Code
           </h2>
@@ -243,8 +277,10 @@ export default function Page() {
         </div>
 
         {/* ====================== STATES ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">States</h2>
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">
+            States
+          </h2>
 
           <div className="flex flex-wrap gap-2 mb-2">
             <button
@@ -277,9 +313,7 @@ export default function Page() {
                       )
                     }
                   />
-                  <span className="text-white">
-                    {capitalizeState(state)}
-                  </span>
+                  <span className="text-white">{capitalizeState(state)}</span>
                 </label>
               );
             })}
@@ -289,7 +323,7 @@ export default function Page() {
         {/* ====================== SEARCH LOCATIONS TILE ====================== */}
         <SearchLocationsTile onAddStop={handleAddStop} />
         {/* ====================== RETAILERS ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
 
           <div className="flex flex-wrap gap-2 mb-2">
@@ -309,7 +343,6 @@ export default function Page() {
             </button>
           </div>
 
-          {/* TWO-COLUMN layout */}
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto text-[16px]">
             {availableRetailers.map((retailer) => {
               const normalized = norm(retailer);
@@ -334,7 +367,7 @@ export default function Page() {
         </div>
 
         {/* ====================== SUPPLIERS ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Suppliers</h2>
 
           <div className="flex flex-wrap gap-2 mb-2">
@@ -352,7 +385,6 @@ export default function Page() {
             </button>
           </div>
 
-          {/* TWO-COLUMN layout */}
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto text-[16px]">
             {availableSuppliers.map((supplier) => (
               <label key={supplier} className="flex items-center space-x-2">
@@ -374,7 +406,7 @@ export default function Page() {
         </div>
 
         {/* ====================== CATEGORIES ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
 
           <div className="flex flex-wrap gap-2 mb-2">
@@ -427,7 +459,7 @@ export default function Page() {
         </div>
 
         {/* ====================== CHANNEL SUMMARY ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">
             Channel Summary
           </h2>
@@ -476,11 +508,11 @@ export default function Page() {
         </div>
 
         {/* ====================== TRIP BUILDER ====================== */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow text-[17px] leading-tight mt-4">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow text-[16px] leading-tight mt-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">
             Trip Optimization
           </h2>
-          {/* Mode selector */}
+
           <div className="flex space-x-4 mb-3 text-[15px]">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
@@ -503,7 +535,6 @@ export default function Page() {
             </label>
           </div>
 
-          {/* Route Summary */}
           {routeSummary && (
             <div className="text-[14px] text-gray-900 dark:text-gray-200 mb-3 p-2 bg-gray-200 dark:bg-gray-700 rounded">
               <strong>
@@ -517,7 +548,6 @@ export default function Page() {
             </div>
           )}
 
-          {/* Trip Stops */}
           {tripStops.length > 0 ? (
             <div className="space-y-3">
               <ol className="ml-5 space-y-3 text-[15px]">
@@ -595,7 +625,7 @@ export default function Page() {
         {/* Main Title */}
         <div className="w-full flex justify-end pr-6 pt-4 mb-3">
           <h1 className="text-xl font-bold text-yellow-400 tracking-wide">
-            Certis AgRoute Intelligence Engine
+            Certis Ag-Router
           </h1>
         </div>
 
