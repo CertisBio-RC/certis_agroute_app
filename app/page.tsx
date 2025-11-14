@@ -147,7 +147,6 @@ export default function Page() {
     const nonHomeStops = tripStops.filter((s) => !s.label.startsWith("Home"));
     return [homeStop, ...nonHomeStops, homeStop];
   }, [tripStops, homeCoords, homeZip]);
-
   // =========================================================
   // HANDLE OPTIMIZED ROUTE RETURN
   // =========================================================
@@ -164,6 +163,7 @@ export default function Page() {
   // =========================================================
   const filteredRetailersForSummary = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
+
     return retailerSummary
       .filter((s) =>
         s.states.some((st) => selectedStates.includes(norm(st)))
@@ -174,11 +174,14 @@ export default function Page() {
   }, [availableRetailers, retailerSummary, selectedStates]);
 
   const kingpinSummary = retailerSummary.filter(
-    (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
+    (s) =>
+      s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
   );
+
   const normalSummary = retailerSummary.filter(
     (s) =>
-      !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
+      !s.categories.includes("kingpin") &&
+      norm(s.retailer) !== "kingpin"
   );
 
   // =========================================================
@@ -285,7 +288,6 @@ export default function Page() {
 
         {/* ====================== SEARCH LOCATIONS TILE ====================== */}
         <SearchLocationsTile onAddStop={handleAddStop} />
-
         {/* ====================== RETAILERS ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
@@ -324,9 +326,7 @@ export default function Page() {
                       )
                     }
                   />
-                  <span className="text-white">
-                    {retailer}
-                  </span>
+                  <span className="text-white">{retailer}</span>
                 </label>
               );
             })}
@@ -367,9 +367,7 @@ export default function Page() {
                     )
                   }
                 />
-                <span className="text-white">
-                  {supplier}
-                </span>
+                <span className="text-white">{supplier}</span>
               </label>
             ))}
           </div>
@@ -399,6 +397,7 @@ export default function Page() {
               Clear
             </button>
           </div>
+
           <div className="grid grid-cols-2 gap-2 text-[16px]">
             {Object.entries(categoryColors)
               .filter(([key]) => key !== "Kingpin")
@@ -435,22 +434,42 @@ export default function Page() {
 
           <div className="text-[15px] max-h-48 overflow-y-auto text-white">
             {normalSummary.map((s, i) => (
-              <div key={i} className="mb-3">
-                <strong>
-                  {s.retailer} ({s.states.map(capitalizeState).join(", ")})
-                </strong>{" "}
-                ({s.count} sites)
+              <div key={i} className="mb-4 p-2 rounded bg-gray-700/40">
+                <strong className="text-yellow-300 text-[17px]">
+                  {s.retailer}
+                </strong>
                 <br />
-                Suppliers: {s.suppliers.join(", ") || "N/A"}
+
+                <span className="text-white text-[15px]">
+                  State(s): {s.states.map(capitalizeState).join(", ") || "N/A"}
+                </span>
                 <br />
-                Categories: {s.categories.join(", ") || "N/A"}
+
+                <span className="text-white text-[15px]">
+                  Total Locations: {s.count}
+                </span>
+                <br />
+
+                <span className="text-white text-[15px]">
+                  Suppliers: {s.suppliers.join(", ") || "N/A"}
+                </span>
+                <br />
+
+                <span className="text-white text-[15px]">
+                  Categories: {s.categories.join(", ") || "N/A"}
+                </span>
               </div>
             ))}
 
             {kingpinSummary.length > 0 && (
-              <div className="mt-2 text-yellow-300">
-                <strong>Kingpins:</strong>{" "}
-                {kingpinSummary.map((s) => s.retailer).join(", ")}
+              <div className="mt-4 p-2 rounded bg-gray-800/60">
+                <strong className="text-yellow-400 text-[17px]">
+                  Kingpins:
+                </strong>
+                <br />
+                <span className="text-yellow-200 text-[15px]">
+                  {kingpinSummary.map((s) => s.retailer).join(", ")}
+                </span>
               </div>
             )}
           </div>
@@ -461,7 +480,6 @@ export default function Page() {
           <h2 className="text-lg font-bold text-yellow-400 mb-3">
             Trip Optimization
           </h2>
-
           {/* Mode selector */}
           <div className="flex space-x-4 mb-3 text-[15px]">
             <label className="flex items-center space-x-2 cursor-pointer">
@@ -471,9 +489,7 @@ export default function Page() {
                 checked={tripMode === "entered"}
                 onChange={() => setTripMode("entered")}
               />
-              <span className="text-white">
-                Map as Entered
-              </span>
+              <span className="text-white">Map as Entered</span>
             </label>
 
             <label className="flex items-center space-x-2 cursor-pointer">
@@ -483,9 +499,7 @@ export default function Page() {
                 checked={tripMode === "optimize"}
                 onChange={() => setTripMode("optimize")}
               />
-              <span className="text-white">
-                Optimize Route
-              </span>
+              <span className="text-white">Optimize Route</span>
             </label>
           </div>
 
@@ -578,9 +592,9 @@ export default function Page() {
       {/* MAP + TITLE */}
       {/* =============================== */}
       <main className="flex-1 relative flex flex-col">
-        {/* Main Title — slightly smaller, with breathing room */}
+        {/* Main Title */}
         <div className="w-full flex justify-end pr-6 pt-4 mb-3">
-          <h1 className="text-2xl font-bold text-yellow-400 tracking-wide">
+          <h1 className="text-xl font-bold text-yellow-400 tracking-wide">
             Certis AgRoute Intelligence Engine
           </h1>
         </div>
