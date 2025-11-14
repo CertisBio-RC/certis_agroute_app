@@ -79,7 +79,8 @@ export default function Page() {
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
 
   const [homeZip, setHomeZip] = useState("");
-  const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
+  const [homeCoords, setHomeCoords] =
+    useState<[number, number] | null>(null);
 
   const [routeSummary, setRouteSummary] = useState<{
     distance_m: number;
@@ -147,7 +148,6 @@ export default function Page() {
     const nonHomeStops = tripStops.filter((s) => !s.label.startsWith("Home"));
     return [homeStop, ...nonHomeStops, homeStop];
   }, [tripStops, homeCoords, homeZip]);
-
   // =========================================================
   // HANDLE OPTIMIZED ROUTE RETURN
   // =========================================================
@@ -165,7 +165,9 @@ export default function Page() {
   const filteredRetailersForSummary = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
     return retailerSummary
-      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
+      .filter((s) =>
+        s.states.some((st) => selectedStates.includes(norm(st)))
+      )
       .map((s) => s.retailer)
       .filter((r, i, arr) => arr.indexOf(r) === i)
       .sort();
@@ -175,7 +177,9 @@ export default function Page() {
     (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
   );
   const normalSummary = retailerSummary.filter(
-    (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
+    (s) =>
+      !s.categories.includes("kingpin") &&
+      norm(s.retailer) !== "kingpin"
   );
 
   // =========================================================
@@ -282,6 +286,7 @@ export default function Page() {
 
         {/* ====================== SEARCH LOCATIONS TILE ====================== */}
         <SearchLocationsTile onAddStop={handleAddStop} />
+
         {/* ====================== RETAILERS ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[17px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
@@ -395,7 +400,6 @@ export default function Page() {
               Clear
             </button>
           </div>
-
           <div className="grid grid-cols-2 gap-2 text-[16px]">
             {Object.entries(categoryColors)
               .filter(([key]) => key !== "Kingpin")
@@ -443,6 +447,7 @@ export default function Page() {
                 Categories: {s.categories.join(", ") || "N/A"}
               </div>
             ))}
+
             {kingpinSummary.length > 0 && (
               <div className="mt-2 text-yellow-300">
                 <strong>Kingpins:</strong>{" "}
@@ -471,6 +476,7 @@ export default function Page() {
                 Map as Entered
               </span>
             </label>
+
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="radio"
@@ -573,8 +579,9 @@ export default function Page() {
       {/* MAP + TITLE */}
       {/* =============================== */}
       <main className="flex-1 relative flex flex-col">
-        <div className="w-full flex justify-end pr-6 pt-4">
-          <h1 className="text-4xl font-bold text-yellow-400 tracking-wide">
+        {/* Main Title — now spaced correctly */}
+        <div className="w-full flex justify-end pr-6 pt-4 mb-3">
+          <h1 className="text-3xl font-bold text-yellow-400 tracking-wide">
             Certis AgRoute Intelligence Engine
           </h1>
         </div>
@@ -601,3 +608,4 @@ export default function Page() {
     </div>
   );
 }
+
