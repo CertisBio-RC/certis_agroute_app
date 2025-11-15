@@ -10,37 +10,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: 🧰 Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: npm ci
 
-      - name: Build static site (Next.js 15 → Static Export)
-        run: |
-          npm run build
-          npx next export
-          echo "{" > out/build-info.json
-          echo "  \"commit\": \"${GITHUB_SHA}\"," >> out/build-info.json
-          echo "  \"date\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"" >> out/build-info.json
-          echo "}" >> out/build-info.json
+      - name: ⚙️ Build (Next.js 15 — Static Export via next.config.js)
+        env:
+          NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPBOX_TOKEN }}
+        run: npm run build
 
-      - name: Verify out directory exists
+      - name: 🧪 Verify export directory exists
         run: |
           if [ ! -d "out" ]; then
-            echo "❌ ERROR: 'out' directory missing — static export failed"
+            echo "❌ ERROR: Export failed — 'out' directory missing"
             exit 1
           fi
           echo "📁 Static export contents:"
           ls -R ./out
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: 🚀 Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./out
