@@ -75,9 +75,7 @@ function buildAppleMapsUrl(stops: Stop[]) {
 export default function Page() {
   const { theme, toggleTheme } = useTheme();
 
-  // --------------------------------------
   // 🎛 FILTER STATE
-  // --------------------------------------
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
@@ -97,26 +95,19 @@ export default function Page() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // -----------------------------
-  // 🔥 GLOBAL MASTER LIST FOR SEARCH TILE
-  // -----------------------------
+  // 🔥 MASTER LIST FOR SEARCH TILE
   const [allStops, setAllStops] = useState<Stop[]>([]);
 
-  // --------------------------------------
   // 🚗 TRIP BUILDER
-  // --------------------------------------
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
-
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
-
   const [routeSummary, setRouteSummary] = useState<{
     distance_m: number;
     duration_s: number;
   } | null>(null);
 
-  // ---------------------- Add / Remove Stops ----------------------
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
       if (prev.some((s) => s.label === stop.label && s.address === stop.address)) return prev;
@@ -135,7 +126,6 @@ export default function Page() {
     setRouteSummary(null);
   };
 
-  // ---------------------- Home ZIP → coordinates ----------------------
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
     try {
@@ -163,9 +153,6 @@ export default function Page() {
     }
   };
 
-  // =========================================================
-  // ALWAYS ENFORCE HOME → STOPS → HOME
-  // =========================================================
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
     const homeStop: Stop = {
@@ -177,9 +164,6 @@ export default function Page() {
     return [homeStop, ...nonHomeStops, homeStop];
   }, [tripStops, homeCoords, homeZip]);
 
-  // =========================================================
-  // HANDLE OPTIMIZED ROUTE RETURN
-  // =========================================================
   const handleOptimizedRoute = (optimizedStops: Stop[]) => {
     if (optimizedStops.length < 2) return;
     const start = optimizedStops[0];
@@ -193,7 +177,6 @@ export default function Page() {
   // =========================================================
   const filteredRetailersForSummary = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
-
     return retailerSummary
       .filter((s) =>
         s.states.some((st) => selectedStates.includes(norm(st)))
@@ -324,10 +307,7 @@ export default function Page() {
         </div>
 
         {/* ====================== SEARCH LOCATIONS TILE ====================== */}
-        <SearchLocationsTile
-          allStops={allStops}
-          onAddStop={handleAddStop}
-        />
+        <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
 
         {/* ====================== RETAILERS ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
@@ -625,11 +605,8 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* =============================== */}
       {/* MAP + TITLE */}
-      {/* =============================== */}
       <main className="flex-1 relative flex flex-col">
-        {/* Main Title */}
         <div className="w-full flex justify-end pr-6 pt-4 mb-3">
           <h1 className="text-xl font-bold text-yellow-400 tracking-wide">
             Certis Ag-Router
@@ -648,7 +625,7 @@ export default function Page() {
             onSuppliersLoaded={setAvailableSuppliers}
             onRetailerSummary={setRetailerSummary}
             onAddStop={handleAddStop}
-            onAllStopsLoaded={setAllStops}     {/* 🔥 MASTER LIST FEED */}
+            onAllStopsLoaded={setAllStops}
             tripStops={stopsForRoute}
             tripMode={tripMode}
             onRouteSummary={setRouteSummary}

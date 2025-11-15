@@ -294,7 +294,8 @@ export default function CertisMap(props: CertisMapProps) {
             valid.flatMap((f) => parseSuppliers(f.properties?.Suppliers))
           ),
         ]
-          .map((s) => (s || "").trim())
+.map((s) => String(s || "").trim())
+
           .filter(
             (s) =>
               s.length > 0 &&
