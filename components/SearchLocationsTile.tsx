@@ -14,8 +14,8 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
 
   const handleSearch = async () => {
     if (!query.trim()) return;
-    setLoading(true);
 
+    setLoading(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
       const data = await res.json();
@@ -24,7 +24,6 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
       console.error("SearchLocationsTile error:", err);
       setResults([]);
     }
-
     setLoading(false);
   };
 
@@ -52,9 +51,9 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
         <button
           onClick={handleSearch}
           className="
-            px-3 py-1 rounded text-[16px]
+            px-3 py-1 rounded
             bg-blue-600 hover:bg-blue-700
-            text-white
+            text-white text-[16px]
           "
         >
           Search
