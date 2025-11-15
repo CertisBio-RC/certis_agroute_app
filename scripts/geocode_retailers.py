@@ -1,9 +1,10 @@
 ﻿# ========================================
 # geocode_retailers.py
-# Certis AgRoute Planner — Phase B: Coordinate Integrity Validation + Auto Public Sync
+# Certis AgRoute Planner — Phase B
+# Coordinate Integrity Validation + Auto Public Sync
 # ========================================
-# Adds automatic sanity checks, east-coast filters, anomaly reporting,
-# and now automatically syncs retailers.geojson to /public/data.
+# Fixes NaN string errors, ensures zero invalid JSON,
+# and automatically exports retailers.geojson to /public/data.
 # ========================================
 
 import json
@@ -30,11 +31,11 @@ CACHE_FILE = DATA_DIR / "geocode_cache.json"
 ANOMALY_FILE = DATA_DIR / "geocode_anomalies.xlsx"
 
 MAPBOX_TOKEN = "pk.eyJ1IjoiZG9jamJhaWxleTE5NzEiLCJhIjoiY21mempnNTBmMDNibjJtb2ZycTJycDB6YyJ9.9LIIYF2Bwn_aRSsuOBSI3g"
-RATE_LIMIT_DELAY = 0.25  # seconds
+RATE_LIMIT_DELAY = 0.25
 MIDWEST_BIAS = "-96.5,42.5"
 
 # ========================================
-# LOAD DATA
+# LOAD INPUT
 # ========================================
 print(f"📥 Loading retailer Excel file: {INPUT_FILE}")
 
@@ -44,7 +45,7 @@ if not INPUT_FILE.exists():
 df = pd.read_excel(INPUT_FILE)
 print(f"✅ Loaded {len(df)} rows from {INPUT_FILE}")
 
-# Ensure required columns
+# Ensure required cols exist
 expected_columns = [
     "Long Name", "Retailer", "Name", "Address", "City",
     "State", "Zip", "Category", "Suppliers"
@@ -58,7 +59,7 @@ for c in ["Latitude", "Longitude"]:
         df[c] = None
 
 # ========================================
-# LOAD CACHE
+# LOAD CACHED ADDRESSES
 # ========================================
 if CACHE_FILE.exists():
     with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -75,7 +76,7 @@ def normalize_address(addr: str) -> str:
     addr = str(addr).lower().strip()
     addr = re.sub(r"[^a-z0-9\s,]", "", addr)
     addr = re.sub(r"\s+", " ", addr)
-    return addr.strip()
+    return addr
 
 new_hits = 0
 cached_hits = 0
@@ -98,10 +99,12 @@ def geocode_address(address: str):
         "types": "address,poi",
         "proximity": MIDWEST_BIAS,
     }
+
     try:
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         data = r.json()
+
         if data.get("features"):
             lon, lat = data["features"][0]["geometry"]["coordinates"]
             cache[key] = (lat, lon)
@@ -110,13 +113,14 @@ def geocode_address(address: str):
         else:
             cache[key] = (None, None)
             return None, None
+
     except Exception as e:
         print(f"❌ Error geocoding '{address}': {e}")
         cache[key] = (None, None)
         return None, None
 
 # ========================================
-# MAIN LOOP
+# MAIN GEOCODING LOOP
 # ========================================
 print("🧭 Beginning geocoding process...")
 for i, row in df.iterrows():
@@ -128,12 +132,14 @@ for i, row in df.iterrows():
     lat, lon = geocode_address(full_address)
     df.at[i, "Latitude"] = lat
     df.at[i, "Longitude"] = lon
+
     if (i + 1) % 25 == 0:
         print(f"   • Processed {i + 1}/{len(df)}")
+
     sleep(RATE_LIMIT_DELAY)
 
 # ========================================
-# SAVE CACHE (atomic write)
+# SAVE CACHE
 # ========================================
 tmpfile = tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8")
 json.dump(cache, tmpfile, indent=2)
@@ -142,21 +148,20 @@ os.replace(tmpfile.name, CACHE_FILE)
 print(f"💾 Cache updated ({len(cache):,} entries)")
 
 # ========================================
-# ROUND + SANITY CHECKS
+# SANITY CHECKS
 # ========================================
 df["Latitude"] = pd.to_numeric(df["Latitude"], errors="coerce").round(6)
 df["Longitude"] = pd.to_numeric(df["Longitude"], errors="coerce").round(6)
 
 suspects = []
-
 for i, r in df.iterrows():
     lat, lon = r["Latitude"], r["Longitude"]
     if pd.isna(lat) or pd.isna(lon):
         reason = "Missing coordinates"
     elif lat < 20 or lat > 50:
-        reason = "Latitude out of US bounds"
+        reason = "Lat out of US bounds"
     elif lon > -50 or lon < -130:
-        reason = "Longitude out of US bounds"
+        reason = "Lon out of US bounds"
     elif lon > -80:
         reason = "Possible east-coast/geocode error"
     elif lat > 0 and lon > 0:
@@ -176,45 +181,53 @@ else:
 # SAVE EXCEL OUTPUT
 # ========================================
 df.to_excel(OUTPUT_XLSX, index=False)
-print(f"✅ Geocoding complete → {OUTPUT_XLSX}")
+print(f"📄 Geocoding complete → {OUTPUT_XLSX}")
 print(f"🔁 Cached hits: {cached_hits:,} | 🆕 New lookups: {new_hits:,}")
 
 # ========================================
-# EXPORT GEOJSON
+# EXPORT TO GEOJSON (100% NaN-SAFE)
 # ========================================
 print("🌎 Exporting to GeoJSON...")
 features = []
+
+def s(val):
+    """Converts any Excel cell to a safe string: NaN → '', float → '##', always .strip() safe."""
+    return str(val if (val is not None and str(val).lower() != "nan") else "").strip()
+
 for _, r in df.iterrows():
     lat, lon = r["Latitude"], r["Longitude"]
     if pd.isna(lat) or pd.isna(lon):
         continue
-    suppliers = str(r.get("Suppliers", "") or "None listed").strip()
+
+    suppliers = s(r.get("Suppliers", "")) or "None listed"
+
     props = {
-        "Long Name": r.get("Long Name", ""),
-        "Retailer": r.get("Retailer", ""),
-        "Name": r.get("Name", ""),
-        "Address": r.get("Address", ""),
-        "City": r.get("City", ""),
-        "State": r.get("State", ""),
-        "Zip": str(r.get("Zip", "")),
-        "Category": r.get("Category", ""),
+        "Long Name": s(r.get("Long Name", "")),
+        "Retailer": s(r.get("Retailer", "")),
+        "Name": s(r.get("Name", "")),
+        "Address": s(r.get("Address", "")),
+        "City": s(r.get("City", "")),
+        "State": s(r.get("State", "")),
+        "Zip": s(r.get("Zip", "")),
+        "Category": s(r.get("Category", "")),
         "Suppliers": suppliers,
     }
+
     features.append({
         "type": "Feature",
-        "geometry": {"type": "Point",
-                     "coordinates": [round(float(lon), 6), round(float(lat), 6)]},
+        "geometry": {
+            "type": "Point",
+            "coordinates": [round(float(lon), 6), round(float(lat), 6)]
+        },
         "properties": props,
     })
 
 geojson = {"type": "FeatureCollection", "features": features}
 
-# Save primary GeoJSON
 with open(OUTPUT_GEOJSON, "w", encoding="utf-8") as f:
     json.dump(geojson, f, indent=2, ensure_ascii=False)
 print(f"✅ Exported {len(features)} features → {OUTPUT_GEOJSON}")
 
-# Also export live copy to /public/data
 try:
     PUBLIC_DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_GEOJSON_PUBLIC, "w", encoding="utf-8") as f:
