@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Stop } from "./CertisMap";
+import retailers from "../public/data/retailers.geojson";
 
 type Props = {
   onAddStop: (stop: Stop) => void;
@@ -12,18 +13,44 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
   const [results, setResults] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const handleSearch = async () => {
-    if (!query.trim()) return;
+  // Convert geojson features once into Stop objects
+  const allLocations: Stop[] = useMemo(() => {
+    if (!retailers?.features) return [];
+    return retailers.features.map((f: any) => {
+      const p = f.properties ?? {};
+      const coords = f.geometry?.coordinates ?? [0, 0];
+      return {
+        label: p.Retailer ?? "",
+        address: p.Address ?? "",
+        city: p.City ?? "",
+        state: p.State ?? "",
+        zip: p.Zip ?? "",
+        lon: coords[0],
+        lat: coords[1],
+      };
+    });
+  }, []);
+
+  const handleSearch = () => {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      setResults([]);
+      return;
+    }
 
     setLoading(true);
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setResults(data.results || []);
-    } catch (err) {
-      console.error("SearchLocationsTile error:", err);
-      setResults([]);
-    }
+
+    // 🔥 Gold Baseline — Search ignores sidebar filters entirely
+    const filtered = allLocations.filter(
+      (x) =>
+        x.label.toLowerCase().includes(q) ||
+        x.address.toLowerCase().includes(q) ||
+        x.city.toLowerCase().includes(q) ||
+        x.state.toLowerCase().includes(q) ||
+        x.zip.toLowerCase().includes(q)
+    );
+
+    setResults(filtered);
     setLoading(false);
   };
 
@@ -39,9 +66,8 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
         <input
           type="text"
           value={query}
-          placeholder="Retailer, city, or ZIP"
+          placeholder="Retailer, City, or ZIP"
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           className="
             flex-1 p-2 rounded
             bg-[#0f1625] text-white text-[16px]
@@ -74,13 +100,13 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
               key={index}
               className="p-2 rounded bg-[#1f2b45] border border-[#2d3b57]"
             >
-              {/* Retailer */}
+              {/* Retailer Name */}
               <div className="text-[18px] font-bold text-yellow-300 mb-1">
                 {item.label}
               </div>
 
               {/* Address */}
-              <div className="text-[16px] text-gray-200 leading-tight">
+              <div className="text-[16px] text-gray-200">
                 {item.address}
                 <br />
                 {item.city}, {item.state} {item.zip}
