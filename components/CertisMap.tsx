@@ -110,6 +110,7 @@ export interface CertisMapProps {
   ) => void;
 
   onAddStop?: (stop: Stop) => void;
+  onAllStopsLoaded?: (stops: Stop[]) => void; // 🔥 ADDED for SEARCH
 
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
@@ -135,6 +136,7 @@ export default function CertisMap(props: CertisMapProps) {
     onSuppliersLoaded,
     onRetailerSummary,
     onAddStop,
+    onAllStopsLoaded,
     tripStops,
     tripMode,
     onOptimizedRoute,
@@ -147,14 +149,13 @@ export default function CertisMap(props: CertisMapProps) {
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const homeMarker = useRef<mapboxgl.Marker | null>(null);
 
-// Correct static base path for local + GitHub Pages
-const basePath =
-  process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== ""
-    ? process.env.NEXT_PUBLIC_BASE_PATH
-    : "/certis_agroute_app";
+  // Correct static base path for local + GitHub Pages
+  const basePath =
+    process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== ""
+      ? process.env.NEXT_PUBLIC_BASE_PATH
+      : "/certis_agroute_app";
 
-const geojsonPath = `${basePath}/data/retailers.geojson`;
-
+  const geojsonPath = `${basePath}/data/retailers.geojson`;
 
   // ----------------------------
   // POPUP HANDLER (Option A)
@@ -265,28 +266,65 @@ const geojsonPath = `${basePath}/data/retailers.geojson`;
 
         masterFeatures.current = valid;
 
+        // ----------------------------
+        // STATES
+        // ----------------------------
         const states = [
           ...new Set(
             valid.map((f) => String(f.properties?.State || "").trim())
           ),
         ].filter(Boolean) as string[];
+        onStatesLoaded?.(states.sort());
 
+        // ----------------------------
+        // RETAILERS
+        // ----------------------------
         const retailers = [
           ...new Set(
             valid.map((f) => String(f.properties?.Retailer || "").trim())
           ),
         ].filter(Boolean) as string[];
+        onRetailersLoaded?.(retailers.sort());
 
+        // ----------------------------
+        // SUPPLIERS — cleaned + normalized
+        // ----------------------------
         const suppliers = [
           ...new Set(
             valid.flatMap((f) => parseSuppliers(f.properties?.Suppliers))
           ),
-        ].filter(Boolean) as string[];
+        ]
+          .map((s) => (s || "").trim())
+          .filter(
+            (s) =>
+              s.length > 0 &&
+              s.toLowerCase() !== "null" &&
+              s.toLowerCase() !== "winfiel"
+          )
+          .map((s) => (s.toLowerCase() === "winfield" ? "Winfield" : s));
 
-        onStatesLoaded?.(states.sort());
-        onRetailersLoaded?.(retailers.sort());
         onSuppliersLoaded?.(suppliers.sort());
 
+        // ----------------------------
+        // STOPS LIST FOR SEARCH TILE
+        // ----------------------------
+        const stops: Stop[] = valid.map((f) => {
+          const p = f.properties || {};
+          return {
+            label: p.Retailer || p.Name || "Unknown",
+            address: cleanAddress(p.Address || ""),
+            coords: f.geometry.coordinates as [number, number],
+            city: p.City || "",
+            state: p.State || "",
+            zip: p.Zip || "",
+          };
+        });
+
+        onAllStopsLoaded?.(stops);
+
+        // ----------------------------
+        // MAP SOURCE
+        // ----------------------------
         map.addSource("retailers", {
           type: "geojson",
           data: {
@@ -296,7 +334,7 @@ const geojsonPath = `${basePath}/data/retailers.geojson`;
         });
 
         // ----------------------------
-        // RETAILERS (non-Kingpin)
+        // RETAILERS
         // ----------------------------
         map.addLayer({
           id: "retailers-layer",
@@ -326,7 +364,7 @@ const geojsonPath = `${basePath}/data/retailers.geojson`;
         });
 
         // ----------------------------
-        // KINGPIN — Option B (4.5 → 5.5 → 6)
+        // KINGPIN — Option B
         // ----------------------------
         map.addLayer({
           id: "kingpins-layer",
@@ -371,7 +409,14 @@ const geojsonPath = `${basePath}/data/retailers.geojson`;
         console.error("❌ Map initialization failed:", err);
       }
     });
-  }, [geojsonPath, onStatesLoaded, onRetailersLoaded, onSuppliersLoaded, onAddStop]);
+  }, [
+    geojsonPath,
+    onStatesLoaded,
+    onRetailersLoaded,
+    onSuppliersLoaded,
+    onAddStop,
+    onAllStopsLoaded,
+  ]);
 
   // ----------------------------
   // HOME MARKER
@@ -385,12 +430,6 @@ const geojsonPath = `${basePath}/data/retailers.geojson`;
 
     if (!homeCoords) return;
 
-    const basePath =
-      process.env.NEXT_PUBLIC_BASE_PATH &&
-      process.env.NEXT_PUBLIC_BASE_PATH !== ""
-        ? process.env.NEXT_PUBLIC_BASE_PATH
-        : "/certis_agroute_app";
-
     const el = document.createElement("div");
     el.className = "home-marker";
     el.style.backgroundImage = `url(${basePath}/icons/Blue_Home.png)`;
@@ -402,7 +441,7 @@ const geojsonPath = `${basePath}/data/retailers.geojson`;
     homeMarker.current = new mapboxgl.Marker({ element: el })
       .setLngLat(homeCoords as LngLatLike)
       .addTo(map);
-  }, [homeCoords]);
+  }, [homeCoords, basePath]);
 
   // ----------------------------
   // FILTERING (true intersection)
@@ -585,7 +624,6 @@ const geojsonPath = `${basePath}/data/retailers.geojson`;
           }
         }
 
-        // Fallback → entered order
         const dirUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsToString(
           ordered
         )}?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(

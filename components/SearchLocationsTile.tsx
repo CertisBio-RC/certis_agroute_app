@@ -1,138 +1,71 @@
 "use client";
 
-import { useState } from "react";
-import { Stop } from "./CertisMap";
+import { useState, useMemo } from "react";
+import { Stop } from "@/components/CertisMap";
 
-type Props = {
+interface Props {
+  allStops: Stop[];              // ★ full retailer dataset provided by page.tsx
   onAddStop: (stop: Stop) => void;
-};
+}
 
-// ---------------------------------------------------------------
-// 🔍 GOLD BASELINE SEARCH TILE — STATIC MATCHING ONLY
-//   • No zoom to search results
-//   • Used ONLY to quickly add stops to Trip Builder
-//   • Pulls from map Stops array (injected by parent)
-// ---------------------------------------------------------------
-
-export default function SearchLocationsTile({ onAddStop }: Props) {
+export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Stop[]>([]);
-  const [loading, setLoading] = useState(false);
 
-  // -----------------------------------------------
-  // 🚦 Search Handler
-  // -----------------------------------------------
-  const handleSearch = async () => {
+  // Case-insensitive match across label, address, city, state, zip
+  const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) {
-      setResults([]);
-      return;
-    }
+    if (!q) return [];
 
-    setLoading(true);
+    return allStops.filter((s) => {
+      return (
+        s.label.toLowerCase().includes(q) ||
+        s.address.toLowerCase().includes(q) ||
+        (s.city || "").toLowerCase().includes(q) ||
+        (s.state || "").toLowerCase().includes(q) ||
+        String(s.zip || "").toLowerCase().includes(q)
+      );
+    });
+  }, [query, allStops]);
 
-    try {
-      // Parent supplies window.__AGROUTE_STOPS array via page.tsx
-      const globalStops = (window as any).__AGROUTE_STOPS as Stop[] || [];
-
-      const filtered = globalStops.filter((s) => {
-        return (
-          s.label.toLowerCase().includes(q) ||
-          s.address.toLowerCase().includes(q) ||
-          s.city.toLowerCase().includes(q) ||
-          s.state.toLowerCase().includes(q) ||
-          // 🔥 FIXED — ZIP can be a number → convert to string first
-          `${s.zip}`.toLowerCase().includes(q)
-        );
-      });
-
-      setResults(filtered);
-    } catch (err) {
-      console.error("SearchLocationsTile error:", err);
-      setResults([]);
-    }
-
-    setLoading(false);
-  };
-
-  // -----------------------------------------------
-  // 🧱 UI
-  // -----------------------------------------------
   return (
-    <div className="space-y-3 p-4 bg-[#162035] rounded-xl border border-[#2d3b57] select-none">
-      {/* ---- Header ---- */}
-      <div className="text-[20px] font-bold text-yellow-400">Search Locations</div>
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
+      <h2 className="text-lg font-bold text-yellow-400 mb-3">Search Locations</h2>
 
-      {/* ---- Search Bar ---- */}
       <div className="flex space-x-2">
         <input
           type="text"
           value={query}
-          placeholder="Retailer, city, or ZIP"
+          placeholder="Search by retailer, address, city, state, supplier, etc."
           onChange={(e) => setQuery(e.target.value)}
-          className="
-            flex-1 p-2 rounded
-            bg-[#0f1625] text-white text-[16px]
-            border border-[#2d3b57] focus:border-blue-400
-            placeholder-gray-400
-          "
+          className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700"
         />
-        <button
-          onClick={handleSearch}
-          className="
-            px-3 py-1 rounded
-            bg-blue-600 hover:bg-blue-700
-            text-white text-[16px]
-          "
-        >
-          Search
-        </button>
       </div>
 
-      {/* ---- Loading ---- */}
-      {loading && (
-        <div className="text-[16px] text-gray-300">Searching…</div>
-      )}
-
-      {/* ---- Results ---- */}
-      {!loading && results.length > 0 && (
-        <div className="max-h-56 overflow-y-auto space-y-3 pr-1">
-          {results.map((item, index) => (
+      <div className="mt-3 max-h-56 overflow-y-auto space-y-2 text-white">
+        {results.length === 0 ? (
+          <p className="text-gray-300">No matches found.</p>
+        ) : (
+          results.map((s, i) => (
             <div
-              key={index}
-              className="p-2 rounded bg-[#1f2b45] border border-[#2d3b57]"
+              key={i}
+              className="p-2 rounded bg-gray-700/40 hover:bg-gray-700/60 cursor-pointer"
+              onClick={() => onAddStop(s)}
             >
-              {/* Retailer */}
-              <div className="text-[18px] font-bold text-yellow-300 mb-1">
-                {item.label}
+              <div className="font-semibold text-yellow-300 text-[17px]">
+                {s.label}
               </div>
-
-              {/* Address */}
-              <div className="text-[16px] text-gray-200 leading-tight">
-                {item.address}
+              <div className="text-[14px]">
+                {s.address}
                 <br />
-                {item.city}, {item.state} {item.zip}
+                {s.city}, {s.state} {s.zip}
               </div>
-
-              {/* Add to Trip Button */}
-              <button
-                onClick={() => onAddStop(item)}
-                className="
-                  mt-2 px-2 py-1 rounded text-[14px]
-                  bg-green-600 hover:bg-green-700 text-white
-                "
-              >
+              <button className="mt-1 px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
                 Add to Trip
               </button>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* ---- No Results ---- */}
-      {!loading && query.trim() !== "" && results.length === 0 && (
-        <div className="text-[16px] text-gray-300">No matches found.</div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 }
