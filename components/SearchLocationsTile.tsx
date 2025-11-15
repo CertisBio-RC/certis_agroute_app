@@ -1,154 +1,123 @@
 "use client";
 
-import { useState } from "react";
-import { Stop } from "./CertisMap";
+import { useState, useMemo } from "react";
+import type { RetailerFeature } from "../types";
 
-type SearchResult = {
-  label: string;
-  address: string;
-  city?: string;
-  state?: string;
-  zip?: string | number;
-  coords: [number, number];
+interface Props {
+  allRetailers: RetailerFeature[];                    // Full GeoJSON dataset (never filtered)
+  onAddToTrip: (retailer: RetailerFeature) => void;   // Push into tripStops (page.tsx)
+}
 
-  // Retailer search metadata
-  states?: string[];              // <-- plural for multi–state retailers
-  totalLocations?: number;        // count of locations under that retailer
-};
-
-type Props = {
-  onAddStop: (stop: Stop) => void;
-};
-
-export default function SearchLocationsTile({ onAddStop }: Props) {
+export default function SearchLocationsTile({ allRetailers, onAddToTrip }: Props) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<RetailerFeature[]>([]);
+  const [searched, setSearched] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
-  const handleSearch = async () => {
-    if (!query.trim()) return;
-    setLoading(true);
+  const normalizedIndex = useMemo(() => {
+    // Lightweight in-memory index to speed future searches
+    return allRetailers.map((r) => {
+      const p = r.properties;
+      return {
+        item: r,
+        search: (
+          `${p["Long Name"]} ${p["Retailer"]} ${p["Name"]} ` +
+          `${p["City"]} ${p["State"]} ${p["Zip"]} ${p["Suppliers"]}`
+        ).toLowerCase()
+      };
+    });
+  }, [allRetailers]);
 
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setResults(data.results || []);
-    } catch (err) {
-      console.error("SearchLocationsTile error:", err);
+  const runSearch = () => {
+    const q = query.trim().toLowerCase();
+    setSearched(true);
+
+    if (!q) {
       setResults([]);
+      return;
     }
 
-    setLoading(false);
+    setIsSearching(true);
+
+    // Lightweight fuzzy match
+    const matches = normalizedIndex
+      .filter((x) => x.search.includes(q))
+      .slice(0, 200)            // Hard stop to prevent UI overload
+      .map((x) => x.item);
+
+    setResults(matches);
+    setIsSearching(false);
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
-      {/* Header */}
-      <h2 className="text-[18px] font-bold mb-3 dark:text-yellow-400 text-blue-800">
-        Search Locations
-      </h2>
+    <div className="space-y-3 p-4 bg-[#162035] rounded-xl border border-[#2d3b57] select-none">
+      {/* ---- Header ---- */}
+      <div className="text-[20px] font-bold text-yellow-400">Search Locations</div>
 
-      {/* Search Bar */}
-      <div className="flex space-x-2 mb-3">
+      {/* ---- Search input + button ---- */}
+      <div className="flex gap-2">
         <input
           type="text"
-          value={query}
+          className="flex-1 px-3 py-2 rounded-md bg-[#0F172A] text-white text-[16px] border border-gray-600
+                     focus:outline-none focus:ring-2 focus:ring-yellow-500"
           placeholder="Retailer, city, or ZIP"
+          value={query}
+          onKeyDown={(e) => e.key === "Enter" && runSearch()}
           onChange={(e) => setQuery(e.target.value)}
-          className="
-            flex-1 p-2 rounded border
-            border-gray-300 dark:border-gray-600
-            bg-gray-50 dark:bg-gray-700
-            text-[16px] text-black dark:text-white
-          "
         />
         <button
-          onClick={handleSearch}
-          className="
-            px-3 py-1 rounded
-            bg-blue-600 hover:bg-blue-700
-            text-white text-[16px]
-          "
+          onClick={runSearch}
+          className="px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white font-semibold"
         >
           Search
         </button>
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <p className="text-[16px] text-gray-500 dark:text-gray-300">
-          Searching…
-        </p>
+      {/* ---- Search status ---- */}
+      {isSearching && (
+        <div className="text-gray-300 text-[15px] italic">Searching…</div>
       )}
 
-      {/* Results */}
-      {!loading && results.length > 0 && (
-        <div className="max-h-48 overflow-y-auto space-y-3 mt-2">
-          {results.map((item, index) => (
-            <div
-              key={index}
-              className="p-2 rounded bg-gray-200 dark:bg-gray-700"
-            >
-              {/* Retailer Name */}
-              <strong
-                className="
-                  text-[18px] font-bold block mb-1
-                  dark:text-yellow-300 text-blue-800
-                "
-              >
-                {item.label}
-              </strong>
+      {/* ---- No results ---- */}
+      {searched && results.length === 0 && !isSearching && (
+        <div className="text-gray-300 text-[15px] mt-1">No matches found.</div>
+      )}
 
-              {/* Stacked metadata — states + total locations */}
-              {(item.states || item.totalLocations !== undefined) && (
-                <div className="text-[16px] text-black dark:text-white">
-                  {Array.isArray(item.states)
-                    ? item.states.join(", ")
-                    : item.state ?? ""}
-                  {" • "}
-                  {item.totalLocations}{" "}
-                  {item.totalLocations === 1 ? "location" : "locations"}
+      {/* ---- Results list ---- */}
+      {results.length > 0 && (
+        <div className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
+          {results.map((r) => {
+            const p = r.properties;
+            return (
+              <div
+                key={`${p["Retailer"]}-${p["Name"]}-${p["City"]}-${p["Zip"]}`}
+                className="bg-[#0F172A] rounded-md p-3 border border-[#354463]"
+              >
+                <div className="text-[17px] font-semibold text-white">
+                  {p["Retailer"]} — {p["Name"]}
                 </div>
-              )}
 
-              {/* Address Lines — 16px body font */}
-              <div className="text-[16px] text-black dark:text-white mt-1">
-                {item.address}
-                <br />
-                {item.city}, {item.state} {item.zip}
+                <div className="text-gray-300 text-[14px] leading-tight">
+                  {p["Address"]}, {p["City"]}, {p["State"]} {p["Zip"]}
+                </div>
+
+                {p["Suppliers"] && (
+                  <div className="text-gray-400 text-[13px] mt-1">
+                    Suppliers: {p["Suppliers"]}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => onAddToTrip(r)}
+                  className="mt-2 w-full rounded-md bg-green-600 hover:bg-green-700 text-white font-semibold py-1"
+                >
+                  ➕ Add to Trip
+                </button>
               </div>
-
-              {/* Add Stop */}
-              <button
-                onClick={() =>
-                  onAddStop({
-                    label: item.label,
-                    address: item.address,
-                    coords: item.coords,
-                    city: item.city,
-                    state: item.state,
-                    zip: item.zip,
-                  })
-                }
-                className="
-                  mt-2 px-2 py-1 rounded text-sm
-                  bg-green-600 hover:bg-green-700
-                  text-white
-                "
-              >
-                Add Stop
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      )}
-
-      {/* No Results */}
-      {!loading && results.length === 0 && query.trim() !== "" && (
-        <p className="text-[16px] text-gray-500 dark:text-gray-300 mt-2">
-          No matches found.
-        </p>
-      )}
+      ))}
     </div>
   );
 }
