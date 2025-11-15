@@ -1,9 +1,3 @@
-// ================================================================
-// 💠 CERTIS AGROUTE PLANNER — page.tsx (REGENERATED)
-// PART 1 OF 3 — DO NOT MODIFY HEADERS OR ORDER
-// This part includes app startup logic and first 3 sidebar tiles
-// ================================================================
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -285,9 +279,7 @@ export default function Page() {
 
         {/* ====================== STATES ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">
-            States
-          </h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">States</h2>
 
           <div className="flex flex-wrap gap-2 mb-2">
             <button
@@ -327,15 +319,8 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ====================== SEARCH LOCATIONS TILE (MOVED HERE) ====================== */}
+        {/* ====================== SEARCH LOCATIONS TILE ====================== */}
         <SearchLocationsTile onAddStop={handleAddStop} />
-
-        {/* END OF PART 1 — CONTINUE WITH PART 2 NEXT */}
-// ================================================================
-// 💠 CERTIS AGROUTE PLANNER — page.tsx
-// PART 2 OF 3 — DO NOT MODIFY HEADERS OR ORDER
-// Retailers → Suppliers → Categories → Channel Summary
-// ================================================================
 
         {/* ====================== RETAILERS ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
@@ -522,14 +507,14 @@ export default function Page() {
           </div>
         </div>
 
-        {/* END OF PART 2 — CONTINUE WITH PART 3 NEXT */}
-// ================================================================
-// 💠 CERTIS AGROUTE PLANNER — page.tsx
-// PART 3 OF 3 — DO NOT MODIFY HEADERS OR ORDER
-// Trip Optimization → Map → Closing JSX
-// ================================================================
+        {/* ============================================================
+            💎 CERTIS AGROUTE PLANNER — page.tsx // PART 3 OF 3
+            DO NOT MODIFY HEADERS OR ORDER
+            Trip Optimization → Map → Closing JSX
+           ============================================================ */}
+        {/* Baseline note kept here intentionally, but hidden from UI */}
 
-        {/* ====================== TRIP BUILDER / OPTIMIZATION ====================== */}
+        {/* ====================== TRIP BUILDER ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow text-[16px] leading-tight mt-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">
             Trip Optimization
