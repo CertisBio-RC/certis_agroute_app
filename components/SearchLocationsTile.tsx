@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Stop } from "./CertisMap";
-import retailers from "../public/data/retailers.json"; // static list used previously
 
 type Props = {
   onAddStop: (stop: Stop) => void;
@@ -11,26 +10,29 @@ type Props = {
 export default function SearchLocationsTile({ onAddStop }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Stop[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleSearch = () => {
-    const q = query.trim().toLowerCase();
-    if (!q) return setResults([]);
+  const handleSearch = async () => {
+    if (!query.trim()) return;
 
-    const filtered = retailers.filter((r: Stop) =>
-      r.label.toLowerCase().includes(q) ||
-      r.address.toLowerCase().includes(q) ||
-      r.city.toLowerCase().includes(q) ||
-      r.state.toLowerCase().includes(q) ||
-      r.zip.toLowerCase().includes(q)
-    );
-
-    setResults(filtered.slice(0, 30)); // same safety cap as before
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      setResults(data.results || []);
+    } catch (err) {
+      console.error("SearchLocationsTile error:", err);
+      setResults([]);
+    }
+    setLoading(false);
   };
 
   return (
     <div className="space-y-3 p-4 bg-[#162035] rounded-xl border border-[#2d3b57] select-none">
       {/* ---- Header ---- */}
-      <div className="text-[20px] font-bold text-yellow-400">Search Locations</div>
+      <div className="text-[20px] font-bold text-yellow-400">
+        Search Locations
+      </div>
 
       {/* ---- Search Bar ---- */}
       <div className="flex space-x-2">
@@ -39,6 +41,7 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
           value={query}
           placeholder="Retailer, city, or ZIP"
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           className="
             flex-1 p-2 rounded
             bg-[#0f1625] text-white text-[16px]
@@ -58,21 +61,26 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
         </button>
       </div>
 
+      {/* ---- Loading ---- */}
+      {loading && (
+        <div className="text-[16px] text-gray-300">Searching…</div>
+      )}
+
       {/* ---- Results ---- */}
-      {results.length > 0 && (
+      {!loading && results.length > 0 && (
         <div className="max-h-56 overflow-y-auto space-y-3 pr-1">
           {results.map((item, index) => (
             <div
               key={index}
               className="p-2 rounded bg-[#1f2b45] border border-[#2d3b57]"
             >
-              {/* Retailer Name */}
+              {/* Retailer */}
               <div className="text-[18px] font-bold text-yellow-300 mb-1">
                 {item.label}
               </div>
 
               {/* Address */}
-              <div className="text-[16px] text-gray-200">
+              <div className="text-[16px] text-gray-200 leading-tight">
                 {item.address}
                 <br />
                 {item.city}, {item.state} {item.zip}
@@ -94,7 +102,7 @@ export default function SearchLocationsTile({ onAddStop }: Props) {
       )}
 
       {/* ---- No Results ---- */}
-      {query.trim() !== "" && results.length === 0 && (
+      {!loading && query.trim() !== "" && results.length === 0 && (
         <div className="text-[16px] text-gray-300">No matches found.</div>
       )}
     </div>
