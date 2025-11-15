@@ -15,7 +15,6 @@ const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
-  // Force dark on first load, then honor stored preference
   useEffect(() => {
     const stored = localStorage.getItem("theme");
     const initial = stored ? (stored as "light" | "dark") : "dark";
@@ -98,6 +97,11 @@ export default function Page() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // -----------------------------
+  // 🔥 GLOBAL MASTER LIST FOR SEARCH TILE
+  // -----------------------------
+  const [allStops, setAllStops] = useState<Stop[]>([]);
+
   // --------------------------------------
   // 🚗 TRIP BUILDER
   // --------------------------------------
@@ -115,8 +119,7 @@ export default function Page() {
   // ---------------------- Add / Remove Stops ----------------------
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
-      if (prev.some((s) => s.label === stop.label && s.address === stop.address))
-        return prev;
+      if (prev.some((s) => s.label === stop.label && s.address === stop.address)) return prev;
       const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
       const home = prev.find((s) => s.label.startsWith("Home"));
       return home ? [home, ...nonHome, stop] : [...prev, stop];
@@ -202,7 +205,8 @@ export default function Page() {
 
   const kingpinSummary = retailerSummary.filter(
     (s) =>
-      s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
+      s.categories.includes("kingpin") ||
+      norm(s.retailer) === "kingpin"
   );
 
   const normalSummary = retailerSummary.filter(
@@ -320,7 +324,10 @@ export default function Page() {
         </div>
 
         {/* ====================== SEARCH LOCATIONS TILE ====================== */}
-        <SearchLocationsTile onAddStop={handleAddStop} />
+        <SearchLocationsTile
+          allStops={allStops}
+          onAddStop={handleAddStop}
+        />
 
         {/* ====================== RETAILERS ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
@@ -507,13 +514,6 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ============================================================
-            💎 CERTIS AGROUTE PLANNER — page.tsx // PART 3 OF 3
-            DO NOT MODIFY HEADERS OR ORDER
-            Trip Optimization → Map → Closing JSX
-           ============================================================ */}
-        {/* Baseline note kept here intentionally, but hidden from UI */}
-
         {/* ====================== TRIP BUILDER ====================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow text-[16px] leading-tight mt-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">
@@ -648,6 +648,7 @@ export default function Page() {
             onSuppliersLoaded={setAvailableSuppliers}
             onRetailerSummary={setRetailerSummary}
             onAddStop={handleAddStop}
+            onAllStopsLoaded={setAllStops}     {/* 🔥 MASTER LIST FEED */}
             tripStops={stopsForRoute}
             tripMode={tripMode}
             onRouteSummary={setRouteSummary}
