@@ -9,9 +9,9 @@ import { Menu, X } from "lucide-react";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-// ----------------------------------------------
-// 🌓 THEME HANDLER — forced dark mode on first load
-// ----------------------------------------------
+/* ----------------------------------------------
+   🌓 THEME HANDLER (forced dark mode on first load)
+---------------------------------------------- */
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
@@ -32,50 +32,69 @@ function useTheme() {
   return { theme, toggleTheme };
 }
 
-// ----------------------------------------------
-// 🧭 UTILITIES
-// ----------------------------------------------
+/* ----------------------------------------------
+   🧭 HELPERS
+---------------------------------------------- */
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
-// ----------------------------------------------
-// 🌍 EXPORT TO GOOGLE / APPLE MAPS
-// ----------------------------------------------
+/* ----------------------------------------------
+   🌍 GOOGLE MAPS EXPORT (Corrected)
+---------------------------------------------- */
 function buildGoogleMapsUrl(stops: Stop[]) {
-  if (stops.length < 2) return null;
-  const base = "https://www.google.com/maps/dir/?api=1";
-  const origin = encodeURIComponent(stops[0].address);
-  const destination = encodeURIComponent(stops[stops.length - 1].address);
+  if (!stops || stops.length < 2) return null;
+
+  const origin = encodeURIComponent(
+    `${stops[0].address}, ${stops[0].city}, ${stops[0].state} ${stops[0].zip}`
+  );
+  const destination = encodeURIComponent(
+    `${stops[stops.length - 1].address}, ${stops[stops.length - 1].city}, ${stops[stops.length - 1].state} ${stops[stops.length - 1].zip}`
+  );
+
   const MAX_WAYPOINTS = 8;
-  const subset = stops
+  const waypoints = stops
     .slice(1, -1)
     .slice(0, MAX_WAYPOINTS)
-    .map((s) => encodeURIComponent(s.address));
+    .map(
+      (s) =>
+        `${s.address}, ${s.city}, ${s.state} ${s.zip}`
+    )
+    .map(encodeURIComponent)
+    .join("|");
 
-  return (
-    `${base}&origin=${origin}&destination=${destination}` +
-    (subset.length > 0 ? `&waypoints=${subset.join("|")}` : "")
-  );
+  return waypoints
+    ? `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}`
+    : `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
 }
 
+/* ----------------------------------------------
+   🍏 APPLE MAPS EXPORT (Corrected)
+---------------------------------------------- */
 function buildAppleMapsUrl(stops: Stop[]) {
-  if (stops.length < 2) return null;
-  const base = "http://maps.apple.com/?dirflg=d";
-  const origin = encodeURIComponent(stops[0].address);
+  if (!stops || stops.length < 2) return null;
+
+  const origin = encodeURIComponent(
+    `${stops[0].address}, ${stops[0].city}, ${stops[0].state} ${stops[0].zip}`
+  );
+
   const daddr = stops
     .slice(1)
-    .map((s) => encodeURIComponent(s.address))
+    .map(
+      (s) =>
+        `${s.address}, ${s.city}, ${s.state} ${s.zip}`
+    )
+    .map(encodeURIComponent)
     .join("+to:");
-  return `${base}&saddr=${origin}&daddr=${daddr}`;
-}
 
-// =========================================================
-// 🌟 MAIN PAGE COMPONENT
-// =========================================================
+  return `http://maps.apple.com/?dirflg=d&saddr=${origin}&daddr=${daddr}`;
+}
+/* =========================================================
+   🌟 MAIN PAGE COMPONENT
+========================================================= */
 export default function Page() {
   const { theme, toggleTheme } = useTheme();
 
-  // 🎛 FILTER STATE
+  /* 🎛 FILTER STATE */
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
@@ -84,30 +103,22 @@ export default function Page() {
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
   const [retailerSummary, setRetailerSummary] = useState<
-    {
-      retailer: string;
-      count: number;
-      suppliers: string[];
-      categories: string[];
-      states: string[];
-    }[]
+    { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }[]
   >([]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // 🔥 MASTER LIST FOR SEARCH TILE
   const [allStops, setAllStops] = useState<Stop[]>([]);
 
-  // 🚗 TRIP BUILDER
+  /* 🚗 TRIP BUILDER */
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
-  const [routeSummary, setRouteSummary] = useState<{
-    distance_m: number;
-    duration_s: number;
-  } | null>(null);
+  const [routeSummary, setRouteSummary] = useState<{ distance_m: number; duration_s: number } | null>(
+    null
+  );
 
+  /* ➕ ADD STOP */
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
       if (prev.some((s) => s.label === stop.label && s.address === stop.address)) return prev;
@@ -117,15 +128,18 @@ export default function Page() {
     });
   };
 
+  /* ❌ REMOVE STOP */
   const handleRemoveStop = (index: number) => {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
   };
 
+  /* 🗑 CLEAR EXCEPT HOME */
   const handleClearStops = () => {
     setTripStops((prev) => prev.filter((s) => s.label.startsWith("Home")));
     setRouteSummary(null);
   };
 
+  /* 🏠 ZIP → COORDS (with city/state/zip enrich) */
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
     try {
@@ -136,12 +150,26 @@ export default function Page() {
       );
       const data = await res.json();
       if (data.features?.length > 0) {
-        const [lng, lat] = data.features[0].center;
+        const f = data.features[0];
+        const [lng, lat] = f.center;
+
+        // Parse city/state from Mapbox context
+        let city = "";
+        let state = "";
+        f.context?.forEach((c: any) => {
+          if (c.id.startsWith("place")) city = c.text;
+          if (c.id.startsWith("region")) state = c.short_code?.replace("US-", "") || c.text;
+        });
+
         const newHome: Stop = {
           label: `Home (${homeZip})`,
           address: homeZip,
           coords: [lng, lat],
+          city,
+          state,
+          zip: homeZip,
         };
+
         setHomeCoords([lng, lat]);
         setTripStops((prev) => {
           const others = prev.filter((s) => !s.label.startsWith("Home"));
@@ -152,18 +180,15 @@ export default function Page() {
       console.error("Home ZIP geocode error:", err);
     }
   };
-
+  /* 🔄 ORDER STOPS INTO ROUTABLE LIST */
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
-    const homeStop: Stop = {
-      label: `Home (${homeZip})`,
-      address: homeZip,
-      coords: homeCoords,
-    };
-    const nonHomeStops = tripStops.filter((s) => !s.label.startsWith("Home"));
-    return [homeStop, ...nonHomeStops, homeStop];
-  }, [tripStops, homeCoords, homeZip]);
+    const homeStop = tripStops.find((s) => s.label.startsWith("Home"));
+    const nonHome = tripStops.filter((s) => !s.label.startsWith("Home"));
+    return homeStop ? [homeStop, ...nonHome, homeStop] : tripStops;
+  }, [tripStops, homeCoords]);
 
+  /* ↪️ MAPBOX OPTIMIZER CALLBACK */
   const handleOptimizedRoute = (optimizedStops: Stop[]) => {
     if (optimizedStops.length < 2) return;
     const start = optimizedStops[0];
@@ -172,35 +197,27 @@ export default function Page() {
     setTripStops([start, ...middle, end]);
   };
 
-  // =========================================================
-  // NON-DESTRUCTIVE RETAILER SUMMARY
-  // =========================================================
-  const filteredRetailersForSummary = useMemo(() => {
-    if (selectedStates.length === 0) return availableRetailers;
-    return retailerSummary
-      .filter((s) =>
-        s.states.some((st) => selectedStates.includes(norm(st)))
-      )
-      .map((s) => s.retailer)
-      .filter((r, i, arr) => arr.indexOf(r) === i)
-      .sort();
-  }, [availableRetailers, retailerSummary, selectedStates]);
+  /* NON-DESTRUCTIVE CHANNEL SUMMARY */
+  const filteredRetailersForSummary = useMemo(
+    () =>
+      selectedStates.length === 0
+        ? availableRetailers
+        : retailerSummary
+            .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
+            .map((s) => s.retailer)
+            .filter((r, i, arr) => arr.indexOf(r) === i)
+            .sort(),
+    [availableRetailers, retailerSummary, selectedStates]
+  );
 
   const kingpinSummary = retailerSummary.filter(
-    (s) =>
-      s.categories.includes("kingpin") ||
-      norm(s.retailer) === "kingpin"
+    (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
   );
-
   const normalSummary = retailerSummary.filter(
-    (s) =>
-      !s.categories.includes("kingpin") &&
-      norm(s.retailer) !== "kingpin"
+    (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
   );
 
-  // =========================================================
-  // UI
-  // =========================================================
+  /* ===================== UI ===================== */
   return (
     <div className="flex h-screen w-screen relative overflow-hidden">
       {/* Mobile Hamburger */}
@@ -211,12 +228,11 @@ export default function Page() {
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-      {/* Sidebar */}
+      {/* SIDEBAR */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-[600px] bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 
-          transform transition-transform duration-300
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          md:translate-x-0`}
+        className={`fixed md:static top-0 left-0 h-full w-[600px] bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0`}
       >
         {/* Logo */}
         <div className="flex flex-col items-center justify-center mb-6 gap-3">
@@ -227,8 +243,6 @@ export default function Page() {
             height={60}
             priority
           />
-
-          {/* 🌙 Theme Toggle */}
           <button
             onClick={toggleTheme}
             className="px-3 py-1 rounded text-[14px] font-semibold border border-yellow-500 text-yellow-400 hover:bg-yellow-600/20"
@@ -237,11 +251,9 @@ export default function Page() {
           </button>
         </div>
 
-        {/* ====================== HOME ZIP ====================== */}
+        {/* HOME ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">
-            Home Zip Code
-          </h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Home Zip Code</h2>
           <div className="flex space-x-2">
             <input
               type="text"
@@ -257,17 +269,12 @@ export default function Page() {
               Set
             </button>
           </div>
-          {homeCoords && (
-            <p className="mt-2 text-sm text-yellow-400">
-              Home set at {homeZip} ✔
-            </p>
-          )}
+          {homeCoords && <p className="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>}
         </div>
 
-        {/* ====================== STATES ====================== */}
+        {/* STATES */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">States</h2>
-
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setSelectedStates(availableStates.map(norm))}
@@ -282,7 +289,6 @@ export default function Page() {
               Clear
             </button>
           </div>
-
           <div className="grid grid-cols-3 gap-1 text-[16px]">
             {availableStates.map((state) => {
               const normalized = norm(state);
@@ -306,18 +312,15 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ====================== SEARCH LOCATIONS TILE ====================== */}
+        {/* SEARCH TILE */}
         <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
 
-        {/* ====================== RETAILERS ====================== */}
+        {/* RETAILERS */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
-
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-              onClick={() =>
-                setSelectedRetailers(filteredRetailersForSummary.map(norm))
-              }
+              onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
@@ -329,7 +332,6 @@ export default function Page() {
               Clear
             </button>
           </div>
-
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto text-[16px]">
             {availableRetailers.map((retailer) => {
               const normalized = norm(retailer);
@@ -353,10 +355,9 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ====================== SUPPLIERS ====================== */}
+        {/* SUPPLIERS */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Suppliers</h2>
-
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setSelectedSuppliers(availableSuppliers)}
@@ -371,7 +372,6 @@ export default function Page() {
               Clear
             </button>
           </div>
-
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto text-[16px]">
             {availableSuppliers.map((supplier) => (
               <label key={supplier} className="flex items-center space-x-2">
@@ -392,10 +392,9 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ====================== CATEGORIES ====================== */}
+        {/* CATEGORIES */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
-
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() =>
@@ -416,7 +415,6 @@ export default function Page() {
               Clear
             </button>
           </div>
-
           <div className="grid grid-cols-2 gap-2 text-[16px]">
             {Object.entries(categoryColors)
               .filter(([key]) => key !== "Kingpin")
@@ -444,36 +442,24 @@ export default function Page() {
               ))}
           </div>
         </div>
-
-        {/* ====================== CHANNEL SUMMARY ====================== */}
+        {/* CHANNEL SUMMARY */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">
-            Channel Summary
-          </h2>
-
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Channel Summary</h2>
           <div className="text-[15px] max-h-48 overflow-y-auto text-white">
             {normalSummary.map((s, i) => (
               <div key={i} className="mb-4 p-2 rounded bg-gray-700/40">
-                <strong className="text-yellow-300 text-[17px]">
-                  {s.retailer}
-                </strong>
+                <strong className="text-yellow-300 text-[17px]">{s.retailer}</strong>
                 <br />
-
                 <span className="text-white text-[15px]">
                   State(s): {s.states.map(capitalizeState).join(", ") || "N/A"}
                 </span>
                 <br />
-
-                <span className="text-white text-[15px]">
-                  Total Locations: {s.count}
-                </span>
+                <span className="text-white text-[15px]">Total Locations: {s.count}</span>
                 <br />
-
                 <span className="text-white text-[15px]">
                   Suppliers: {s.suppliers.join(", ") || "N/A"}
                 </span>
                 <br />
-
                 <span className="text-white text-[15px]">
                   Categories: {s.categories.join(", ") || "N/A"}
                 </span>
@@ -482,9 +468,7 @@ export default function Page() {
 
             {kingpinSummary.length > 0 && (
               <div className="mt-4 p-2 rounded bg-gray-800/60">
-                <strong className="text-yellow-400 text-[17px]">
-                  Kingpins:
-                </strong>
+                <strong className="text-yellow-400 text-[17px]">Kingpins:</strong>
                 <br />
                 <span className="text-yellow-200 text-[15px]">
                   {kingpinSummary.map((s) => s.retailer).join(", ")}
@@ -494,11 +478,9 @@ export default function Page() {
           </div>
         </div>
 
-        {/* ====================== TRIP BUILDER ====================== */}
+        {/* TRIP BUILDER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow text-[16px] leading-tight mt-4">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">
-            Trip Optimization
-          </h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Trip Optimization</h2>
 
           <div className="flex space-x-4 mb-3 text-[15px]">
             <label className="flex items-center space-x-2 cursor-pointer">
@@ -510,7 +492,6 @@ export default function Page() {
               />
               <span className="text-white">Map as Entered</span>
             </label>
-
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="radio"
@@ -544,16 +525,13 @@ export default function Page() {
                     className="flex justify-between items-start pb-2 border-b border-gray-300 dark:border-gray-600"
                   >
                     <div>
-                      <div className="font-semibold text-yellow-300">
-                        {stop.label}
-                      </div>
+                      <div className="font-semibold text-yellow-300">{stop.label}</div>
                       <div className="text-[14px] text-white dark:text-gray-200">
                         {stop.address}
                         <br />
                         {stop.city}, {stop.state} {stop.zip}
                       </div>
                     </div>
-
                     {!stop.label.startsWith("Home") && (
                       <button
                         onClick={() => handleRemoveStop(i)}
@@ -598,18 +576,16 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-[15px] text-gray-500 dark:text-gray-300">
-              No stops added yet.
-            </p>
+            <p className="text-[15px] text-gray-500 dark:text-gray-300">No stops added yet.</p>
           )}
         </div>
       </aside>
 
-      {/* MAP + TITLE */}
+      {/* MAP PANEL — WITH BANNER HEADER */}
       <main className="flex-1 relative flex flex-col">
         <div className="w-full flex justify-end pr-6 pt-4 mb-3">
           <h1 className="text-xl font-bold text-yellow-400 tracking-wide">
-            Certis Ag-Router
+            Certis Ag-Route Planner
           </h1>
         </div>
 
