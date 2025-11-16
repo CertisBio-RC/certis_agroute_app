@@ -11006,5 +11006,113 @@
   "202 broadway street, imperial, ne 69033": [
     40.51329,
     -101.64259
+  ],
+  "44608 273rd st, marion, sd 57043": [
+    43.430842,
+    -97.279142
+  ],
+  "601 s elevator rd, dimock, sd 57331": [
+    43.473307,
+    -97.983996
+  ],
+  "211 n till ave, irene, sd 57037": [
+    43.08459,
+    -97.16063
+  ],
+  "25263 467th ave, lyons, sd 57041": [
+    43.725761,
+    -96.876084
+  ],
+  "320 w rutan ave, salem, sd 57058": [
+    43.71802,
+    -97.39053
+  ],
+  "431 railway st, scotland, sd 57059": [
+    43.1513,
+    -97.7202
+  ],
+  "210 e 7th ave, tyndall, sd 57066": [
+    43.514867,
+    -96.016279
+  ],
+  "101 n commercial st, viborg, sd 57070": [
+    43.170894,
+    -97.079318
+  ],
+  "100 n center st, tilden, ne 68781": [
+    null,
+    null
+  ],
+  "120 8th street, gothenburg, ne 69138": [
+    40.92926,
+    -100.16631
+  ],
+  "2504 old mill road, albion, ne 68620": [
+    41.69845,
+    -98.011992
+  ],
+  "605 west main street, cedar rapids, ne 68627": [
+    41.559551,
+    -98.152029
+  ],
+  "528 north 14th street, ord, ne 68862": [
+    41.606721,
+    -98.925998
+  ],
+  "83167 highway 281, bartlett, ne 68622": [
+    41.880812,
+    -98.54874
+  ],
+  "41079 road 798, arnold, ne 69120": [
+    41.39344,
+    -100.19673
+  ],
+  "302 south grande ave, callaway, ne 68825": [
+    41.288555,
+    -99.925588
+  ],
+  "111 railroad street, canova, ne 57321": [
+    41.28486,
+    -96.961518
+  ],
+  "100 n center street, tilden, ne 68781": [
+    42.050442,
+    -97.834131
+  ],
+  "308 airport road, mccook, ne 69001": [
+    40.199948,
+    -100.602221
+  ],
+  "32880 road 759 34, grant, ne 69140": [
+    40.84088,
+    -101.70859
+  ],
+  "101 s maple st, sutherland, ne 69165": [
+    41.15584,
+    -101.12495
+  ],
+  "322 s commercial ave, wallace, ne 69169": [
+    40.836773,
+    -101.1651
+  ],
+  "205 s state st, brule, ne 69127": [
+    41.09076,
+    -101.88705
+  ],
+  "203 s perkins ave, elsie, ne 69134": [
+    40.844309,
+    -101.389218
+  ],
+  "110 n prairie trace road, sutherland, ne 69165": [
+    41.197732,
+    -101.117291
+  ],
+  "1426 us75, tekamah, ne 68061": [
+    41.87289,
+    -96.23287
+  ],
+  "649 us highway 75, tekamah, ne 68061": [
+    41.76085,
+    -96.22117
   ]
 }

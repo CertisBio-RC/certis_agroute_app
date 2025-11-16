@@ -5319,6 +5319,195 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
+          -97.279142,
+          43.430842
+        ]
+      },
+      "properties": {
+        "Long Name": "Central Farmers Cooperative - SD NE",
+        "Retailer": "Central Farmers Coop",
+        "Name": "Marion Headquarters",
+        "Address": "44608 273rd St",
+        "City": "Marion",
+        "State": "SD",
+        "Zip": "57043",
+        "Category": "Kingpin",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.983996,
+          43.473307
+        ]
+      },
+      "properties": {
+        "Long Name": "Central Farmers Cooperative - SD NE",
+        "Retailer": "Central Farmers Coop",
+        "Name": "Dimock Agronomy",
+        "Address": "601 S Elevator Rd",
+        "City": "Dimock",
+        "State": "SD",
+        "Zip": "57331",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.16063,
+          43.08459
+        ]
+      },
+      "properties": {
+        "Long Name": "Central Farmers Cooperative - SD NE",
+        "Retailer": "Central Farmers Coop",
+        "Name": "Irene Agronomy",
+        "Address": "211 N Till Ave",
+        "City": "Irene",
+        "State": "SD",
+        "Zip": "57037",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -96.876084,
+          43.725761
+        ]
+      },
+      "properties": {
+        "Long Name": "Central Farmers Cooperative - SD NE",
+        "Retailer": "Central Farmers Coop",
+        "Name": "Lyons Agronomy",
+        "Address": "25263 467th Ave",
+        "City": "Lyons",
+        "State": "SD",
+        "Zip": "57041",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.279142,
+          43.430842
+        ]
+      },
+      "properties": {
+        "Long Name": "Central Farmers Cooperative - SD NE",
+        "Retailer": "Central Farmers Coop",
+        "Name": "Marion Agronomy",
+        "Address": "44608 273rd St",
+        "City": "Marion",
+        "State": "SD",
+        "Zip": "57043",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.39053,
+          43.71802
+        ]
+      },
+      "properties": {
+        "Long Name": "Central Farmers Cooperative - SD NE",
+        "Retailer": "Central Farmers Coop",
+        "Name": "Salem Agronomy",
+        "Address": "320 W Rutan Ave",
+        "City": "Salem",
+        "State": "SD",
+        "Zip": "57058",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.7202,
+          43.1513
+        ]
+      },
+      "properties": {
+        "Long Name": "Central Farmers Cooperative - SD NE",
+        "Retailer": "Central Farmers Coop",
+        "Name": "Scotland Agronomy",
+        "Address": "431 Railway St",
+        "City": "Scotland",
+        "State": "SD",
+        "Zip": "57059",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -96.016279,
+          43.514867
+        ]
+      },
+      "properties": {
+        "Long Name": "Central Farmers Cooperative - SD NE",
+        "Retailer": "Central Farmers Coop",
+        "Name": "Tyndall Agronomy",
+        "Address": "210 E 7th Ave",
+        "City": "Tyndall",
+        "State": "SD",
+        "Zip": "57066",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.079318,
+          43.170894
+        ]
+      },
+      "properties": {
+        "Long Name": "Central Farmers Cooperative - SD NE",
+        "Retailer": "Central Farmers Coop",
+        "Name": "Viborg Agronomy",
+        "Address": "101 N Commercial St",
+        "City": "Viborg",
+        "State": "SD",
+        "Zip": "57070",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
           -94.89148,
           44.76988
         ]
@@ -12984,6 +13173,216 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
+          -100.16631,
+          40.92926
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Administrative Office",
+        "Address": "120 8th Street",
+        "City": "Gothenburg",
+        "State": "NE",
+        "Zip": "69138",
+        "Category": "Office/Service",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.011992,
+          41.69845
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Albion Agronomy Center",
+        "Address": "2504 Old Mill Road",
+        "City": "Albion",
+        "State": "NE",
+        "Zip": "68620",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.152029,
+          41.559551
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Cedar Rapids Agronomy & Grain",
+        "Address": "605 West Main Street",
+        "City": "Cedar Rapids",
+        "State": "NE",
+        "Zip": "68627",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.925998,
+          41.606721
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Ord Agronomy & Grain",
+        "Address": "528 North 14th Street",
+        "City": "Ord",
+        "State": "NE",
+        "Zip": "68862",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.54874,
+          41.880812
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Bartlett Agronomy",
+        "Address": "83167 Highway 281",
+        "City": "Bartlett",
+        "State": "NE",
+        "Zip": "68622",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -100.19673,
+          41.39344
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Arnold Grain Division",
+        "Address": "41079 Road 798",
+        "City": "Arnold",
+        "State": "NE",
+        "Zip": "69120",
+        "Category": "Grain/Feed",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -99.925588,
+          41.288555
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Callaway C-Store & Fuel",
+        "Address": "302 South Grande Ave",
+        "City": "Callaway",
+        "State": "NE",
+        "Zip": "68825",
+        "Category": "Office/Service",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -100.16631,
+          40.92926
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Gothenburg Agronomy & Grain",
+        "Address": "120 8th Street",
+        "City": "Gothenburg",
+        "State": "NE",
+        "Zip": "69138",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -96.961518,
+          41.28486
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Canova Agronomy & Grain",
+        "Address": "111 Railroad Street",
+        "City": "Canova",
+        "State": "NE",
+        "Zip": "57321",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.834131,
+          42.050442
+        ]
+      },
+      "properties": {
+        "Long Name": "Country Partners Cooperative",
+        "Retailer": "Country Partners Coop",
+        "Name": "Tilden Agronomy",
+        "Address": "100 N Center Street",
+        "City": "Tilden",
+        "State": "NE",
+        "Zip": "68781",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
           -99.12678,
           40.476385
         ]
@@ -14445,7 +14844,7 @@
         "City": "Battle Creek",
         "State": "NE",
         "Zip": "68715",
-        "Category": "Kinpin",
+        "Category": "Kingpin",
         "Suppliers": "Winfield"
       }
     },
@@ -14739,7 +15138,7 @@
         "City": "Keota",
         "State": "IA",
         "Zip": "52248",
-        "Category": "Agronomy, ",
+        "Category": "Agronomy,",
         "Suppliers": "Nutrien, Winfield"
       }
     },
@@ -14971,7 +15370,7 @@
         "State": "NE",
         "Zip": "69021",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -14992,7 +15391,7 @@
         "State": "NE",
         "Zip": "69021",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15013,7 +15412,7 @@
         "State": "WY",
         "Zip": "82053",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15034,7 +15433,7 @@
         "State": "NE",
         "Zip": "69129",
         "Category": "Agronomy",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15055,7 +15454,7 @@
         "State": "NE",
         "Zip": "69129",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15076,7 +15475,7 @@
         "State": "NE",
         "Zip": "69129",
         "Category": "Grain/Feed",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15097,7 +15496,7 @@
         "State": "NE",
         "Zip": "69024",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15118,7 +15517,7 @@
         "State": "NE",
         "Zip": "69024",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15139,7 +15538,7 @@
         "State": "NE",
         "Zip": "69131",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15160,7 +15559,7 @@
         "State": "NE",
         "Zip": "69133",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15181,7 +15580,7 @@
         "State": "NE",
         "Zip": "69027",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15202,7 +15601,7 @@
         "State": "NE",
         "Zip": "69140",
         "Category": "Agronomy",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15223,7 +15622,7 @@
         "State": "NE",
         "Zip": "69140",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15244,7 +15643,7 @@
         "State": "NE",
         "Zip": "69140",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15265,7 +15664,7 @@
         "State": "NE",
         "Zip": "69033",
         "Category": "Agronomy",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15286,7 +15685,7 @@
         "State": "NE",
         "Zip": "69033",
         "Category": "Agronomy",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15307,7 +15706,7 @@
         "State": "NE",
         "Zip": "69033",
         "Category": "Kingpin",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15328,7 +15727,7 @@
         "State": "NE",
         "Zip": "69033",
         "Category": "Feed",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15349,7 +15748,7 @@
         "State": "NE",
         "Zip": "69033",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15370,7 +15769,7 @@
         "State": "NE",
         "Zip": "69033",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15391,7 +15790,7 @@
         "State": "NE",
         "Zip": "69033",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15412,7 +15811,7 @@
         "State": "NE",
         "Zip": "69145",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15433,7 +15832,7 @@
         "State": "NE",
         "Zip": "69145",
         "Category": "Grain/Feed",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15454,7 +15853,7 @@
         "State": "NE",
         "Zip": "69145",
         "Category": "Feed",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15475,7 +15874,7 @@
         "State": "NE",
         "Zip": "69149",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15496,7 +15895,7 @@
         "State": "NE",
         "Zip": "69149",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15517,7 +15916,7 @@
         "State": "NE",
         "Zip": "69001",
         "Category": "Agronomy",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15538,7 +15937,7 @@
         "State": "NE",
         "Zip": "69001",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15559,7 +15958,7 @@
         "State": "NE",
         "Zip": "69001",
         "Category": "Grain/Feed",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15580,7 +15979,7 @@
         "State": "NE",
         "Zip": "69001",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15601,7 +16000,7 @@
         "State": "NE",
         "Zip": "69001",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15622,7 +16021,7 @@
         "State": "NE",
         "Zip": "69154",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15643,7 +16042,7 @@
         "State": "NE",
         "Zip": "69040",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15664,7 +16063,7 @@
         "State": "WY",
         "Zip": "82082",
         "Category": "Agronomy",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15685,7 +16084,7 @@
         "State": "WY",
         "Zip": "82082",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15706,7 +16105,7 @@
         "State": "WY",
         "Zip": "82082",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15727,7 +16126,7 @@
         "State": "NE",
         "Zip": "69156",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15748,7 +16147,7 @@
         "State": "NE",
         "Zip": "69162",
         "Category": "Agronomy",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15769,7 +16168,7 @@
         "State": "NE",
         "Zip": "69162",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15784,13 +16183,13 @@
       "properties": {
         "Long Name": "Frenchman Valley Coop - NE",
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Venullgo – Grain Elevator",
+        "Name": "Venango – Grain Elevator",
         "Address": "104 East Hwy 23",
-        "City": "Venullgo",
+        "City": "Venango",
         "State": "NE",
         "Zip": "69168",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15811,7 +16210,7 @@
         "State": "NE",
         "Zip": "69045",
         "Category": "Grain",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -15832,7 +16231,7 @@
         "State": "WY",
         "Zip": "82201",
         "Category": "Office/Service",
-        "Suppliers": "null"
+        "Suppliers": "Winfield"
       }
     },
     {
@@ -21951,6 +22350,237 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
+          -100.602221,
+          40.199948
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "McCook Agronomy Center",
+        "Address": "308 Airport Road",
+        "City": "McCook",
+        "State": "NE",
+        "Zip": "69001",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.70859,
+          40.84088
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "Grant Agronomy Center",
+        "Address": "32880 Road 759 3/4",
+        "City": "Grant",
+        "State": "NE",
+        "Zip": "69140",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.12495,
+          41.15584
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "Sutherland Agronomy Center",
+        "Address": "101 S Maple St.",
+        "City": "Sutherland",
+        "State": "NE",
+        "Zip": "69165",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.1651,
+          40.836773
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "Wallace Agronomy Center",
+        "Address": "322 S Commercial Ave.",
+        "City": "Wallace",
+        "State": "NE",
+        "Zip": "69169",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.88705,
+          41.09076
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "Brule Agronomy Center",
+        "Address": "205 S State St.",
+        "City": "Brule",
+        "State": "NE",
+        "Zip": "69127",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.389218,
+          40.844309
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "Elsie Agronomy Center",
+        "Address": "203 S Perkins Ave",
+        "City": "Elsie",
+        "State": "NE",
+        "Zip": "69134",
+        "Category": "Agronomy",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.389218,
+          40.844309
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "Elsie C-Store / Tire & Auto Shop",
+        "Address": "203 S Perkins Ave",
+        "City": "Elsie",
+        "State": "NE",
+        "Zip": "69134",
+        "Category": "Office/Service",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.117291,
+          41.197732
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "Sutherland Tire & Auto Shop",
+        "Address": "110 N Prairie Trace Road",
+        "City": "Sutherland",
+        "State": "NE",
+        "Zip": "69165",
+        "Category": "Office/Service",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.1651,
+          40.836773
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "Wallace C-Store / Tire & Auto Shop",
+        "Address": "322 S Commercial Ave.",
+        "City": "Wallace",
+        "State": "NE",
+        "Zip": "69169",
+        "Category": "Office/Service",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.389218,
+          40.844309
+        ]
+      },
+      "properties": {
+        "Long Name": "Hi-Line Cooperative - NE",
+        "Retailer": "Hi-Line Coop",
+        "Name": "Elsie Corporate HQ",
+        "Address": "203 S Perkins Ave",
+        "City": "Elsie",
+        "State": "NE",
+        "Zip": "69134",
+        "Category": "Kingpin",
+        "Suppliers": "Winfield, Nutrien, Rosens"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -96.23287,
+          41.87289
+        ]
+      },
+      "properties": {
+        "Long Name": "HiWay 75 Ag, LLC",
+        "Retailer": "HiWay 75 Ag",
+        "Name": "HiWay 75 Ag",
+        "Address": "1426 US-75",
+        "City": "Tekamah",
+        "State": "NE",
+        "Zip": "68061",
+        "Category": "Kingpin",
+        "Suppliers": "None listed"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
           -96.133706,
           43.18866
         ]
@@ -23183,6 +23813,27 @@
         "Zip": "45877",
         "Category": "Agronomy",
         "Suppliers": "Growmark"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -96.22117,
+          41.76085
+        ]
+      },
+      "properties": {
+        "Long Name": "Midwest Service Company - NE",
+        "Retailer": "Midwest Service Co",
+        "Name": "Midwest Service Company",
+        "Address": "649 US Highway 75",
+        "City": "Tekamah",
+        "State": "NE",
+        "Zip": "68061",
+        "Category": "Kingpin",
+        "Suppliers": "None listed"
       }
     },
     {
@@ -25318,7 +25969,7 @@
       "properties": {
         "Long Name": "Nutrien Ag Solutions - IA",
         "Retailer": "Nutrien Ag",
-        "Name": "Wellsburg ",
+        "Name": "Wellsburg",
         "Address": "107 N Washington St",
         "City": "Wellsburg",
         "State": "IA",
@@ -29810,7 +30461,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Manson",
         "Address": "1303 9th Ave",
@@ -29831,7 +30482,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Laurens",
         "Address": "320 West Main",
@@ -29852,7 +30503,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Pocahontas Elevator",
         "Address": "101 North Main St",
@@ -29873,7 +30524,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Bradgate",
         "Address": "500 South Public St",
@@ -29894,7 +30545,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Rolfe Agronomy Center",
         "Address": "601 Broad St",
@@ -29915,7 +30566,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Plover",
         "Address": "402 Jackson",
@@ -29936,7 +30587,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Ruthven",
         "Address": "1409 Main St",
@@ -29957,7 +30608,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Wallingford",
         "Address": "115 Elevator Rd",
@@ -29978,7 +30629,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Terril",
         "Address": "402 Warner Ave",
@@ -29999,7 +30650,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Pioneer",
         "Address": "110 Main St",
@@ -30020,7 +30671,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Rutland",
         "Address": "206 Sheridan",
@@ -30041,7 +30692,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Estherville",
         "Address": "108 S 3rd St",
@@ -30062,7 +30713,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Havelock",
         "Address": "446 Hwy 10",
@@ -30083,7 +30734,7 @@
         ]
       },
       "properties": {
-        "Long Name": null,
+        "Long Name": "",
         "Retailer": "PRO Coop",
         "Name": "Ayrshire",
         "Address": "3717 420th St",

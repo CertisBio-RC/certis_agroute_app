@@ -1,83 +1,74 @@
-﻿# ========================================
-# combine_channel_partners.py
-# Certis AgRoute Planner — Phase A: Sheet Merger
-# ========================================
-# Combines all worksheets from retailers_BREAKOUT.xlsx into a unified retailers.xlsx
-# ========================================
-
-import pandas as pd
+﻿import pandas as pd
 from pathlib import Path
 
-# ========================================
+# ============================================================
 # CONFIGURATION
-# ========================================
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# ============================================================
+DATA_DIR = Path("data")          # Folder that contains the Excel files
 SOURCE_FILE = DATA_DIR / "retailers_BREAKOUT.xlsx"
 OUTPUT_FILE = DATA_DIR / "retailers.xlsx"
 
-# ========================================
-# VALIDATION
-# ========================================
+# ============================================================
+# LOAD BREAKOUT WORKBOOK
+# ============================================================
 if not SOURCE_FILE.exists():
     raise FileNotFoundError(f"❌ Input file not found: {SOURCE_FILE}")
 
-print(f"📘 Reading workbook: {SOURCE_FILE}")
+print("🔍 Scanning worksheets…")
 excel = pd.ExcelFile(SOURCE_FILE)
-print(f"✅ Found {len(excel.sheet_names)} worksheets: {excel.sheet_names}")
+sheet_names = excel.sheet_names
+print(f"📄 Found {len(sheet_names)} sheets:")
+for name in sheet_names:
+    print(f"   • {name}")
 
-# ========================================
+# ============================================================
 # NORMALIZE HEADERS
-# ========================================
+# ============================================================
 def normalize_headers(columns):
-    """Standardize column names across inconsistent sheets."""
-    normalized = []
+    """Convert messy variations to a uniform schema."""
+    mapping = {
+        "long name": "Long Name",
+        "retailer": "Retailer",
+        "name": "Name",
+        "address": "Address",
+        "city": "City",
+        "state": "State",
+        "zip": "Zip",
+        "category": "Category",
+        "suppliers": "Suppliers",       # <-- your renamed column
+        "supplier(s)": "Suppliers",     # legacy compatibility
+    }
+    out = []
     for col in columns:
-        c = str(col).strip()
-        c = c.replace("\n", " ").replace("\r", " ")
-        c = c.replace("Suppliers(s)", "Suppliers")
-        c = c.replace("Supplier(s)", "Suppliers")
-        c = c.replace("Business Name or Region", "Long Name")
-        c = c.replace("Long Name", "Long Name")  # remove nonbreaking spaces
-        normalized.append(c)
-    return normalized
+        key = col.strip().lower()
+        out.append(mapping.get(key, col.strip()))
+    return out
 
-# ========================================
-# COMBINE SHEETS
-# ========================================
-combined = []
-for sheet_name in excel.sheet_names:
-    print(f"🧩 Processing sheet: {sheet_name}")
-    df = pd.read_excel(SOURCE_FILE, sheet_name=sheet_name)
+# ============================================================
+# INGEST & APPEND ALL TABS
+# ============================================================
+dfs = []
+for sheet in sheet_names:
+    print(f"📌 Reading sheet: {sheet}")
+    df = pd.read_excel(SOURCE_FILE, sheet_name=sheet, dtype=str)
+
     df.columns = normalize_headers(df.columns)
-    df["Source Sheet"] = sheet_name
-    combined.append(df)
+    dfs.append(df)
 
-df_all = pd.concat(combined, ignore_index=True)
+combined = pd.concat(dfs, ignore_index=True)
 
-# ========================================
-# COLUMN ALIGNMENT
-# ========================================
-expected_cols = [
-    "Long Name", "Retailer", "Name", "Address", "City",
-    "State", "Zip", "Category", "Suppliers"
-]
+# Drop fully empty rows
+combined.dropna(how="all", inplace=True)
 
-for col in expected_cols:
-    if col not in df_all.columns:
-        df_all[col] = ""
+# Trim whitespace
+combined = combined.applymap(
+    lambda x: x.strip() if isinstance(x, str) else x
+)
 
-df_all = df_all[expected_cols + ["Source Sheet"]]
-
-# ========================================
-# CLEANUP
-# ========================================
-df_all = df_all.dropna(how="all")
-df_all = df_all.fillna("")
-print(f"✅ Combined {len(df_all)} total rows from all sheets")
-
-# ========================================
+# ============================================================
 # SAVE OUTPUT
-# ========================================
-df_all.to_excel(OUTPUT_FILE, index=False)
-print(f"💾 Saved merged dataset → {OUTPUT_FILE}")
-print("🏁 Phase A complete — master retailer list ready for geocoding.")
+# ============================================================
+combined.to_excel(OUTPUT_FILE, index=False)
+print("\n✅ retailers.xlsx successfully created:")
+print(f"   → {OUTPUT_FILE}")
+print(f"   Rows: {len(combined)}")
