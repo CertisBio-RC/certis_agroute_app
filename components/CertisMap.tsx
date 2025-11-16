@@ -527,117 +527,65 @@ export default function CertisMap(props: CertisMapProps) {
     onRetailerSummary,
   ]);
 
-  // ----------------------------
-  // ROUTING
-  // ----------------------------
-  const clearRoute = useCallback(() => {
-    const map = mapRef.current;
-    if (!map) return;
+// ----------------------------
+// ROUTING
+// ----------------------------
+const clearRoute = useCallback(() => {
+  const map = mapRef.current;
+  if (!map) return;
+  if (map.getLayer("route-line")) map.removeLayer("route-line");
+  if (map.getSource("route")) map.removeSource("route");
+  onRouteSummary?.(null);
+}, [onRouteSummary]);
 
-    if (map.getLayer("route-line")) map.removeLayer("route-line");
-    if (map.getSource("route")) map.removeSource("route");
+const coordsToString = (stops: Stop[]) =>
+  stops.map((s) => `${s.coords[0]},${s.coords[1]}`).join(";");
 
-    onRouteSummary?.(null);
-  }, [onRouteSummary]);
+useEffect(() => {
+  const map = mapRef.current;
+  if (!map) return;
 
-  const coordsToString = (stops: Stop[]) =>
-    stops.map((s) => `${s.coords[0]},${s.coords[1]}`).join(";");
+  if (!tripStops || tripStops.length < 2) {
+    clearRoute();
+    return;
+  }
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
+  const token = mapboxgl.accessToken || process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+  let ordered = [...tripStops];
 
-    if (!tripStops || tripStops.length < 2) {
-      clearRoute();
-      return;
-    }
+  const hasHomeStart = ordered[0]?.label?.startsWith("Home");
+  const hasHomeEnd = ordered[ordered.length - 1]?.label?.startsWith("Home");
 
-    const token =
-      mapboxgl.accessToken || process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+  if (!hasHomeStart && homeCoords) {
+    ordered.unshift({ label: "Home", address: "Home", coords: homeCoords });
+  }
+  if (!hasHomeEnd && homeCoords) {
+    ordered.push({ label: "Home", address: "Home", coords: homeCoords });
+  }
 
-    let ordered = [...tripStops];
+  const interior = ordered.slice(1, -1);
 
-    const hasHomeStart = ordered[0]?.label?.startsWith("Home");
-    const hasHomeEnd = ordered[ordered.length - 1]?.label?.startsWith("Home");
-
-    if (!hasHomeStart && homeCoords) {
-      ordered.unshift({
-        label: "Home",
-        address: "Home",
-        coords: homeCoords,
-      });
-    }
-    if (!hasHomeEnd && homeCoords) {
-      ordered.push({
-        label: "Home",
-        address: "Home",
-        coords: homeCoords,
-      });
-    }
-
-    const interior = ordered.slice(1, -1);
-
-    const doRoute = async () => {
-      try {
-        if (tripMode === "optimize" && interior.length > 1) {
-          const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsToString(
-            ordered
-          )}?geometries=geojson&overview=full&source=first&destination=last&roundtrip=false&access_token=${encodeURIComponent(
-            token
-          )}`;
-
-          const resp = await fetch(url);
-          const data = await resp.json();
-
-          if (data?.trips?.length > 0) {
-            const trip = data.trips[0];
-
-            const feature: GeoJSON.Feature = {
-              type: "Feature",
-              geometry: trip.geometry,
-              properties: {},
-            };
-
-            const src = map.getSource("route") as mapboxgl.GeoJSONSource;
-            if (src) src.setData(feature);
-            else map.addSource("route", { type: "geojson", data: feature });
-
-            if (!map.getLayer("route-line")) {
-              map.addLayer({
-                id: "route-line",
-                type: "line",
-                source: "route",
-                paint: { "line-color": "#00B7FF", "line-width": 4 },
-              });
-            }
-
-            onRouteSummary?.({
-              distance_m: trip.distance ?? 0,
-              duration_s: trip.duration ?? 0,
-            });
-
-            if (onOptimizedRoute && data.waypoints) {
-              const indices = trip.waypoint_indices;
-              const reordered = indices.map((i: number) => ordered[i]);
-              onOptimizedRoute(reordered);
-            }
-            return;
-          }
-        }
-
-        const dirUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsToString(
+  const doRoute = async () => {
+    try {
+      // ============================================================
+      // ⚡ OPTIMIZATION MODE (call optimizer + reorder tripStops)
+      // ============================================================
+      if (tripMode === "optimize" && interior.length > 1) {
+        const optURL = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsToString(
           ordered
-        )}?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(
+        )}?geometries=geojson&overview=full&source=first&destination=last&roundtrip=false&access_token=${encodeURIComponent(
           token
         )}`;
 
-        const dirResp = await fetch(dirUrl);
-        const dirData = await dirResp.json();
+        const optResp = await fetch(optURL);
+        const opt = await optResp.json();
 
-        if (dirData?.routes?.length > 0) {
+        if (opt?.trips?.length > 0) {
+          const trip = opt.trips[0];
+
           const feature: GeoJSON.Feature = {
             type: "Feature",
-            geometry: dirData.routes[0].geometry,
+            geometry: trip.geometry,
             properties: {},
           };
 
@@ -655,25 +603,82 @@ export default function CertisMap(props: CertisMapProps) {
           }
 
           onRouteSummary?.({
-            distance_m: dirData.routes[0].distance ?? 0,
-            duration_s: dirData.routes[0].duration ?? 0,
+            distance_m: trip.distance ?? 0,
+            duration_s: trip.duration ?? 0,
+          });
+
+          if (onOptimizedRoute && opt.waypoint_indices) {
+            const indices = trip.waypoint_indices;
+            const reordered = indices.map((i: number) => ordered[i]);
+            onOptimizedRoute(reordered);
+          }
+
+          return; // 🔥 Prevent fallback auto-override
+        }
+      }
+
+      // ============================================================
+      // 🛑 FALLBACK: Directions API (draw route AND propagate ordering if available)
+      // ============================================================
+      const dirURL = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsToString(
+        ordered
+      )}?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(
+        token
+      )}`;
+
+      const dirResp = await fetch(dirURL);
+      const dirData = await dirResp.json();
+
+      if (dirData?.routes?.length > 0) {
+        const feature: GeoJSON.Feature = {
+          type: "Feature",
+          geometry: dirData.routes[0].geometry,
+          properties: {},
+        };
+
+        const src = map.getSource("route") as mapboxgl.GeoJSONSource;
+        if (src) src.setData(feature);
+        else map.addSource("route", { type: "geojson", data: feature });
+
+        if (!map.getLayer("route-line")) {
+          map.addLayer({
+            id: "route-line",
+            type: "line",
+            source: "route",
+            paint: { "line-color": "#00B7FF", "line-width": 4 },
           });
         }
-      } catch {
-        clearRoute();
+
+        onRouteSummary?.({
+          distance_m: dirData.routes[0].distance ?? 0,
+          duration_s: dirData.routes[0].duration ?? 0,
+        });
+
+        // 🔥 NEW — propagate optimized stop order when Directions provides waypoint indices
+        if (
+          tripMode === "optimize" &&
+          onOptimizedRoute &&
+          dirData.routes?.[0]?.waypoint_indices
+        ) {
+          const indices = dirData.routes[0].waypoint_indices;
+          const reordered = indices.map((i: number) => ordered[i]);
+          onOptimizedRoute(reordered);
+        }
       }
-    };
+    } catch {
+      clearRoute();
+    }
+  };
 
-    doRoute();
-  }, [
-    tripStops,
-    tripMode,
-    homeCoords,
-    clearRoute,
-    onRouteSummary,
-    onOptimizedRoute,
-  ]);
-
+  doRoute();
+}, [
+  tripStops,
+  tripMode,
+  homeCoords,
+  clearRoute,
+  onRouteSummary,
+  onOptimizedRoute,
+]);
   // ----------------------------
   // UNMOUNT CLEANUP
   // ----------------------------
