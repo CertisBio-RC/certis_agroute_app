@@ -155,7 +155,7 @@ export default function CertisMap(props: CertisMapProps) {
       ? process.env.NEXT_PUBLIC_BASE_PATH
       : "/certis_agroute_app";
 
-  const geojsonPath = `${basePath}/data/retailers.geojson`;
+const geojsonPath = `${basePath}/data/retailers.geojson?v=${Date.now()}`;
 
   // ----------------------------
   // POPUP HANDLER (Option A)
