@@ -144,8 +144,11 @@ export default function CertisMap(props: CertisMapProps) {
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const homeMarker = useRef<mapboxgl.Marker | null>(null);
 
+  // -------------------------------------------------------
+  // 🔥 CRITICAL FIX — correct fallback for GitHub Pages path
+  // -------------------------------------------------------
   const basePath =
-    process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== ""
+    process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH.length > 0
       ? process.env.NEXT_PUBLIC_BASE_PATH
       : "/certis_agroute_app";
 
@@ -217,29 +220,7 @@ export default function CertisMap(props: CertisMapProps) {
   };
 
   // ----------------------------
-  // GEOJSON FORCE RELOAD
-  // ----------------------------
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | null;
-    if (!src) return;
-
-    fetch(geojsonPath)
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data.features)) {
-          src.setData({
-            type: "FeatureCollection",
-            features: data.features,
-          });
-        }
-      })
-      .catch((err) => console.error("❌ GeoJSON reload failed:", err));
-  }, [geojsonPath]);
-
-  // ----------------------------
-  // MAP LOAD
+  // GEOJSON INITIAL LOAD
   // ----------------------------
   useEffect(() => {
     if (mapRef.current) return;
@@ -303,7 +284,7 @@ export default function CertisMap(props: CertisMapProps) {
 
         onSuppliersLoaded?.(suppliers);
 
-        // STOPS (for Search Tile)
+        // STOPS for Search Tile
         const stops: Stop[] = valid.map((f) => {
           const p = f.properties || {};
           return {
