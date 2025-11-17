@@ -153,7 +153,7 @@ export default function CertisMap(props: CertisMapProps) {
   const geojsonPath = `${basePath}/data/retailers.geojson?v=${Date.now()}`;
 
   // ----------------------------
-  // POPUP HANDLER — OPTION A
+  // POPUP HANDLER — FIXED ADDRESS FIELD PRIORITY
   // ----------------------------
   const popupHandler = (e: any) => {
     const map = mapRef.current;
@@ -182,7 +182,7 @@ export default function CertisMap(props: CertisMapProps) {
             ${p.Retailer || "Unknown"}
           </strong><br/>
           <em>${p.Name || ""}</em><br/>
-          ${cleanAddress(p.Street || p.Address || p.FullAddress || "")}<br/>
+          ${cleanAddress(p.FullAddress || p.Address || p.Street || "")}<br/>
           ${p.City || ""} ${p.State || ""} ${p.Zip || ""}<br/><br/>
 
           <strong>Category:</strong> ${p.DisplayCategory}<br/>
@@ -207,7 +207,7 @@ export default function CertisMap(props: CertisMapProps) {
         btn.onclick = () =>
           onAddStop({
             label: p.Retailer || p.Name || "Unknown",
-            address: cleanAddress(p.Street || p.Address || p.FullAddress || ""),
+            address: cleanAddress(p.FullAddress || p.Address || p.Street || ""),
             coords: coords as [number, number],
             city: p.City || "",
             state: p.State || "",
@@ -216,6 +216,28 @@ export default function CertisMap(props: CertisMapProps) {
       }
     }
   };
+
+  // ----------------------------
+  // FORCE-RELOAD SOURCE IF GEOJSON UPDATES
+  // ----------------------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | null;
+    if (!src) return;
+
+    fetch(geojsonPath)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.features)) {
+          src.setData({
+            type: "FeatureCollection",
+            features: data.features,
+          });
+        }
+      })
+      .catch((err) => console.error("❌ GeoJSON reload failed:", err));
+  }, [geojsonPath]);
 
   // ----------------------------
   // MAP INITIALIZATION
@@ -262,7 +284,7 @@ export default function CertisMap(props: CertisMapProps) {
         ].filter(Boolean) as string[];
         onRetailersLoaded?.(retailers.sort());
 
-        // SUPPLIERS (cleaned)
+        // SUPPLIERS
         const suppliers = [
           ...new Set(valid.flatMap((f) => parseSuppliers(f.properties?.Suppliers))),
         ]
@@ -274,12 +296,12 @@ export default function CertisMap(props: CertisMapProps) {
           .map((s) => (s.toLowerCase() === "winfield" ? "Winfield" : s));
         onSuppliersLoaded?.(suppliers.sort());
 
-        // STOPS FOR SEARCH
+        // STOPS FOR SEARCH (UPDATED ADDRESS FIELD PRIORITY)
         const stops: Stop[] = valid.map((f) => {
           const p = f.properties || {};
           return {
             label: p.Retailer || p.Name || "Unknown",
-            address: cleanAddress(p.Street || p.Address || p.FullAddress || ""),
+            address: cleanAddress(p.FullAddress || p.Address || p.Street || ""),
             coords: f.geometry.coordinates as [number, number],
             city: p.City || "",
             state: p.State || "",
@@ -322,7 +344,7 @@ export default function CertisMap(props: CertisMapProps) {
           },
         });
 
-        // KINGPINS (B)
+        // KINGPINS
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -396,7 +418,7 @@ export default function CertisMap(props: CertisMapProps) {
 
   // ----------------------------
   // FILTERING (true intersection)
-// ----------------------------
+  // ----------------------------
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
