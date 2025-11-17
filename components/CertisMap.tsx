@@ -152,7 +152,7 @@ export default function CertisMap(props: CertisMapProps) {
   const geojsonPath = `${basePath}/data/retailers.geojson?v=${Date.now()}`;
 
   // ----------------------------
-  // POPUP HANDLER (Option A, unchanged)
+  // POPUP HANDLER (Option A)
   // ----------------------------
   const popupHandler = (e: any) => {
     const map = mapRef.current;
@@ -169,9 +169,7 @@ export default function CertisMap(props: CertisMapProps) {
     const html = `
       <div style="font-size:14px;width:360px;background:#1b1b1b;color:#f2f2f2;
                   padding:10px;border-radius:8px;position:relative;line-height:1.35;">
-        <button id="add-${Math.random()
-          .toString(36)
-          .slice(2)}"
+        <button id="add-${Math.random().toString(36).slice(2)}"
           style="position:absolute;top:6px;right:6px;padding:4px 7px;
                  background:#166534;color:#fff;border:none;border-radius:4px;
                  font-size:12px;cursor:pointer;font-weight:600;">
@@ -261,12 +259,7 @@ export default function CertisMap(props: CertisMapProps) {
         const data = await fetch(geojsonPath).then((r) => r.json());
         const valid = (Array.isArray(data.features) ? data.features : []).filter((f) => {
           const c = f?.geometry?.coordinates;
-          return (
-            Array.isArray(c) &&
-            c.length === 2 &&
-            !isNaN(c[0]) &&
-            !isNaN(c[1])
-          );
+          return Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
         });
 
         valid.forEach((f) => {
@@ -276,21 +269,24 @@ export default function CertisMap(props: CertisMapProps) {
 
         masterFeatures.current = valid;
 
+        // FIX 1 — Typed Set<string>
         onStatesLoaded?.(
-          [...new Set(valid.map((f) => String(f.properties?.State || "").trim()))]
+          [...new Set<string>(valid.map((f) => String(f.properties?.State || "").trim()))]
             .filter(Boolean)
             .sort()
         );
 
+        // FIX 2 — Typed Set<string>
         onRetailersLoaded?.(
-          [...new Set(valid.map((f) => String(f.properties?.Retailer || "").trim()))]
+          [...new Set<string>(valid.map((f) => String(f.properties?.Retailer || "").trim()))]
             .filter(Boolean)
             .sort()
         );
 
+        // FIX 3 — Typed Set<string>
         onSuppliersLoaded?.(
           [
-            ...new Set(valid.flatMap((f) => parseSuppliers(f.properties?.Suppliers))),
+            ...new Set<string>(valid.flatMap((f) => parseSuppliers(f.properties?.Suppliers))),
           ]
             .map((s) => String(s || "").trim())
             .filter((x) => x.length > 0 && x.toLowerCase() !== "null")
@@ -344,7 +340,6 @@ export default function CertisMap(props: CertisMapProps) {
           },
         });
 
-        // 🔥 CORRECTED KINGPIN LAYER (forced lowercase match)
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -355,12 +350,9 @@ export default function CertisMap(props: CertisMapProps) {
               "interpolate",
               ["linear"],
               ["zoom"],
-              3,
-              4.5,
-              6,
-              5.5,
-              9,
-              6,
+              3, 4.5,
+              6, 5.5,
+              9, 6,
             ],
             "circle-color": categoryColors.Kingpin.color,
             "circle-stroke-width": 2,
@@ -375,7 +367,6 @@ export default function CertisMap(props: CertisMapProps) {
         map.on("mouseleave", "retailers-layer", leave);
         map.on("mouseenter", "kingpins-layer", enter);
         map.on("mouseleave", "kingpins-layer", leave);
-
         map.on("click", "retailers-layer", popupHandler);
         map.on("click", "kingpins-layer", popupHandler);
       } catch (err) {
@@ -438,7 +429,7 @@ export default function CertisMap(props: CertisMapProps) {
         selectedSuppliers.length === 0 ||
         selectedSuppliers.some((s) => suppliers.includes(norm(s)));
 
-      // 🔥 FIX — Kingpins survive filtering
+      // Kingpins survive filtering
       const ctMatch =
         category === "kingpin" ||
         selectedCategories.length === 0 ||
