@@ -39,7 +39,7 @@ const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
 /* ----------------------------------------------
-   🌍 GOOGLE MAPS EXPORT (Corrected)
+   🌍 GOOGLE MAPS EXPORT
 ---------------------------------------------- */
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
@@ -55,10 +55,7 @@ function buildGoogleMapsUrl(stops: Stop[]) {
   const waypoints = stops
     .slice(1, -1)
     .slice(0, MAX_WAYPOINTS)
-    .map(
-      (s) =>
-        `${s.address}, ${s.city}, ${s.state} ${s.zip}`
-    )
+    .map((s) => `${s.address}, ${s.city}, ${s.state} ${s.zip}`)
     .map(encodeURIComponent)
     .join("|");
 
@@ -68,7 +65,7 @@ function buildGoogleMapsUrl(stops: Stop[]) {
 }
 
 /* ----------------------------------------------
-   🍏 APPLE MAPS EXPORT (Corrected)
+   🍏 APPLE MAPS EXPORT
 ---------------------------------------------- */
 function buildAppleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
@@ -79,15 +76,13 @@ function buildAppleMapsUrl(stops: Stop[]) {
 
   const daddr = stops
     .slice(1)
-    .map(
-      (s) =>
-        `${s.address}, ${s.city}, ${s.state} ${s.zip}`
-    )
+    .map((s) => `${s.address}, ${s.city}, ${s.state} ${s.zip}`)
     .map(encodeURIComponent)
     .join("+to:");
 
   return `http://maps.apple.com/?dirflg=d&saddr=${origin}&daddr=${daddr}`;
 }
+
 /* =========================================================
    🌟 MAIN PAGE COMPONENT
 ========================================================= */
@@ -139,7 +134,7 @@ export default function Page() {
     setRouteSummary(null);
   };
 
-  /* 🏠 ZIP → COORDS (with city/state/zip enrich) */
+  /* 🏠 ZIP → COORDS */
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
     try {
@@ -153,7 +148,6 @@ export default function Page() {
         const f = data.features[0];
         const [lng, lat] = f.center;
 
-        // Parse city/state from Mapbox context
         let city = "";
         let state = "";
         f.context?.forEach((c: any) => {
@@ -180,6 +174,7 @@ export default function Page() {
       console.error("Home ZIP geocode error:", err);
     }
   };
+
   /* 🔄 ORDER STOPS INTO ROUTABLE LIST */
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
@@ -234,7 +229,7 @@ export default function Page() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
-        {/* Logo */}
+        {/* Logo + Theme Toggle */}
         <div className="flex flex-col items-center justify-center mb-6 gap-3">
           <Image
             src={`${basePath}/certis-logo.png`}
@@ -269,7 +264,12 @@ export default function Page() {
               Set
             </button>
           </div>
-          {homeCoords && <p className="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>}
+          {homeCoords && <p class
+
+        {/* SEARCH TILE */}
+        <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
+
+Name="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>}
         </div>
 
         {/* STATES */}
@@ -311,9 +311,6 @@ export default function Page() {
             })}
           </div>
         </div>
-
-        {/* SEARCH TILE */}
-        <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
 
         {/* RETAILERS */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
@@ -415,6 +412,8 @@ export default function Page() {
               Clear
             </button>
           </div>
+
+          {/* 🔥 Office/Service swatch FIX applied below */}
           <div className="grid grid-cols-2 gap-2 text-[16px]">
             {Object.entries(categoryColors)
               .filter(([key]) => key !== "Kingpin")
@@ -434,7 +433,13 @@ export default function Page() {
                   <span className="flex items-center text-white">
                     <span
                       className="inline-block w-3 h-3 rounded-full mr-1"
-                      style={{ backgroundColor: color }}
+                      style={{
+                        backgroundColor: color,
+                        border:
+                          key === "Office/Service"
+                            ? "1px solid #000" // ← white fill + black outline (Option C)
+                            : "none",
+                      }}
                     />
                     {key}
                   </span>
@@ -442,6 +447,7 @@ export default function Page() {
               ))}
           </div>
         </div>
+
         {/* CHANNEL SUMMARY */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Channel Summary</h2>
