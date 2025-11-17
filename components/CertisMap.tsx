@@ -152,7 +152,10 @@ export default function CertisMap(props: CertisMapProps) {
       ? process.env.NEXT_PUBLIC_BASE_PATH
       : "/certis_agroute_app";
 
-  const geojsonPath = `${basePath}/data/retailers.geojson?v=${Date.now()}`;
+// 🚫 no timestamp cache-buster (GH Pages ignores it anyway)
+// 🚫 no version cycling
+// 🔥 permanent canonical dataset path
+const geojsonPath = `${basePath}/data/retailers_master.geojson`;
 
   // ----------------------------
   // POPUP HANDLER
