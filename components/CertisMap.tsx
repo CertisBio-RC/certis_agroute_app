@@ -1,13 +1,14 @@
+// components/CertisMap.tsx
+
 // ================================================================
-// 💠 CERTIS AGROUTE — GOLD RESTORE (A.28 FINAL S2 + POPUP UPGRADE)
+// 💠 CERTIS AGROUTE — A.28 FINAL S2 GOLD (TYPE-SAFE + POPUP UPGRADE)
 //   • True intersection filtering (State ∩ Retailer ∩ Category ∩ Supplier)
 //   • Kingpin layer always visible and clickable
 //   • Route mode: As Entered OR Optimize
 //   • Home → Stops → Home enforcement
 //   • Popup readability upgrade (Option A)
 //   • Marker sizes: Retailer = 5, Kingpin = 4.5 → 5.5 → 6
-//   • Mercator projection (Bailey Rule — locked)
-//   • GeoJSON data source: /public/data/retailers.geojson ONLY
+//   • Mercator projection (locked by Bailey Rule)
 // ================================================================
 
 "use client";
@@ -17,9 +18,9 @@ import mapboxgl, { LngLatLike } from "mapbox-gl";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-// ================================================================
-// CATEGORY COLORS — Gold Parity Palette
-// ================================================================
+// ----------------------------
+// CATEGORY COLORS
+// ----------------------------
 export const categoryColors: Record<
   string,
   { color: string; outline?: string }
@@ -29,12 +30,12 @@ export const categoryColors: Record<
   Feed: { color: "#F2B705" },
   "Office/Service": { color: "#FFFFFF" },
   Distribution: { color: "#9E9E9E" },
-  Kingpin: { color: "#E10600", outline: "#FFD60A" }, // always outlined gold
+  Kingpin: { color: "#E10600", outline: "#FFD60A" },
 };
 
-// ================================================================
+// ----------------------------
 // NORMALIZERS
-// ================================================================
+// ----------------------------
 const norm = (v: any) => (v ?? "").toString().trim().toLowerCase();
 
 function assignDisplayCategory(cat: string): string {
@@ -73,9 +74,9 @@ const cleanAddress = (addr: string): string =>
     .replace(/\bP\.?O\.?\s*Box\b.*$/i, "")
     .trim();
 
-// ================================================================
+// ----------------------------
 // TYPES
-// ================================================================
+// ----------------------------
 export interface Stop {
   label: string;
   address: string;
@@ -111,11 +112,13 @@ export interface CertisMapProps {
   tripStops?: Stop[];
   tripMode?: "entered" | "optimize";
   onOptimizedRoute?: (stops: Stop[]) => void;
+
   onRouteSummary?: (summary: { distance_m: number; duration_s: number } | null) => void;
 }
-// ================================================================
+
+// ----------------------------
 // COMPONENT START
-// ================================================================
+// ----------------------------
 export default function CertisMap(props: CertisMapProps) {
   const {
     selectedCategories,
@@ -141,20 +144,16 @@ export default function CertisMap(props: CertisMapProps) {
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const homeMarker = useRef<mapboxgl.Marker | null>(null);
 
-  // ================================================================
-  // 🔥 CORRECT GOLD-BASELINE GEOJSON LOCATION
-  //     /public/data/retailers.geojson (NO VERSIONING, NO QUERYSTRING)
-  // ================================================================
   const basePath =
     process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== ""
       ? process.env.NEXT_PUBLIC_BASE_PATH
-      : "/certis_agroute_app";
+      : "";
 
-  const geojsonUrl = `${basePath}/data/retailers.geojson`;
+  const geojsonPath = `${basePath}/data/retailers.geojson?v=${Date.now()}`;
 
-  // ================================================================
-  // POPUP HANDLER (Option A — readable dark theme)
-  // ================================================================
+  // ----------------------------
+  // POPUP HANDLER
+  // ----------------------------
   const popupHandler = (e: any) => {
     const map = mapRef.current;
     if (!map) return;
@@ -217,9 +216,31 @@ export default function CertisMap(props: CertisMapProps) {
     }
   };
 
-  // ================================================================
-  // MAP INITIALIZATION
-  // ================================================================
+  // ----------------------------
+  // GEOJSON FORCE RELOAD
+  // ----------------------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | null;
+    if (!src) return;
+
+    fetch(geojsonPath)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.features)) {
+          src.setData({
+            type: "FeatureCollection",
+            features: data.features,
+          });
+        }
+      })
+      .catch((err) => console.error("❌ GeoJSON reload failed:", err));
+  }, [geojsonPath]);
+
+  // ----------------------------
+  // MAP LOAD
+  // ----------------------------
   useEffect(() => {
     if (mapRef.current) return;
 
@@ -235,13 +256,13 @@ export default function CertisMap(props: CertisMapProps) {
 
     map.on("load", async () => {
       try {
-        const response = await fetch(geojsonUrl);
-        const data = await response.json();
-
-        const valid = (Array.isArray(data.features) ? data.features : []).filter((f) => {
-          const c = f?.geometry?.coordinates;
-          return Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
-        });
+        const data = await fetch(geojsonPath).then((r) => r.json());
+        const valid = (Array.isArray(data.features) ? data.features : []).filter(
+          (f) => {
+            const c = f?.geometry?.coordinates;
+            return Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
+          }
+        );
 
         valid.forEach((f) => {
           f.properties = f.properties || {};
@@ -250,47 +271,52 @@ export default function CertisMap(props: CertisMapProps) {
 
         masterFeatures.current = valid;
 
-        // ===================== LOAD UI FILTERS =====================
+        // STATES — TS-SAFE
         const states = Array.from(
           new Set(valid.map((f) => String(f.properties?.State || "").trim()))
         )
           .filter(Boolean)
           .sort() as string[];
 
+        onStatesLoaded?.(states);
+
+        // RETAILERS — TS-SAFE
         const retailers = Array.from(
           new Set(valid.map((f) => String(f.properties?.Retailer || "").trim()))
         )
           .filter(Boolean)
           .sort() as string[];
 
+        onRetailersLoaded?.(retailers);
+
+        // SUPPLIERS — TS-SAFE
         const suppliers = Array.from(
           new Set(valid.flatMap((f) => parseSuppliers(f.properties?.Suppliers)))
         )
           .map((s) => String(s || "").trim())
           .filter(
-            (s) => s.length > 0 && s.toLowerCase() !== "null" && s.toLowerCase() !== "winfiel"
+            (s) =>
+              s.length > 0 && s.toLowerCase() !== "null" && s.toLowerCase() !== "winfiel"
           )
           .map((s) => (s.toLowerCase() === "winfield" ? "Winfield" : s))
           .sort() as string[];
 
-        onStatesLoaded?.(states);
-        onRetailersLoaded?.(retailers);
         onSuppliersLoaded?.(suppliers);
-        onAllStopsLoaded?.(
-          valid.map((f) => {
-            const p = f.properties || {};
-            return {
-              label: p.Retailer || p.Name || "Unknown",
-              address: cleanAddress(p.FullAddress || p.Address || p.Street || ""),
-              coords: f.geometry.coordinates as [number, number],
-              city: p.City || "",
-              state: p.State || "",
-              zip: p.Zip || "",
-            };
-          })
-        );
 
-        // ===================== MAP SOURCE AND LAYERS =====================
+        // STOPS (for Search Tile)
+        const stops: Stop[] = valid.map((f) => {
+          const p = f.properties || {};
+          return {
+            label: p.Retailer || p.Name || "Unknown",
+            address: cleanAddress(p.FullAddress || p.Address || p.Street || ""),
+            coords: f.geometry.coordinates as [number, number],
+            city: p.City || "",
+            state: p.State || "",
+            zip: p.Zip || "",
+          };
+        });
+        onAllStopsLoaded?.(stops);
+
         map.addSource("retailers", {
           type: "geojson",
           data: { type: "FeatureCollection", features: valid },
@@ -346,7 +372,6 @@ export default function CertisMap(props: CertisMapProps) {
           },
         });
 
-        // ===================== POINTER CURSOR =====================
         map.getCanvas().style.cursor = "grab";
         const enter = () => (map.getCanvas().style.cursor = "pointer");
         const leave = () => (map.getCanvas().style.cursor = "grab");
@@ -355,7 +380,6 @@ export default function CertisMap(props: CertisMapProps) {
         map.on("mouseenter", "kingpins-layer", enter);
         map.on("mouseleave", "kingpins-layer", leave);
 
-        // ===================== CLICK POPUP =====================
         map.on("click", "retailers-layer", popupHandler);
         map.on("click", "kingpins-layer", popupHandler);
       } catch (err) {
@@ -363,24 +387,26 @@ export default function CertisMap(props: CertisMapProps) {
       }
     });
   }, [
-    geojsonUrl,
+    geojsonPath,
     onStatesLoaded,
     onRetailersLoaded,
     onSuppliersLoaded,
     onAddStop,
     onAllStopsLoaded,
   ]);
-  // ================================================================
-  // 🏠 HOME MARKER
-  // ================================================================
+
+  // ----------------------------
+  // HOME MARKER
+  // ----------------------------
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !homeCoords) return;
+    if (!map) return;
 
-    // remove old marker
     homeMarker.current?.remove();
+    homeMarker.current = null;
 
-    // 🔥 correct Blue_Home.png reference using basePath (no semicolon bug)
+    if (!homeCoords) return;
+
     const el = document.createElement("div");
     el.className = "home-marker";
     el.style.backgroundImage = `url(${basePath}/icons/Blue_Home.png)`;
@@ -394,13 +420,12 @@ export default function CertisMap(props: CertisMapProps) {
       .addTo(map);
   }, [homeCoords, basePath]);
 
-  // ================================================================
-  // 🧠 FILTERING LOGIC (GOLD BASELINE — DO NOT MODIFY)
-  // ================================================================
+  // ----------------------------
+  // FILTERING
+  // ----------------------------
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
     const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | null;
     if (!src) return;
 
@@ -411,8 +436,7 @@ export default function CertisMap(props: CertisMapProps) {
       const category = norm(p.DisplayCategory);
       const suppliers = parseSuppliers(p.Suppliers).map(norm);
 
-      const stMatch =
-        selectedStates.length === 0 || selectedStates.includes(state);
+      const stMatch = selectedStates.length === 0 || selectedStates.includes(state);
       const rtMatch =
         selectedRetailers.length === 0 || selectedRetailers.includes(retailer);
       const spMatch =
@@ -468,9 +492,9 @@ export default function CertisMap(props: CertisMapProps) {
     onRetailerSummary,
   ]);
 
-  // ================================================================
-  // 🚗 ROUTING UTILITIES
-  // ================================================================
+  // ----------------------------
+  // ROUTING
+  // ----------------------------
   const clearRoute = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -482,133 +506,146 @@ export default function CertisMap(props: CertisMapProps) {
   const coordsToString = (stops: Stop[]) =>
     stops.map((s) => `${s.coords[0]},${s.coords[1]}`).join(";");
 
-  // ================================================================
-  // 🚗 ROUTING — Run optimization only when tripStops change
-  // ================================================================
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (!tripStops || tripStops.length === 0) {
+
+    if (!tripStops || tripStops.length < 2) {
       clearRoute();
       return;
     }
 
-    const coords = coordsToString(tripStops);
-    if (!coords) return;
+    const token = mapboxgl.accessToken || process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+    let ordered = [...tripStops];
 
-    if (tripMode === "entered") {
-      clearRoute();
-      const line = {
-        type: "Feature",
-        geometry: {
-          type: "LineString",
-          coordinates: tripStops.map((s) => s.coords),
-        },
-      };
-      if (map.getSource("route")) {
-        (map.getSource("route") as mapboxgl.GeoJSONSource).setData(line as any);
-      } else {
-        map.addSource("route", { type: "geojson", data: line as any });
-        map.addLayer({
-          id: "route-line",
-          type: "line",
-          source: "route",
-          paint: {
-            "line-color": "#00E5FF",
-            "line-width": 4.5,
-          },
-        });
-      }
-      onRouteSummary?.({ mode: "entered", stops: tripStops });
-      return;
+    const hasHomeStart = ordered[0]?.label?.startsWith("Home");
+    const hasHomeEnd = ordered[ordered.length - 1]?.label?.startsWith("Home");
+
+    if (!hasHomeStart && homeCoords) {
+      ordered.unshift({ label: "Home", address: "Home", coords: homeCoords });
+    }
+    if (!hasHomeEnd && homeCoords) {
+      ordered.push({ label: "Home", address: "Home", coords: homeCoords });
     }
 
-    // 🔥 Optimize route via Mapbox Optimization API
-    const fetchRoute = async () => {
+    const interior = ordered.slice(1, -1);
+
+    const doRoute = async () => {
       try {
-        const res = await fetch(
-          `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coords}?roundtrip=true&overview=full&geometries=geojson&access_token=${mapboxgl.accessToken}`
-        );
-        const json = await res.json();
-        if (!json.trips?.[0]) return;
-        const optimized = json.trips[0].geometry.coordinates;
+        if (tripMode === "optimize" && interior.length > 1) {
+          const optURL = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsToString(
+            ordered
+          )}?geometries=geojson&overview=full&source=first&destination=last&roundtrip=false&access_token=${encodeURIComponent(
+            token
+          )}`;
 
-        const line = {
-          type: "Feature",
-          geometry: {
-            type: "LineString",
-            coordinates: optimized,
-          },
-        };
+          const optResp = await fetch(optURL);
+          const opt = await optResp.json();
 
-        if (map.getSource("route")) {
-          (map.getSource("route") as mapboxgl.GeoJSONSource).setData(line as any);
-        } else {
-          map.addSource("route", { type: "geojson", data: line as any });
-          map.addLayer({
-            id: "route-line",
-            type: "line",
-            source: "route",
-            paint: {
-              "line-color": "#00E5FF",
-              "line-width": 4.5,
-            },
-          });
+          if (opt?.trips?.length > 0) {
+            const trip = opt.trips[0];
+
+            const feature: GeoJSON.Feature = {
+              type: "Feature",
+              geometry: trip.geometry,
+              properties: {},
+            };
+
+            const src = map.getSource("route") as mapboxgl.GeoJSONSource;
+            if (src) src.setData(feature);
+            else map.addSource("route", { type: "geojson", data: feature });
+
+            if (!map.getLayer("route-line")) {
+              map.addLayer({
+                id: "route-line",
+                type: "line",
+                source: "route",
+                paint: { "line-color": "#00B7FF", "line-width": 4 },
+              });
+            }
+
+            onRouteSummary?.({
+              distance_m: trip.distance ?? 0,
+              duration_s: trip.duration ?? 0,
+            });
+
+            if (onOptimizedRoute && opt.waypoint_indices) {
+              const indices = trip.waypoint_indices;
+              const reordered = indices.map((i: number) => ordered[i]);
+              onOptimizedRoute(reordered);
+            }
+
+            return;
+          }
         }
 
-        onRouteSummary?.({ mode: "optimized", stops: tripStops });
-        onOptimizedRoute?.(optimized);
-      } catch (err) {
-        console.error("❌ Optimization failed:", err);
+        const dirURL = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsToString(
+          ordered
+        )}?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(
+          token
+        )}`;
+
+        const dirResp = await fetch(dirURL);
+        const dirData = await dirResp.json();
+
+        if (dirData?.routes?.length > 0) {
+          const feature: GeoJSON.Feature = {
+            type: "Feature",
+            geometry: dirData.routes[0].geometry,
+            properties: {},
+          };
+
+          const src = map.getSource("route") as mapboxgl.GeoJSONSource;
+          if (src) src.setData(feature);
+          else map.addSource("route", { type: "geojson", data: feature });
+
+          if (!map.getLayer("route-line")) {
+            map.addLayer({
+              id: "route-line",
+              type: "line",
+              source: "route",
+              paint: { "line-color": "#00B7FF", "line-width": 4 },
+            });
+          }
+
+          onRouteSummary?.({
+            distance_m: dirData.routes[0].distance ?? 0,
+            duration_s: dirData.routes[0].duration ?? 0,
+          });
+
+          if (
+            tripMode === "optimize" &&
+            onOptimizedRoute &&
+            dirData.routes?.[0]?.waypoint_indices
+          ) {
+            const indices = dirData.routes[0].waypoint_indices;
+            const reordered = indices.map((i: number) => ordered[i]);
+            onOptimizedRoute(reordered);
+          }
+        }
+      } catch {
+        clearRoute();
       }
     };
 
-    fetchRoute();
-  }, [tripStops, tripMode, onOptimizedRoute, onRouteSummary, clearRoute]);
-  // ================================================================
-  // ♻️ CLEANUP
-  // ================================================================
+    doRoute();
+  }, [tripStops, tripMode, homeCoords, clearRoute, onRouteSummary, onOptimizedRoute]);
+
+  // ----------------------------
+  // CLEANUP
+  // ----------------------------
   useEffect(() => {
     return () => {
+      popupRef.current?.remove();
+      homeMarker.current?.remove();
       mapRef.current?.remove();
     };
   }, []);
 
-  // ================================================================
-  // 🎨 MAP CONTAINER RENDER
-  // ================================================================
+  // ----------------------------
+  // RENDER
+  // ----------------------------
   return (
-    <div className="relative w-full h-full">
-      <div
-        ref={mapContainerRef}
-        className="w-full h-full rounded-md overflow-hidden shadow-md"
-      />
-
-      {/* 🧭 ZOOM CONTROLS */}
-      <div className="absolute top-2 right-2 flex flex-col gap-2 z-50">
-        <button
-          onClick={() => mapRef.current?.zoomIn()}
-          className="bg-white text-black shadow-md rounded-md px-2 py-1 font-bold hover:bg-gray-200"
-        >
-          ＋
-        </button>
-        <button
-          onClick={() => mapRef.current?.zoomOut()}
-          className="bg-white text-black shadow-md rounded-md px-2 py-1 font-bold hover:bg-gray-200"
-        >
-          －
-        </button>
-      </div>
-
-      {/* 🔁 CLEAR ROUTE BUTTON (only when a route exists) */}
-      {tripStops && tripStops.length > 0 && (
-        <button
-          onClick={clearRoute}
-          className="absolute bottom-3 right-3 bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded shadow-lg z-50"
-        >
-          Clear Route
-        </button>
-      )}
-    </div>
+    <div ref={mapContainer} className="w-full h-full border-t border-gray-400" />
   );
 }
