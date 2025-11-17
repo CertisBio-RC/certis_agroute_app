@@ -1,14 +1,15 @@
 // components/CertisMap.tsx
 
 // ================================================================
-// 💠 CERTIS AGROUTE — A.28 FINAL S2 GOLD (TYPE-SAFE + POPUP UPGRADE)
+// 💠 CERTIS AGROUTE — GOLD FILTERING + POPUP + ROUTING
 //   • True intersection filtering (State ∩ Retailer ∩ Category ∩ Supplier)
 //   • Kingpin layer always visible and clickable
 //   • Route mode: As Entered OR Optimize
 //   • Home → Stops → Home enforcement
-//   • Popup readability upgrade (Option A)
+//   • Popup readability upgrade
 //   • Marker sizes: Retailer = 5, Kingpin = 4.5 → 5.5 → 6
 //   • Mercator projection (locked by Bailey Rule)
+//   • Stable GeoJSON path: /data/retailers.geojson
 // ================================================================
 
 "use client";
@@ -59,12 +60,19 @@ function parseSuppliers(v: any): string[] {
       try {
         const arr = JSON.parse(v.replace(/'/g, '"'));
         if (Array.isArray(arr)) return arr.map((x: any) => String(x).trim());
-      } catch {}
+      } catch {
+        // fall through to splitter
+      }
     }
-    return v.split(/[,;/|]+/).map((x) => x.trim()).filter(Boolean);
+    return v
+      .split(/[,;/|]+/)
+      .map((x) => x.trim())
+      .filter(Boolean);
   }
   if (typeof v === "object")
-    return Object.values(v).map((x) => String(x).trim()).filter(Boolean);
+    return Object.values(v)
+      .map((x) => String(x).trim())
+      .filter(Boolean);
   return [];
 }
 
@@ -144,18 +152,14 @@ export default function CertisMap(props: CertisMapProps) {
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const homeMarker = useRef<mapboxgl.Marker | null>(null);
 
-  // -------------------------------------------------------
-  // 🔥 CRITICAL FIX — correct fallback for GitHub Pages path
-  // -------------------------------------------------------
+  // 🔒 Stable basePath for GH Pages
   const basePath =
-    process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH.length > 0
+    process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== ""
       ? process.env.NEXT_PUBLIC_BASE_PATH
       : "/certis_agroute_app";
 
-// 🚫 no timestamp cache-buster (GH Pages ignores it anyway)
-// 🚫 no version cycling
-// 🔥 permanent canonical dataset path
-const geojsonPath = `${basePath}/data/retailers_master.geojson`;
+  // 🔒 SINGLE CANONICAL DATASET PATH
+  const geojsonPath = `${basePath}/data/retailers.geojson`;
 
   // ----------------------------
   // POPUP HANDLER
@@ -194,7 +198,7 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
           <strong>Suppliers:</strong> ${suppliers}
         </div>
       </div>
-    `;
+    ";
 
     popupRef.current?.remove();
     popupRef.current = new mapboxgl.Popup({
@@ -223,7 +227,29 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
   };
 
   // ----------------------------
-  // GEOJSON INITIAL LOAD
+  // OPTIONAL GEOJSON RELOAD (same path, no cache-bust)
+  // ----------------------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | null;
+    if (!src) return;
+
+    fetch(geojsonPath)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.features)) {
+          src.setData({
+            type: "FeatureCollection",
+            features: data.features,
+          });
+        }
+      })
+      .catch((err) => console.error("❌ GeoJSON reload failed:", err));
+  }, [geojsonPath]);
+
+  // ----------------------------
+  // MAP LOAD
   // ----------------------------
   useEffect(() => {
     if (mapRef.current) return;
@@ -241,12 +267,10 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
     map.on("load", async () => {
       try {
         const data = await fetch(geojsonPath).then((r) => r.json());
-        const valid = (Array.isArray(data.features) ? data.features : []).filter(
-          (f) => {
-            const c = f?.geometry?.coordinates;
-            return Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
-          }
-        );
+        const valid = (Array.isArray(data.features) ? data.features : []).filter((f) => {
+          const c = f?.geometry?.coordinates;
+          return Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
+        });
 
         valid.forEach((f) => {
           f.properties = f.properties || {};
@@ -255,25 +279,23 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
 
         masterFeatures.current = valid;
 
-        // STATES — TS-SAFE
+        // STATES
         const states = Array.from(
           new Set(valid.map((f) => String(f.properties?.State || "").trim()))
         )
           .filter(Boolean)
           .sort() as string[];
-
         onStatesLoaded?.(states);
 
-        // RETAILERS — TS-SAFE
+        // RETAILERS
         const retailers = Array.from(
           new Set(valid.map((f) => String(f.properties?.Retailer || "").trim()))
         )
           .filter(Boolean)
           .sort() as string[];
-
         onRetailersLoaded?.(retailers);
 
-        // SUPPLIERS — TS-SAFE
+        // SUPPLIERS
         const suppliers = Array.from(
           new Set(valid.flatMap((f) => parseSuppliers(f.properties?.Suppliers)))
         )
@@ -284,10 +306,9 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
           )
           .map((s) => (s.toLowerCase() === "winfield" ? "Winfield" : s))
           .sort() as string[];
-
         onSuppliersLoaded?.(suppliers);
 
-        // STOPS for Search Tile
+        // STOPS (for Search Tile)
         const stops: Stop[] = valid.map((f) => {
           const p = f.properties || {};
           return {
@@ -306,6 +327,7 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
           data: { type: "FeatureCollection", features: valid },
         });
 
+        // RETAILERS LAYER (all non-kingpins)
         map.addLayer({
           id: "retailers-layer",
           type: "circle",
@@ -333,6 +355,7 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
           },
         });
 
+        // KINGPINS LAYER (always visible)
         map.addLayer({
           id: "kingpins-layer",
           type: "circle",
@@ -356,6 +379,7 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
           },
         });
 
+        // Cursor behavior
         map.getCanvas().style.cursor = "grab";
         const enter = () => (map.getCanvas().style.cursor = "pointer");
         const leave = () => (map.getCanvas().style.cursor = "grab");
@@ -364,6 +388,7 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
         map.on("mouseenter", "kingpins-layer", enter);
         map.on("mouseleave", "kingpins-layer", leave);
 
+        // Popups
         map.on("click", "retailers-layer", popupHandler);
         map.on("click", "kingpins-layer", popupHandler);
       } catch (err) {
@@ -600,9 +625,9 @@ const geojsonPath = `${basePath}/data/retailers_master.geojson`;
           if (
             tripMode === "optimize" &&
             onOptimizedRoute &&
-            dirData.routes?.[0]?.waypoint_indices
+            (dirData.routes?.[0] as any)?.waypoint_indices
           ) {
-            const indices = dirData.routes[0].waypoint_indices;
+            const indices = (dirData.routes[0] as any).waypoint_indices;
             const reordered = indices.map((i: number) => ordered[i]);
             onOptimizedRoute(reordered);
           }
