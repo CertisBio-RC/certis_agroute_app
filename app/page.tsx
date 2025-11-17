@@ -10,7 +10,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 /* ----------------------------------------------
-   🌓 THEME HANDLER (forced dark mode on first load)
+   🌓 THEME HANDLER
 ---------------------------------------------- */
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -109,9 +109,10 @@ export default function Page() {
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
-  const [routeSummary, setRouteSummary] = useState<{ distance_m: number; duration_s: number } | null>(
-    null
-  );
+  const [routeSummary, setRouteSummary] = useState<{
+    distance_m: number;
+    duration_s: number;
+  } | null>(null);
 
   /* ➕ ADD STOP */
   const handleAddStop = (stop: Stop) => {
@@ -134,7 +135,7 @@ export default function Page() {
     setRouteSummary(null);
   };
 
-  /* 🏠 ZIP → COORDS */
+  /* 🏠 ZIP GEOCODE */
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
     try {
@@ -170,12 +171,10 @@ export default function Page() {
           return [newHome, ...others];
         });
       }
-    } catch (err) {
-      console.error("Home ZIP geocode error:", err);
-    }
+    } catch {}
   };
 
-  /* 🔄 ORDER STOPS INTO ROUTABLE LIST */
+  /* ROUTE ORDER */
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
     const homeStop = tripStops.find((s) => s.label.startsWith("Home"));
@@ -183,7 +182,7 @@ export default function Page() {
     return homeStop ? [homeStop, ...nonHome, homeStop] : tripStops;
   }, [tripStops, homeCoords]);
 
-  /* ↪️ MAPBOX OPTIMIZER CALLBACK */
+  /* CALLBACK FOR OPTIMIZER */
   const handleOptimizedRoute = (optimizedStops: Stop[]) => {
     if (optimizedStops.length < 2) return;
     const start = optimizedStops[0];
@@ -192,7 +191,7 @@ export default function Page() {
     setTripStops([start, ...middle, end]);
   };
 
-  /* NON-DESTRUCTIVE CHANNEL SUMMARY */
+  /* RETAILER SUMMARY (non-destructive) */
   const filteredRetailersForSummary = useMemo(
     () =>
       selectedStates.length === 0
@@ -264,13 +263,13 @@ export default function Page() {
               Set
             </button>
           </div>
-          {homeCoords && <p class
-
-        {/* SEARCH TILE */}
-        <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
-
-Name="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>}
+          {homeCoords && (
+            <p className="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>
+          )}
         </div>
+
+        {/* SEARCH TILE — stays in current position */}
+        <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
 
         {/* STATES */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
@@ -389,7 +388,7 @@ Name="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>}
           </div>
         </div>
 
-        {/* CATEGORIES */}
+        {/* CATEGORIES — OS-1 border fix */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
           <div className="flex flex-wrap gap-2 mb-2">
@@ -412,8 +411,6 @@ Name="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>}
               Clear
             </button>
           </div>
-
-          {/* 🔥 Office/Service swatch FIX applied below */}
           <div className="grid grid-cols-2 gap-2 text-[16px]">
             {Object.entries(categoryColors)
               .filter(([key]) => key !== "Kingpin")
@@ -436,9 +433,7 @@ Name="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>}
                       style={{
                         backgroundColor: color,
                         border:
-                          key === "Office/Service"
-                            ? "1px solid #000" // ← white fill + black outline (Option C)
-                            : "none",
+                          key === "Office/Service" ? "1px solid #000" : "none",
                       }}
                     />
                     {key}
@@ -587,7 +582,7 @@ Name="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>}
         </div>
       </aside>
 
-      {/* MAP PANEL — WITH BANNER HEADER */}
+      {/* MAP PANEL */}
       <main className="flex-1 relative flex flex-col">
         <div className="w-full flex justify-end pr-6 pt-4 mb-3">
           <h1 className="text-xl font-bold text-yellow-400 tracking-wide">
