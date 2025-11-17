@@ -11,14 +11,14 @@ interface Props {
 export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
   const [query, setQuery] = useState("");
 
+  // Search logic — matches retailer name OR exact stored address OR city/state/zip
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-
     return allStops.filter((s) => {
       return (
         s.label.toLowerCase().includes(q) ||
-        s.address.toLowerCase().includes(q) ||
+        (s.address || "").toLowerCase().includes(q) ||
         (s.city || "").toLowerCase().includes(q) ||
         (s.state || "").toLowerCase().includes(q) ||
         String(s.zip || "").toLowerCase().includes(q)
@@ -28,7 +28,7 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
 
   const handleAdd = (stop: Stop) => {
     onAddStop(stop);
-    setQuery(""); // Clear after selection
+    setQuery(""); // Clear search after adding to trip
   };
 
   return (
@@ -57,9 +57,9 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
             <div className="font-semibold text-yellow-300 text-[17px]">
               {s.label}
             </div>
+
             <div className="text-[14px] text-white leading-tight">
-              {s.address}
-              <br />
+              {s.address && <>{s.address}<br /></>}
               {s.city}, {s.state} {s.zip}
             </div>
 
