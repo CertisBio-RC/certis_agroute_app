@@ -348,6 +348,45 @@ map.addSource("retailers", {
       map.on("mouseleave", "kingpins-layer", leave);
       map.on("click", "retailers-layer", popupHandler);
       map.on("click", "kingpins-layer", popupHandler);
+// ============================================================================
+// 📱 MOBILE POPUP FIX — improves tap detection & hitbox size
+//   • Adds "touchstart" popup triggers for iOS/Android
+//   • Increases retailer/kingpin hitboxes slightly on mobile only
+//   • ZERO impact on filtering logic or desktop behavior
+// ============================================================================
+const isMobile =
+  typeof window !== "undefined" &&
+  ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+//1️⃣ Improve touch hitboxes on mobile
+if (isMobile) {
+  try {
+    // Retailers a bit larger for easier tapping
+    map.setPaintProperty("retailers-layer", "circle-radius", 8);
+
+    // Kingpins enlarged proportionally (still respects Bailey Rule scaling)
+    map.setPaintProperty("kingpins-layer", "circle-radius", [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      3, 6,
+      6, 7.5,
+      9, 9
+    ]);
+  } catch (e) {
+    console.warn("Mobile hitbox patch skipped:", e);
+  }
+}
+
+// 2️⃣ Add touchstart (mobile primary tap) for popups
+map.on("touchstart", "retailers-layer", popupHandler);
+map.on("touchstart", "kingpins-layer", popupHandler);
+
+// 3️⃣ Defensive re-bind of click (does not overwrite your existing handlers)
+map.on("click", "retailers-layer", popupHandler);
+map.on("click", "kingpins-layer", popupHandler);
+
+// ============================================================================
     });
   }, [
     geojsonPath,
