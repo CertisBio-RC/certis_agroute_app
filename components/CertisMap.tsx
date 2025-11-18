@@ -232,6 +232,25 @@ export default function CertisMap(props: CertisMapProps) {
 
       masterFeatures.current = valid;
 
+// ============================================================
+// 🔄 SEND ALL STOPS UP TO PAGE (SearchLocationsTile)
+// ============================================================
+if (onAllStopsLoaded) {
+  const stops = valid.map((f: any) => {
+    const p = f.properties || {};
+    return {
+      label: p.Retailer || p.Name || "Unknown",
+      address: p.FullAddress || p.Address || p.Street || "",
+      coords: f.geometry.coordinates as [number, number],
+      city: p.City || "",
+      state: p.State || "",
+      zip: p.Zip || "",
+    };
+  });
+  onAllStopsLoaded(stops);
+}
+
+
 // Populate dropdowns
 onStatesLoaded?.(
   ([...new Set(
