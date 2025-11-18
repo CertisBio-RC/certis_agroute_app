@@ -339,89 +339,101 @@ export default function CertisMap(props: CertisMapProps) {
     onAddStop,
   ]);
 
-  // ============================================================================
-  // FILTERING (K2-A GOLD)
-  // ============================================================================
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | null;
-    if (!src) return;
+// ============================================================================
+// FILTERING (K2-A GOLD)
+// ============================================================================
+useEffect(() => {
+  const map = mapRef.current;
+  if (!map) return;
+  const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | null;
+  if (!src) return;
 
-    const filtered = masterFeatures.current
-      .filter((f: any) => {
-        const p = f.properties || {};
-        const state = norm(p.State);
-        const retailer = norm(p.Retailer);
-        const category = norm(p.DisplayCategory);
-        const suppliers = parseSuppliers(p.Suppliers).map(norm);
-        const isKingpin = category === "kingpin";
+  const filtered = masterFeatures.current
+    .filter((f: any) => {
+      const p = f.properties || {};
 
-        if (isKingpin) {
-          return selectedStates.length === 0 || selectedStates.includes(state);
-        }
+      // Fix normalization
+      const state = norm(p.State);
+      const retailer = norm(p.Retailer);
+      const category = norm(p.DisplayCategory);
+      const suppliers = parseSuppliers(p.Suppliers).map(norm);
+      const isKingpin = category === "kingpin";
 
-        const stMatch = selectedStates.length === 0 || selectedStates.includes(state);
-        const rtMatch = selectedRetailers.length === 0 || selectedRetailers.includes(retailer);
-        const spMatch =
-          selectedSuppliers.length === 0 ||
-          selectedSuppliers.some((s) => suppliers.includes(norm(s)));
-        const ctMatch =
-          selectedCategories.length === 0 || selectedCategories.includes(category);
+      // Normalize all dropdown selections
+      const normStates = selectedStates.map(norm);
+      const normRetailers = selectedRetailers.map(norm);
+      const normCategories = selectedCategories.map(norm);
+      const normSuppliers = selectedSuppliers.map(norm);
 
-        return stMatch && rtMatch && spMatch && ctMatch;
-      })
-      .map((f: any) => {
-        const p = f.properties || {};
-        return {
-          ...f,
-          properties: {
-            ...p,
-            DisplayCategory: assignDisplayCategory(p.Category),
-            Suppliers: p.Suppliers ?? "",
-            State: p.State ?? "",
-            Retailer: p.Retailer ?? "",
-          },
+      // KINGPINS → State-only filtering
+      if (isKingpin) {
+        return normStates.length === 0 || normStates.includes(state);
+      }
+
+      // RETAILERS → FULL INTERSECTION
+      const stMatch = normStates.length === 0 || normStates.includes(state);
+      const rtMatch =
+        normRetailers.length === 0 || normRetailers.includes(retailer);
+      const ctMatch =
+        normCategories.length === 0 || normCategories.includes(category);
+      const spMatch =
+        normSuppliers.length === 0 ||
+        normSuppliers.some((s) => suppliers.includes(s));
+
+      return stMatch && rtMatch && spMatch && ctMatch;
+    })
+    .map((f: any) => {
+      const p = f.properties || {};
+      return {
+        ...f,
+        properties: {
+          ...p,
+          DisplayCategory: assignDisplayCategory(p.Category),
+          Suppliers: p.Suppliers ?? "",
+          State: p.State ?? "",
+          Retailer: p.Retailer ?? "",
+        },
+      };
+    });
+
+  src.setData({ type: "FeatureCollection", features: filtered });
+
+  if (onRetailerSummary) {
+    const summary = filtered.reduce((acc: any, f: any) => {
+      const p = f.properties || {};
+      const r = String(p.Retailer || "Unknown").trim();
+      if (!acc[r])
+        acc[r] = {
+          retailer: r,
+          count: 0,
+          suppliers: new Set<string>(),
+          states: new Set<string>(),
+          categories: new Set<string>(),
         };
-      });
-
-    src.setData({ type: "FeatureCollection", features: filtered });
-
-    if (onRetailerSummary) {
-      const summary = filtered.reduce((acc: any, f: any) => {
-        const p = f.properties || {};
-        const r = String(p.Retailer || "Unknown").trim();
-        if (!acc[r])
-          acc[r] = {
-            retailer: r,
-            count: 0,
-            suppliers: new Set<string>(),
-            states: new Set<string>(),
-            categories: new Set<string>(),
-          };
-        acc[r].count++;
-        parseSuppliers(p.Suppliers).forEach((s) => acc[r].suppliers.add(s));
-        if (p.State) acc[r].states.add(String(p.State).trim());
-        if (p.DisplayCategory) acc[r].categories.add(String(p.DisplayCategory).trim());
-        return acc;
-      }, {});
-      onRetailerSummary(
-        Object.values(summary).map((x: any) => ({
-          retailer: x.retailer,
-          count: x.count,
-          suppliers: [...x.suppliers].sort(),
-          states: [...x.states].sort(),
-          categories: [...x.categories].sort(),
-        }))
-      );
-    }
-  }, [
-    selectedStates,
-    selectedRetailers,
-    selectedSuppliers,
-    selectedCategories,
-    onRetailerSummary,
-  ]);
+      acc[r].count++;
+      parseSuppliers(p.Suppliers).forEach((s) => acc[r].suppliers.add(s));
+      if (p.State) acc[r].states.add(String(p.State).trim());
+      if (p.DisplayCategory)
+        acc[r].categories.add(String(p.DisplayCategory).trim());
+      return acc;
+    }, {});
+    onRetailerSummary(
+      Object.values(summary).map((x: any) => ({
+        retailer: x.retailer,
+        count: x.count,
+        suppliers: [...x.suppliers].sort(),
+        states: [...x.states].sort(),
+        categories: [...x.categories].sort(),
+      }))
+    );
+  }
+}, [
+  selectedStates,
+  selectedRetailers,
+  selectedSuppliers,
+  selectedCategories,
+  onRetailerSummary,
+]);
 
   // ============================================================================
   // HOME MARKER
