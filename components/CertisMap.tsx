@@ -1,14 +1,14 @@
 // components/CertisMap.tsx
 
 // ============================================================================
-// 💠 CERTIS AGROUTE — A.28 GOLD (STATE-ONLY KINGPIN FILTERING RESTORED)
-//   • True intersection filtering for Retailers
-//   • Kingpins filter ONLY by State (immune to Retailer / Category / Supplier)
-//   • Popup A (Add-to-Trip intact) + address fix + Dark UI
-//   • Route Builder: Map as Entered / Optimize (unchanged)
-//   • GeoJSON loaded via fetch (NOT bundling) — Option A
-//   • Mercator projection locked by Bailey Rule
-//   • Satellite-streets-v12 locked by Bailey Rule
+// 💠 CERTIS AGROUTE — K2-A GOLD  (100% Filtering Fix)
+//   • Retailers = State ∩ Retailer ∩ Category ∩ Supplier
+//   • Kingpins = State-only filtering (immune to Retailer / Category / Supplier)
+//   • DisplayCategory normalization preserved on every update
+//   • Metadata populated on first load
+//   • Routing + Popups unchanged
+//   • Satellite-streets-v12 + Mercator enforced (Bailey Rules)
+//   • GeoJSON loaded via fetch (static export compliant)
 // ============================================================================
 
 "use client";
@@ -18,7 +18,7 @@ import mapboxgl, { LngLatLike } from "mapbox-gl";
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 // ============================================================================
-// CATEGORY COLORS (unchanged)
+// CATEGORY COLORS
 // ============================================================================
 export const categoryColors: Record<string, { color: string; outline?: string }> = {
   Agronomy: { color: "#4CB5FF" },
@@ -30,7 +30,7 @@ export const categoryColors: Record<string, { color: string; outline?: string }>
 };
 
 // ============================================================================
-// NORMALIZERS
+// HELPERS
 // ============================================================================
 const norm = (v: any) => (v ?? "").toString().trim().toLowerCase();
 
@@ -143,7 +143,7 @@ export default function CertisMap(props: CertisMapProps) {
   const geojsonPath = `${basePath}/data/retailers.geojson?v=${Date.now()}`;
 
   // ============================================================================
-  // POPUP HANDLER (Option A formatting kept)
+  // POPUP HANDLER
   // ============================================================================
   const popupHandler = (e: any) => {
     const map = mapRef.current;
@@ -265,7 +265,6 @@ export default function CertisMap(props: CertisMapProps) {
         })
       );
 
-      // LAYER: Retailers (non-Kingpin)
       map.addSource("retailers", {
         type: "geojson",
         data: { type: "FeatureCollection", features: valid },
@@ -298,7 +297,6 @@ export default function CertisMap(props: CertisMapProps) {
         },
       });
 
-      // LAYER: Kingpins (independent + yellow outline)
       map.addLayer({
         id: "kingpins-layer",
         type: "circle",
@@ -342,7 +340,7 @@ export default function CertisMap(props: CertisMapProps) {
   ]);
 
   // ============================================================================
-  // FILTERING — **STATE-ONLY KINGPIN RULE**
+  // FILTERING (K2-A GOLD)
   // ============================================================================
   useEffect(() => {
     const map = mapRef.current;
@@ -350,34 +348,45 @@ export default function CertisMap(props: CertisMapProps) {
     const src = map.getSource("retailers") as mapboxgl.GeoJSONSource | null;
     if (!src) return;
 
-    const filtered = masterFeatures.current.filter((f: any) => {
-      const p = f.properties || {};
-      const state = norm(p.State);
-      const retailer = norm(p.Retailer);
-      const category = norm(p.DisplayCategory);
-      const suppliers = parseSuppliers(p.Suppliers).map(norm);
-      const isKingpin = category === "kingpin";
+    const filtered = masterFeatures.current
+      .filter((f: any) => {
+        const p = f.properties || {};
+        const state = norm(p.State);
+        const retailer = norm(p.Retailer);
+        const category = norm(p.DisplayCategory);
+        const suppliers = parseSuppliers(p.Suppliers).map(norm);
+        const isKingpin = category === "kingpin";
 
-      // 🔥 Kingpin filter — ONLY stops by State
-      if (isKingpin) {
-        return selectedStates.length === 0 || selectedStates.includes(state);
-      }
+        if (isKingpin) {
+          return selectedStates.length === 0 || selectedStates.includes(state);
+        }
 
-      // Retailers follow full intersection logic
-      const stMatch = selectedStates.length === 0 || selectedStates.includes(state);
-      const rtMatch = selectedRetailers.length === 0 || selectedRetailers.includes(retailer);
-      const spMatch =
-        selectedSuppliers.length === 0 ||
-        selectedSuppliers.some((s) => suppliers.includes(norm(s)));
-      const ctMatch =
-        selectedCategories.length === 0 || selectedCategories.includes(category);
+        const stMatch = selectedStates.length === 0 || selectedStates.includes(state);
+        const rtMatch = selectedRetailers.length === 0 || selectedRetailers.includes(retailer);
+        const spMatch =
+          selectedSuppliers.length === 0 ||
+          selectedSuppliers.some((s) => suppliers.includes(norm(s)));
+        const ctMatch =
+          selectedCategories.length === 0 || selectedCategories.includes(category);
 
-      return stMatch && rtMatch && spMatch && ctMatch;
-    });
+        return stMatch && rtMatch && spMatch && ctMatch;
+      })
+      .map((f: any) => {
+        const p = f.properties || {};
+        return {
+          ...f,
+          properties: {
+            ...p,
+            DisplayCategory: assignDisplayCategory(p.Category),
+            Suppliers: p.Suppliers ?? "",
+            State: p.State ?? "",
+            Retailer: p.Retailer ?? "",
+          },
+        };
+      });
 
     src.setData({ type: "FeatureCollection", features: filtered });
 
-    // Retailer summary callback
     if (onRetailerSummary) {
       const summary = filtered.reduce((acc: any, f: any) => {
         const p = f.properties || {};
@@ -439,8 +448,8 @@ export default function CertisMap(props: CertisMapProps) {
   }, [homeCoords, basePath]);
 
   // ============================================================================
-  // ROUTING (unchanged from Gold Baseline)
-// ============================================================================
+  // ROUTING (unchanged)
+  // ============================================================================
   const clearRoute = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
