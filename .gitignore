@@ -13,4 +13,7 @@ data/*.xlsx
 
 # Archive of working versions
 __archive/
+# Ignore Gold Baseline backup folders
+backup/
+
 
