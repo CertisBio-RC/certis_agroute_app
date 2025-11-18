@@ -232,44 +232,44 @@ export default function CertisMap(props: CertisMapProps) {
 
       masterFeatures.current = valid;
 
-      // Populate dropdowns
-      onStatesLoaded?.(
-        [...new Set(valid.map((f: any) => String(f.properties?.State || "").trim()))]
-          .filter(Boolean)
-          .sort()
-      );
-      onRetailersLoaded?.(
-        [...new Set(valid.map((f: any) => String(f.properties?.Retailer || "").trim()))]
-          .filter(Boolean)
-          .sort()
-      );
-      onSuppliersLoaded?.(
-        [
-          ...new Set(valid.flatMap((f: any) => parseSuppliers(f.properties?.Suppliers))),
-        ]
-          .map((x) => x.trim())
-          .filter((x) => x.length > 0)
-          .sort()
-      );
-      onAllStopsLoaded?.(
-        valid.map((f: any) => {
-          const p = f.properties || {};
-          return {
-            label: p.Retailer || p.Name || "Unknown",
-            address: cleanAddress(p.FullAddress || p.Address || p.Street || ""),
-            coords: f.geometry.coordinates,
-            city: p.City || "",
-            state: p.State || "",
-            zip: p.Zip || "",
-          };
-        })
-      );
+// Populate dropdowns
+onStatesLoaded?.(
+  ([...new Set(
+    valid.map((f: any) =>
+      String(f.properties?.State || "").trim()
+    )
+  )] as string[])
+    .filter(Boolean)
+    .sort()
+);
 
-      map.addSource("retailers", {
-        type: "geojson",
-        data: { type: "FeatureCollection", features: valid },
-      });
+onRetailersLoaded?.(
+  ([...new Set(
+    valid.map((f: any) =>
+      String(f.properties?.Retailer || "").trim()
+    )
+  )] as string[])
+    .filter(Boolean)
+    .sort()
+);
 
+onSuppliersLoaded?.(
+  ([...new Set(
+    valid.flatMap((f: any) =>
+      parseSuppliers(f.properties?.Suppliers)
+        .map((x: any) => String(x).trim())
+    )
+  )] as string[])
+    .filter((x) => x.length > 0)
+    .sort()
+);
+map.addSource("retailers", {
+  type: "geojson",
+  data: {
+    type: "FeatureCollection",
+    features: valid
+  }
+});
       map.addLayer({
         id: "retailers-layer",
         type: "circle",
