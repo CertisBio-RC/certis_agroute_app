@@ -1,7 +1,7 @@
 📊 GEOJSON BUILD SUMMARY
 ------------------------------------
-Input rows read:       1564
-Valid features written:1563
+Input rows read:       1563
+Valid features written:1562
 P.O. Boxes removed:    51
 Invalid coords skipped:1
 Output file:           retailers.geojson

@@ -26256,27 +26256,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.915174,
-          40.45744
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Eastern Illinois",
-        "Address": "1607 Tullamore Ave Suite A",
-        "City": "Bloomington",
-        "State": "IL",
-        "Zip": "61704",
-        "Category": "Kingpin",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -87.983782,
           38.377873
         ]
@@ -26361,27 +26340,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -89.447299,
-          38.69592
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Stolletown",
-        "Address": "18929 Stolletown Road",
-        "City": "Carlyle",
-        "State": "IL",
-        "Zip": "62231",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -88.145871,
           38.091008
         ]
@@ -26394,27 +26352,6 @@
         "City": "Carmi",
         "State": "IL",
         "Zip": "62821",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -91.200057,
-          40.451812
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Ferris",
-        "Address": "1750 North County Road 1600 East",
-        "City": "Carthage",
-        "State": "IL",
-        "Zip": "62321",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -26457,27 +26394,6 @@
         "City": "Cerro Gordo",
         "State": "IL",
         "Zip": "61818",
-        "Category": "Kingpin",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.72991,
-          39.81479
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Precision Operations",
-        "Address": "94 E 150 North Rd",
-        "City": "Cerro Gordo",
-        "State": "IL",
-        "Zip": "61818",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -26499,7 +26415,91 @@
         "City": "Chadwick",
         "State": "IL",
         "Zip": "61014",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -89.987664,
+          42.081246
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Chadwick South IL",
+        "Address": "10650 Mill Rd",
+        "City": "Mt Carroll",
+        "State": "IL",
+        "Zip": "61053",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -90.362434,
+          40.970206
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Chemical Marketing",
+        "Address": "2084 Windish Drive",
+        "City": "Galesburg",
+        "State": "IL",
+        "Zip": "61401",
         "Category": "Kingpin",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -88.485978,
+          38.66881
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Crossroads IL",
+        "Address": "56 Industrial Parkway",
+        "City": "Flora",
+        "State": "IL",
+        "Zip": "62839",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -88.600563,
+          38.147286
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Delafield",
+        "Address": "5611 County Road 1650N",
+        "City": "McLeansboro",
+        "State": "IL",
+        "Zip": "62859",
+        "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
     },
@@ -26520,6 +26520,27 @@
         "City": "Dewitt",
         "State": "IL",
         "Zip": "61735",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -89.449684,
+          39.406238
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Divernon IL",
+        "Address": "450 E. 400 North Rd",
+        "City": "Morrisonville",
+        "State": "IL",
+        "Zip": "62546",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -26557,11 +26578,53 @@
       "properties": {
         "Long Name": "Nutrien Ag Solutions - IL",
         "Retailer": "Nutrien Ag",
-        "Name": "Dixon IL (Greenfield)",
+        "Name": "Dixon IL Greenfield",
         "Address": "1076 Corregidor Road",
         "City": "Dixon",
         "State": "IL",
         "Zip": "61021",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -90.08632,
+          40.785177
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Douglas",
+        "Address": "1871 South Depot Road",
+        "City": "Yates City",
+        "State": "IL",
+        "Zip": "61572",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -89.703334,
+          40.872495
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Dunlap IL",
+        "Address": "7001 W Parks School Road",
+        "City": "Princeville",
+        "State": "IL",
+        "Zip": "61159",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -26583,6 +26646,27 @@
         "City": "Dwight",
         "State": "IL",
         "Zip": "60420",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -88.915174,
+          40.45744
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Eastern Illinois",
+        "Address": "1607 Tullamore Ave Suite A",
+        "City": "Bloomington",
+        "State": "IL",
+        "Zip": "61704",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -26655,6 +26739,27 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
+          -91.200057,
+          40.451812
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Ferris",
+        "Address": "1750 North County Road 1600 East",
+        "City": "Carthage",
+        "State": "IL",
+        "Zip": "62321",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
           -88.808536,
           39.494553
         ]
@@ -26667,27 +26772,6 @@
         "City": "Findlay",
         "State": "IL",
         "Zip": "62534",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.485978,
-          38.66881
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Crossroads IL",
-        "Address": "56 Industrial Parkway",
-        "City": "Flora",
-        "State": "IL",
-        "Zip": "62839",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -26710,48 +26794,6 @@
         "State": "IL",
         "Zip": "62839",
         "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.485978,
-          38.66881
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Raleigh",
-        "Address": "54 Industrial Parkway",
-        "City": "Flora",
-        "State": "IL",
-        "Zip": "62839",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.485978,
-          38.66881
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Southern Illinois",
-        "Address": "54 Industrial Parkway",
-        "City": "Flora",
-        "State": "IL",
-        "Zip": "62839",
-        "Category": "Kingpin",
         "Suppliers": "Nutrien"
       }
     },
@@ -26794,27 +26836,6 @@
         "State": "IL",
         "Zip": "62935",
         "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -90.362434,
-          40.970206
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Chemical Marketing",
-        "Address": "2084 Windish Drive",
-        "City": "Galesburg",
-        "State": "IL",
-        "Zip": "61401",
-        "Category": "Kingpin",
         "Suppliers": "Nutrien"
       }
     },
@@ -26956,7 +26977,7 @@
       "properties": {
         "Long Name": "Nutrien Ag Solutions - IL",
         "Retailer": "Nutrien Ag",
-        "Name": "Hillsboro-IL",
+        "Name": "Hillsboro IL",
         "Address": "12177 North Road",
         "City": "Hillsboro",
         "State": "IL",
@@ -27075,27 +27096,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.659861,
-          38.439268
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Orchardville",
-        "Address": "229 County Road 1250N",
-        "City": "Keenes",
-        "State": "IL",
-        "Zip": "62851",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -89.822852,
           42.155262
         ]
@@ -27180,6 +27180,27 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
+          -89.68403,
+          41.44163
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Manlius",
+        "Address": "20182 IL Hwy 40",
+        "City": "Sheffield",
+        "State": "IL",
+        "Zip": "61361",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
           -89.702496,
           38.218545
         ]
@@ -27213,27 +27234,6 @@
         "City": "Marseilles",
         "State": "IL",
         "Zip": "61341",
-        "Category": "Agronomy, Grain",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.600563,
-          38.147286
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Delafield",
-        "Address": "5611 County Road 1650N",
-        "City": "McLeansboro",
-        "State": "IL",
-        "Zip": "62859",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -27256,27 +27256,6 @@
         "State": "IL",
         "Zip": "60952",
         "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -90.56694,
-          39.80509
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Meredosia Terminal",
-        "Address": "1921 Old Naples Road",
-        "City": "Meredosia",
-        "State": "IL",
-        "Zip": "62665",
-        "Category": "Agronomy, Grain",
         "Suppliers": "Nutrien"
       }
     },
@@ -27334,32 +27313,11 @@
       "properties": {
         "Long Name": "Nutrien Ag Solutions - IL",
         "Retailer": "Nutrien Ag",
-        "Name": "Minier",
+        "Name": "Minier IL",
         "Address": "103 N. Main Avenue",
         "City": "Minier",
         "State": "IL",
         "Zip": "61759",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -89.449684,
-          39.406238
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Divernon IL",
-        "Address": "450 E. 400 North Rd",
-        "City": "Morrisonville",
-        "State": "IL",
-        "Zip": "62546",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -27390,48 +27348,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.915824,
-          39.638155
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Radford",
-        "Address": "2628 E1500 N Road",
-        "City": "Moweaqua",
-        "State": "IL",
-        "Zip": "62550",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -89.987664,
-          42.081246
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Chadwick South IL",
-        "Address": "10650 Mill Rd",
-        "City": "Mt Carroll",
-        "State": "IL",
-        "Zip": "61053",
-        "Category": "Kingpin",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -89.987664,
           42.081246
         ]
@@ -27444,7 +27360,7 @@
         "City": "Mt Carroll",
         "State": "IL",
         "Zip": "61053",
-        "Category": "Kingpin",
+        "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
     },
@@ -27465,7 +27381,7 @@
         "City": "Mt Carroll",
         "State": "IL",
         "Zip": "61053",
-        "Category": "Kingpin",
+        "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
     },
@@ -27528,7 +27444,7 @@
         "City": "Neoga",
         "State": "IL",
         "Zip": "62447",
-        "Category": "Agronomy",
+        "Category": "Kingpin",
         "Suppliers": "Nutrien"
       }
     },
@@ -27549,6 +27465,27 @@
         "City": "Neoga",
         "State": "IL",
         "Zip": "62447",
+        "Category": "Kingpin",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -91.011617,
+          41.329914
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "New Boston",
+        "Address": "1768 45th St",
+        "City": "New Boston",
+        "State": "IL",
+        "Zip": "61272",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -27579,27 +27516,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -91.011617,
-          41.329914
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "New Boston",
-        "Address": "1768 45th St",
-        "City": "New Boston",
-        "State": "IL",
-        "Zip": "61272",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -88.24271,
           39.00994
         ]
@@ -27612,7 +27528,7 @@
         "City": "Newton",
         "State": "IL",
         "Zip": "62448",
-        "Category": "Agronomy, Grain",
+        "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
     },
@@ -27663,27 +27579,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -76.3792,
-          39.667998
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Oakland",
-        "Address": "Rt 133 and Logan Street",
-        "City": "Oakland",
-        "State": "IL",
-        "Zip": "61943",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -88.007888,
           40.722333
         ]
@@ -27717,6 +27612,27 @@
         "City": "Oneida",
         "State": "IL",
         "Zip": "61467",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -88.659861,
+          38.439268
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Orchardville",
+        "Address": "229 County Road 1250N",
+        "City": "Keenes",
+        "State": "IL",
+        "Zip": "62851",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -27831,18 +27747,18 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -89.703334,
-          40.872495
+          -88.72991,
+          39.81479
         ]
       },
       "properties": {
         "Long Name": "Nutrien Ag Solutions - IL",
         "Retailer": "Nutrien Ag",
-        "Name": "Dunlap IL",
-        "Address": "7001 W Parks School Road",
-        "City": "Princeville",
+        "Name": "Precision Operations",
+        "Address": "94 E 150 North Rd",
+        "City": "Cerro Gordo",
         "State": "IL",
-        "Zip": "61159",
+        "Zip": "61818",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -27894,6 +27810,48 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
+          -88.915824,
+          39.638155
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Radford",
+        "Address": "2628 E1500 N Road",
+        "City": "Moweaqua",
+        "State": "IL",
+        "Zip": "62550",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -88.485978,
+          38.66881
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Raleigh",
+        "Address": "54 Industrial Parkway",
+        "City": "Flora",
+        "State": "IL",
+        "Zip": "62839",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
           -88.27384,
           37.82885
         ]
@@ -27906,27 +27864,6 @@
         "City": "Ridgway",
         "State": "IL",
         "Zip": "62979",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.856,
-          38.86633
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "St. Peter IL",
-        "Address": "205 West 5th Street",
-        "City": "Saint Peter",
-        "State": "IL",
-        "Zip": "62880",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -27990,27 +27927,6 @@
         "City": "Shannon",
         "State": "IL",
         "Zip": "61078",
-        "Category": "Agronomy",
-        "Suppliers": "Nutrien"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -89.68403,
-          41.44163
-        ]
-      },
-      "properties": {
-        "Long Name": "Nutrien Ag Solutions - IL",
-        "Retailer": "Nutrien Ag",
-        "Name": "Manlius",
-        "Address": "20182 IL Hwy 40",
-        "City": "Sheffield",
-        "State": "IL",
-        "Zip": "61361",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -28146,6 +28062,27 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
+          -88.485978,
+          38.66881
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Southern Illinois",
+        "Address": "54 Industrial Parkway",
+        "City": "Flora",
+        "State": "IL",
+        "Zip": "62839",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
           -89.742354,
           39.749068
         ]
@@ -28158,6 +28095,27 @@
         "City": "Springfield",
         "State": "IL",
         "Zip": "62711",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -88.856,
+          38.86633
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "St. Peter IL",
+        "Address": "205 West 5th Street",
+        "City": "Saint Peter",
+        "State": "IL",
+        "Zip": "62880",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
@@ -28221,6 +28179,27 @@
         "City": "Stockton",
         "State": "IL",
         "Zip": "61085",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -89.447299,
+          38.69592
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Stolletown",
+        "Address": "18929 Stolletown Road",
+        "City": "Carlyle",
+        "State": "IL",
+        "Zip": "62231",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
