@@ -1,7 +1,10 @@
 📊 GEOJSON BUILD SUMMARY
 ------------------------------------
-Input rows read:       1563
-Valid features written:1562
-P.O. Boxes removed:    51
-Invalid coords skipped:1
-Output file:           retailers.geojson
+Standard retailer rows:       1567
+Valid retailer features:      1566
+Invalid retailer coords:      1
+KINGPIN1 rows:                188
+Valid KINGPIN1 features:      0
+Invalid KINGPIN1 coords:      188
+TOTAL FEATURES WRITTEN:       1566
+Output file:                  retailers.geojson

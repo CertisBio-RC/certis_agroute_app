@@ -48,7 +48,9 @@ function buildGoogleMapsUrl(stops: Stop[]) {
     `${stops[0].address}, ${stops[0].city}, ${stops[0].state} ${stops[0].zip}`
   );
   const destination = encodeURIComponent(
-    `${stops[stops.length - 1].address}, ${stops[stops.length - 1].city}, ${stops[stops.length - 1].state} ${stops[stops.length - 1].zip}`
+    `${stops[stops.length - 1].address}, ${stops[stops.length - 1].city} ${
+      stops[stops.length - 1].state
+    } ${stops[stops.length - 1].zip}`
   );
 
   const MAX_WAYPOINTS = 8;
@@ -117,7 +119,9 @@ export default function Page() {
   /* ➕ ADD STOP */
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
-      if (prev.some((s) => s.label === stop.label && s.address === stop.address)) return prev;
+      if (prev.some((s) => s.label === stop.label && s.address === stop.address))
+        return prev;
+
       const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
       const home = prev.find((s) => s.label.startsWith("Home"));
       return home ? [home, ...nonHome, stop] : [...prev, stop];
@@ -153,7 +157,8 @@ export default function Page() {
         let state = "";
         f.context?.forEach((c: any) => {
           if (c.id.startsWith("place")) city = c.text;
-          if (c.id.startsWith("region")) state = c.short_code?.replace("US-", "") || c.text;
+          if (c.id.startsWith("region"))
+            state = c.short_code?.replace("US-", "") || c.text;
         });
 
         const newHome: Stop = {
@@ -197,7 +202,9 @@ export default function Page() {
       selectedStates.length === 0
         ? availableRetailers
         : retailerSummary
-            .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
+            .filter((s) =>
+              s.states.some((st) => selectedStates.includes(norm(st)))
+            )
             .map((s) => s.retailer)
             .filter((r, i, arr) => arr.indexOf(r) === i)
             .sort(),
@@ -208,7 +215,8 @@ export default function Page() {
     (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
   );
   const normalSummary = retailerSummary.filter(
-    (s) => !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
+    (s) =>
+      !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
   );
 
   /* ===================== UI ===================== */
@@ -268,7 +276,7 @@ export default function Page() {
           )}
         </div>
 
-        {/* SEARCH TILE — stays in current position */}
+        {/* SEARCH TILE */}
         <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
 
         {/* STATES */}
@@ -316,7 +324,9 @@ export default function Page() {
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-              onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
+              onClick={() =>
+                setSelectedRetailers(filteredRetailersForSummary.map(norm))
+              }
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
@@ -388,16 +398,17 @@ export default function Page() {
           </div>
         </div>
 
-        {/* CATEGORIES — OS-1 border fix */}
+        {/* CATEGORIES — FINAL LOCKED VERSION (OPTION A) */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
+
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() =>
                 setSelectedCategories(
-                  Object.keys(categoryColors)
-                    .filter((c) => c !== "Kingpin")
-                    .map(norm)
+                  ["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(
+                    norm
+                  )
                 )
               }
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
@@ -411,10 +422,10 @@ export default function Page() {
               Clear
             </button>
           </div>
+
           <div className="grid grid-cols-2 gap-2 text-[16px]">
-            {Object.entries(categoryColors)
-              .filter(([key]) => key !== "Kingpin")
-              .map(([key, { color }]) => (
+            {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(
+              (key) => (
                 <label key={key} className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -431,15 +442,14 @@ export default function Page() {
                     <span
                       className="inline-block w-3 h-3 rounded-full mr-1"
                       style={{
-                        backgroundColor: color,
-                        border:
-                          key === "Office/Service" ? "1px solid #000" : "none",
+                        backgroundColor: categoryColors[key].color,
                       }}
                     />
                     {key}
                   </span>
                 </label>
-              ))}
+              )
+            )}
           </div>
         </div>
 
@@ -455,7 +465,9 @@ export default function Page() {
                   State(s): {s.states.map(capitalizeState).join(", ") || "N/A"}
                 </span>
                 <br />
-                <span className="text-white text-[15px]">Total Locations: {s.count}</span>
+                <span className="text-white text-[15px]">
+                  Total Locations: {s.count}
+                </span>
                 <br />
                 <span className="text-white text-[15px]">
                   Suppliers: {s.suppliers.join(", ") || "N/A"}
@@ -526,7 +538,9 @@ export default function Page() {
                     className="flex justify-between items-start pb-2 border-b border-gray-300 dark:border-gray-600"
                   >
                     <div>
-                      <div className="font-semibold text-yellow-300">{stop.label}</div>
+                      <div className="font-semibold text-yellow-300">
+                        {stop.label}
+                      </div>
                       <div className="text-[14px] text-white dark:text-gray-200">
                         {stop.address}
                         <br />
@@ -577,7 +591,9 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <p className="text-[15px] text-gray-500 dark:text-gray-300">No stops added yet.</p>
+            <p className="text-[15px] text-gray-500 dark:text-gray-300">
+              No stops added yet.
+            </p>
           )}
         </div>
       </aside>

@@ -2,7 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Ensure app fills the viewport */
+/* ====================================================================== */
+/* GLOBAL LAYOUT */
+/* ====================================================================== */
+
 html,
 body,
 #__next,
@@ -12,16 +15,16 @@ body,
   padding: 0;
 }
 
-/* Sidebar should scroll internally without affecting map height */
+/* Sidebar internal scroll without affecting map height */
 .sidebar {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 0; /* 🔑 prevents collapse inside flex/grid */
+  min-height: 0; /* prevents collapse */
   overflow: hidden;
 }
 
-/* ✅ Logo section — protected from squashing */
+/* Protect logo from shrinking */
 .logo {
   flex-shrink: 0;
   padding: 1rem;
@@ -36,59 +39,57 @@ body,
   object-fit: contain;
 }
 
-/* Allow card list in sidebar to scroll */
+/* Internal scroll for tile list */
 .sidebar > .overflow-y-auto {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
 }
 
-/* Map container should always expand to fill */
+/* Map panel always full height */
 .map-container {
   height: 100%;
-  min-height: 0; /* 🔑 prevents collapse */
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-/* Footer is fixed at the bottom grid row */
+/* Footer fixed cleanly */
 .footer {
   flex-shrink: 0;
   @apply bg-gray-800 text-sm flex justify-between items-center px-4 py-2;
 }
 
-/* Cards (sidebar placeholders / tiles) */
-.card {
-  border: 1px solid #333;
-  border-radius: 0.5rem;
-}
+/* ====================================================================== */
+/* TILE STANDARDIZATION */
+/* ====================================================================== */
 
-/* ✅ Standardize all tiles to match Legend style */
 .bg-white,
 .dark\:bg-gray-800 {
   @apply rounded-lg shadow p-4 mb-4;
 }
 
-/* Dark mode colors */
+/* NECESSARY for dark mode (unified background) */
 body {
   background-color: #111;
   color: #fff;
 }
 
-/* ========================= */
-/* 🌐 Mapbox Popup Overrides */
-/* ========================= */
+/* ====================================================================== */
+/* MAPBOX POPUP — K3-A GOLD */
+/* ====================================================================== */
+
 .mapboxgl-popup {
-  max-width: 360px; /* widened to fit longer text & button */
+  max-width: 360px;
   z-index: 10;
 }
 
 .mapboxgl-popup-content {
-  background: #1e1e1e; /* dark background */
-  color: #fff;         /* readable text */
+  background: #1e1e1e;
+  color: #fff;
   font-size: 14px;
   border-radius: 6px;
-  padding: 10px 12px;  /* more breathing room */
+  padding: 10px 12px;
   line-height: 1.5;
 }
 
@@ -96,7 +97,7 @@ body {
   margin: 0 0 6px;
   font-weight: bold;
   font-size: 15px;
-  color: #ffd700; /* gold/yellow for titles */
+  color: #ffd700; /* gold for header */
 }
 
 .mapboxgl-popup-content p {
@@ -104,12 +105,20 @@ body {
   line-height: 1.4;
 }
 
-/* ========================= */
-/* 📱 Mobile Optimizations   */
-/* ========================= */
+/* KINGPIN1 popup (Tier 1) highlight override */
+.mapboxgl-popup-content .kp1-header {
+  color: #4da3ff;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+/* ====================================================================== */
+/* MOBILE OPTIMIZATION */
+/* ====================================================================== */
+
 @media (max-width: 768px) {
   .sidebar {
-    display: none; /* hide sidebar by default on mobile */
+    display: none; /* hidden by default */
   }
 
   .map-container {
@@ -119,22 +128,27 @@ body {
   }
 
   .mapboxgl-popup-content {
-    font-size: 16px; /* slightly larger text for touch readability */
+    font-size: 16px; /* more readable for touch */
   }
 }
 
-/* ========================= */
-/* 🎛 Sidebar Filter Labels  */
-/* ========================= */
+/* ====================================================================== */
+/* SIDEBAR CHECKBOX LABELS */
+/* ====================================================================== */
+
 .sidebar input[type="checkbox"] + label {
-  font-size: 1.05rem;   /* bump size slightly */
-  line-height: 1.5;    /* extra breathing room */
+  font-size: 1.05rem;
+  line-height: 1.5;
   margin-top: 4px;
   margin-bottom: 4px;
   display: inline-block;
 }
 
-/* ✅ Special: Kingpin legend entry (color + label only, no checkbox) */
+/* ====================================================================== */
+/* LEGEND — K3-A GOLD */
+/* ====================================================================== */
+
+/* KINGPIN (red/yellow) — NO checkbox */
 .legend-kingpin {
   display: flex;
   align-items: center;
@@ -145,12 +159,44 @@ body {
 .legend-kingpin .color-box {
   width: 16px;
   height: 16px;
-  background-color: #ff0000;
-  border: 2px solid #ffff00; /* red fill with yellow border */
+  background-color: #e10600;    /* red fill */
+  border: 2px solid #ffd60a;    /* yellow outline */
   border-radius: 3px;
 }
 
 .legend-kingpin span {
   font-size: 1.05rem;
   line-height: 1.5;
+}
+
+/* KINGPIN1 (Tier 1) — optional: add if you want a legend entry */
+.legend-kingpin1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.legend-kingpin1 .color-box {
+  width: 18px;
+  height: 18px;
+  background-color: #0040ff;  /* blue highlight */
+  border: 2px solid #ffffff;
+  border-radius: 3px;
+}
+
+.legend-kingpin1 span {
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+/* ====================================================================== */
+/* HOME MARKER (Blue House) */
+/* ====================================================================== */
+
+.home-marker {
+  width: 30px;
+  height: 30px;
+  background-size: contain;
+  background-repeat: no-repeat;
 }

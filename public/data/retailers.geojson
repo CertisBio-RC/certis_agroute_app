@@ -6,6 +6,69 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
+          -98.34536,
+          43.31613
+        ]
+      },
+      "properties": {
+        "Long Name": "AgLand Cooperative - SD",
+        "Retailer": "AgLand Coop",
+        "Name": "Armour Agronomy Center",
+        "Address": "507 Braddock Ave",
+        "City": "Armour",
+        "State": "SD",
+        "Zip": "57313",
+        "Category": "Agronomy",
+        "Suppliers": "Multiple"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.22132,
+          43.23838
+        ]
+      },
+      "properties": {
+        "Long Name": "AgLand Cooperative - SD",
+        "Retailer": "AgLand Coop",
+        "Name": "Delmont Agronomy Center",
+        "Address": "39833 US Hwy 18",
+        "City": "Delmont",
+        "State": "SD",
+        "Zip": "57330",
+        "Category": "Agronomy",
+        "Suppliers": "Multiple"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.986363,
+          43.393979
+        ]
+      },
+      "properties": {
+        "Long Name": "AgLand Cooperative - SD",
+        "Retailer": "AgLand Coop",
+        "Name": "Parkston Agronomy Center",
+        "Address": "115 S First St",
+        "City": "Parkston",
+        "State": "SD",
+        "Zip": "57366",
+        "Category": "Agronomy",
+        "Suppliers": "Multiple"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
           -89.633846,
           40.406873
         ]
@@ -27570,6 +27633,27 @@
         "City": "Nokomis",
         "State": "IL",
         "Zip": "62075",
+        "Category": "Agronomy",
+        "Suppliers": "Nutrien"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -76.3792,
+          39.667998
+        ]
+      },
+      "properties": {
+        "Long Name": "Nutrien Ag Solutions - IL",
+        "Retailer": "Nutrien Ag",
+        "Name": "Oakland",
+        "Address": "Rt 133 and Logan Street",
+        "City": "Oakland",
+        "State": "IL",
+        "Zip": "61943",
         "Category": "Agronomy",
         "Suppliers": "Nutrien"
       }
