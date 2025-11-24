@@ -317,12 +317,13 @@ export default function CertisMap({
           .sort()
       );
 
-      onRetailersLoaded?.(
-        [...new Set(filtered.map((f: any) => (f.properties.Retailer || "").trim()))]
-          .filter(Boolean)
-          .sort()
-      );
-
+onRetailersLoaded?.(
+  (
+    [...new Set(filtered.map((f: any) => String(f.properties.Retailer || "").trim()))]
+      .filter(Boolean)
+      .sort()
+  ) as string[]
+);
       onSuppliersLoaded?.(
         [...new Set(filtered.flatMap((f: any) => parseSuppliers(f.properties.Suppliers)))]
           .filter(Boolean)
