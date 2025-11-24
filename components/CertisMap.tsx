@@ -324,11 +324,16 @@ onRetailersLoaded?.(
       .sort()
   ) as string[]
 );
-      onSuppliersLoaded?.(
-        [...new Set(filtered.flatMap((f: any) => parseSuppliers(f.properties.Suppliers)))]
-          .filter(Boolean)
-          .sort()
-      );
+onSuppliersLoaded?.(
+  (
+    [...new Set<string>(
+      filtered.flatMap((f: any) => parseSuppliers(f.properties.Suppliers) as string[])
+    )]
+      .filter(Boolean)
+      .sort()
+  ) as string[]
+);
+
 
       // ================================================================
       // SEND ALL STOPS TO PAGE
