@@ -1,7 +1,7 @@
 // components/CertisMap.tsx
 
 // ============================================================================
-// 💠 CERTIS AGROUTE — K3-A GOLD (Corrected Full File)
+// 💠 CERTIS AGROUTE — K3-A GOLD (Build-Ready Final File)
 //   • Retailers = State ∩ Retailer ∩ Category ∩ Supplier
 //   • Kingpins = State-only filtering
 //   • KINGPIN1 = Always visible (Tier 1)
@@ -10,15 +10,16 @@
 //   • Grain|Feed → Grain/Feed
 //   • Office/Service → C-Store/Service/Energy
 //   • Satellite-streets-v12 + Mercator enforced
-//   • KINGPIN = circle layer
+//   • KINGPIN = red circle layer
 //   • KINGPIN1 = PNG icon (/public/icons/kingpin1.png)
-//   • Popup category list sorted by strict hierarchy
+//   • Popup categories sorted by strict hierarchy
 // ============================================================================
 
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import mapboxgl, { LngLatLike } from "mapbox-gl";
+import mapboxgl from "mapbox-gl";
+
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 // ============================================================================
@@ -42,13 +43,10 @@ const norm = (v: any) => (v ?? "").toString().trim().toLowerCase();
 // Multi-category parser
 function parseCategories(raw: string): string[] {
   if (!raw) return [];
-  return raw
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
+  return raw.split(",").map((x) => x.trim()).filter(Boolean);
 }
 
-// Normalize to master list
+// Normalize categories to master list
 function normalizeSingleCategory(cat: string): string {
   const c = norm(cat);
 
@@ -63,10 +61,8 @@ function normalizeSingleCategory(cat: string): string {
     return "C-Store/Service/Energy";
 
   if (c.includes("distribution")) return "Distribution";
-
   if (c.includes("kingpin1")) return "Kingpin1";
   if (c.includes("kingpin")) return "Kingpin";
-
   if (c.includes("ag")) return "Agronomy";
 
   return "Agronomy";
@@ -78,9 +74,10 @@ function normalizeCategories(raw: string): string[] {
   return [...new Set(normed)];
 }
 
-// Supplier parser (preserves exact)
+// Supplier parser (retains exact strings)
 function parseSuppliers(v: any): string[] {
   if (!v) return [];
+
   if (Array.isArray(v)) return v.map((x) => String(x).trim());
 
   if (typeof v === "string") {
@@ -101,7 +98,7 @@ function parseSuppliers(v: any): string[] {
 const cleanAddress = (addr: string): string =>
   (addr || "").replace(/\(.*?\)/g, "").replace(/\bP\.?O\.?\s*Box\b.*$/i, "").trim();
 
-// Category hierarchy (popup)
+// Category hierarchy (popup sorting)
 const CATEGORY_ORDER = {
   Agronomy: 1,
   "Grain/Feed": 2,
@@ -241,7 +238,6 @@ export default function CertisMap({
       .setHTML(html)
       .addTo(map);
 
-    // Add-to-Trip
     const el = popupRef.current.getElement();
     if (el && onAddStop) {
       const btn = el.querySelector("button[id^='btn-']") as HTMLButtonElement | null;
@@ -277,12 +273,12 @@ export default function CertisMap({
 
     map.on("load", async () => {
       const data = await fetch(geojsonPath).then((r) => r.json());
+
       const valid = (data.features || []).filter((f: any) => {
         const c = f.geometry?.coordinates;
         return Array.isArray(c) && !isNaN(c[0]) && !isNaN(c[1]);
       });
 
-      // Normalize categories
       valid.forEach((f: any) => {
         f.properties = f.properties || {};
         f.properties.ParsedCategories = normalizeCategories(
@@ -290,7 +286,6 @@ export default function CertisMap({
         );
       });
 
-      // KINGPIN suppression if KINGPIN1 overlaps
       const kingpin1Coords = new Set(
         valid
           .filter((f: any) =>
@@ -308,36 +303,38 @@ export default function CertisMap({
 
       masterFeatures.current = filtered;
 
-      // ================================================================
-      // Unique lists (corrected version — NO TYPESCRIPT ERRORS)
-      // ================================================================
+      // ============================================================
+      // Unique states / retailers / suppliers
+      // ============================================================
       onStatesLoaded?.(
         [...new Set<string>(filtered.map((f: any) => (f.properties.State || "").trim()))]
           .filter(Boolean)
           .sort()
       );
 
-onRetailersLoaded?.(
-  (
-    [...new Set(filtered.map((f: any) => String(f.properties.Retailer || "").trim()))]
-      .filter(Boolean)
-      .sort()
-  ) as string[]
-);
-onSuppliersLoaded?.(
-  (
-    [...new Set<string>(
-      filtered.flatMap((f: any) => parseSuppliers(f.properties.Suppliers) as string[])
-    )]
-      .filter(Boolean)
-      .sort()
-  ) as string[]
-);
+      onRetailersLoaded?.(
+        (
+          [...new Set(filtered.map((f: any) => String(f.properties.Retailer || "").trim()))]
+            .filter(Boolean)
+            .sort()
+        ) as string[]
+      );
 
+      onSuppliersLoaded?.(
+        (
+          [...new Set<string>(
+            filtered.flatMap(
+              (f: any) => parseSuppliers(f.properties.Suppliers) as string[]
+            )
+          )]
+            .filter(Boolean)
+            .sort()
+        ) as string[]
+      );
 
-      // ================================================================
-      // SEND ALL STOPS TO PAGE
-      // ================================================================
+      // ============================================================
+      // ALL STOPS
+      // ============================================================
       onAllStopsLoaded?.(
         filtered.map((f: any) => {
           const p = f.properties || {};
@@ -352,15 +349,17 @@ onSuppliersLoaded?.(
         })
       );
 
-      // ================================================================
-      // GEOJSON LAYERS
-      // ================================================================
+      // ============================================================
+      // GEOJSON SOURCE
+      // ============================================================
       map.addSource("retailers", {
         type: "geojson",
         data: { type: "FeatureCollection", features: filtered },
       });
 
-      // MAIN RETAILERS
+      // ============================================================
+      // MAIN RETAILERS (non-kingpin)
+      // ============================================================
       map.addLayer({
         id: "retailers-layer",
         type: "circle",
@@ -391,7 +390,9 @@ onSuppliersLoaded?.(
         },
       });
 
-      // KINGPIN (red circle)
+      // ============================================================
+      // KINGPIN (circle)
+      // ============================================================
       map.addLayer({
         id: "kingpins-layer",
         type: "circle",
@@ -405,7 +406,9 @@ onSuppliersLoaded?.(
         },
       });
 
-      // KINGPIN1 (PNG)
+      // ============================================================
+      // KINGPIN1 (PNG ICON)
+      // ============================================================
       map.loadImage(`${basePath}/icons/kingpin1.png`, (err, image) => {
         if (!err && image && !map.hasImage("kingpin1-icon")) {
           map.addImage("kingpin1-icon", image);
@@ -425,7 +428,9 @@ onSuppliersLoaded?.(
         });
       });
 
-      // Cursor + popup
+      // ============================================================
+      // POPUP EVENTS
+      // ============================================================
       ["retailers-layer", "kingpins-layer", "kingpins1-layer"].forEach((id) => {
         map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
         map.on("mouseleave", id, () => (map.getCanvas().style.cursor = "grab"));
@@ -443,7 +448,7 @@ onSuppliersLoaded?.(
   ]);
 
   // ========================================================================
-  // FILTERING
+  // FILTERING SYSTEM
   // ========================================================================
   useEffect(() => {
     const map = mapRef.current;
@@ -472,12 +477,12 @@ onSuppliersLoaded?.(
       // KINGPIN1 always visible
       if (isKP1) return true;
 
-      // KINGPIN = state-only filtering
+      // KINGPIN = state-only
       if (isKP) {
         return normStatesSel.length === 0 || normStatesSel.includes(state);
       }
 
-      // Regular retailer = full intersection
+      // Regular retailer = intersection logic
       const stMatch = normStatesSel.length === 0 || normStatesSel.includes(state);
       const rtMatch = normRetailersSel.length === 0 || normRetailersSel.includes(retailer);
       const ctMatch = normCats.length === 0 || normCats.some((c) => categories.includes(c));
@@ -486,12 +491,14 @@ onSuppliersLoaded?.(
       return stMatch && rtMatch && ctMatch && spMatch;
     });
 
+    // Apply data to map
     src.setData({ type: "FeatureCollection", features: filtered });
 
-    // Summary (exclude KP1)
+    // Retailer Summary
     if (onRetailerSummary) {
       const summary = filtered.reduce((acc: any, f: any) => {
         const p = f.properties;
+
         const parsed = p.ParsedCategories || [];
         if (parsed.includes("Kingpin1") || parsed.includes("kingpin1")) return acc;
 
@@ -561,8 +568,10 @@ onSuppliersLoaded?.(
   const clearRoute = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
+
     if (map.getLayer("route-line")) map.removeLayer("route-line");
     if (map.getSource("route")) map.removeSource("route");
+
     onRouteSummary?.(null);
   }, [onRouteSummary]);
 
@@ -595,6 +604,9 @@ onSuppliersLoaded?.(
 
     const doRoute = async () => {
       try {
+        // ================================================
+        // OPTIMIZED TRIP (TSP)
+        // ================================================
         if (tripMode === "optimize" && interior.length > 1) {
           const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsToString(
             ordered
@@ -606,7 +618,7 @@ onSuppliersLoaded?.(
           if (opt?.trips?.length > 0) {
             const trip = opt.trips[0];
 
-            const feature = {
+            const feature: any = {
               type: "Feature",
               geometry: trip.geometry,
               properties: {},
@@ -640,7 +652,9 @@ onSuppliersLoaded?.(
           }
         }
 
-        // SIMPLE DIRECTIONS-FALLBACK
+        // ================================================
+        // SIMPLE DIRECTIONS FALLBACK
+        // ================================================
         const dir = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsToString(
           ordered
         )}?geometries=geojson&overview=full&access_token=${token}`;
@@ -649,7 +663,7 @@ onSuppliersLoaded?.(
         const data = await res.json();
 
         if (data?.routes?.length > 0) {
-          const feature = {
+          const feature: any = {
             type: "Feature",
             geometry: data.routes[0].geometry,
             properties: {},
