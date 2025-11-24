@@ -5,16 +5,18 @@
   "type": "module",
   "scripts": {
     "//": "💠 UNIVERSAL NODE SCRIPTS — Compatible with Windows (Portable Node) + GitHub Actions",
+
     "dev": "node_modules/.bin/next dev",
     "build": "node_modules/.bin/next build",
     "start": "node_modules/.bin/next start",
     "deploy": "node_modules/.bin/next build && node_modules/.bin/gh-pages -d out -b gh-pages",
 
-    "//local": "For local PowerShell usage with Portable Node:",
+    "//local": "💠 LOCAL POWERSHELL SCRIPTS — using Portable Node",
     "dev:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next dev",
     "build:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next build",
     "start:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next start",
-    "deploy:local": "cmd /C \"\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages\""
+
+    "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages"
   },
   "dependencies": {
     "@types/mapbox-gl": "^3.4.1",
