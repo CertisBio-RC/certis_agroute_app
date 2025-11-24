@@ -1,18 +1,18 @@
 // components/CertisMap.tsx
 
 // ============================================================================
-// 💠 CERTIS AGROUTE — K3-A GOLD (Corrected)
+// 💠 CERTIS AGROUTE — K3-A GOLD (Corrected Full File)
 //   • Retailers = State ∩ Retailer ∩ Category ∩ Supplier
 //   • Kingpins = State-only filtering
 //   • KINGPIN1 = Always visible (Tier 1)
 //   • KINGPIN suppressed when KINGPIN1 present at same coordinates
 //   • Parsed categories from comma-separated list
-//   • Feed → Grain/Feed, Grain → Grain/Feed
+//   • Grain|Feed → Grain/Feed
 //   • Office/Service → C-Store/Service/Energy
 //   • Satellite-streets-v12 + Mercator enforced
-//   • KINGPIN = circle layer (no PNG icon)
+//   • KINGPIN = circle layer
 //   • KINGPIN1 = PNG icon (/public/icons/kingpin1.png)
-//   • Popup category list sorted by strict hierarchy (Option A)
+//   • Popup category list sorted by strict hierarchy
 // ============================================================================
 
 "use client";
@@ -30,10 +30,7 @@ export const categoryColors: Record<string, { color: string; outline?: string }>
   "C-Store/Service/Energy": { color: "#FFFFFF", outline: "#000000" },
   Distribution: { color: "#9E9E9E" },
 
-  // KINGPIN = red circle w/ yellow outline
   Kingpin: { color: "#E10600", outline: "#FFD60A" },
-
-  // KINGPIN1 = PNG icon, fallback has no meaning
   Kingpin1: { color: "#0040FF", outline: "#FFFFFF" },
 };
 
@@ -42,7 +39,7 @@ export const categoryColors: Record<string, { color: string; outline?: string }>
 // ============================================================================
 const norm = (v: any) => (v ?? "").toString().trim().toLowerCase();
 
-/** MULTI-CATEGORY PARSER */
+// Multi-category parser
 function parseCategories(raw: string): string[] {
   if (!raw) return [];
   return raw
@@ -51,7 +48,7 @@ function parseCategories(raw: string): string[] {
     .filter(Boolean);
 }
 
-// Internal normalization
+// Normalize to master list
 function normalizeSingleCategory(cat: string): string {
   const c = norm(cat);
 
@@ -81,10 +78,11 @@ function normalizeCategories(raw: string): string[] {
   return [...new Set(normed)];
 }
 
-// Supplier parser
+// Supplier parser (preserves exact)
 function parseSuppliers(v: any): string[] {
   if (!v) return [];
   if (Array.isArray(v)) return v.map((x) => String(x).trim());
+
   if (typeof v === "string") {
     if (v.startsWith("[")) {
       try {
@@ -94,14 +92,16 @@ function parseSuppliers(v: any): string[] {
     }
     return v.split(/[,;/|]+/).map((x) => x.trim()).filter(Boolean);
   }
+
   if (typeof v === "object") return Object.values(v).map((x) => String(x).trim());
+
   return [];
 }
 
 const cleanAddress = (addr: string): string =>
   (addr || "").replace(/\(.*?\)/g, "").replace(/\bP\.?O\.?\s*Box\b.*$/i, "").trim();
 
-// CATEGORY ORDER — OPTION A
+// Category hierarchy (popup)
 const CATEGORY_ORDER = {
   Agronomy: 1,
   "Grain/Feed": 2,
@@ -112,7 +112,9 @@ const CATEGORY_ORDER = {
 };
 
 function sortCategories(cats: string[]): string[] {
-  return [...cats].sort((a, b) => (CATEGORY_ORDER[a] ?? 999) - (CATEGORY_ORDER[b] ?? 999));
+  return [...cats].sort(
+    (a, b) => (CATEGORY_ORDER[a] ?? 999) - (CATEGORY_ORDER[b] ?? 999)
+  );
 }
 
 // ============================================================================
@@ -132,6 +134,7 @@ export interface CertisMapProps {
   selectedStates: string[];
   selectedSuppliers: string[];
   selectedRetailers: string[];
+
   homeCoords?: [number, number] | null;
 
   onStatesLoaded?: (s: string[]) => void;
@@ -164,6 +167,7 @@ export default function CertisMap({
   selectedStates,
   selectedSuppliers,
   selectedRetailers,
+
   homeCoords,
   onStatesLoaded,
   onRetailersLoaded,
@@ -182,7 +186,6 @@ export default function CertisMap({
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const homeMarker = useRef<mapboxgl.Marker | null>(null);
 
-  // Base path handling
   const basePath =
     process.env.NEXT_PUBLIC_BASE_PATH && process.env.NEXT_PUBLIC_BASE_PATH !== ""
       ? process.env.NEXT_PUBLIC_BASE_PATH
@@ -191,7 +194,7 @@ export default function CertisMap({
   const geojsonPath = `${basePath}/data/retailers.geojson?v=${Date.now()}`;
 
   // ========================================================================
-  // POPUP HANDLER
+  // POPUP
   // ========================================================================
   const popupHandler = (e: any) => {
     const map = mapRef.current;
@@ -238,7 +241,7 @@ export default function CertisMap({
       .setHTML(html)
       .addTo(map);
 
-    // Button hookup
+    // Add-to-Trip
     const el = popupRef.current.getElement();
     if (el && onAddStop) {
       const btn = el.querySelector("button[id^='btn-']") as HTMLButtonElement | null;
@@ -273,7 +276,6 @@ export default function CertisMap({
     mapRef.current = map;
 
     map.on("load", async () => {
-      // Load GeoJSON
       const data = await fetch(geojsonPath).then((r) => r.json());
       const valid = (data.features || []).filter((f: any) => {
         const c = f.geometry?.coordinates;
@@ -283,45 +285,34 @@ export default function CertisMap({
       // Normalize categories
       valid.forEach((f: any) => {
         f.properties = f.properties || {};
-        f.properties.ParsedCategories = normalizeCategories(f.properties.Category || "");
+        f.properties.ParsedCategories = normalizeCategories(
+          f.properties.Category || ""
+        );
       });
 
-      // KINGPIN suppression if KINGPIN1 shares coords
+      // KINGPIN suppression if KINGPIN1 overlaps
       const kingpin1Coords = new Set(
         valid
-          .filter((f: any) => f.properties.ParsedCategories.includes("Kingpin1"))
+          .filter((f: any) =>
+            f.properties.ParsedCategories.includes("Kingpin1")
+          )
           .map((f: any) => f.geometry.coordinates.join(","))
       );
 
       const filtered = valid.filter((f: any) => {
-        const p = f.properties;
+        const parsed = f.properties.ParsedCategories || [];
         const key = f.geometry.coordinates.join(",");
-        if (p.ParsedCategories.includes("Kingpin") && kingpin1Coords.has(key)) {
-          return false;
-        }
+        if (parsed.includes("Kingpin") && kingpin1Coords.has(key)) return false;
         return true;
       });
 
       masterFeatures.current = filtered;
 
-      // Send full stop list to Page
-      onAllStopsLoaded?.(
-        filtered.map((f: any) => {
-          const p = f.properties || {};
-          return {
-            label: p.Retailer || p.Name || "Unknown",
-            address: p.Address || "",
-            coords: f.geometry.coordinates,
-            city: p.City || "",
-            state: p.State || "",
-            zip: p.Zip || "",
-          };
-        })
-      );
-
-      // Unique lists
+      // ================================================================
+      // Unique lists (corrected version — NO TYPESCRIPT ERRORS)
+      // ================================================================
       onStatesLoaded?.(
-        [...new Set(filtered.map((f: any) => (f.properties.State || "").trim()))]
+        [...new Set<string>(filtered.map((f: any) => (f.properties.State || "").trim()))]
           .filter(Boolean)
           .sort()
       );
@@ -338,13 +329,32 @@ export default function CertisMap({
           .sort()
       );
 
-      // GEOJSON source
+      // ================================================================
+      // SEND ALL STOPS TO PAGE
+      // ================================================================
+      onAllStopsLoaded?.(
+        filtered.map((f: any) => {
+          const p = f.properties || {};
+          return {
+            label: p.Retailer || p.Name || "Unknown",
+            address: p.Address || "",
+            coords: f.geometry.coordinates,
+            city: p.City || "",
+            state: p.State || "",
+            zip: p.Zip || "",
+          };
+        })
+      );
+
+      // ================================================================
+      // GEOJSON LAYERS
+      // ================================================================
       map.addSource("retailers", {
         type: "geojson",
         data: { type: "FeatureCollection", features: filtered },
       });
 
-      // MAIN RETAILER CIRLCES (not Kingpin)
+      // MAIN RETAILERS
       map.addLayer({
         id: "retailers-layer",
         type: "circle",
@@ -375,7 +385,7 @@ export default function CertisMap({
         },
       });
 
-      // KINGPIN circles
+      // KINGPIN (red circle)
       map.addLayer({
         id: "kingpins-layer",
         type: "circle",
@@ -389,7 +399,7 @@ export default function CertisMap({
         },
       });
 
-      // KINGPIN1 PNG icon
+      // KINGPIN1 (PNG)
       map.loadImage(`${basePath}/icons/kingpin1.png`, (err, image) => {
         if (!err && image && !map.hasImage("kingpin1-icon")) {
           map.addImage("kingpin1-icon", image);
@@ -456,12 +466,12 @@ export default function CertisMap({
       // KINGPIN1 always visible
       if (isKP1) return true;
 
-      // KINGPIN visible by state only
+      // KINGPIN = state-only filtering
       if (isKP) {
         return normStatesSel.length === 0 || normStatesSel.includes(state);
       }
 
-      // Retailers = intersection logic
+      // Regular retailer = full intersection
       const stMatch = normStatesSel.length === 0 || normStatesSel.includes(state);
       const rtMatch = normRetailersSel.length === 0 || normRetailersSel.includes(retailer);
       const ctMatch = normCats.length === 0 || normCats.some((c) => categories.includes(c));
@@ -470,10 +480,9 @@ export default function CertisMap({
       return stMatch && rtMatch && ctMatch && spMatch;
     });
 
-    // Update map layer
     src.setData({ type: "FeatureCollection", features: filtered });
 
-    // SUMMARY (exclude KP1)
+    // Summary (exclude KP1)
     if (onRetailerSummary) {
       const summary = filtered.reduce((acc: any, f: any) => {
         const p = f.properties;
@@ -526,6 +535,7 @@ export default function CertisMap({
 
     homeMarker.current?.remove();
     homeMarker.current = null;
+
     if (!homeCoords) return;
 
     const el = document.createElement("div");
@@ -540,7 +550,7 @@ export default function CertisMap({
   }, [homeCoords, basePath]);
 
   // ========================================================================
-  // ROUTING (unchanged)
+  // ROUTING
   // ========================================================================
   const clearRoute = useCallback(() => {
     const map = mapRef.current;
@@ -568,7 +578,6 @@ export default function CertisMap({
     const hasHomeStart = ordered[0]?.label?.startsWith("Home");
     const hasHomeEnd = ordered[ordered.length - 1]?.label?.startsWith("Home");
 
-    // Ensure home is both start and end
     if (!hasHomeStart && homeCoords) {
       ordered.unshift({ label: "Home", address: "Home", coords: homeCoords });
     }
@@ -580,7 +589,6 @@ export default function CertisMap({
 
     const doRoute = async () => {
       try {
-        // OPTIMIZED
         if (tripMode === "optimize" && interior.length > 1) {
           const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordsToString(
             ordered
@@ -611,7 +619,10 @@ export default function CertisMap({
               });
             }
 
-            onRouteSummary?.({ distance_m: trip.distance ?? 0, duration_s: trip.duration ?? 0 });
+            onRouteSummary?.({
+              distance_m: trip.distance ?? 0,
+              duration_s: trip.duration ?? 0,
+            });
 
             if (onOptimizedRoute && opt.waypoint_indices) {
               const idx = opt.waypoint_indices;
@@ -623,7 +634,7 @@ export default function CertisMap({
           }
         }
 
-        // SIMPLE
+        // SIMPLE DIRECTIONS-FALLBACK
         const dir = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsToString(
           ordered
         )}?geometries=geojson&overview=full&access_token=${token}`;
