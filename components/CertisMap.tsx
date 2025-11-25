@@ -323,12 +323,13 @@ export default function CertisMap({
 
       masterFeatures.current = filtered;
 
-      // STATES
-      onStatesLoaded?.(
-        [...new Set(filtered.map((f: any) => f.properties.State || "").sort())].filter(
-          Boolean
-        )
-      );
+// STATES (FIXED — type-safe)
+const states = filtered
+  .map((f: any) => String(f.properties.State || "").trim())
+  .filter(Boolean);
+
+onStatesLoaded?.([...new Set<string>(states)].sort());
+
 
       // RETAILERS
       onRetailersLoaded?.(
