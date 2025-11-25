@@ -196,7 +196,7 @@ export default function Page() {
     setTripStops([start, ...middle, end]);
   };
 
-  /* RETAILER SUMMARY (non-destructive) */
+  /* RETAILER SUMMARY */
   const filteredRetailersForSummary = useMemo(
     () =>
       selectedStates.length === 0
@@ -398,7 +398,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* CATEGORIES — FINAL LOCKED VERSION (OPTION A) */}
+        {/* CATEGORIES — OPTION A (FINAL) */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
 
@@ -406,9 +406,7 @@ export default function Page() {
             <button
               onClick={() =>
                 setSelectedCategories(
-                  ["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(
-                    norm
-                  )
+                  ["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(norm)
                 )
               }
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
@@ -424,32 +422,28 @@ export default function Page() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-[16px]">
-            {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(
-              (key) => (
-                <label key={key} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(norm(key))}
-                    onChange={() =>
-                      setSelectedCategories((prev) =>
-                        prev.includes(norm(key))
-                          ? prev.filter((c) => c !== norm(key))
-                          : [...prev, norm(key)]
-                      )
-                    }
+            {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map((key) => (
+              <label key={key} className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedCategories.includes(norm(key))}
+                  onChange={() =>
+                    setSelectedCategories((prev) =>
+                      prev.includes(norm(key))
+                        ? prev.filter((c) => c !== norm(key))
+                        : [...prev, norm(key)]
+                    )
+                  }
+                />
+                <span className="flex items-center text-white">
+                  <span
+                    className="inline-block w-3 h-3 rounded-full mr-1"
+                    style={{ backgroundColor: categoryColors[key].color }}
                   />
-                  <span className="flex items-center text-white">
-                    <span
-                      className="inline-block w-3 h-3 rounded-full mr-1"
-                      style={{
-                        backgroundColor: categoryColors[key].color,
-                      }}
-                    />
-                    {key}
-                  </span>
-                </label>
-              )
-            )}
+                  {key}
+                </span>
+              </label>
+            ))}
           </div>
         </div>
 
