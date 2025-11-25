@@ -323,26 +323,27 @@ export default function CertisMap({
 
       masterFeatures.current = filtered;
 
-// STATES (FIXED — type-safe)
-const states = filtered
-  .map((f: any) => String(f.properties.State || "").trim())
-  .filter(Boolean);
+// STATES
+onStatesLoaded?.(
+  [...new Set(
+    filtered
+      .map((f: any) => String(f.properties.State || ""))
+      .sort()
+  )]
+    .filter(Boolean) as string[]
+);
 
-onStatesLoaded?.([...new Set<string>(states)].sort());
 
 
-      // RETAILERS
-      onRetailersLoaded?.(
-        [
-          ...new Set(
-            filtered.map((f: any) =>
-              String(f.properties.Retailer || "").trim()
-            )
-          ),
-        ]
-          .filter(Boolean)
-          .sort()
-      );
+// RETAILERS
+onRetailersLoaded?.(
+  [...new Set(
+    filtered
+      .map((f: any) => String(f.properties.Retailer || "").trim())
+      .sort()
+  )] as string[]
+);
+
 
       // SUPPLIERS
       onSuppliersLoaded?.(
