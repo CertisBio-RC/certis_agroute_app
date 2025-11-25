@@ -17,8 +17,8 @@
     "build:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build",
     "start:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next start",
 
-    "//deploy-local": "💠 FIXED WINDOWS-SAFE DEPLOY — Portable Node for Next.js build, System Node for gh-pages",
-    "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build && node ./node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages"
+    "//deploy-local": "💠 FIXED WINDOWS-SAFE DEPLOY — Portable Node for Next.js build & gh-pages",
+    "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" \"./node_modules/gh-pages/bin/gh-pages.js\" -d out -b gh-pages"
   },
 
   "dependencies": {

@@ -1,51 +1,37 @@
 ﻿import pandas as pd
-from pathlib import Path
+import os
 
 # ============================================================
-# CONFIG
+# COMBINE retailers_BREAKOUT.xlsx → retailers.xlsx
 # ============================================================
-DATA_DIR = Path("data")
-SOURCE_FILE = DATA_DIR / "retailers_BREAKOUT.xlsx"
-OUTPUT_FILE = DATA_DIR / "retailers.xlsx"
 
-# ============================================================
-# LOAD BREAKOUT WORKBOOK
-# ============================================================
-excel = pd.ExcelFile(SOURCE_FILE)
-sheet_names = excel.sheet_names
+INPUT_FILE = os.path.join("data", "retailers_BREAKOUT.xlsx")
+OUTPUT_FILE = os.path.join("data", "retailers.xlsx")
 
-print("🔍 Found worksheets:")
-for s in sheet_names:
-    print(" •", s)
+def combine_workbook():
+    if not os.path.exists(INPUT_FILE):
+        raise FileNotFoundError(f"Missing file: {INPUT_FILE}")
 
-def normalize_headers(cols):
-    mapping = {
-        "long name": "Long Name",
-        "retailer": "Retailer",
-        "name": "Name",
-        "address": "Address",
-        "city": "City",
-        "state": "State",
-        "zip": "Zip",
-        "category": "Category",
-        "suppliers": "Suppliers",
-        "supplier(s)": "Suppliers",
-    }
-    out = []
-    for c in cols:
-        key = str(c).strip().lower()
-        out.append(mapping.get(key, str(c).strip()))
-    return out
+    excel = pd.ExcelFile(INPUT_FILE)
+    frames = []
 
-dfs = []
-for sheet in sheet_names:
-    df = pd.read_excel(SOURCE_FILE, sheet_name=sheet, dtype=str)
-    df.columns = normalize_headers(df.columns)
-    dfs.append(df)
+    for sheet in excel.sheet_names:
+        df = excel.parse(sheet)
 
-combined = pd.concat(dfs, ignore_index=True)
-combined.dropna(how="all", inplace=True)
-combined = combined.map(lambda x: x.strip() if isinstance(x, str) else x)
+        # Keep ONLY the verified columns
+        expected_cols = [
+            "Long Name", "Retailer", "Name", "Address",
+            "City", "State", "Zip", "Category", "Suppliers"
+        ]
 
-combined.to_excel(OUTPUT_FILE, index=False)
-print(f"✅ Wrote retailers.xlsx with {len(combined)} rows")
+        present = [c for c in expected_cols if c in df.columns]
+
+        df = df[present].copy()
+        frames.append(df)
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined.to_excel(OUTPUT_FILE, index=False)
+    print(f"[OK] Combined workbook saved → {OUTPUT_FILE}")
+
+if __name__ == "__main__":
+    combine_workbook()
