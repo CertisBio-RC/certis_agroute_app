@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+
   "scripts": {
     "//": "💠 UNIVERSAL NODE SCRIPTS — Windows, macOS, Linux, GitHub Actions",
 
@@ -16,8 +17,10 @@
     "build:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build",
     "start:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next start",
 
-    "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages"
+    "//deploy-local": "💠 FIXED WINDOWS-SAFE DEPLOY — Portable Node for Next.js build, System Node for gh-pages",
+    "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build && node ./node_modules/gh-pages/bin/gh-pages.js -d out -b gh-pages"
   },
+
   "dependencies": {
     "@types/mapbox-gl": "^3.4.1",
     "lucide-react": "^0.544.0",
@@ -26,6 +29,7 @@
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
+
   "devDependencies": {
     "@types/node": "20.11.24",
     "@types/react": "18.2.66",
