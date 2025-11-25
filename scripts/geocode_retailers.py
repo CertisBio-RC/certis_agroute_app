@@ -1,239 +1,66 @@
-﻿# ========================================
-# geocode_retailers.py
-# Certis AgRoute Planner — Phase B
-# Coordinate Integrity Validation + Auto Public Sync
-# ========================================
-# Fixes NaN string errors, ensures zero invalid JSON,
-# and automatically exports retailers.geojson to /public/data.
-# ========================================
-
-import json
-import pandas as pd
+﻿import pandas as pd
 import requests
-from time import sleep
+import time
 from pathlib import Path
-import re
-import tempfile
-import os
+import json
 
-# ========================================
-# CONFIGURATION
-# ========================================
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-PUBLIC_DATA_DIR = BASE_DIR / "public" / "data"
+DATA_DIR = Path("data")
+INFILE = DATA_DIR / "retailers.xlsx"
+OUTFILE = DATA_DIR / "retailers_latlong.xlsx"
+CACHE_FILE = DATA_DIR / "geocode_cache.csv"
+TOKEN_FILE = DATA_DIR / "mapbox_token.json"
 
-INPUT_FILE = DATA_DIR / "retailers.xlsx"
-OUTPUT_XLSX = DATA_DIR / "retailers_latlong.xlsx"
-OUTPUT_GEOJSON = DATA_DIR / "retailers.geojson"
-OUTPUT_GEOJSON_PUBLIC = PUBLIC_DATA_DIR / "retailers.geojson"
-CACHE_FILE = DATA_DIR / "geocode_cache.json"
-ANOMALY_FILE = DATA_DIR / "geocode_anomalies.xlsx"
+# Load token from JSON
+token = json.loads(TOKEN_FILE.read_text())["token"]
 
-MAPBOX_TOKEN = "pk.eyJ1IjoiZG9jamJhaWxleTE5NzEiLCJhIjoiY21mempnNTBmMDNibjJtb2ZycTJycDB6YyJ9.9LIIYF2Bwn_aRSsuOBSI3g"
-RATE_LIMIT_DELAY = 0.25
-MIDWEST_BIAS = "-96.5,42.5"
+df = pd.read_excel(INFILE, dtype=str).fillna("")
 
-# ========================================
-# LOAD INPUT
-# ========================================
-print(f"📥 Loading retailer Excel file: {INPUT_FILE}")
-
-if not INPUT_FILE.exists():
-    raise FileNotFoundError(f"❌ ERROR: Input file not found: {INPUT_FILE}")
-
-df = pd.read_excel(INPUT_FILE)
-print(f"✅ Loaded {len(df)} rows from {INPUT_FILE}")
-
-# Ensure required cols exist
-expected_columns = [
-    "Long Name", "Retailer", "Name", "Address", "City",
-    "State", "Zip", "Category", "Suppliers"
-]
-for col in expected_columns:
-    if col not in df.columns:
-        df[col] = ""
-
-for c in ["Latitude", "Longitude"]:
-    if c not in df.columns:
-        df[c] = None
-
-# ========================================
-# LOAD CACHED ADDRESSES
-# ========================================
+# Load or init cache
 if CACHE_FILE.exists():
-    with open(CACHE_FILE, "r", encoding="utf-8") as f:
-        cache = json.load(f)
-    print(f"📂 Loaded cache: {len(cache):,} entries")
+    cache = pd.read_csv(CACHE_FILE, dtype=str).fillna("")
 else:
-    cache = {}
-    print("🆕 Starting new cache...")
+    cache = pd.DataFrame(columns=["query", "lat", "lon"])
 
-# ========================================
-# HELPERS
-# ========================================
-def normalize_address(addr: str) -> str:
-    addr = str(addr).lower().strip()
-    addr = re.sub(r"[^a-z0-9\s,]", "", addr)
-    addr = re.sub(r"\s+", " ", addr)
-    return addr
+def lookup(q):
+    m = cache.loc[cache["query"] == q]
+    if len(m) == 1:
+        return float(m.iloc[0]["lat"]), float(m.iloc[0]["lon"])
+    return None
 
-new_hits = 0
-cached_hits = 0
+def update(q, lat, lon):
+    global cache
+    cache.loc[len(cache.index)] = [q, lat, lon]
+    cache.to_csv(CACHE_FILE, index=False)
 
-def geocode_address(address: str):
-    global new_hits, cached_hits
-    if not address.strip():
-        return None, None
+def geocode(addr):
+    cached = lookup(addr)
+    if cached:
+        return cached
 
-    key = normalize_address(address)
-    if key in cache:
-        cached_hits += 1
-        return cache[key]
+    url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{addr}.json"
+    r = requests.get(url, params={"access_token": token, "limit": 1})
+    js = r.json()
+    feats = js.get("features", [])
+    if feats:
+        lon, lat = feats[0]["center"]
+        update(addr, lat, lon)
+        return lat, lon
+    return None
 
-    url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{requests.utils.quote(address)}.json"
-    params = {
-        "access_token": MAPBOX_TOKEN,
-        "limit": 1,
-        "country": "US",
-        "types": "address,poi",
-        "proximity": MIDWEST_BIAS,
-    }
-
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-
-        if data.get("features"):
-            lon, lat = data["features"][0]["geometry"]["coordinates"]
-            cache[key] = (lat, lon)
-            new_hits += 1
-            return lat, lon
-        else:
-            cache[key] = (None, None)
-            return None, None
-
-    except Exception as e:
-        print(f"❌ Error geocoding '{address}': {e}")
-        cache[key] = (None, None)
-        return None, None
-
-# ========================================
-# MAIN GEOCODING LOOP
-# ========================================
-print("🧭 Beginning geocoding process...")
+rows = []
 for i, row in df.iterrows():
-    if pd.notna(row.get("Latitude")) and pd.notna(row.get("Longitude")):
-        continue
-    full_address = f"{row['Address']}, {row['City']}, {row['State']} {row['Zip']}".strip()
-    if not full_address or full_address.lower() == "nan":
-        continue
-    lat, lon = geocode_address(full_address)
-    df.at[i, "Latitude"] = lat
-    df.at[i, "Longitude"] = lon
+    print(f"   • Processed {i}/{len(df)}", end="\r")
 
-    if (i + 1) % 25 == 0:
-        print(f"   • Processed {i + 1}/{len(df)}")
-
-    sleep(RATE_LIMIT_DELAY)
-
-# ========================================
-# SAVE CACHE
-# ========================================
-tmpfile = tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8")
-json.dump(cache, tmpfile, indent=2)
-tmpfile.close()
-os.replace(tmpfile.name, CACHE_FILE)
-print(f"💾 Cache updated ({len(cache):,} entries)")
-
-# ========================================
-# SANITY CHECKS
-# ========================================
-df["Latitude"] = pd.to_numeric(df["Latitude"], errors="coerce").round(6)
-df["Longitude"] = pd.to_numeric(df["Longitude"], errors="coerce").round(6)
-
-suspects = []
-for i, r in df.iterrows():
-    lat, lon = r["Latitude"], r["Longitude"]
-    if pd.isna(lat) or pd.isna(lon):
-        reason = "Missing coordinates"
-    elif lat < 20 or lat > 50:
-        reason = "Lat out of US bounds"
-    elif lon > -50 or lon < -130:
-        reason = "Lon out of US bounds"
-    elif lon > -80:
-        reason = "Possible east-coast/geocode error"
-    elif lat > 0 and lon > 0:
-        reason = "Lat/Lon reversed?"
-        df.at[i, "Latitude"], df.at[i, "Longitude"] = lon, lat
-    else:
-        continue
-    suspects.append({**r.to_dict(), "Reason": reason})
-
-if suspects:
-    pd.DataFrame(suspects).to_excel(ANOMALY_FILE, index=False)
-    print(f"⚠️  {len(suspects)} suspect coordinates logged to {ANOMALY_FILE}")
-else:
-    print("✅ Coordinate sanity checks passed cleanly.")
-
-# ========================================
-# SAVE EXCEL OUTPUT
-# ========================================
-df.to_excel(OUTPUT_XLSX, index=False)
-print(f"📄 Geocoding complete → {OUTPUT_XLSX}")
-print(f"🔁 Cached hits: {cached_hits:,} | 🆕 New lookups: {new_hits:,}")
-
-# ========================================
-# EXPORT TO GEOJSON (100% NaN-SAFE)
-# ========================================
-print("🌎 Exporting to GeoJSON...")
-features = []
-
-def s(val):
-    """Converts any Excel cell to a safe string: NaN → '', float → '##', always .strip() safe."""
-    return str(val if (val is not None and str(val).lower() != "nan") else "").strip()
-
-for _, r in df.iterrows():
-    lat, lon = r["Latitude"], r["Longitude"]
-    if pd.isna(lat) or pd.isna(lon):
+    addr = f"{row['Address']}, {row['City']}, {row['State']} {row['Zip']}"
+    g = geocode(addr)
+    if not g:
+        rows.append({**row, "Latitude": "", "Longitude": ""})
         continue
 
-    suppliers = s(r.get("Suppliers", "")) or "None listed"
+    lat, lon = g
+    rows.append({**row, "Latitude": lat, "Longitude": lon})
+    time.sleep(0.12)
 
-    props = {
-        "Long Name": s(r.get("Long Name", "")),
-        "Retailer": s(r.get("Retailer", "")),
-        "Name": s(r.get("Name", "")),
-        "Address": s(r.get("Address", "")),
-        "City": s(r.get("City", "")),
-        "State": s(r.get("State", "")),
-        "Zip": s(r.get("Zip", "")),
-        "Category": s(r.get("Category", "")),
-        "Suppliers": suppliers,
-    }
-
-    features.append({
-        "type": "Feature",
-        "geometry": {
-            "type": "Point",
-            "coordinates": [round(float(lon), 6), round(float(lat), 6)]
-        },
-        "properties": props,
-    })
-
-geojson = {"type": "FeatureCollection", "features": features}
-
-with open(OUTPUT_GEOJSON, "w", encoding="utf-8") as f:
-    json.dump(geojson, f, indent=2, ensure_ascii=False)
-print(f"✅ Exported {len(features)} features → {OUTPUT_GEOJSON}")
-
-try:
-    PUBLIC_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_GEOJSON_PUBLIC, "w", encoding="utf-8") as f:
-        json.dump(geojson, f, indent=2, ensure_ascii=False)
-    print(f"🌍 Synced public dataset → {OUTPUT_GEOJSON_PUBLIC}")
-except Exception as e:
-    print(f"⚠️  Failed to write public copy: {e}")
-
-print("🏁 Phase B complete — coordinates validated, anomalies logged, and data exported.")
+out = pd.DataFrame(rows)
+out.to_excel(OUTFILE, index=False)
+print(f"\n\n✅ Exported geocoded retailers → {OUTFILE}")
