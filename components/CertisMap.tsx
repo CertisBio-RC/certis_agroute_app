@@ -344,19 +344,18 @@ onRetailersLoaded?.(
   )] as string[]
 );
 
-
-      // SUPPLIERS
-      onSuppliersLoaded?.(
-        [
-          ...new Set(
-            filtered.flatMap((f: any) =>
-              parseSuppliers(f.properties.Suppliers)
-            )
-          ),
-        ]
-          .filter(Boolean)
-          .sort()
-      );
+// SUPPLIERS
+onSuppliersLoaded?.(
+  [...new Set(
+    filtered
+      .flatMap((f: any) =>
+        parseSuppliers(f.properties.Suppliers).map((s: any) =>
+          String(s).trim()
+        )
+      )
+      .sort()
+  )] as string[]
+);
 
       // ALL STOPS
       onAllStopsLoaded?.(
