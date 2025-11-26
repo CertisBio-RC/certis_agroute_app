@@ -1,54 +1,85 @@
 ﻿# scripts/geocode_kingpin.py
-
 import pandas as pd
 import requests
-import json
 import time
+import numpy as np
 import os
 
-INPUT_FILE = os.path.join("data", "kingpin1_COMBINED.xlsx")
-OUTPUT_FILE = os.path.join("data", "kingpin_latlong.xlsx")
-TOKEN_FILE = os.path.join("data", "token.json")
+MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN", "").strip()
 
+INPUT_FILE = "data/kingpin1_COMBINED.xlsx"
+OUTPUT_FILE = "data/kingpin_latlong.xlsx"
 
-def load_token():
-    with open(TOKEN_FILE, "r", encoding="utf-8-sig") as f:
-        return json.load(f)["MAPBOX_TOKEN"]
+def safe(v):
+    """Convert NaN → empty string."""
+    if pd.isna(v):
+        return ""
+    return str(v).strip()
 
+def geocode(addr, city, state, zip_code):
+    """Return (lon, lat) using Mapbox forward geocoding."""
+    if not MAPBOX_TOKEN:
+        return (None, None)
 
-def geocode(address, token):
-    url = f"https://api.mapbox.com/search/geocode/v6/forward?q={address}&access_token={token}"
-    r = requests.get(url).json()
+    query = f"{addr}, {city}, {state} {zip_code}".strip().replace("  ", " ")
+
+    url = (
+        f"https://api.mapbox.com/search/geocode/v6/forward"
+        f"?q={requests.utils.quote(query)}"
+        f"&access_token={MAPBOX_TOKEN}"
+    )
 
     try:
-        coord = r["features"][0]["geometry"]["coordinates"]
-        return coord[0], coord[1]
+        r = requests.get(url)
+        data = r.json()
+
+        if "features" in data and len(data["features"]) > 0:
+            coords = data["features"][0]["geometry"]["coordinates"]
+            return (coords[0], coords[1])
     except:
-        return None, None
+        pass
+
+    return (None, None)
 
 
 def main():
-    print(f"[geocode_kingpin] Loading: {INPUT_FILE}")
+    print(f"🔵 Loading Kingpin Excel: {INPUT_FILE}")
     df = pd.read_excel(INPUT_FILE)
 
-    token = load_token()
+    # --- Correct column names from your file ---
+    ADDRESS_COL = "ADDRESS"
+    CITY_COL = "CITY"
+    STATE_COL = "STATE.1"
+    ZIP_COL = "ZIP CODE"
+
+    df["Address"] = df[ADDRESS_COL].apply(safe)
+    df["City"] = df[CITY_COL].apply(safe)
+    df["State"] = df[STATE_COL].apply(safe)
+    df["Zip"] = df[ZIP_COL].apply(safe)
 
     lons = []
     lats = []
 
+    print("🔵 Geocoding Kingpins...")
     for _, row in df.iterrows():
-        address = f"{row['ADDRESS']}, {row['CITY']}, {row['STATE']} {row['ZIP CODE']}"
-        lng, lat = geocode(address, token)
-        lons.append(lng)
+        addr = safe(row["Address"])
+        city = safe(row["City"])
+        state = safe(row["State"])
+        zip_code = safe(row["Zip"])
+
+        lon, lat = geocode(addr, city, state, zip_code)
+        lons.append(lon)
         lats.append(lat)
-        time.sleep(0.15)
+
+        print(f"   • {addr}, {city}, {state} {zip_code} → {lon}, {lat}")
+        time.sleep(0.10)
 
     df["Longitude"] = lons
     df["Latitude"] = lats
+
+    print(f"🔵 Saving to {OUTPUT_FILE}")
     df.to_excel(OUTPUT_FILE, index=False)
-
-    print(f"[OK] Saved → {OUTPUT_FILE}")
-
+    print("✅ Completed.")
 
 if __name__ == "__main__":
     main()
