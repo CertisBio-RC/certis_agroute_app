@@ -1,9 +1,10 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K4 GOLD FINAL (Nov 2025 Reset)
-//   • Bailey-compliant intersection filtering
+// 💠 CERTIS AGROUTE — K4 GOLD FINAL (Nov 2025 Reset, Stop Export Patch)
+//   • Restores exported Stop type (required by page.tsx)
 //   • Kingpins (PNG) — TOP layer
 //   • Corporate HQ — 7 px circle, red/yellow
 //   • Retailers — 6 px category-colored circles
+//   • Bailey-compliant intersection filtering
 //   • Add-to-Trip fully intact
 //   • Mapbox GL JS v3 — satellite-streets-v12 — Mercator
 //   • Static export safe
@@ -30,14 +31,17 @@ export const categoryColors: Record<string, string> = {
 };
 
 // ================================================================
-// 🧭 TYPE DEFINITIONS
+// 🧭 EXPORTED STOP TYPE — REQUIRED BY page.tsx
 // ================================================================
-interface Stop {
+export type Stop = {
   name: string;
   longitude: number;
   latitude: number;
-}
+};
 
+// ================================================================
+// 🧭 TYPE DEFINITIONS
+// ================================================================
 interface CertisMapProps {
   homeLocation: LngLatLike | null;
   tripStops: Stop[];
@@ -112,7 +116,7 @@ export default function CertisMap({
         data: kingpins
       });
 
-      // KINGPIN TOP LAYER — PNG ICON
+      // KINGPIN PNG — TOP LAYER
       map.loadImage("/icons/kingpin.png", (err, img) => {
         if (!err && img && !map.hasImage("kingpin-icon")) {
           map.addImage("kingpin-icon", img);
@@ -130,7 +134,7 @@ export default function CertisMap({
         }
       });
 
-      // CORPORATE HQ — 7 px RED/YELLOW CIRCLE — MIDDLE LAYER
+      // CORPORATE HQ — 7px RED/YELLOW CIRCLE (MIDDLE LAYER)
       map.addLayer({
         id: "hq-layer",
         type: "circle",
@@ -144,7 +148,7 @@ export default function CertisMap({
         filter: ["==", ["get", "Category"], "Corporate HQ"]
       });
 
-      // RETAILERS — 6 px category circles — BOTTOM LAYER
+      // RETAILERS — 6px category colored circles (BOTTOM LAYER)
       map.addLayer({
         id: "retailer-layer",
         type: "circle",
@@ -162,7 +166,7 @@ export default function CertisMap({
         filter: ["!=", ["get", "Category"], "Corporate HQ"]
       });
 
-      // Save categories, states, suppliers for dropdowns
+      // Extract values for dropdowns
       const listState = [...new Set(retailers.features.map((f: any) => f.properties.State))].sort().filter(Boolean);
       const listRetailer = [...new Set(retailers.features.map((f: any) => f.properties.Retailer))].sort().filter(Boolean);
       const listCategory = [...new Set(retailers.features.map((f: any) => f.properties.Category))].sort().filter(Boolean);
@@ -182,8 +186,8 @@ export default function CertisMap({
         const f = e.features?.[0];
         if (!f) return;
         const p = f.properties;
-
         const coords = f.geometry.coordinates as [number, number];
+
         const popupHtml = `
           <div style="font-size:14px;">
             <b>${p.Name}</b><br>
@@ -192,33 +196,29 @@ export default function CertisMap({
           </div>
         `;
 
-        const popup = new mapboxgl.Popup({ closeOnClick: true })
-          .setLngLat(coords)
-          .setHTML(popupHtml)
-          .addTo(map);
+        const popup = new mapboxgl.Popup().setLngLat(coords).setHTML(popupHtml).addTo(map);
 
         popup.on("open", () => {
           const btn = document.getElementById("trip-btn");
-          if (btn) {
-            btn.onclick = () => {
-              onAddStop({
-                name: p.Name,
-                longitude: coords[0],
-                latitude: coords[1]
-              });
-              popup.remove();
-            };
-          }
+          if (!btn) return;
+
+          btn.onclick = () => {
+            onAddStop({
+              name: p.Name,
+              longitude: coords[0],
+              latitude: coords[1]
+            });
+            popup.remove();
+          };
         });
       });
 
-      // Kingpin popup
       map.on("click", "kingpin-layer", (e) => {
         const f = e.features?.[0];
         if (!f) return;
         const p = f.properties;
-
         const coords = f.geometry.coordinates as [number, number];
+
         const popupHtml = `
           <div style="font-size:14px;">
             <b>${p.Name}</b><br>
@@ -227,23 +227,20 @@ export default function CertisMap({
           </div>
         `;
 
-        const popup = new mapboxgl.Popup({ closeOnClick: true })
-          .setLngLat(coords)
-          .setHTML(popupHtml)
-          .addTo(map);
+        const popup = new mapboxgl.Popup().setLngLat(coords).setHTML(popupHtml).addTo(map);
 
         popup.on("open", () => {
           const btn = document.getElementById("trip-btn2");
-          if (btn) {
-            btn.onclick = () => {
-              onAddStop({
-                name: p.Name,
-                longitude: coords[0],
-                latitude: coords[1]
-              });
-              popup.remove();
-            };
-          }
+          if (!btn) return;
+
+          btn.onclick = () => {
+            onAddStop({
+              name: p.Name,
+              longitude: coords[0],
+              latitude: coords[1]
+            });
+            popup.remove();
+          };
         });
       });
     });
@@ -252,12 +249,15 @@ export default function CertisMap({
   }, []);
 
   // ================================================================
-  // 🧭 FILTERING — GOLD BASELINE (Intersection for Retailers)
+  // 🧭 FILTERING — GOLD BASELINE
   // ================================================================
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
+    // ----------------------------------------------------
+    // Retailers — intersection logic
+    // ----------------------------------------------------
     const retailerFilter: any[] = ["all"];
 
     if (selectedState) {
@@ -270,25 +270,23 @@ export default function CertisMap({
       retailerFilter.push(["==", ["get", "Category"], selectedCategory]);
     }
     if (selectedSupplier) {
-      retailerFilter.push(["in",
-        selectedSupplier,
-        ["get", "Supplier"]]
-      );
+      retailerFilter.push(["in", selectedSupplier, ["get", "Supplier"]]);
     }
 
-    // Retailers (intersection)
     map.setFilter("retailer-layer", retailerFilter);
 
-    // HQ filter inherits same logic (same source)
+    // ----------------------------------------------------
+    // HQ — intersection + category="Corporate HQ"
+    // ----------------------------------------------------
     const hqFilter = ["all", ...retailerFilter.slice(1)];
     hqFilter.push(["==", ["get", "Category"], "Corporate HQ"]);
     map.setFilter("hq-layer", hqFilter);
 
-    // Kingpins — ONLY STATE filter
-    const kpFilter = ["all"];
-    if (selectedState) {
-      kpFilter.push(["==", ["get", "State"], selectedState]);
-    }
+    // ----------------------------------------------------
+    // Kingpins — ONLY State
+    // ----------------------------------------------------
+    const kpFilter: any[] = ["all"];
+    if (selectedState) kpFilter.push(["==", ["get", "State"], selectedState]);
     map.setFilter("kingpin-layer", kpFilter);
 
   }, [selectedState, selectedRetailer, selectedCategory, selectedSupplier]);
@@ -300,19 +298,17 @@ export default function CertisMap({
     const map = mapRef.current;
     if (!map || !homeLocation) return;
 
-    // Remove any old marker
     (map as any)._homeMarker?.remove();
 
-    // Add new
     const el = document.createElement("img");
     el.src = "/icons/Blue_Home.png";
     el.style.width = "28px";
 
-    const mk = new mapboxgl.Marker({ element: el })
+    const m = new mapboxgl.Marker({ element: el })
       .setLngLat(homeLocation)
       .addTo(map);
 
-    (map as any)._homeMarker = mk;
+    (map as any)._homeMarker = m;
 
   }, [homeLocation]);
 
@@ -322,7 +318,12 @@ export default function CertisMap({
   return (
     <div
       ref={mapContainer}
-      style={{ width: "100%", height: "100%", borderRadius: "12px", overflow: "hidden" }}
+      style={{
+        width: "100%",
+        height: "100%",
+        borderRadius: "12px",
+        overflow: "hidden"
+      }}
     />
   );
 }
