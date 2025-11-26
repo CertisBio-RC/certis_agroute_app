@@ -142,13 +142,18 @@ export default function CertisMap(props: CertisMapProps) {
         allRetailerFeatures.current = retailerFeatures;
         allKingpinFeatures.current = kingpinFeatures;
 
-        // 📌 STATES
-        const states = [
-          ...new Set(
-            retailerFeatures.map((f: any) => cap(f.properties?.State || "")).filter(Boolean)
-          ),
-        ].sort();
-        onStatesLoaded(states);
+// 📌 STATES
+const states = [
+  ...new Set(
+    retailerFeatures
+      .map((f: any) => cap(f.properties?.State || ""))
+      .filter(Boolean)
+  ),
+].sort();
+
+// 👉 FIX: TS expects string[], so cast explicitly.
+onStatesLoaded(states as string[]);
+
 
         // 📌 RETAILERS
         const retailers = [
