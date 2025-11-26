@@ -4,22 +4,26 @@
   "private": true,
 
   "scripts": {
-    "//": "💠 UNIVERSAL NODE SCRIPTS — Windows, macOS, Linux, GitHub Actions",
+    "//": "💠 UNIVERSAL NODE SCRIPTS — macOS, Linux, GitHub Actions",
 
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "export": "next export",
     "deploy": "next build && next export && gh-pages -d out -b gh-pages --dotfiles",
 
-    "//local": "💠 LOCAL PORTABLE NODE SCRIPTS — using %USERPROFILE%/node-portable",
+    "//local": "💠 WINDOWS PORTABLE NODE SCRIPTS — using %USERPROFILE%/node-portable",
+
     "dev:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next dev",
     "build:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build",
     "start:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next start",
 
-    "//export-local": "💠 STATIC EXPORT STAGE — REQUIRED for GitHub Pages",
+    "//export-local": "💠 STATIC EXPORT (Required for GitHub Pages)",
+
     "export:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next export",
 
-    "//deploy-local": "💠 FIXED WINDOWS-SAFE DEPLOY — build → export → publish",
+    "//deploy-local": "💠 WINDOWS-SAFE DEPLOY: build → export → publish",
+
     "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next export && \"%USERPROFILE%\\node-portable\\node.exe\" \"./node_modules/gh-pages/bin/gh-pages.js\" -d out -b gh-pages --dotfiles"
   },
 

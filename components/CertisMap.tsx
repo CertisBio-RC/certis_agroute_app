@@ -82,10 +82,10 @@ const sortCategories = (cats: string[]) =>
 export interface Stop {
   label: string;
   address: string;
-  coords: [number, number];
-  city?: string;
-  state?: string;
-  zip?: string | number;
+  city: string;
+  state: string;
+  zip: string;
+  coords?: [number, number]; // required for Home ZIP geocoded stops
 }
 
 export interface CertisMapProps {
