@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import CertisMap, { categoryColors, Stop } from "@/components/CertisMap";
+import CertisMap, { Stop, categoryColors } from "@/components/CertisMap";
 import SearchLocationsTile from "@/components/SearchLocationsTile";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
@@ -9,9 +9,9 @@ import { Menu, X } from "lucide-react";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-/* ----------------------------------------------
-   🌓 THEME HANDLER
----------------------------------------------- */
+/* ========================================================================
+   🌗 THEME HOOK — Bailey Rule (Dark Mode Default)
+======================================================================== */
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
@@ -32,21 +32,22 @@ function useTheme() {
   return { theme, toggleTheme };
 }
 
-/* ----------------------------------------------
-   🧭 HELPERS
----------------------------------------------- */
+/* ========================================================================
+   🔧 HELPERS
+======================================================================== */
 const norm = (val: string) => (val || "").toString().trim().toLowerCase();
 const capitalizeState = (val: string) => (val || "").toUpperCase();
 
-/* ----------------------------------------------
-   🌍 GOOGLE MAPS EXPORT
----------------------------------------------- */
+/* ========================================================================
+   🌍 GOOGLE MAPS URL BUILDER
+======================================================================== */
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
 
   const origin = encodeURIComponent(
     `${stops[0].address}, ${stops[0].city}, ${stops[0].state} ${stops[0].zip}`
   );
+
   const destination = encodeURIComponent(
     `${stops[stops.length - 1].address}, ${stops[stops.length - 1].city} ${
       stops[stops.length - 1].state
@@ -66,9 +67,9 @@ function buildGoogleMapsUrl(stops: Stop[]) {
     : `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
 }
 
-/* ----------------------------------------------
-   🍏 APPLE MAPS EXPORT
----------------------------------------------- */
+/* ========================================================================
+   🍏 APPLE MAPS URL BUILDER
+======================================================================== */
 function buildAppleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
 
@@ -85,20 +86,22 @@ function buildAppleMapsUrl(stops: Stop[]) {
   return `http://maps.apple.com/?dirflg=d&saddr=${origin}&daddr=${daddr}`;
 }
 
-/* =========================================================
-   🌟 MAIN PAGE COMPONENT
-========================================================= */
+/* ========================================================================
+   🚀 PAGE COMPONENT
+======================================================================== */
 export default function Page() {
   const { theme, toggleTheme } = useTheme();
 
-  /* 🎛 FILTER STATE */
+  /* -------------------------- FILTER STATE ------------------------------ */
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
+
   const [retailerSummary, setRetailerSummary] = useState<
     { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }[]
   >([]);
@@ -106,17 +109,19 @@ export default function Page() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [allStops, setAllStops] = useState<Stop[]>([]);
 
-  /* 🚗 TRIP BUILDER */
+  /* -------------------------- TRIP BUILDER ------------------------------ */
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
+
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
+
   const [routeSummary, setRouteSummary] = useState<{
     distance_m: number;
     duration_s: number;
   } | null>(null);
 
-  /* ➕ ADD STOP */
+  /* -------------------------- ADD STOP ------------------------------ */
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
       if (prev.some((s) => s.label === stop.label && s.address === stop.address))
@@ -124,24 +129,26 @@ export default function Page() {
 
       const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
       const home = prev.find((s) => s.label.startsWith("Home"));
+
       return home ? [home, ...nonHome, stop] : [...prev, stop];
     });
   };
 
-  /* ❌ REMOVE STOP */
+  /* -------------------------- REMOVE STOP ------------------------------ */
   const handleRemoveStop = (index: number) => {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
   };
 
-  /* 🗑 CLEAR EXCEPT HOME */
+  /* -------------------------- CLEAR STOPS ------------------------------ */
   const handleClearStops = () => {
     setTripStops((prev) => prev.filter((s) => s.label.startsWith("Home")));
     setRouteSummary(null);
   };
 
-  /* 🏠 ZIP GEOCODE */
+  /* -------------------------- ZIP GEOCODE ------------------------------ */
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
+
     try {
       const res = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
@@ -179,24 +186,26 @@ export default function Page() {
     } catch {}
   };
 
-  /* ROUTE ORDER */
+  /* -------------------------- ROUTE ORDER ------------------------------ */
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
+
     const homeStop = tripStops.find((s) => s.label.startsWith("Home"));
     const nonHome = tripStops.filter((s) => !s.label.startsWith("Home"));
+
     return homeStop ? [homeStop, ...nonHome, homeStop] : tripStops;
   }, [tripStops, homeCoords]);
 
-  /* CALLBACK FOR OPTIMIZER */
-  const handleOptimizedRoute = (optimizedStops: Stop[]) => {
-    if (optimizedStops.length < 2) return;
-    const start = optimizedStops[0];
-    const end = optimizedStops[optimizedStops.length - 1];
-    const middle = optimizedStops.slice(1, -1);
-    setTripStops([start, ...middle, end]);
+  /* ---------------------- OPTIMIZED ROUTE CALLBACK --------------------- */
+  const handleOptimizedRoute = (optimized: Stop[]) => {
+    if (optimized.length < 2) return;
+    const s = optimized[0];
+    const e = optimized[optimized.length - 1];
+    const m = optimized.slice(1, -1);
+    setTripStops([s, ...m, e]);
   };
 
-  /* RETAILER SUMMARY */
+  /* -------------------------- RETAILER SUMMARY ------------------------- */
   const filteredRetailersForSummary = useMemo(
     () =>
       selectedStates.length === 0
@@ -212,17 +221,23 @@ export default function Page() {
   );
 
   const kingpinSummary = retailerSummary.filter(
-    (s) => s.categories.includes("kingpin") || norm(s.retailer) === "kingpin"
-  );
-  const normalSummary = retailerSummary.filter(
     (s) =>
-      !s.categories.includes("kingpin") && norm(s.retailer) !== "kingpin"
+      s.categories.includes("Kingpin") ||
+      norm(s.retailer) === "kingpin"
   );
 
-  /* ===================== UI ===================== */
+  const normalSummary = retailerSummary.filter(
+    (s) =>
+      !s.categories.includes("Kingpin") &&
+      norm(s.retailer) !== "kingpin"
+  );
+
+  /* ========================================================================
+     🎨 UI RENDER
+  ======================================================================== */
   return (
     <div className="flex h-screen w-screen relative overflow-hidden">
-      {/* Mobile Hamburger */}
+      {/* MOBILE MENU */}
       <button
         className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -230,13 +245,13 @@ export default function Page() {
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR =============================================================== */}
       <aside
         className={`fixed md:static top-0 left-0 h-full w-[600px] bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
-        {/* Logo + Theme Toggle */}
+        {/* LOGO + THEME */}
         <div className="flex flex-col items-center justify-center mb-6 gap-3">
           <Image
             src={`${basePath}/certis-logo.png`}
@@ -253,9 +268,9 @@ export default function Page() {
           </button>
         </div>
 
-        {/* HOME ZIP */}
+        {/* HOME ZIP ----------------------------------------------------------- */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">Home Zip Code</h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Home ZIP Code</h2>
           <div className="flex space-x-2">
             <input
               type="text"
@@ -272,16 +287,17 @@ export default function Page() {
             </button>
           </div>
           {homeCoords && (
-            <p className="mt-2 text-sm text-yellow-400">Home set at {homeZip} ✔</p>
+            <p className="mt-2 text-sm text-yellow-400">Home set: {homeZip}</p>
           )}
         </div>
 
         {/* SEARCH TILE */}
         <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
 
-        {/* STATES */}
+        {/* STATES FILTER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">States</h2>
+
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setSelectedStates(availableStates.map(norm))}
@@ -296,6 +312,7 @@ export default function Page() {
               Clear
             </button>
           </div>
+
           <div className="grid grid-cols-3 gap-1 text-[16px]">
             {availableStates.map((state) => {
               const normalized = norm(state);
@@ -319,9 +336,10 @@ export default function Page() {
           </div>
         </div>
 
-        {/* RETAILERS */}
+        {/* RETAILERS FILTER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
+
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() =>
@@ -338,6 +356,7 @@ export default function Page() {
               Clear
             </button>
           </div>
+
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto text-[16px]">
             {availableRetailers.map((retailer) => {
               const normalized = norm(retailer);
@@ -361,9 +380,10 @@ export default function Page() {
           </div>
         </div>
 
-        {/* SUPPLIERS */}
+        {/* SUPPLIERS FILTER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Suppliers</h2>
+
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setSelectedSuppliers(availableSuppliers)}
@@ -378,6 +398,7 @@ export default function Page() {
               Clear
             </button>
           </div>
+
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto text-[16px]">
             {availableSuppliers.map((supplier) => (
               <label key={supplier} className="flex items-center space-x-2">
@@ -398,7 +419,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* CATEGORIES — OPTION A (FINAL) */}
+        {/* CATEGORIES FILTER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
 
@@ -422,54 +443,51 @@ export default function Page() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-[16px]">
-            {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map((key) => (
-              <label key={key} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={selectedCategories.includes(norm(key))}
-                  onChange={() =>
-                    setSelectedCategories((prev) =>
-                      prev.includes(norm(key))
-                        ? prev.filter((c) => c !== norm(key))
-                        : [...prev, norm(key)]
-                    )
-                  }
-                />
-                <span className="flex items-center text-white">
-                  <span
-                    className="inline-block w-3 h-3 rounded-full mr-1"
-                    style={{ backgroundColor: categoryColors[key].color }}
+            {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(
+              (key) => (
+                <label key={key} className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(norm(key))}
+                    onChange={() =>
+                      setSelectedCategories((prev) =>
+                        prev.includes(norm(key))
+                          ? prev.filter((c) => c !== norm(key))
+                          : [...prev, norm(key)]
+                      )
+                    }
                   />
-                  {key}
-                </span>
-              </label>
-            ))}
+                  <span className="flex items-center text-white">
+                    <span
+                      className="inline-block w-3 h-3 rounded-full mr-1"
+                      style={{ backgroundColor: categoryColors[key].color }}
+                    />
+                    {key}
+                  </span>
+                </label>
+              )
+            )}
           </div>
         </div>
 
         {/* CHANNEL SUMMARY */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Channel Summary</h2>
+
           <div className="text-[15px] max-h-48 overflow-y-auto text-white">
             {normalSummary.map((s, i) => (
               <div key={i} className="mb-4 p-2 rounded bg-gray-700/40">
-                <strong className="text-yellow-300 text-[17px]">{s.retailer}</strong>
+                <strong className="text-yellow-300 text-[17px]">
+                  {s.retailer}
+                </strong>
                 <br />
-                <span className="text-white text-[15px]">
-                  State(s): {s.states.map(capitalizeState).join(", ") || "N/A"}
-                </span>
+                <span>State(s): {s.states.map(capitalizeState).join(", ") || "N/A"}</span>
                 <br />
-                <span className="text-white text-[15px]">
-                  Total Locations: {s.count}
-                </span>
+                <span>Total Locations: {s.count}</span>
                 <br />
-                <span className="text-white text-[15px]">
-                  Suppliers: {s.suppliers.join(", ") || "N/A"}
-                </span>
+                <span>Suppliers: {s.suppliers.join(", ") || "N/A"}</span>
                 <br />
-                <span className="text-white text-[15px]">
-                  Categories: {s.categories.join(", ") || "N/A"}
-                </span>
+                <span>Categories: {s.categories.join(", ") || "N/A"}</span>
               </div>
             ))}
 
@@ -485,7 +503,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* TRIP BUILDER */}
+        {/* TRIP BUILDER ====================================================== */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow text-[16px] leading-tight mt-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Trip Optimization</h2>
 
@@ -499,6 +517,7 @@ export default function Page() {
               />
               <span className="text-white">Map as Entered</span>
             </label>
+
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="radio"
@@ -523,6 +542,7 @@ export default function Page() {
             </div>
           )}
 
+          {/* STOP LIST */}
           {tripStops.length > 0 ? (
             <div className="space-y-3">
               <ol className="ml-5 space-y-3 text-[15px]">
@@ -541,6 +561,7 @@ export default function Page() {
                         {stop.city}, {stop.state} {stop.zip}
                       </div>
                     </div>
+
                     {!stop.label.startsWith("Home") && (
                       <button
                         onClick={() => handleRemoveStop(i)}
@@ -592,7 +613,7 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* MAP PANEL */}
+      {/* MAP PANEL =========================================================== */}
       <main className="flex-1 relative flex flex-col">
         <div className="w-full flex justify-end pr-6 pt-4 mb-3">
           <h1 className="text-xl font-bold text-yellow-400 tracking-wide">
