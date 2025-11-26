@@ -1,85 +1,117 @@
-﻿# scripts/geocode_kingpin.py
-import pandas as pd
+﻿import pandas as pd
 import requests
+import re
+import unicodedata
 import time
-import numpy as np
 import os
 
-MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN", "").strip()
+MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN", "")
 
-INPUT_FILE = "data/kingpin1_COMBINED.xlsx"
-OUTPUT_FILE = "data/kingpin_latlong.xlsx"
+# ================================================================
+# 🔧 ADDRESS SANITIZATION ENGINE — Bailey Rule Compliant
+# ================================================================
+def sanitize_address(raw_address: str, city: str, state: str, zip_code: str) -> str:
+    if not raw_address:
+        raw_address = ""
 
-def safe(v):
-    """Convert NaN → empty string."""
-    if pd.isna(v):
-        return ""
-    return str(v).strip()
+    # Remove weird unicode artifacts
+    raw_address = unicodedata.normalize("NFKD", raw_address)
 
-def geocode(addr, city, state, zip_code):
-    """Return (lon, lat) using Mapbox forward geocoding."""
-    if not MAPBOX_TOKEN:
-        return (None, None)
+    # Strip Excel float artifacts → "123.0" → "123"
+    raw_address = re.sub(r"\.0\b", "", raw_address)
 
-    query = f"{addr}, {city}, {state} {zip_code}".strip().replace("  ", " ")
+    # Remove trailing periods
+    raw_address = re.sub(r"\b\.$", "", raw_address)
 
-    url = (
-        f"https://api.mapbox.com/search/geocode/v6/forward"
-        f"?q={requests.utils.quote(query)}"
-        f"&access_token={MAPBOX_TOKEN}"
-    )
+    # Replace double commas
+    raw_address = re.sub(r",\s*,", ", ", raw_address)
+
+    # Collapse multiple spaces
+    raw_address = re.sub(r"\s+", " ", raw_address).strip()
+
+    # Expand problematic abbreviations
+    raw_address = raw_address.replace(" Ctr", " Center")
+    raw_address = raw_address.replace(" Hwy", " Highway")
+
+    # Fix missing ZIP → use City Center
+    if not zip_code or not re.search(r"\d{5}", str(zip_code)):
+        zip_code = ""
+
+    # Build canonical Mapbox address
+    if raw_address and city and state and zip_code:
+        return f"{raw_address}, {city}, {state} {zip_code}"
+
+    # If no ZIP but we have city + state
+    if raw_address and city and state:
+        return f"{raw_address}, {city}, {state}"
+
+    # Fallback — City Center only
+    if city and state:
+        return f"{city} City Center, {state}"
+
+    # Last fallback
+    return raw_address.strip()
+
+
+# ================================================================
+# 🌎 GEOCODING FUNCTION
+# ================================================================
+def geocode_address(address: str):
+    if not address:
+        return None, None
+
+    url = "https://api.mapbox.com/search/geocode/v6/forward"
+    params = {"q": address, "access_token": MAPBOX_TOKEN}
 
     try:
-        r = requests.get(url)
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
         data = r.json()
 
         if "features" in data and len(data["features"]) > 0:
             coords = data["features"][0]["geometry"]["coordinates"]
-            return (coords[0], coords[1])
-    except:
-        pass
+            return coords[0], coords[1]
+        return None, None
 
-    return (None, None)
+    except Exception:
+        return None, None
 
 
+# ================================================================
+# 📘 MAIN PIPELINE
+# ================================================================
 def main():
-    print(f"🔵 Loading Kingpin Excel: {INPUT_FILE}")
-    df = pd.read_excel(INPUT_FILE)
+    # Correct path into /data folder
+    df = pd.read_excel("data/kingpin1_COMBINED.xlsx")
 
-    # --- Correct column names from your file ---
-    ADDRESS_COL = "ADDRESS"
-    CITY_COL = "CITY"
-    STATE_COL = "STATE.1"
-    ZIP_COL = "ZIP CODE"
-
-    df["Address"] = df[ADDRESS_COL].apply(safe)
-    df["City"] = df[CITY_COL].apply(safe)
-    df["State"] = df[STATE_COL].apply(safe)
-    df["Zip"] = df[ZIP_COL].apply(safe)
-
-    lons = []
-    lats = []
-
-    print("🔵 Geocoding Kingpins...")
+    results = []
     for _, row in df.iterrows():
-        addr = safe(row["Address"])
-        city = safe(row["City"])
-        state = safe(row["State"])
-        zip_code = safe(row["Zip"])
+        name = str(row.get("Name", "")).strip()
+        city = str(row.get("City", "")).strip()
+        state = str(row.get("State", "")).strip()
+        zip_code = str(row.get("Zip", "")).strip()
+        raw_address = str(row.get("Address", "")).strip()
 
-        lon, lat = geocode(addr, city, state, zip_code)
-        lons.append(lon)
-        lats.append(lat)
+        clean_addr = sanitize_address(raw_address, city, state, zip_code)
+        lon, lat = geocode_address(clean_addr)
 
-        print(f"   • {addr}, {city}, {state} {zip_code} → {lon}, {lat}")
-        time.sleep(0.10)
+        results.append({
+            "Name": name,
+            "Address": clean_addr,
+            "City": city,
+            "State": state,
+            "Zip": zip_code,
+            "Longitude": lon if lon is not None else "",
+            "Latitude": lat if lat is not None else "",
+        })
 
-    df["Longitude"] = lons
-    df["Latitude"] = lats
+        time.sleep(0.15)  # Avoid Mapbox rate limit
 
-    print(f"🔵 Saving to {OUTPUT_FILE}")
-    df.to_excel(OUTPUT_FILE, index=False)
-    print("✅ Completed.")
+    out_df = pd.DataFrame(results)
+    out_df.to_excel("data/kingpin_latlong.xlsx", index=False)
+
+    print("Geocoding complete — data/kingpin_latlong.xlsx generated.")
+
 
 if __name__ == "__main__":
     main()

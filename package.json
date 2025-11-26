@@ -2,7 +2,6 @@
   "name": "certis_agroute_app",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
 
   "scripts": {
     "//": "💠 UNIVERSAL NODE SCRIPTS — Windows, macOS, Linux, GitHub Actions",
@@ -10,15 +9,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "deploy": "next build && gh-pages -d out -b gh-pages",
+    "deploy": "next build && next export && gh-pages -d out -b gh-pages --dotfiles",
 
     "//local": "💠 LOCAL PORTABLE NODE SCRIPTS — using %USERPROFILE%/node-portable",
     "dev:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next dev",
     "build:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build",
     "start:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next start",
 
-    "//deploy-local": "💠 FIXED WINDOWS-SAFE DEPLOY — Portable Node for Next.js build & gh-pages",
-    "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" \"./node_modules/gh-pages/bin/gh-pages.js\" -d out -b gh-pages"
+    "//export-local": "💠 STATIC EXPORT STAGE — REQUIRED for GitHub Pages",
+    "export:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next export",
+
+    "//deploy-local": "💠 FIXED WINDOWS-SAFE DEPLOY — build → export → publish",
+    "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next export && \"%USERPROFILE%\\node-portable\\node.exe\" \"./node_modules/gh-pages/bin/gh-pages.js\" -d out -b gh-pages --dotfiles"
   },
 
   "dependencies": {
