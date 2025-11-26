@@ -161,7 +161,7 @@ onStatesLoaded(states as string[]);
             retailerFeatures.map((f: any) => f.properties?.Retailer || "").filter(Boolean)
           ),
         ].sort();
-        onRetailersLoaded(retailers);
+       onRetailersLoaded(retailers as string[]);
 
         // 📌 SUPPLIERS
         const suppliers = [
@@ -175,7 +175,7 @@ onStatesLoaded(states as string[]);
               .filter(Boolean)
           ),
         ].sort();
-        onSuppliersLoaded(suppliers);
+        onSuppliersLoaded(suppliers as string[]);
 
         // 📌 SUMMARY
         const summaryMap: Record<
@@ -405,7 +405,8 @@ onStatesLoaded(states as string[]);
       );
 
       const markerEl = elements.find((el) => el instanceof HTMLElement && el.dataset.id);
-      if (!markerEl || !markerEl.dataset.id) return;
+     if (!(markerEl instanceof HTMLElement)) return;
+if (!markerEl.dataset?.id) return;
 
       const addr = markerEl.dataset.id.split("|")[1]; // FIXED SAFE PARSING
       const all = [...allRetailerFeatures.current, ...allKingpinFeatures.current];
@@ -495,13 +496,17 @@ onStatesLoaded(states as string[]);
 
     const coords = tripStops.map((s) => s.coords);
 
-    map.addSource(id, {
-      type: "geojson",
-      data: {
-        type: "Feature",
-        geometry: { type: "LineString", coordinates: coords },
-      },
-    });
+map.addSource(id, {
+  type: "geojson",
+  data: {
+    type: "Feature",
+    properties: {},   // <-- Required fix
+    geometry: {
+      type: "LineString",
+      coordinates: coords,
+    },
+  },
+});
 
     map.addLayer({
       id,
