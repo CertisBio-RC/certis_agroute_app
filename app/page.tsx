@@ -41,7 +41,7 @@ const capitalizeState = (val: string) => (val || "").toUpperCase();
 /* ========================================================================
    🌍 GOOGLE MAPS URL BUILDER
 ======================================================================== */
-function buildGoogleMapsUrl(stops: Stop[]) {
+function buildGoogleMapsUrl(stops: any[]) {
   if (!stops || stops.length < 2) return null;
 
   const origin = encodeURIComponent(
