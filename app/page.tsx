@@ -106,10 +106,13 @@ export default function Page() {
     { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }[]
   >([]);
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+const [sidebarOpen, setSidebarOpen] = useState(false);
+
 const [allStops, setAllStops] = useState([]);
 const [tripStops, setTripStops] = useState([]);
-  const [allStops, setAllStops] = useState<Stop[]>([]);
+
+const [tripMode, setTripMode] = useState("entered");
+
 
   /* -------------------------- TRIP BUILDER ------------------------------ */
   const [tripStops, setTripStops] = useState<Stop[]>([]);
