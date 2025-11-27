@@ -70,7 +70,7 @@ function buildGoogleMapsUrl(stops: any[]) {
 /* ========================================================================
    🍏 APPLE MAPS URL BUILDER
 ======================================================================== */
-function buildAppleMapsUrl(stops: Stop[]) {
+function buildAppleMapsUrl(stops: any[]) {
   if (!stops || stops.length < 2) return null;
 
   const origin = encodeURIComponent(
