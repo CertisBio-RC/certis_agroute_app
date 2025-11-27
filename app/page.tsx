@@ -107,6 +107,8 @@ export default function Page() {
   >([]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+const [allStops, setAllStops] = useState([]);
+const [tripStops, setTripStops] = useState([]);
   const [allStops, setAllStops] = useState<Stop[]>([]);
 
   /* -------------------------- TRIP BUILDER ------------------------------ */
