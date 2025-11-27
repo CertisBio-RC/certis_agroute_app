@@ -125,17 +125,16 @@ export default function CertisMap(props: CertisMapProps) {
       // ------------------------------------------------------------
       // FEED LEFT PANEL FILTER LISTS
       // ------------------------------------------------------------
-      onStatesLoaded?.(
-        Array.from(
-          new Set(
-            retailerFeatures.map((f: any) =>
-              String(f.properties.State || "")
-            )
-          )
-        )
-          .filter(Boolean)
-          .sort()
-      );
+onStatesLoaded?.(
+  Array.from(
+    new Set(
+      retailerFeatures.map((f: any) =>
+        String(f.properties.State || "")
+      )
+    )
+  ) as string[]
+);
+
 
       onRetailersLoaded?.(
         Array.from(
