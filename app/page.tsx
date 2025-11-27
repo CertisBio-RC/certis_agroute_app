@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import CertisMap, { Stop, categoryColors } from "@/components/CertisMap";
+import CertisMap, { categoryColors } from "@/components/CertisMap";
 import SearchLocationsTile from "@/components/SearchLocationsTile";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
