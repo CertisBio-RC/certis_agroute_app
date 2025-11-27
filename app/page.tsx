@@ -472,7 +472,7 @@ export default function Page() {
                   <span className="flex items-center text-white">
                     <span
                       className="inline-block w-3 h-3 rounded-full mr-1"
-                      style={{ backgroundColor: categoryColors[key].color }}
+                      style={{ backgroundColor: categoryColors[key] }}
                     />
                     {key}
                   </span>
