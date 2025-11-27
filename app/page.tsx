@@ -10,6 +10,18 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 /* ========================================================================
+   🧭 STOP TYPE — REQUIRED FOR TRIP BUILDER (Fixes Stop[] errors)
+======================================================================== */
+export type Stop = {
+  label: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  coords: [number, number];
+};
+
+/* ========================================================================
    🌗 THEME HOOK — Bailey Rule (Dark Mode Default)
 ======================================================================== */
 function useTheme() {
@@ -41,7 +53,7 @@ const capitalizeState = (val: string) => (val || "").toUpperCase();
 /* ========================================================================
    🌍 GOOGLE MAPS URL BUILDER
 ======================================================================== */
-function buildGoogleMapsUrl(stops: any[]) {
+function buildGoogleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
 
   const origin = encodeURIComponent(
@@ -70,7 +82,7 @@ function buildGoogleMapsUrl(stops: any[]) {
 /* ========================================================================
    🍏 APPLE MAPS URL BUILDER
 ======================================================================== */
-function buildAppleMapsUrl(stops: any[]) {
+function buildAppleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
 
   const origin = encodeURIComponent(
@@ -106,15 +118,10 @@ export default function Page() {
     { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }[]
   >([]);
 
-const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-const [allStops, setAllStops] = useState([]);
-const [tripStops, setTripStops] = useState([]);
-
-const [tripMode, setTripMode] = useState("entered");
-
-
-  /* -------------------------- TRIP BUILDER ------------------------------ */
+  /* ------------------------ TRIP BUILDER STATE -------------------------- */
+  const [allStops, setAllStops] = useState<Stop[]>([]);
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
 
@@ -273,7 +280,7 @@ const [tripMode, setTripMode] = useState("entered");
           </button>
         </div>
 
-        {/* HOME ZIP ----------------------------------------------------------- */}
+        {/* HOME ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Home ZIP Code</h2>
           <div className="flex space-x-2">
