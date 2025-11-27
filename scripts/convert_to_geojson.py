@@ -1,57 +1,79 @@
-﻿# scripts/convert_to_geojson.py
+﻿# ============================================================
+#  CERTIS AGROUTE — RETAILERS → GEOJSON CONVERTER (FINAL FIXED)
+#  • Converts retailers_latlong.xlsx → retailers.geojson
+#  • NO geocoding — coordinates already in xlsx
+#  • Ensures Suppliers is ALWAYS a string (never an array)
+# ============================================================
 
 import pandas as pd
 import json
 import os
 
+
 INPUT_FILE = os.path.join("data", "retailers_latlong.xlsx")
 OUTPUT_FILE = os.path.join("public", "data", "retailers.geojson")
 
 
-def parse_suppliers(value):
-    if pd.isna(value):
-        return []
-    return [s.strip() for s in str(value).replace("|", ",").split(",") if s.strip()]
-
-
 def main():
-    print(f"[convert_to_geojson] Loading: {INPUT_FILE}")
+    print("===========================================")
+    print("  CERTIS — RETAILERS GEOJSON CONVERTER")
+    print("===========================================")
+    print(f"📘 Loading Excel → {INPUT_FILE}")
+
     df = pd.read_excel(INPUT_FILE)
+
+    # Avoid NaN
+    df = df.fillna("")
 
     features = []
 
     for _, row in df.iterrows():
-        lng = row["Longitude"]
-        lat = row["Latitude"]
+        try:
+            lon = float(row["Longitude"])
+            lat = float(row["Latitude"])
+        except:
+            continue  # skip invalid rows
 
-        if pd.isna(lng) or pd.isna(lat):
-            continue
+        # =====================================================
+        # FIXED SUPPLIERS HANDLING — ALWAYS FLAT STRING
+        raw_sup = row.get("Suppliers", "")
 
-        props = {
-            "Retailer": row["Retailer"],
-            "Name": row["Name"],
-            "Address": row["Address"],
-            "City": row["City"],
-            "State": row["State"],
-            "Zip": row["Zip"],
-            "Category": row["Category"],
-            "Suppliers": parse_suppliers(row["Suppliers"])
+        if isinstance(raw_sup, list):
+            suppliers = ", ".join([str(s).strip() for s in raw_sup if str(s).strip()])
+        else:
+            suppliers = str(raw_sup).strip()
+
+        # =====================================================
+        # PROPERTIES
+        properties = {
+            "LongName": row.get("Long Name", "").strip(),
+            "Retailer": row.get("Retailer", "").strip(),
+            "Name": row.get("Name", "").strip(),
+            "Address": row.get("Address", "").strip(),
+            "City": row.get("City", "").strip(),
+            "State": row.get("State", "").strip(),
+            "Zip": str(row.get("Zip", "")).strip(),
+            "Category": row.get("Category", "").strip(),
+            "Suppliers": suppliers,  # <— FIXED
         }
 
-        feat = {
+        feature = {
             "type": "Feature",
-            "geometry": {"type": "Point", "coordinates": [lng, lat]},
-            "properties": props
+            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            "properties": properties,
         }
 
-        features.append(feat)
+        features.append(feature)
 
-    geo = {"type": "FeatureCollection", "features": features}
+    geojson = {"type": "FeatureCollection", "features": features}
+
+    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(geo, f, indent=2)
+        json.dump(geojson, f, indent=2)
 
-    print(f"[OK] GeoJSON saved → {OUTPUT_FILE}")
+    print(f"📍 Saved GeoJSON → {OUTPUT_FILE}")
+    print("✅ Retailer GeoJSON Generation Complete")
 
 
 if __name__ == "__main__":

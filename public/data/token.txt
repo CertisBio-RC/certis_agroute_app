@@ -1,1 +1,1 @@
-pk.eyJ1IjoiZG9jamJhaWxleTE5NzEiLCJhIjoiY21ld3lzZTNqMGQwdzJxb2lwNHpjcjNveiJ9.T2O5szdwL-O5nDF9BJmFnw
+﻿{"MAPBOX_TOKEN": "pk.eyJ1IjoiZG9jamJhaWxleTE5NzEiLCJhIjoiY21mempnNTBmMDNibjJtb2ZycTJycDB6YyJ9.9LIIYF2Bwn_aRSsuOBSI3g"}

@@ -1,116 +1,119 @@
-﻿import pandas as pd
+﻿# ==============================================================
+# CERTIS AGROUTE — KINGPIN GEOCODER (FINAL GOLD VERSION)
+#   • Uses correct input file: data/kingpin1_COMBINED.xlsx
+#   • Uses token.json (no reliance on system env vars)
+#   • Produces:
+#       → data/kingpin_latlong.xlsx
+#       → public/data/kingpin.geojson
+# ==============================================================
+
+import pandas as pd
 import requests
-import re
-import unicodedata
+import json
 import time
 import os
 
-MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN", "")
+INPUT_FILE = os.path.join("data", "kingpin1_COMBINED.xlsx")
+OUTPUT_FILE = os.path.join("data", "kingpin_latlong.xlsx")
+GEOJSON_FILE = os.path.join("public", "data", "kingpin.geojson")
+TOKEN_FILE = os.path.join("data", "token.json")
 
-# ================================================================
-# 🔧 ADDRESS SANITIZATION ENGINE — Bailey Rule Compliant
-# ================================================================
-def sanitize_address(raw_address: str, city: str, state: str, zip_code: str) -> str:
-    if not raw_address:
-        raw_address = ""
+# ----------------------------------------------------------
+# Load Mapbox Token
+# ----------------------------------------------------------
+def load_token():
+    if not os.path.exists(TOKEN_FILE):
+        raise FileNotFoundError("ERROR: token.json not found in /data.")
+    with open(TOKEN_FILE, "r", encoding="utf-8-sig") as f:
+        data = json.load(f)
+        return data["MAPBOX_TOKEN"]
 
-    # Remove weird unicode artifacts
-    raw_address = unicodedata.normalize("NFKD", raw_address)
-
-    # Strip Excel float artifacts → "123.0" → "123"
-    raw_address = re.sub(r"\.0\b", "", raw_address)
-
-    # Remove trailing periods
-    raw_address = re.sub(r"\b\.$", "", raw_address)
-
-    # Replace double commas
-    raw_address = re.sub(r",\s*,", ", ", raw_address)
-
-    # Collapse multiple spaces
-    raw_address = re.sub(r"\s+", " ", raw_address).strip()
-
-    # Expand problematic abbreviations
-    raw_address = raw_address.replace(" Ctr", " Center")
-    raw_address = raw_address.replace(" Hwy", " Highway")
-
-    # Fix missing ZIP → use City Center
-    if not zip_code or not re.search(r"\d{5}", str(zip_code)):
-        zip_code = ""
-
-    # Build canonical Mapbox address
-    if raw_address and city and state and zip_code:
-        return f"{raw_address}, {city}, {state} {zip_code}"
-
-    # If no ZIP but we have city + state
-    if raw_address and city and state:
-        return f"{raw_address}, {city}, {state}"
-
-    # Fallback — City Center only
-    if city and state:
-        return f"{city} City Center, {state}"
-
-    # Last fallback
-    return raw_address.strip()
-
-
-# ================================================================
-# 🌎 GEOCODING FUNCTION
-# ================================================================
-def geocode_address(address: str):
-    if not address:
-        return None, None
-
-    url = "https://api.mapbox.com/search/geocode/v6/forward"
-    params = {"q": address, "access_token": MAPBOX_TOKEN}
+# ----------------------------------------------------------
+# Geocoder helper
+# ----------------------------------------------------------
+def geocode(address, token):
+    url = f"https://api.mapbox.com/search/geocode/v6/forward?q={address}&access_token={token}"
+    r = requests.get(url).json()
 
     try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-
-        if "features" in data and len(data["features"]) > 0:
-            coords = data["features"][0]["geometry"]["coordinates"]
-            return coords[0], coords[1]
-        return None, None
-
+        coords = r["features"][0]["geometry"]["coordinates"]
+        return coords[0], coords[1]
     except Exception:
         return None, None
 
-
-# ================================================================
-# 📘 MAIN PIPELINE
-# ================================================================
+# ----------------------------------------------------------
+# Main logic
+# ----------------------------------------------------------
 def main():
-    # Correct path into /data folder
-    df = pd.read_excel("data/kingpin1_COMBINED.xlsx")
+    print("\n===========================================")
+    print("  CERTIS — KINGPIN GEOCODING STARTING")
+    print("===========================================\n")
 
-    results = []
+    # Load Excel
+    df = pd.read_excel(INPUT_FILE)
+
+    token = load_token()
+
+    # Prepare output fields
+    longitudes = []
+    latitudes = []
+
+    # Iterate through rows
     for _, row in df.iterrows():
-        name = str(row.get("Name", "")).strip()
-        city = str(row.get("City", "")).strip()
-        state = str(row.get("State", "")).strip()
-        zip_code = str(row.get("Zip", "")).strip()
-        raw_address = str(row.get("Address", "")).strip()
+        # Build geocoding address (correct fields from Excel)
+        address = f"{row['ADDRESS']}, {row['CITY']}, {row['STATE']} {row['ZIP CODE']}"
+        lng, lat = geocode(address, token)
 
-        clean_addr = sanitize_address(raw_address, city, state, zip_code)
-        lon, lat = geocode_address(clean_addr)
+        longitudes.append(lng)
+        latitudes.append(lat)
 
-        results.append({
-            "Name": name,
-            "Address": clean_addr,
-            "City": city,
-            "State": state,
-            "Zip": zip_code,
-            "Longitude": lon if lon is not None else "",
-            "Latitude": lat if lat is not None else "",
-        })
+        time.sleep(0.15)
 
-        time.sleep(0.15)  # Avoid Mapbox rate limit
+    # Attach coordinates
+    df["Longitude"] = longitudes
+    df["Latitude"] = latitudes
 
-    out_df = pd.DataFrame(results)
-    out_df.to_excel("data/kingpin_latlong.xlsx", index=False)
+    # Save Excel
+    df.to_excel(OUTPUT_FILE, index=False)
+    print(f"📘 Saved Excel → {OUTPUT_FILE}")
 
-    print("Geocoding complete — data/kingpin_latlong.xlsx generated.")
+    # Build GeoJSON
+    features = []
+    for _, row in df.iterrows():
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [row["Longitude"], row["Latitude"]],
+            },
+            "properties": {
+                "RetailerName": row["RETAILER NAME"],
+                "Supplier": row["SUPPLIER"],
+                "ContactName": row["CONTACT NAME"],
+                "Title": row["CONTACT TITLE"],
+                "Address": row["ADDRESS"],
+                "City": row["CITY"],
+                "State": row["STATE"],
+                "Zip": str(row["ZIP CODE"]),
+                "OfficePhone": row["OFFICE PHONE"],
+                "CellPhone": row["CELL PHONE"],
+                "Email": row["EMAIL"],
+                "Category": "Kingpin"
+            }
+        }
+        features.append(feature)
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features
+    }
+
+    # Save GeoJSON
+    with open(GEOJSON_FILE, "w", encoding="utf-8") as f:
+        json.dump(geojson, f, indent=2)
+
+    print(f"📍 Saved GeoJSON → {GEOJSON_FILE}")
+    print("✅ Kingpin Geocoding Complete\n")
 
 
 if __name__ == "__main__":
