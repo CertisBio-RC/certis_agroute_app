@@ -81,7 +81,7 @@ function buildAppleMapsUrl(stops: Stop[]) {
 }
 
 /* ==========================================================================
-   🚀 MAIN PAGE COMPONENT (K4 GOLD — OPTION A)
+   🚀 MAIN PAGE COMPONENT (K4 GOLD — CANONICAL)
 =========================================================================== */
 export default function Page() {
   const { theme, toggleTheme } = useTheme();
@@ -262,9 +262,7 @@ export default function Page() {
 
         {/* HOME ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">
-            Home ZIP Code
-          </h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Home ZIP Code</h2>
           <div className="flex space-x-2">
             <input
               value={homeZip}
@@ -284,7 +282,7 @@ export default function Page() {
           )}
         </div>
 
-        {/* SEARCH TILE */}
+        {/* SEARCH TILE (Option A — sidebar only) */}
         <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
 
         {/* STATES FILTER */}
@@ -306,7 +304,7 @@ export default function Page() {
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-3 gap-1 max-h-32 overflow-y-auto">
             {availableStates.map((st) => {
               const n = norm(st);
               return (
@@ -468,9 +466,7 @@ export default function Page() {
 
           {normalSummary.map((s, i) => (
             <div key={i} className="mb-4 p-2 rounded bg-gray-700/40">
-              <strong className="text-yellow-300 text-[17px]">
-                {s.retailer}
-              </strong>
+              <strong className="text-yellow-300 text-[17px]">{s.retailer}</strong>
               <br />
               <span>State(s): {s.states.map(upper).join(", ")}</span>
               <br />
@@ -495,9 +491,7 @@ export default function Page() {
 
         {/* TRIP BUILDER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4 text-white">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">
-            Trip Optimization
-          </h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Trip Optimization</h2>
 
           <div className="flex space-x-4 mb-3">
             <label className="flex items-center space-x-2 cursor-pointer">
@@ -530,9 +524,7 @@ export default function Page() {
                     className="flex justify-between items-start pb-2 border-b border-gray-300 dark:border-gray-600"
                   >
                     <div>
-                      <div className="font-semibold text-yellow-300">
-                        {s.label}
-                      </div>
+                      <div className="font-semibold text-yellow-300">{s.label}</div>
                       <div className="text-[14px]">
                         {s.address}
                         <br />
@@ -603,7 +595,7 @@ export default function Page() {
             selectedSuppliers={selectedSuppliers}
             homeCoords={homeCoords}
             tripStops={stopsForRoute}
-            routeGeoJSON={null}
+            routeGeoJSON={null}  {/* routing comes in next milestone */}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={setAvailableSuppliers}
