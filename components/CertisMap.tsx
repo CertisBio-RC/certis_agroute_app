@@ -1,15 +1,5 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K4 GOLD FINAL (CANONICAL VERSION)
-//    SINGLE-FILE, STABLE, BUILD-SAFE CERTISMAP.TSX
-//    • Canonical Stop type
-//    • Loads retailers.geojson + kingpin.geojson
-//    • Normalizes suppliers
-//    • Provides dropdown lists
-//    • Provides full filtering (K4 Gold Logic)
-//    • Provides all layers (Retailers, HQ, Kingpin1 PNG)
-//    • Provides all popups
-//    • Provides home marker, trip markers, route line
-//    • 100% aligned with page.tsx
+// 💠 CERTIS AGROUTE — K4 GOLD FINAL (CANONICAL VERSION — BUILD-SAFE)
 // ============================================================================
 
 "use client";
@@ -19,8 +9,9 @@ import mapboxgl, { Map } from "mapbox-gl";
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 // ============================================================================
-// 🧭 STOP TYPE (FINAL SINGLE SOURCE OF TRUTH)
+// 🧭 STOP TYPE
 // ============================================================================
+
 export interface Stop {
   label: string;
   address: string;
@@ -33,6 +24,7 @@ export interface Stop {
 // ============================================================================
 // 🗂️ GEOJSON TYPES
 // ============================================================================
+
 interface RetailerFeature {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };
@@ -58,8 +50,9 @@ interface RetailerCollection {
 }
 
 // ============================================================================
-// 📌 PROPS — FINAL, CLEAN, STABLE
+// 📌 PROPS
 // ============================================================================
+
 interface CertisMapProps {
   selectedStates: string[];
   selectedRetailers: string[];
@@ -67,7 +60,6 @@ interface CertisMapProps {
   selectedSuppliers: string[];
 
   homeCoords: [number, number] | null;
-
   tripStops: Stop[];
   routeGeoJSON: any | null;
 
@@ -92,6 +84,7 @@ interface CertisMapProps {
 // ============================================================================
 // 🗺️ MAIN COMPONENT
 // ============================================================================
+
 export default function CertisMap({
   selectedStates,
   selectedRetailers,
@@ -111,8 +104,9 @@ export default function CertisMap({
   const mapRef = useRef<Map | null>(null);
 
   // ==========================================================================
-  // 🌐 INITIAL MAP LOAD + DATA LOAD
+  // 🌐 INITIAL MAP + DATA LOAD
   // ==========================================================================
+
   useEffect(() => {
     if (!mapContainer.current) return;
     if (mapRef.current) return;
@@ -142,11 +136,10 @@ export default function CertisMap({
         ...kingpinJSON.features,
       ];
 
-      // Normalize supplier values
+      // Normalize suppliers
       allData.forEach((f) => {
         if (typeof f.properties.Supplier === "string") {
-          f.properties.Supplier = f.properties.Supplier
-            .split(",")
+          f.properties.Supplier = f.properties.Supplier.split(",")
             .map((x) => x.trim())
             .filter(Boolean);
         }
@@ -164,21 +157,22 @@ export default function CertisMap({
 
       onAllStopsLoaded?.(stops);
 
-      // Populate dropdowns
+      // Dropdown lists
       onStatesLoaded?.(
         [...new Set(allData.map((f) => f.properties.State))].sort()
       );
-
       onRetailersLoaded?.(
         [...new Set(allData.map((f) => f.properties.Retailer))].sort()
       );
-
       onSuppliersLoaded?.(
-        [...new Set(allData.flatMap((f) => f.properties.Supplier as string[]))]
-          .sort()
+        [
+          ...new Set(
+            allData.flatMap((f) => f.properties.Supplier as string[])
+          ),
+        ].sort()
       );
 
-      // Add sources
+      // Sources
       if (!map.getSource("retailers")) {
         map.addSource("retailers", {
           type: "geojson",
@@ -204,13 +198,14 @@ export default function CertisMap({
   }, []);
 
   // ==========================================================================
-  // 🧮 RETAILER SUMMARY + FILTERING (K4 GOLD FINAL)
+  // 🧮 SUMMARY + FILTERING (K4 GOLD FINAL)
   // ==========================================================================
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    const norm = (v: string) => (v || "").trim().toLowerCase();
+    const norm = (s: string) => (s || "").trim().toLowerCase();
 
     const selState = new Set(selectedStates.map(norm));
     const selRetailer = new Set(selectedRetailers.map(norm));
@@ -218,8 +213,9 @@ export default function CertisMap({
     const selSupplier = new Set(selectedSuppliers.map(norm));
 
     // ----------------------------------------------------------------------
-    // SUMMARY (TS-SAFE VERSION — REPLACES TYPED MAP<…>)
+    // SUMMARY
     // ----------------------------------------------------------------------
+
     (async () => {
       const rRes = await fetch("/data/retailers.geojson");
       const retailersJSON: RetailerCollection = await rRes.json();
@@ -229,22 +225,13 @@ export default function CertisMap({
 
       const all = [...retailersJSON.features, ...kingpinJSON.features];
 
-      const summaryObj: Record<
-        string,
-        {
-          retailer: string;
-          count: number;
-          suppliers: Set<string>;
-          categories: Set<string>;
-          states: Set<string>;
-        }
-      > = {};
+      const mapObj: any = {};
 
       for (const f of all) {
         const r = f.properties.Retailer;
 
-        if (!summaryObj[r]) {
-          summaryObj[r] = {
+        if (!mapObj[r]) {
+          mapObj[r] = {
             retailer: r,
             count: 1,
             suppliers: new Set(f.properties.Supplier as string[]),
@@ -252,16 +239,18 @@ export default function CertisMap({
             states: new Set([f.properties.State]),
           };
         } else {
-          const s = summaryObj[r];
+          const s = mapObj[r];
           s.count++;
-          (f.properties.Supplier as string[]).forEach((x) => s.suppliers.add(x));
+          (f.properties.Supplier as string[]).forEach((x) =>
+            s.suppliers.add(x)
+          );
           s.categories.add(f.properties.Category);
           s.states.add(f.properties.State);
         }
       }
 
       onRetailerSummary?.(
-        Object.values(summaryObj).map((x) => ({
+        Object.values(mapObj).map((x: any) => ({
           retailer: x.retailer,
           count: x.count,
           suppliers: [...x.suppliers].sort(),
@@ -272,8 +261,10 @@ export default function CertisMap({
     })();
 
     // ----------------------------------------------------------------------
-    // FILTERING (K4 GOLD LOGIC)
+    // FILTERS — K4 GOLD FINAL
     // ----------------------------------------------------------------------
+
+    // Retailer circles
     const retailerFilter: any[] = ["all"];
 
     if (selectedStates.length > 0) {
@@ -303,7 +294,11 @@ export default function CertisMap({
     if (selectedSuppliers.length > 0) {
       retailerFilter.push([
         "any",
-        ["in", ["downcase", ["get", "Supplier"]], ["literal", [...selSupplier]]],
+        [
+          "in",
+          ["downcase", ["get", "Supplier"]],
+          ["literal", [...selSupplier]],
+        ],
       ]);
     }
 
@@ -311,6 +306,7 @@ export default function CertisMap({
       map.setFilter("retailer-circles", retailerFilter);
     }
 
+    // Corporate HQ — FIXED (no boolean filter!)
     const corpHQFilter =
       selectedStates.length > 0
         ? [
@@ -318,14 +314,15 @@ export default function CertisMap({
             ["downcase", ["get", "State"]],
             ["literal", [...selState]],
           ]
-        : true;
+        : ["all"]; // ← FIXED
 
     if (map.getLayer("corp-hq-circles")) {
       map.setFilter("corp-hq-circles", corpHQFilter);
     }
 
+    // Kingpin1 ALWAYS visible
     if (map.getLayer("kingpin1-layer")) {
-      map.setFilter("kingpin1-layer", true); // ALWAYS visible
+      map.setFilter("kingpin1-layer", ["all"]);
     }
   }, [
     selectedStates,
@@ -335,13 +332,14 @@ export default function CertisMap({
   ]);
 
   // ==========================================================================
-  // 🗺️ LAYERS + POPUPS + MARKERS + ROUTE
+  // 🗺️ LAYERS + POPUPS + HOME/STOP MARKERS + ROUTE
   // ==========================================================================
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // Load icons
+    // Icons
     if (!map.hasImage("home-icon")) {
       map.loadImage("/icons/Blue_Home.png", (err, img) => {
         if (!err && img) map.addImage("home-icon", img);
@@ -354,7 +352,7 @@ export default function CertisMap({
       });
     }
 
-    // Retailer circles
+    // Retailer
     if (!map.getLayer("retailer-circles")) {
       map.addLayer({
         id: "retailer-circles",
@@ -408,18 +406,18 @@ export default function CertisMap({
       closeOnClick: true,
     });
 
-    function buildPopupHTML(props: any) {
-      const sup = (props.Supplier || []).join("<br/>");
+    function buildHTML(p: any) {
+      const sup = (p.Supplier || []).join("<br/>");
       return `
         <div style="font-size:14px; line-height:1.25">
           <div style="font-size:16px; font-weight:bold; color:#FFD348;">
-            ${props.Retailer}
+            ${p.Retailer}
           </div>
-          <div>${props.Address}</div>
-          <div>${props.City}, ${props.State} ${props.Zip}</div>
+          <div>${p.Address}</div>
+          <div>${p.City}, ${p.State} ${p.Zip}</div>
 
           <div style="margin-top:6px;">
-            <strong>Category:</strong> ${props.Category}<br/>
+            <strong>Category:</strong> ${p.Category}<br/>
             <strong>Suppliers:</strong><br/>${sup}
           </div>
 
@@ -438,20 +436,16 @@ export default function CertisMap({
       `;
     }
 
-    function bindPopup(layerId: string) {
-      map.on("click", layerId, (e) => {
+    function bindPopup(layer: string) {
+      map.on("click", layer, (e) => {
         const f = e.features?.[0];
         if (!f) return;
 
-        popup
-          .setLngLat(e.lngLat)
-          .setHTML(buildPopupHTML(f.properties))
-          .addTo(map);
+        popup.setLngLat(e.lngLat).setHTML(buildHTML(f.properties)).addTo(map);
 
         setTimeout(() => {
           const btn = document.getElementById("addStopBtn");
           if (!btn) return;
-
           btn.onclick = () => {
             onAddStop?.({
               label: f.properties.Retailer,
@@ -479,7 +473,6 @@ export default function CertisMap({
           el.style.height = "32px";
           el.style.backgroundImage = "url('/icons/Blue_Home.png')";
           el.style.backgroundSize = "cover";
-          el.style.cursor = "pointer";
           return el;
         })(),
       })
@@ -488,30 +481,30 @@ export default function CertisMap({
     }
 
     // Trip markers
-    tripStops.forEach((stop, i) => {
+    tripStops.forEach((s, i) => {
       const el = document.createElement("div");
+
       el.style.width = "20px";
       el.style.height = "20px";
       el.style.borderRadius = "50%";
       el.style.background = "#f97316";
       el.style.border = "2px solid white";
-      el.title = `${i + 1}. ${stop.label}`;
+      el.title = `${i + 1}. ${s.label}`;
 
       new mapboxgl.Marker({ element: el })
-        .setLngLat(stop.coords)
+        .setLngLat(s.coords)
         .addTo(map);
     });
 
-    // Route updating
+    // Route
     if (routeGeoJSON) {
-      const src = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+      const src = map.getSource("route") as mapboxgl.GeoJSONSource;
       if (src) src.setData(routeGeoJSON);
     }
   }, [homeCoords, tripStops, routeGeoJSON, onAddStop]);
 
   // ==========================================================================
-  // RENDER
-  // ==========================================================================
+
   return (
     <div
       ref={mapContainer}
