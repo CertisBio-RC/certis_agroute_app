@@ -6,9 +6,9 @@ import SearchLocationsTile from "@/components/SearchLocationsTile";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
-/* ==========================================================================
-   🧭 STOP TYPE — MUST MATCH CertisMap.tsx EXACTLY
-=========================================================================== */
+/* ========================================================================
+   ⛳ STOP TYPE — must match CertisMap.tsx exactly
+======================================================================== */
 export interface Stop {
   label: string;
   address: string;
@@ -18,9 +18,9 @@ export interface Stop {
   coords: [number, number];
 }
 
-/* ==========================================================================
-   🌗 THEME (Bailey Rule: Default DARK)
-=========================================================================== */
+/* ========================================================================
+   🌗 THEME — Bailey Rule: dark default
+======================================================================== */
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
@@ -44,25 +44,17 @@ function useTheme() {
 const norm = (s: string) => (s || "").trim().toLowerCase();
 const upper = (s: string) => (s || "").toUpperCase();
 
-/* ==========================================================================
-   🌍 EXTERNAL MAP URLS
-=========================================================================== */
+/* ========================================================================
+   🌍 MAP URL BUILDERS
+======================================================================== */
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
-
   const encode = (s: Stop) =>
     encodeURIComponent(`${s.address}, ${s.city}, ${s.state} ${s.zip}`);
-
   const origin = encode(stops[0]);
   const destination = encode(stops[stops.length - 1]);
   const MAX = 8;
-
-  const waypoints = stops
-    .slice(1, -1)
-    .slice(0, MAX)
-    .map(encode)
-    .join("|");
-
+  const waypoints = stops.slice(1, -1).slice(0, MAX).map(encode).join("|");
   return waypoints
     ? `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}`
     : `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
@@ -70,23 +62,22 @@ function buildGoogleMapsUrl(stops: Stop[]) {
 
 function buildAppleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
-
   const encode = (s: Stop) =>
     encodeURIComponent(`${s.address}, ${s.city}, ${s.state} ${s.zip}`);
-
   const origin = encode(stops[0]);
   const dest = stops.slice(1).map(encode).join("+to:");
-
   return `http://maps.apple.com/?dirflg=d&saddr=${origin}&daddr=${dest}`;
 }
 
-/* ==========================================================================
-   🚀 MAIN PAGE COMPONENT (K4 GOLD — CANONICAL)
-=========================================================================== */
+/* ========================================================================
+   🚀 MAIN — CERTIS AGROUTE — K4 GOLD FINAL
+======================================================================== */
 export default function Page() {
   const { theme, toggleTheme } = useTheme();
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-  /* --- FILTER STATE --- */
+  /* ---------- FILTERING ---------- */
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
@@ -107,62 +98,43 @@ export default function Page() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  /* --- TRIP BUILDER --- */
+  /* ---------- TRIP BUILDER ---------- */
   const [allStops, setAllStops] = useState<Stop[]>([]);
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
-  /* ==========================================================================
-     🧭 ADD STOP
-  ========================================================================== */
+  /* Add stop */
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
       if (prev.some((s) => s.label === stop.label && s.address === stop.address))
         return prev;
-
       const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
       const home = prev.find((s) => s.label.startsWith("Home"));
-
       return home ? [home, ...nonHome, stop] : [...prev, stop];
     });
   };
 
-  /* ==========================================================================
-     ❌ REMOVE STOP
-  ========================================================================== */
-  const handleRemoveStop = (index: number) => {
-    setTripStops((prev) => prev.filter((_, i) => i !== index));
-  };
+  /* Remove */
+  const handleRemoveStop = (idx: number) =>
+    setTripStops((prev) => prev.filter((_, i) => i !== idx));
 
-  /* ==========================================================================
-     🗑 CLEAR STOPS
-  ========================================================================== */
-  const handleClearStops = () => {
+  /* Clear */
+  const handleClearStops = () =>
     setTripStops((prev) => prev.filter((s) => s.label.startsWith("Home")));
-  };
 
-  /* ==========================================================================
-     📍 ZIP → GEOCOORDINATES
-  ========================================================================== */
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-
+  /* Geocode ZIP */
   const handleGeocodeZip = async () => {
     if (!homeZip || !mapboxToken) return;
-
     try {
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
         homeZip
       )}.json?access_token=${mapboxToken}&limit=1`;
-
       const data = await (await fetch(url)).json();
       if (!data.features?.length) return;
-
       const f = data.features[0];
       const [lng, lat] = f.center;
-
       let city = "";
       let state = "";
       f.context?.forEach((c: any) => {
@@ -170,8 +142,7 @@ export default function Page() {
         if (c.id.startsWith("region"))
           state = c.short_code?.replace("US-", "") || c.text;
       });
-
-      const newHome: Stop = {
+      const home: Stop = {
         label: `Home (${homeZip})`,
         address: homeZip,
         city,
@@ -179,27 +150,21 @@ export default function Page() {
         zip: homeZip,
         coords: [lng, lat],
       };
-
       setHomeCoords([lng, lat]);
-      setTripStops((prev) => {
-        const others = prev.filter((s) => !s.label.startsWith("Home"));
-        return [newHome, ...others];
+      setTripStops((p) => {
+        const others = p.filter((s) => !s.label.startsWith("Home"));
+        return [home, ...others];
       });
     } catch {}
   };
 
-  /* ==========================================================================
-     RETAILER SUMMARY (STATE-FIRST LOGIC)
-  ========================================================================== */
+  /* ---------- RETAILER SUMMARY ---------- */
   const filteredRetailersForSummary = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
-
     return retailerSummary
-      .filter((s) =>
-        s.states.some((st) => selectedStates.includes(norm(st)))
-      )
+      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
       .map((s) => s.retailer)
-      .filter((x, i, arr) => arr.indexOf(x) === i)
+      .filter((x, i, a) => a.indexOf(x) === i)
       .sort();
   }, [selectedStates, retailerSummary, availableRetailers]);
 
@@ -208,30 +173,26 @@ export default function Page() {
   );
 
   const normalSummary = retailerSummary.filter(
-    (s) =>
-      !s.categories.includes("Kingpin") && norm(s.retailer) !== "kingpin"
+    (s) => !s.categories.includes("Kingpin") && norm(s.retailer) !== "kingpin"
   );
 
-  /* ==========================================================================
-     TRIP ORDER (HOME FIRST)
-  ========================================================================== */
+  /* ---------- TRIP ORDER (HOME FIRST) ---------- */
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
-
-    const homeStop = tripStops.find((s) => s.label.startsWith("Home"));
+    const home = tripStops.find((s) => s.label.startsWith("Home"));
     const rest = tripStops.filter((s) => !s.label.startsWith("Home"));
-
-    return homeStop ? [homeStop, ...rest] : tripStops;
+    return home ? [home, ...rest] : tripStops;
   }, [tripStops, homeCoords]);
 
-  /* ==========================================================================
+  /* ========================================================================
      UI
-  ========================================================================== */
+  ======================================================================== */
   return (
     <div className="flex h-screen w-screen relative overflow-hidden">
+
       {/* MOBILE MENU BUTTON */}
       <button
-        className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
+        className="absolute top-3 left-3 z-40 p-2 bg-gray-800 text-white rounded-md md:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
       >
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
@@ -239,9 +200,10 @@ export default function Page() {
 
       {/* SIDEBAR */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-[600px] bg-gray-100 dark:bg-gray-900 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto z-10 transform transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
+        className={`fixed md:static top-0 left-0 h-full w-[600px] 
+        bg-gray-100 dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 
+        p-4 overflow-y-auto z-30 transform transition-transform duration-300
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
         {/* LOGO + THEME */}
         <div className="flex flex-col items-center mb-6 gap-3">
@@ -263,7 +225,7 @@ export default function Page() {
         {/* HOME ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Home ZIP Code</h2>
-          <div className="flex space-x-2">
+          <div className="flex gap-2">
             <input
               value={homeZip}
               onChange={(e) => setHomeZip(e.target.value)}
@@ -278,17 +240,16 @@ export default function Page() {
             </button>
           </div>
           {homeCoords && (
-            <p className="mt-2 text-sm text-yellow-400">Home set: {homeZip}</p>
+            <p className="text-sm text-yellow-400 mt-2">Home set: {homeZip}</p>
           )}
         </div>
 
-        {/* SEARCH TILE (Option A — sidebar only) */}
+        {/* SEARCH TILE */}
         <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
 
-        {/* STATES FILTER */}
+        {/* STATES */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">States</h2>
-
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setSelectedStates(availableStates.map(norm))}
@@ -303,8 +264,7 @@ export default function Page() {
               Clear
             </button>
           </div>
-
-          <div className="grid grid-cols-3 gap-1 max-h-32 overflow-y-auto">
+          <div className="grid grid-cols-3 gap-1">
             {availableStates.map((st) => {
               const n = norm(st);
               return (
@@ -313,10 +273,8 @@ export default function Page() {
                     type="checkbox"
                     checked={selectedStates.includes(n)}
                     onChange={() =>
-                      setSelectedStates((prev) =>
-                        prev.includes(n)
-                          ? prev.filter((x) => x !== n)
-                          : [...prev, n]
+                      setSelectedStates((p) =>
+                        p.includes(n) ? p.filter((x) => x !== n) : [...p, n]
                       )
                     }
                   />
@@ -327,15 +285,12 @@ export default function Page() {
           </div>
         </div>
 
-        {/* RETAILERS FILTER */}
+        {/* RETAILERS */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
-
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-              onClick={() =>
-                setSelectedRetailers(filteredRetailersForSummary.map(norm))
-              }
+              onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
@@ -347,7 +302,6 @@ export default function Page() {
               Clear
             </button>
           </div>
-
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto">
             {availableRetailers.map((r) => {
               const n = norm(r);
@@ -357,10 +311,8 @@ export default function Page() {
                     type="checkbox"
                     checked={selectedRetailers.includes(n)}
                     onChange={() =>
-                      setSelectedRetailers((prev) =>
-                        prev.includes(n)
-                          ? prev.filter((x) => x !== n)
-                          : [...prev, n]
+                      setSelectedRetailers((p) =>
+                        p.includes(n) ? p.filter((x) => x !== n) : [...p, n]
                       )
                     }
                   />
@@ -371,10 +323,9 @@ export default function Page() {
           </div>
         </div>
 
-        {/* SUPPLIERS FILTER */}
+        {/* SUPPLIERS */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Suppliers</h2>
-
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setSelectedSuppliers(availableSuppliers)}
@@ -389,7 +340,6 @@ export default function Page() {
               Clear
             </button>
           </div>
-
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto">
             {availableSuppliers.map((s) => (
               <label key={s} className="flex items-center space-x-2">
@@ -397,10 +347,8 @@ export default function Page() {
                   type="checkbox"
                   checked={selectedSuppliers.includes(s)}
                   onChange={() =>
-                    setSelectedSuppliers((prev) =>
-                      prev.includes(s)
-                        ? prev.filter((x) => x !== s)
-                        : [...prev, s]
+                    setSelectedSuppliers((p) =>
+                      p.includes(s) ? p.filter((x) => x !== s) : [...p, s]
                     )
                   }
                 />
@@ -410,10 +358,9 @@ export default function Page() {
           </div>
         </div>
 
-        {/* CATEGORIES FILTER */}
+        {/* CATEGORIES */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
-
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() =>
@@ -432,37 +379,30 @@ export default function Page() {
               Clear
             </button>
           </div>
-
           <div className="grid grid-cols-2 gap-2">
-            {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(
-              (cat) => {
-                const n = norm(cat);
-                return (
-                  <label key={cat} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories.includes(n)}
-                      onChange={() =>
-                        setSelectedCategories((prev) =>
-                          prev.includes(n)
-                            ? prev.filter((c) => c !== n)
-                            : [...prev, n]
-                        )
-                      }
-                    />
-                    <span className="flex items-center text-white">{cat}</span>
-                  </label>
-                );
-              }
-            )}
+            {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map((cat) => {
+              const n = norm(cat);
+              return (
+                <label key={cat} className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(n)}
+                    onChange={() =>
+                      setSelectedCategories((p) =>
+                        p.includes(n) ? p.filter((c) => c !== n) : [...p, n]
+                      )
+                    }
+                  />
+                  <span className="text-white">{cat}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
 
         {/* CHANNEL SUMMARY */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 max-h-64 overflow-y-auto text-white">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">
-            Channel Summary
-          </h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">Channel Summary</h2>
 
           {normalSummary.map((s, i) => (
             <div key={i} className="mb-4 p-2 rounded bg-gray-700/40">
@@ -493,6 +433,7 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4 text-white">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Trip Optimization</h2>
 
+          {/* (Option A — stays in sidebar only) */}
           <div className="flex space-x-4 mb-3">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
@@ -503,7 +444,6 @@ export default function Page() {
               />
               <span>Map as Entered</span>
             </label>
-
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="radio"
@@ -588,6 +528,7 @@ export default function Page() {
         </div>
 
         <div className="flex-1">
+
           <CertisMap
             selectedStates={selectedStates}
             selectedRetailers={selectedRetailers}
@@ -595,7 +536,7 @@ export default function Page() {
             selectedSuppliers={selectedSuppliers}
             homeCoords={homeCoords}
             tripStops={stopsForRoute}
-            routeGeoJSON={null}  {/* routing comes in next milestone */}
+            routeGeoJSON={null}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={setAvailableSuppliers}
