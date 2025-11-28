@@ -6,28 +6,27 @@ import SearchLocationsTile from "@/components/SearchLocationsTile";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
-/* ======================================================================
+/* ==========================================================================
    🧭 STOP TYPE — MUST MATCH CertisMap.tsx EXACTLY
-====================================================================== */
+=========================================================================== */
 export interface Stop {
   label: string;
   address: string;
   city: string;
   state: string;
   zip: string;
-  coords: [number, number]; // MATCHES CertisMap.tsx
+  coords: [number, number];
 }
 
-/* ======================================================================
-   🌗 THEME (Bailey Rule: default DARK)
-====================================================================== */
+/* ==========================================================================
+   🌗 THEME (Bailey Rule: Default DARK)
+=========================================================================== */
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
     const start = stored ? (stored as "light" | "dark") : "dark";
-
     setTheme(start);
     document.documentElement.classList.toggle("dark", start === "dark");
   }, []);
@@ -45,9 +44,9 @@ function useTheme() {
 const norm = (s: string) => (s || "").trim().toLowerCase();
 const upper = (s: string) => (s || "").toUpperCase();
 
-/* ======================================================================
-   🌍 EXTERNAL URL BUILDERS (UNCHANGED)
-====================================================================== */
+/* ==========================================================================
+   🌍 EXTERNAL MAP URLS
+=========================================================================== */
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
 
@@ -56,9 +55,13 @@ function buildGoogleMapsUrl(stops: Stop[]) {
 
   const origin = encode(stops[0]);
   const destination = encode(stops[stops.length - 1]);
-
   const MAX = 8;
-  const waypoints = stops.slice(1, -1).slice(0, MAX).map(encode).join("|");
+
+  const waypoints = stops
+    .slice(1, -1)
+    .slice(0, MAX)
+    .map(encode)
+    .join("|");
 
   return waypoints
     ? `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}`
@@ -77,13 +80,13 @@ function buildAppleMapsUrl(stops: Stop[]) {
   return `http://maps.apple.com/?dirflg=d&saddr=${origin}&daddr=${dest}`;
 }
 
-/* ======================================================================
-   🚀 PAGE COMPONENT — FINAL CANONICAL VERSION
-====================================================================== */
+/* ==========================================================================
+   🚀 MAIN PAGE COMPONENT (K4 GOLD — OPTION A)
+=========================================================================== */
 export default function Page() {
   const { theme, toggleTheme } = useTheme();
 
-  /* --------------------- FILTER STATE --------------------- */
+  /* --- FILTER STATE --- */
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
@@ -104,17 +107,16 @@ export default function Page() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  /* --------------------- TRIP BUILDER --------------------- */
+  /* --- TRIP BUILDER --- */
   const [allStops, setAllStops] = useState<Stop[]>([]);
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
-
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
-  /* ======================================================================
+  /* ==========================================================================
      🧭 ADD STOP
-  ======================================================================= */
+  ========================================================================== */
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
       if (prev.some((s) => s.label === stop.label && s.address === stop.address))
@@ -127,23 +129,23 @@ export default function Page() {
     });
   };
 
-  /* ======================================================================
+  /* ==========================================================================
      ❌ REMOVE STOP
-  ======================================================================= */
+  ========================================================================== */
   const handleRemoveStop = (index: number) => {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
   };
 
-  /* ======================================================================
-     🗑️ CLEAR STOPS
-  ======================================================================= */
+  /* ==========================================================================
+     🗑 CLEAR STOPS
+  ========================================================================== */
   const handleClearStops = () => {
     setTripStops((prev) => prev.filter((s) => s.label.startsWith("Home")));
   };
 
-  /* ======================================================================
-     📍 ZIP → GEOCOORDS
-  ======================================================================= */
+  /* ==========================================================================
+     📍 ZIP → GEOCOORDINATES
+  ========================================================================== */
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
@@ -179,7 +181,6 @@ export default function Page() {
       };
 
       setHomeCoords([lng, lat]);
-
       setTripStops((prev) => {
         const others = prev.filter((s) => !s.label.startsWith("Home"));
         return [newHome, ...others];
@@ -187,9 +188,9 @@ export default function Page() {
     } catch {}
   };
 
-  /* ======================================================================
-     FILTERED RETAILERS SUMMARY (STATE-FIRST LOGIC)
-  ======================================================================= */
+  /* ==========================================================================
+     RETAILER SUMMARY (STATE-FIRST LOGIC)
+  ========================================================================== */
   const filteredRetailersForSummary = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
 
@@ -211,9 +212,9 @@ export default function Page() {
       !s.categories.includes("Kingpin") && norm(s.retailer) !== "kingpin"
   );
 
-  /* ======================================================================
-     TRIP ORDER (HOME FIRST IF PRESENT)
-  ======================================================================= */
+  /* ==========================================================================
+     TRIP ORDER (HOME FIRST)
+  ========================================================================== */
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
 
@@ -223,9 +224,9 @@ export default function Page() {
     return homeStop ? [homeStop, ...rest] : tripStops;
   }, [tripStops, homeCoords]);
 
-  /* ======================================================================
+  /* ==========================================================================
      UI
-  ======================================================================= */
+  ========================================================================== */
   return (
     <div className="flex h-screen w-screen relative overflow-hidden">
       {/* MOBILE MENU BUTTON */}
@@ -261,7 +262,9 @@ export default function Page() {
 
         {/* HOME ZIP */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">Home ZIP Code</h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">
+            Home ZIP Code
+          </h2>
           <div className="flex space-x-2">
             <input
               value={homeZip}
@@ -281,12 +284,13 @@ export default function Page() {
           )}
         </div>
 
-        {/* SEARCH */}
+        {/* SEARCH TILE */}
         <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
 
         {/* STATES FILTER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">States</h2>
+
           <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setSelectedStates(availableStates.map(norm))}
@@ -433,34 +437,40 @@ export default function Page() {
 
           <div className="grid grid-cols-2 gap-2">
             {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(
-              (key) => (
-                <label key={key} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(norm(key))}
-                    onChange={() =>
-                      setSelectedCategories((prev) =>
-                        prev.includes(norm(key))
-                          ? prev.filter((c) => c !== norm(key))
-                          : [...prev, norm(key)]
-                      )
-                    }
-                  />
-                  <span className="flex items-center text-white">{key}</span>
-                </label>
-              )
+              (cat) => {
+                const n = norm(cat);
+                return (
+                  <label key={cat} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.includes(n)}
+                      onChange={() =>
+                        setSelectedCategories((prev) =>
+                          prev.includes(n)
+                            ? prev.filter((c) => c !== n)
+                            : [...prev, n]
+                        )
+                      }
+                    />
+                    <span className="flex items-center text-white">{cat}</span>
+                  </label>
+                );
+              }
             )}
           </div>
         </div>
 
         {/* CHANNEL SUMMARY */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 max-h-64 overflow-y-auto text-white">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">Channel Summary</h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">
+            Channel Summary
+          </h2>
 
-          {/* NORMAL RETAILERS */}
           {normalSummary.map((s, i) => (
             <div key={i} className="mb-4 p-2 rounded bg-gray-700/40">
-              <strong className="text-yellow-300 text-[17px]">{s.retailer}</strong>
+              <strong className="text-yellow-300 text-[17px]">
+                {s.retailer}
+              </strong>
               <br />
               <span>State(s): {s.states.map(upper).join(", ")}</span>
               <br />
@@ -472,7 +482,6 @@ export default function Page() {
             </div>
           ))}
 
-          {/* KINGPINS */}
           {kingpinSummary.length > 0 && (
             <div className="mt-4 p-2 rounded bg-gray-800/60">
               <strong className="text-yellow-400">Kingpins:</strong>
@@ -486,9 +495,10 @@ export default function Page() {
 
         {/* TRIP BUILDER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4 text-white">
-          <h2 className="text-lg font-bold text-yellow-400 mb-3">Trip Optimization</h2>
+          <h2 className="text-lg font-bold text-yellow-400 mb-3">
+            Trip Optimization
+          </h2>
 
-          {/* Mode Selection */}
           <div className="flex space-x-4 mb-3">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
@@ -511,7 +521,6 @@ export default function Page() {
             </label>
           </div>
 
-          {/* STOP LIST */}
           {tripStops.length > 0 ? (
             <div className="space-y-3">
               <ol className="ml-5 space-y-3">
@@ -521,7 +530,9 @@ export default function Page() {
                     className="flex justify-between items-start pb-2 border-b border-gray-300 dark:border-gray-600"
                   >
                     <div>
-                      <div className="font-semibold text-yellow-300">{s.label}</div>
+                      <div className="font-semibold text-yellow-300">
+                        {s.label}
+                      </div>
                       <div className="text-[14px]">
                         {s.address}
                         <br />
@@ -541,7 +552,6 @@ export default function Page() {
                 ))}
               </ol>
 
-              {/* BUTTONS */}
               <div className="flex flex-wrap gap-2 mt-2">
                 <button
                   onClick={handleClearStops}
@@ -589,11 +599,11 @@ export default function Page() {
           <CertisMap
             selectedStates={selectedStates}
             selectedRetailers={selectedRetailers}
-            selectedSuppliers={selectedSuppliers}
             selectedCategories={selectedCategories}
+            selectedSuppliers={selectedSuppliers}
             homeCoords={homeCoords}
             tripStops={stopsForRoute}
-            routeGeoJSON={null}           {/* REQUIRED FOR PROP MATCH */}
+            routeGeoJSON={null}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={setAvailableSuppliers}
