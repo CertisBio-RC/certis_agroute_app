@@ -1,43 +1,45 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K4 GOLD FINAL (Full Clean Regeneration)
-//   • Full intersection filtering (State + Retailer + Category + Supplier)
-//   • Corporate HQ: Red (#CC0000) w/ Gold (#FFD700) stroke — 7px
-//   • Retailers: 6px category-colored circles
-//   • Kingpin1: PNG icon (“kingpin.png”) — ALWAYS visible
-//   • Summary + sleuthing support: allStops[] emitted to page.tsx
-//   • Satellite-streets-v12 • Mercator • Mapbox GL JS v3
-//   • Fully TypeScript-correct — no generic Map<> errors
+// 💠 CERTIS AGROUTE — K4 GOLD FINAL (CANONICAL VERSION)
+//    SINGLE-FILE, STABLE, BUILD-SAFE CERTISMAP.TSX
+//    • Canonical Stop type
+//    • Loads retailers.geojson + kingpin.geojson
+//    • Normalizes suppliers
+//    • Provides dropdown lists
+//    • Provides full filtering (K4 Gold Logic)
+//    • Provides all layers (Retailers, HQ, Kingpin1 PNG)
+//    • Provides all popups
+//    • Provides home marker, trip markers, route line
+//    • 100% aligned with current page.tsx
 // ============================================================================
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import mapboxgl, { LngLatLike, Map } from "mapbox-gl";
+import { useEffect, useRef } from "react";
+import mapboxgl, { Map } from "mapbox-gl";
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 // ============================================================================
-// 🎨 CATEGORY COLORS — K4 GOLD PALETTE
+// 🧭 STOP TYPE (FINAL SINGLE SOURCE OF TRUTH)
 // ============================================================================
-export const categoryColors: Record<string, string> = {
-  Agronomy: "#2E86AB",
-  "Grain/Feed": "#8E44AD",
-  "C-Store/Service/Energy": "#FF8C00",
-  Distribution: "#C0392B",
-  Retail: "#1E8449",
-  "Corporate HQ": "#CC0000",
-  Kingpin: "#FFD700"
-};
+export interface Stop {
+  label: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  coords: [number, number];
+}
 
 // ============================================================================
-// 🗂️ TYPES FOR GEOJSON
+// 🗂️ GEOJSON TYPES
 // ============================================================================
-export interface RetailerFeature {
+interface RetailerFeature {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };
   properties: {
     Retailer: string;
     Category: string;
-    Supplier: string[]; // normalized below
+    Supplier: string | string[];
     Address: string;
     City: string;
     State: string;
@@ -46,6 +48,7 @@ export interface RetailerFeature {
     Email?: string;
     IsKingpin1?: boolean;
     IsCorporateHQ?: boolean;
+    Color?: string;
   };
 }
 
@@ -55,47 +58,35 @@ interface RetailerCollection {
 }
 
 // ============================================================================
-// 🔖 STOP TYPE (USED BY SEARCH + SUMMARY)
-// ============================================================================
-export interface Stop {
-  label: string;
-  coordinates: [number, number];
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  retailer: string;
-}
-
-// ============================================================================
-// 📌 COMPONENT PROPS
+// 📌 PROPS — FINAL, CLEAN, STABLE
 // ============================================================================
 interface CertisMapProps {
   selectedStates: string[];
   selectedRetailers: string[];
   selectedCategories: string[];
   selectedSuppliers: string[];
-  homeLocation: LngLatLike | null;
-  tripStops: Stop[];
 
-  onAddTripStop?: (stop: Stop) => void;
+  homeCoords: [number, number] | null;
+
+  tripStops: Stop[];
+  routeGeoJSON: any | null;
 
   onStatesLoaded?: (states: string[]) => void;
   onRetailersLoaded?: (retailers: string[]) => void;
+  onSuppliersLoaded?: (suppliers: string[]) => void;
 
-  /** Must emit full Stops[] dataset to page.tsx */
-  onAllStopsLoaded?: (stops: Stop[]) => void;
-
-  /** Must emit full retailer summary for Channel Summary tile */
-  onSummaryLoaded?: (
+  onRetailerSummary?: (
     summary: {
       retailer: string;
       count: number;
-      states: string[];
-      cities: string[];
       suppliers: string[];
+      categories: string[];
+      states: string[];
     }[]
   ) => void;
+
+  onAllStopsLoaded?: (stops: Stop[]) => void;
+  onAddStop?: (stop: Stop) => void;
 }
 
 // ============================================================================
@@ -106,22 +97,21 @@ export default function CertisMap({
   selectedRetailers,
   selectedCategories,
   selectedSuppliers,
-  homeLocation,
+  homeCoords,
   tripStops,
-  onAddTripStop,
+  routeGeoJSON,
   onStatesLoaded,
   onRetailersLoaded,
+  onSuppliersLoaded,
+  onRetailerSummary,
   onAllStopsLoaded,
-  onSummaryLoaded
+  onAddStop,
 }: CertisMapProps) {
-
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
 
-  // Will hold merged retailer + kingpin dataset
-  const allDataRef = useRef<RetailerFeature[]>([]);
   // ==========================================================================
-  // 🌐 MAP LOAD + GEOJSON LOAD
+  // 🌐 INITIAL MAP LOAD + DATA LOAD
   // ==========================================================================
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -130,422 +120,396 @@ export default function CertisMap({
     const map = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      projection: "mercator", // Bailey Rule
-      center: [-94.0, 42.5],
+      projection: "mercator",
+      center: [-94, 42.5],
       zoom: 5,
-      cooperativeGestures: true
+      cooperativeGestures: true,
     });
 
     mapRef.current = map;
 
     map.on("load", async () => {
-      // ---------------------------------------------------------------
-      // LOAD BOTH DATASETS
-      // ---------------------------------------------------------------
-      const retailersRes = await fetch("/data/retailers.geojson");
-      const retailersJSON: RetailerCollection = await retailersRes.json();
+      // Retailers
+      const rRes = await fetch("/data/retailers.geojson");
+      const retailersJSON: RetailerCollection = await rRes.json();
 
-      const kingpinRes = await fetch("/data/kingpin.geojson");
-      const kingpinJSON: RetailerCollection = await kingpinRes.json();
+      // Kingpins
+      const kRes = await fetch("/data/kingpin.geojson");
+      const kingpinJSON: RetailerCollection = await kRes.json();
 
-      // Merge but keep Kingpin1 separate visually
       const allData: RetailerFeature[] = [
         ...retailersJSON.features,
-        ...kingpinJSON.features
+        ...kingpinJSON.features,
       ];
 
-      // Normalize Supplier → always string[]
+      // Normalize supplier values
       allData.forEach((f) => {
-        const s = f.properties.Supplier;
-        if (Array.isArray(s)) {
-          f.properties.Supplier = s.map((x) => x.trim());
-        } else if (typeof s === "string") {
-          f.properties.Supplier = s
+        if (typeof f.properties.Supplier === "string") {
+          f.properties.Supplier = f.properties.Supplier
             .split(",")
             .map((x) => x.trim())
             .filter(Boolean);
-        } else {
-          f.properties.Supplier = [];
         }
       });
 
-      // Cache for later filtering
-      allDataRef.current = allData;
-
-      // -----------------------------------------------------------------
-      // POPULATE DROPDOWNS
-      // -----------------------------------------------------------------
-      const states = [
-        ...new Set(allData.map((f) => f.properties.State).filter(Boolean))
-      ].sort();
-      onStatesLoaded?.(states);
-
-      const retailers = [
-        ...new Set(allData.map((f) => f.properties.Retailer).filter(Boolean))
-      ].sort();
-      onRetailersLoaded?.(retailers);
-
-      // -----------------------------------------------------------------
-      // BUILD allStops[] FOR SEARCH & SUMMARY
-      // -----------------------------------------------------------------
+      // Canonical Stop[]
       const stops: Stop[] = allData.map((f) => ({
         label: f.properties.Retailer,
-        coordinates: f.geometry.coordinates,
         address: f.properties.Address,
         city: f.properties.City,
         state: f.properties.State,
         zip: f.properties.Zip,
-        retailer: f.properties.Retailer
+        coords: f.geometry.coordinates,
       }));
+
       onAllStopsLoaded?.(stops);
 
-      // -----------------------------------------------------------------
-      // BUILD summaryMap FOR CHANNEL SUMMARY TILE
-      //   Summarizes *all known locations* for any retailer visited OR sleuthed
-      // -----------------------------------------------------------------
+      // Populate dropdowns
+      onStatesLoaded?.(
+        [...new Set(allData.map((f) => f.properties.State))].sort()
+      );
+
+      onRetailersLoaded?.(
+        [...new Set(allData.map((f) => f.properties.Retailer))].sort()
+      );
+
+      onSuppliersLoaded?.(
+        [
+          ...new Set(
+            allData.flatMap((f) => f.properties.Supplier as string[])
+          ),
+        ].sort()
+      );
+
+      // Add sources
+      if (!map.getSource("retailers")) {
+        map.addSource("retailers", {
+          type: "geojson",
+          data: retailersJSON,
+        });
+      }
+
+      if (!map.getSource("kingpin")) {
+        map.addSource("kingpin", {
+          type: "geojson",
+          data: kingpinJSON,
+        });
+      }
+
+      // Route source
+      if (!map.getSource("route")) {
+        map.addSource("route", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+      }
+    });
+  }, []);
+
+  // ==========================================================================
+  // 🧮 RETAILER SUMMARY + FILTERING (K4 GOLD FINAL)
+  // ==========================================================================
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const norm = (v: string) => (v || "").trim().toLowerCase();
+
+    const selState = new Set(selectedStates.map(norm));
+    const selRetailer = new Set(selectedRetailers.map(norm));
+    const selCategory = new Set(selectedCategories.map(norm));
+    const selSupplier = new Set(selectedSuppliers.map(norm));
+
+    // Summary (full dataset)
+    (async () => {
+      const rRes = await fetch("/data/retailers.geojson");
+      const retailersJSON: RetailerCollection = await rRes.json();
+
+      const kRes = await fetch("/data/kingpin.geojson");
+      const kingpinJSON: RetailerCollection = await kRes.json();
+
+      const all = [...retailersJSON.features, ...kingpinJSON.features];
+
       const summaryMap = new Map<
         string,
         {
           retailer: string;
           count: number;
-          states: Set<string>;
-          cities: Set<string>;
           suppliers: Set<string>;
+          categories: Set<string>;
+          states: Set<string>;
         }
       >();
 
-      for (const f of allData) {
+      for (const f of all) {
         const r = f.properties.Retailer;
         if (!summaryMap.has(r)) {
           summaryMap.set(r, {
             retailer: r,
-            count: 0,
-            states: new Set(),
-            cities: new Set(),
-            suppliers: new Set()
+            count: 1,
+            suppliers: new Set(f.properties.Supplier as string[]),
+            categories: new Set([f.properties.Category]),
+            states: new Set([f.properties.State]),
           });
+        } else {
+          const s = summaryMap.get(r)!;
+          s.count++;
+          (f.properties.Supplier as string[]).forEach((x) => s.suppliers.add(x));
+          s.categories.add(f.properties.Category);
+          s.states.add(f.properties.State);
         }
-        const entry = summaryMap.get(r)!;
-        entry.count++;
-        entry.states.add(f.properties.State);
-        entry.cities.add(f.properties.City);
-        f.properties.Supplier.forEach((s) => entry.suppliers.add(s));
       }
 
-      const summaryArr = Array.from(summaryMap.values()).map((x) => ({
-        retailer: x.retailer,
-        count: x.count,
-        states: Array.from(x.states).sort(),
-        cities: Array.from(x.cities).sort(),
-        suppliers: Array.from(x.suppliers).sort()
-      }));
+      onRetailerSummary?.(
+        [...summaryMap.values()].map((x) => ({
+          retailer: x.retailer,
+          count: x.count,
+          suppliers: [...x.suppliers].sort(),
+          categories: [...x.categories].sort(),
+          states: [...x.states].sort(),
+        }))
+      );
+    })();
 
-      onSummaryLoaded?.(summaryArr);
+    // Filtering (K4 Gold)
 
-      // -----------------------------------------------------------------
-      // ADD SOURCE
-      // -----------------------------------------------------------------
-      map.addSource("retailers", {
-        type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: allData
-        }
+    const retailerFilter: any[] = ["all"];
+
+    if (selectedStates.length > 0) {
+      retailerFilter.push([
+        "in",
+        ["downcase", ["get", "State"]],
+        ["literal", [...selState]],
+      ]);
+    }
+
+    if (selectedRetailers.length > 0) {
+      retailerFilter.push([
+        "in",
+        ["downcase", ["get", "Retailer"]],
+        ["literal", [...selRetailer]],
+      ]);
+    }
+
+    if (selectedCategories.length > 0) {
+      retailerFilter.push([
+        "in",
+        ["downcase", ["get", "Category"]],
+        ["literal", [...selCategory]],
+      ]);
+    }
+
+    if (selectedSuppliers.length > 0) {
+      retailerFilter.push([
+        "any",
+        ["in", ["downcase", ["get", "Supplier"]], ["literal", [...selSupplier]]],
+      ]);
+    }
+
+    if (map.getLayer("retailer-circles")) {
+      map.setFilter("retailer-circles", retailerFilter);
+    }
+
+    const corpHQFilter =
+      selectedStates.length > 0
+        ? [
+            "in",
+            ["downcase", ["get", "State"]],
+            ["literal", [...selState]],
+          ]
+        : true;
+
+    if (map.getLayer("corp-hq-circles")) {
+      map.setFilter("corp-hq-circles", corpHQFilter);
+    }
+
+    if (map.getLayer("kingpin1-layer")) {
+      map.setFilter("kingpin1-layer", true); // ALWAYS visible
+    }
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+  ]);
+
+  // ==========================================================================
+  // 🗺️ LAYERS + POPUPS + MARKERS + ROUTE
+  // ==========================================================================
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Load icons
+    if (!map.hasImage("home-icon")) {
+      map.loadImage("/icons/Blue_Home.png", (err, img) => {
+        if (!err && img) map.addImage("home-icon", img);
       });
+    }
 
-      // -----------------------------------------------------------------
-      // LAYERS — CORPORATE HQ (circle)
-      // -----------------------------------------------------------------
+    if (!map.hasImage("kingpin-icon")) {
+      map.loadImage("/icons/kingpin1.png", (err, img) => {
+        if (!err && img) map.addImage("kingpin-icon", img);
+      });
+    }
+
+    // Retailer circles
+    if (!map.getLayer("retailer-circles")) {
       map.addLayer({
-        id: "corporate-hq",
+        id: "retailer-circles",
+        type: "circle",
+        source: "retailers",
+        filter: ["==", ["get", "IsCorporateHQ"], false],
+        paint: {
+          "circle-radius": 6,
+          "circle-color": ["get", "Color"],
+          "circle-stroke-width": 1.4,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+    }
+
+    // Corporate HQ
+    if (!map.getLayer("corp-hq-circles")) {
+      map.addLayer({
+        id: "corp-hq-circles",
         type: "circle",
         source: "retailers",
         filter: ["==", ["get", "IsCorporateHQ"], true],
         paint: {
           "circle-radius": 7,
-          "circle-color": "#CC0000",
-          "circle-stroke-color": "#FFD700",
-          "circle-stroke-width": 1.5
-        }
+          "circle-color": ["get", "Color"],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#D9C39B",
+        },
       });
+    }
 
-      // -----------------------------------------------------------------
-      // LAYERS — RETAILERS (non-HQ circles)
-      // -----------------------------------------------------------------
+    // Kingpin1 PNG
+    if (!map.getLayer("kingpin1-layer")) {
       map.addLayer({
-        id: "retailer-circles",
-        type: "circle",
-        source: "retailers",
-        filter: ["!=", ["get", "IsCorporateHQ"], true],
-        paint: {
-          "circle-radius": 6,
-          "circle-stroke-color": "#FFFFFF",
-          "circle-stroke-width": 1,
-          "circle-color": [
-            "case",
-            ["to-boolean", ["get", "Category"]],
-            [
-              "match",
-              ["get", "Category"],
-              Object.keys(categoryColors),
-              [
-                "literal",
-                categoryColors
-              ][0][["get", "Category"]],
-              "#2E86AB"
-            ],
-            "#2E86AB"
-          ]
-        }
+        id: "kingpin1-layer",
+        type: "symbol",
+        source: "kingpin",
+        filter: ["==", ["get", "IsKingpin1"], true],
+        layout: {
+          "icon-image": "kingpin-icon",
+          "icon-size": 0.85,
+          "icon-anchor": "bottom",
+          "icon-allow-overlap": true,
+        },
       });
+    }
 
-      // -----------------------------------------------------------------
-      // LAYERS — KINGPIN1 SYMBOL ICON
-      // -----------------------------------------------------------------
-      map.loadImage("/icons/kingpin.png", (err, img) => {
-        if (!err && img && !map.hasImage("kingpin")) {
-          map.addImage("kingpin", img);
-        }
+    // Popups
+    const popup = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: true,
+    });
 
-        map.addLayer({
-          id: "kingpin-layer",
-          type: "symbol",
-          source: "retailers",
-          filter: ["==", ["get", "IsKingpin1"], true],
-          layout: {
-            "icon-image": "kingpin",
-            "icon-size": 0.9,
-            "icon-anchor": "center",
-            "icon-allow-overlap": true
-          }
-        });
-      });
-
-      // -----------------------------------------------------------------
-      // POPUP: RETAILERS
-      // -----------------------------------------------------------------
-      map.on("click", "retailer-circles", (e) => {
-        const f = e.features?.[0] as RetailerFeature;
-        if (!f) return;
-
-        const p = f.properties;
-
-        const html = `
-          <div style="font-size:14px; line-height:1.3;">
-            <strong>${p.Retailer}</strong><br/>
-            ${p.Address}<br/>
-            ${p.City}, ${p.State} ${p.Zip}<br/><br/>
-            <button id="addTripStopBtn" 
-              style="padding:6px 10px; background:#0077FF; color:white; border-radius:4px; cursor:pointer;">
-              Add to Trip
-            </button>
+    function buildPopupHTML(props: any) {
+      const sup = (props.Supplier || []).join("<br/>");
+      return `
+        <div style="font-size:14px; line-height:1.25">
+          <div style="font-size:16px; font-weight:bold; color:#FFD348;">
+            ${props.Retailer}
           </div>
-        `;
+          <div>${props.Address}</div>
+          <div>${props.City}, ${props.State} ${props.Zip}</div>
 
-        const popup = new mapboxgl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(html)
-          .addTo(map);
+          <div style="margin-top:6px;">
+            <strong>Category:</strong> ${props.Category}<br/>
+            <strong>Suppliers:</strong><br/>${sup}
+          </div>
 
-        popup.on("open", () => {
-          const btn = document.getElementById("addTripStopBtn");
-          if (btn) {
-            btn.onclick = () => {
-              onAddTripStop?.({
-                label: p.Retailer,
-                coordinates: f.geometry.coordinates,
-                address: p.Address,
-                city: p.City,
-                state: p.State,
-                zip: p.Zip,
-                retailer: p.Retailer
-              });
-              popup.remove();
-            };
-          }
-        });
-      });
+          <button id="addStopBtn"
+            style="
+              margin-top:8px;
+              padding:5px 10px;
+              background:#1e40af;
+              color:white;
+              border-radius:4px;
+              cursor:pointer;
+            ">
+            Add to Trip
+          </button>
+        </div>
+      `;
+    }
 
-      // -----------------------------------------------------------------
-      // POPUP: KINGPIN1
-      // -----------------------------------------------------------------
-      map.on("click", "kingpin-layer", (e) => {
-        const f = e.features?.[0] as RetailerFeature;
+    function bindPopup(layerId: string) {
+      map.on("click", layerId, (e) => {
+        const f = e.features?.[0];
         if (!f) return;
 
-        const p = f.properties;
-        const suppliers = p.Supplier.join(", ");
-
-        new mapboxgl.Popup()
+        popup
           .setLngLat(e.lngLat)
-          .setHTML(`
-            <div style="font-size:14px; line-height:1.3;">
-              <strong>${p.Retailer}</strong><br/>
-              <div><em>Suppliers:</em> ${suppliers}</div><br/>
-              ${p.Address}<br/>
-              ${p.City}, ${p.State} ${p.Zip}<br/>
-              <div style="margin-top:5px;">${p.Phone || ""}</div>
-              <div>${p.Email || ""}</div>
-            </div>
-          `)
+          .setHTML(buildPopupHTML(f.properties))
           .addTo(map);
+
+        setTimeout(() => {
+          const btn = document.getElementById("addStopBtn");
+          if (!btn) return;
+
+          btn.onclick = () => {
+            onAddStop?.({
+              label: f.properties.Retailer,
+              address: f.properties.Address,
+              city: f.properties.City,
+              state: f.properties.State,
+              zip: f.properties.Zip,
+              coords: f.geometry.coordinates,
+            });
+          };
+        }, 20);
       });
-    });
-  }, []);
-  // ==========================================================================
-  // 🔍 APPLY FILTERS ON EACH CHANGE
-  // ==========================================================================
-  useEffect(() => {
-    const map = mapRef.current;
-    const all = allDataRef.current;
-    if (!map || !all) return;
-
-    // -------------------------------
-    // KINGPIN1 — ALWAYS VISIBLE
-    // -------------------------------
-    map.setFilter("kingpin-layer", ["==", ["get", "IsKingpin1"], true]);
-
-    // -------------------------------
-    // CORPORATE HQ — FILTER BY STATE ONLY
-    // -------------------------------
-    const hqFilter =
-      selectedStates.length === 0
-        ? ["==", ["get", "IsCorporateHQ"], true]
-        : [
-            "all",
-            ["==", ["get", "IsCorporateHQ"], true],
-            ["in", ["get", "State"], ["literal", selectedStates]]
-          ];
-
-    map.setFilter("corporate-hq", hqFilter);
-
-    // -------------------------------
-    // RETAILERS — TRUE INTERSECTION FILTER
-    // -------------------------------
-    const filters: any[] = ["all"];
-
-    // State filter
-    if (selectedStates.length > 0) {
-      filters.push(["in", ["get", "State"], ["literal", selectedStates]]);
     }
 
-    // Retailer filter
-    if (selectedRetailers.length > 0) {
-      filters.push([
-        "in",
-        ["downcase", ["get", "Retailer"]],
-        ["literal", selectedRetailers]
-      ]);
-    }
+    bindPopup("retailer-circles");
+    bindPopup("corp-hq-circles");
+    bindPopup("kingpin1-layer");
 
-    // Category filter
-    if (selectedCategories.length > 0) {
-      filters.push([
-        "in",
-        ["downcase", ["get", "Category"]],
-        ["literal", selectedCategories]
-      ]);
-    }
-
-    // Supplier filter
-    if (selectedSuppliers.length > 0) {
-      filters.push([
-        "in",
-        ["get", "Supplier"],
-        ["literal", selectedSuppliers]
-      ]);
-    }
-
-    // Exclude HQ from retailer layer
-    filters.push(["!=", ["get", "IsCorporateHQ"], true]);
-
-    map.setFilter("retailer-circles", filters);
-  }, [
-    selectedStates,
-    selectedRetailers,
-    selectedCategories,
-    selectedSuppliers
-  ]);
-
-  // ==========================================================================
-  // 🚗 TRIP MODE — "OPTIMIZE" ROUTE ORDER CALLBACK
-  // ==========================================================================
-  useEffect(() => {
-    if (tripMode !== "optimize") return;
-    if (!tripStops || tripStops.length < 2) return;
-
-    const map = mapRef.current;
-    if (!map) return;
-
-    // Build optimization query
-    const coords = tripStops.map((s) => s.coordinates.join(",")).join(";");
-
-    const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coords}?geometries=geojson&source=first&roundtrip=false&access_token=${mapboxgl.accessToken}`;
-
-    fetch(url)
-      .then((r) => r.json())
-      .then((json) => {
-        if (!json.trips || !json.waypoints) return;
-
-        const wp = json.waypoints.sort((a: any, b: any) => a.waypoint_index - b.waypoint_index);
-
-        const optimized: Stop[] = wp.map((w: any) => {
-          const orig = tripStops[w.original_index];
-          return { ...orig };
-        });
-
-        onOptimizedRoute?.(optimized);
-
-        // Route summary
-        if (json.trips && json.trips.length > 0) {
-          const t = json.trips[0];
-          onRouteSummary?.({
-            distance_m: t.distance,
-            duration_s: t.duration
-          });
-        }
+    // Home marker
+    if (homeCoords) {
+      new mapboxgl.Marker({
+        element: (() => {
+          const el = document.createElement("div");
+          el.style.width = "32px";
+          el.style.height = "32px";
+          el.style.backgroundImage = "url('/icons/Blue_Home.png')";
+          el.style.backgroundSize = "cover";
+          el.style.cursor = "pointer";
+          return el;
+        })(),
       })
-      .catch(() => {});
-  }, [tripMode, tripStops]);
-
-  // ==========================================================================
-  // 🧭 TRIP MODE — “ENTERED” MODE SUMMARY
-  // ==========================================================================
-  useEffect(() => {
-    if (tripMode !== "entered") return;
-    if (tripStops.length < 2) {
-      onRouteSummary?.(null);
-      return;
+        .setLngLat(homeCoords)
+        .addTo(map);
     }
 
-    // Approximate straight-line summary
-    let dist = 0;
-    for (let i = 0; i < tripStops.length - 1; i++) {
-      const [lng1, lat1] = tripStops[i].coordinates;
-      const [lng2, lat2] = tripStops[i + 1].coordinates;
+    // Trip markers
+    tripStops.forEach((stop, i) => {
+      const el = document.createElement("div");
+      el.style.width = "20px";
+      el.style.height = "20px";
+      el.style.borderRadius = "50%";
+      el.style.background = "#f97316";
+      el.style.border = "2px solid white";
+      el.title = `${i + 1}. ${stop.label}`;
 
-      const R = 6371e3;
-      const φ1 = (lat1 * Math.PI) / 180;
-      const φ2 = (lat2 * Math.PI) / 180;
-      const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-      const Δλ = ((lng2 - lng1) * Math.PI) / 180;
-
-      const a =
-        Math.sin(Δφ / 2) ** 2 +
-        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-      dist += R * c;
-    }
-
-    onRouteSummary?.({
-      distance_m: dist,
-      duration_s: dist / 22.352 // ~50 mph
+      new mapboxgl.Marker({ element: el })
+        .setLngLat(stop.coords)
+        .addTo(map);
     });
-  }, [tripMode, tripStops]);
+
+    // Route updating
+    if (routeGeoJSON) {
+      const src = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+      if (src) src.setData(routeGeoJSON);
+    }
+  }, [homeCoords, tripStops, routeGeoJSON, onAddStop]);
 
   // ==========================================================================
-  // 🖼️ FINAL RENDER
+  // RENDER
   // ==========================================================================
   return (
     <div
@@ -554,7 +518,7 @@ export default function CertisMap({
         width: "100%",
         height: "100%",
         position: "absolute",
-        inset: 0
+        inset: 0,
       }}
     />
   );

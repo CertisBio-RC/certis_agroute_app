@@ -4,13 +4,13 @@ import { useState, useMemo } from "react";
 import { Stop } from "@/components/CertisMap";
 
 interface Props {
-  /** 
+  /**
    * allStops = Full canonical Stop[] dataset from CertisMap.
    * Includes every location in retailers.geojson + kingpin.geojson.
-   * 
-   * This is REQUIRED so the user can:
-   *   • Add stops directly from search, AND
-   *   • Explore retailers without adding them (“sleuth mode”).
+   *
+   * REQUIRED so the user can:
+   *   • Add stops directly from search
+   *   • Explore locations without adding (“sleuth mode”)
    */
   allStops: Stop[];
 
@@ -23,7 +23,7 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
 
   // ======================================================================
   // 🔍 SEARCH LOGIC
-  //    Matches:
+  //    Matches against:
   //      • Retailer label
   //      • Address
   //      • City
@@ -47,7 +47,7 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
 
   const handleAdd = (stop: Stop) => {
     onAddStop(stop);
-    setQuery(""); // Clear field after adding stop
+    setQuery(""); // Clear after selecting a location
   };
 
   // ======================================================================
@@ -55,7 +55,9 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
   // ======================================================================
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 text-[16px] leading-tight">
-      <h2 className="text-lg font-bold text-yellow-400 mb-3">Search Locations</h2>
+      <h2 className="text-lg font-bold text-yellow-400 mb-3">
+        Search Locations
+      </h2>
 
       {/* SEARCH INPUT */}
       <input
@@ -66,12 +68,12 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
         className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 mb-3"
       />
 
-      {/* EMPTY RESULT STATE */}
+      {/* EMPTY RESULT */}
       {query && results.length === 0 && (
         <p className="text-gray-300 text-[15px]">No matches found.</p>
       )}
 
-      {/* RESULTS LIST */}
+      {/* RESULTS */}
       <div className="max-h-56 overflow-y-auto space-y-2">
         {results.map((s, i) => (
           <div
@@ -86,13 +88,21 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
 
             {/* ADDRESS BLOCK */}
             <div className="text-[14px] text-white leading-tight">
-              {s.address && <>{s.address}<br /></>}
+              {s.address && (
+                <>
+                  {s.address}
+                  <br />
+                </>
+              )}
               {s.city}, {s.state} {s.zip}
             </div>
 
             {/* ADD BUTTON */}
             <button
-              onClick={() => handleAdd(s)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAdd(s);
+              }}
               className="mt-2 px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
             >
               Add to Trip

@@ -7,19 +7,19 @@ import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
 /* ============================================================================
-   📌 STOP TYPE — Single Universal Definition (Option 1 Signature)
+   🧭 STOP TYPE — FINAL CANONICAL SHAPE (MATCHES CertisMap.tsx EXACTLY)
 =========================================================================== */
-export type Stop = {
+export interface Stop {
   label: string;
   address: string;
   city: string;
   state: string;
   zip: string;
-  coordinates: [number, number];  // NOTE: now matches CertisMap.tsx
-};
+  coords: [number, number]; // ← LOCKED AND FINAL
+}
 
 /* ============================================================================
-   🌗 THEME HOOK — Dark Mode Default (Bailey Rule)
+   🌗 THEME HOOK — Dark Mode Default
 =========================================================================== */
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -45,7 +45,7 @@ const norm = (s: string) => (s || "").trim().toLowerCase();
 const upper = (s: string) => (s || "").toUpperCase();
 
 /* ============================================================================
-   🌍 EXTERNAL MAP URL BUILDERS
+   🗺️ BUILDING EXTERNAL MAP URLS
 =========================================================================== */
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
@@ -104,18 +104,16 @@ export default function Page() {
 
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
-  const [routeSummary, setRouteSummary] = useState<{
-    distance_m: number;
-    duration_s: number;
-  } | null>(null);
+
+  const [routeGeoJSON, setRouteGeoJSON] = useState<any | null>(null);
+  const [routeSummary, setRouteSummary] = useState<{ distance_m: number; duration_s: number } | null>(null);
 
   /* ============================================================================
      🧭 ADD STOP
   ============================================================================ */
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
-      if (prev.some((s) => s.label === stop.label && s.address === stop.address))
-        return prev;
+      if (prev.some((s) => s.label === stop.label && s.address === stop.address)) return prev;
 
       const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
       const home = prev.find((s) => s.label.startsWith("Home"));
@@ -132,7 +130,7 @@ export default function Page() {
   };
 
   /* ============================================================================
-     🗑️ CLEAR STOPS
+     🗑️ CLEAR ALL STOPS
   ============================================================================ */
   const handleClearStops = () => {
     setTripStops((prev) => prev.filter((s) => s.label.startsWith("Home")));
@@ -140,7 +138,7 @@ export default function Page() {
   };
 
   /* ============================================================================
-     📍 ZIP GEOCODING
+     📍 ZIP GEOCODING → HOME STOP CREATION (coords!!)
   ============================================================================ */
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -173,7 +171,7 @@ export default function Page() {
         city,
         state,
         zip: homeZip,
-        coordinates: [lng, lat]
+        coords: [lng, lat], // ← FIXED HERE
       };
 
       setHomeCoords([lng, lat]);
@@ -191,9 +189,7 @@ export default function Page() {
     if (selectedStates.length === 0) return availableRetailers;
 
     return retailerSummary
-      .filter((s) =>
-        s.states.some((st) => selectedStates.includes(norm(st)))
-      )
+      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
       .map((s) => s.retailer)
       .filter((x, i, arr) => arr.indexOf(x) === i)
       .sort();
@@ -208,7 +204,7 @@ export default function Page() {
   );
 
   /* ============================================================================
-     🧭 TRIP STOP ORDER FOR ROUTE
+     🧭 TRIP STOPS USED FOR ACTUAL ROUTE RENDERING
   ============================================================================ */
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
@@ -220,11 +216,12 @@ export default function Page() {
   }, [tripStops, homeCoords]);
 
   /* ============================================================================
-     🖼️ UI LAYOUT
+     🖼️ FINAL PAGE LAYOUT + SIDEBAR + MAP PANEL
   ============================================================================ */
   return (
     <div className="flex h-screen w-screen relative overflow-hidden">
-      {/* MOBILE MENU BUTTON */}
+
+      {/* MOBILE MENU */}
       <button
         className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -238,6 +235,7 @@ export default function Page() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
+
         {/* LOGO + THEME */}
         <div className="flex flex-col items-center mb-6 gap-3">
           <Image
@@ -321,15 +319,13 @@ export default function Page() {
           </div>
         </div>
 
-        {/* RETAILERS FILTER */}
+        {/* RETAILERS */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
 
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-              onClick={() =>
-                setSelectedRetailers(filteredRetailersForSummary.map(norm))
-              }
+              onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
@@ -365,7 +361,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* SUPPLIERS FILTER */}
+        {/* SUPPLIERS */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Suppliers</h2>
 
@@ -404,7 +400,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* CATEGORIES FILTER */}
+        {/* CATEGORIES */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
 
@@ -453,7 +449,6 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 max-h-64 overflow-y-auto text-white">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Channel Summary</h2>
 
-          {/* Normal retailers */}
           {normalSummary.map((s, i) => (
             <div key={i} className="mb-4 p-2 rounded bg-gray-700/40">
               <strong className="text-yellow-300 text-[17px]">{s.retailer}</strong>
@@ -468,7 +463,6 @@ export default function Page() {
             </div>
           ))}
 
-          {/* Kingpins */}
           {kingpinSummary.length > 0 && (
             <div className="mt-4 p-2 rounded bg-gray-800/60">
               <strong className="text-yellow-400">Kingpins:</strong>
@@ -484,7 +478,6 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4 text-white">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Trip Optimization</h2>
 
-          {/* Mode Selection */}
           <div className="flex space-x-4 mb-3">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
@@ -507,7 +500,6 @@ export default function Page() {
             </label>
           </div>
 
-          {/* Summary */}
           {routeSummary && (
             <div className="text-sm mb-3 p-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded">
               <strong>
@@ -521,7 +513,6 @@ export default function Page() {
             </div>
           )}
 
-          {/* STOP LIST */}
           {tripStops.length > 0 ? (
             <div className="space-y-3">
               <ol className="ml-5 space-y-3">
@@ -551,7 +542,6 @@ export default function Page() {
                 ))}
               </ol>
 
-              {/* Buttons */}
               <div className="flex flex-wrap gap-2 mt-2">
                 <button
                   onClick={handleClearStops}
@@ -603,21 +593,13 @@ export default function Page() {
             selectedCategories={selectedCategories}
             homeCoords={homeCoords}
             tripStops={stopsForRoute}
-            tripMode={tripMode}
+            routeGeoJSON={routeGeoJSON}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={setAvailableSuppliers}
             onRetailerSummary={setRetailerSummary}
             onAllStopsLoaded={setAllStops}
             onAddStop={handleAddStop}
-            onRouteSummary={setRouteSummary}
-            onOptimizedRoute={(o) => {
-              if (o.length < 2) return;
-              const s = o[0];
-              const e = o[o.length - 1];
-              const mid = o.slice(1, -1);
-              setTripStops([s, ...mid, e]);
-            }}
           />
         </div>
       </main>
