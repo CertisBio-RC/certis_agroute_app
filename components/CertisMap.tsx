@@ -9,7 +9,7 @@
 //    • Provides all layers (Retailers, HQ, Kingpin1 PNG)
 //    • Provides all popups
 //    • Provides home marker, trip markers, route line
-//    • 100% aligned with current page.tsx
+//    • 100% aligned with page.tsx
 // ============================================================================
 
 "use client";
@@ -174,11 +174,8 @@ export default function CertisMap({
       );
 
       onSuppliersLoaded?.(
-        [
-          ...new Set(
-            allData.flatMap((f) => f.properties.Supplier as string[])
-          ),
-        ].sort()
+        [...new Set(allData.flatMap((f) => f.properties.Supplier as string[]))]
+          .sort()
       );
 
       // Add sources
@@ -220,7 +217,9 @@ export default function CertisMap({
     const selCategory = new Set(selectedCategories.map(norm));
     const selSupplier = new Set(selectedSuppliers.map(norm));
 
-    // Summary (full dataset)
+    // ----------------------------------------------------------------------
+    // SUMMARY (TS-SAFE VERSION — REPLACES TYPED MAP<…>)
+    // ----------------------------------------------------------------------
     (async () => {
       const rRes = await fetch("/data/retailers.geojson");
       const retailersJSON: RetailerCollection = await rRes.json();
@@ -230,7 +229,7 @@ export default function CertisMap({
 
       const all = [...retailersJSON.features, ...kingpinJSON.features];
 
-      const summaryMap = new Map<
+      const summaryObj: Record<
         string,
         {
           retailer: string;
@@ -239,20 +238,21 @@ export default function CertisMap({
           categories: Set<string>;
           states: Set<string>;
         }
-      >();
+      > = {};
 
       for (const f of all) {
         const r = f.properties.Retailer;
-        if (!summaryMap.has(r)) {
-          summaryMap.set(r, {
+
+        if (!summaryObj[r]) {
+          summaryObj[r] = {
             retailer: r,
             count: 1,
             suppliers: new Set(f.properties.Supplier as string[]),
             categories: new Set([f.properties.Category]),
             states: new Set([f.properties.State]),
-          });
+          };
         } else {
-          const s = summaryMap.get(r)!;
+          const s = summaryObj[r];
           s.count++;
           (f.properties.Supplier as string[]).forEach((x) => s.suppliers.add(x));
           s.categories.add(f.properties.Category);
@@ -261,7 +261,7 @@ export default function CertisMap({
       }
 
       onRetailerSummary?.(
-        [...summaryMap.values()].map((x) => ({
+        Object.values(summaryObj).map((x) => ({
           retailer: x.retailer,
           count: x.count,
           suppliers: [...x.suppliers].sort(),
@@ -271,8 +271,9 @@ export default function CertisMap({
       );
     })();
 
-    // Filtering (K4 Gold)
-
+    // ----------------------------------------------------------------------
+    // FILTERING (K4 GOLD LOGIC)
+    // ----------------------------------------------------------------------
     const retailerFilter: any[] = ["all"];
 
     if (selectedStates.length > 0) {

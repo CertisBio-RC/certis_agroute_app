@@ -6,27 +6,28 @@ import SearchLocationsTile from "@/components/SearchLocationsTile";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
-/* ============================================================================
-   🧭 STOP TYPE — FINAL CANONICAL SHAPE (MATCHES CertisMap.tsx EXACTLY)
-=========================================================================== */
+/* ======================================================================
+   🧭 STOP TYPE — MUST MATCH CertisMap.tsx EXACTLY
+====================================================================== */
 export interface Stop {
   label: string;
   address: string;
   city: string;
   state: string;
   zip: string;
-  coords: [number, number]; // ← LOCKED AND FINAL
+  coords: [number, number]; // MATCHES CertisMap.tsx
 }
 
-/* ============================================================================
-   🌗 THEME HOOK — Dark Mode Default
-=========================================================================== */
+/* ======================================================================
+   🌗 THEME (Bailey Rule: default DARK)
+====================================================================== */
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
     const start = stored ? (stored as "light" | "dark") : "dark";
+
     setTheme(start);
     document.documentElement.classList.toggle("dark", start === "dark");
   }, []);
@@ -44,9 +45,9 @@ function useTheme() {
 const norm = (s: string) => (s || "").trim().toLowerCase();
 const upper = (s: string) => (s || "").toUpperCase();
 
-/* ============================================================================
-   🗺️ BUILDING EXTERNAL MAP URLS
-=========================================================================== */
+/* ======================================================================
+   🌍 EXTERNAL URL BUILDERS (UNCHANGED)
+====================================================================== */
 function buildGoogleMapsUrl(stops: Stop[]) {
   if (!stops || stops.length < 2) return null;
 
@@ -76,18 +77,24 @@ function buildAppleMapsUrl(stops: Stop[]) {
   return `http://maps.apple.com/?dirflg=d&saddr=${origin}&daddr=${dest}`;
 }
 
-/* ============================================================================
-   🚀 PAGE COMPONENT
-=========================================================================== */
+/* ======================================================================
+   🚀 PAGE COMPONENT — FINAL CANONICAL VERSION
+====================================================================== */
 export default function Page() {
   const { theme, toggleTheme } = useTheme();
 
-  /* --------------------- FILTER STATE ------------------------- */
+  /* --------------------- FILTER STATE --------------------- */
   const [availableStates, setAvailableStates] = useState<string[]>([]);
   const [availableRetailers, setAvailableRetailers] = useState<string[]>([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<string[]>([]);
   const [retailerSummary, setRetailerSummary] = useState<
-    { retailer: string; count: number; suppliers: string[]; categories: string[]; states: string[] }[]
+    {
+      retailer: string;
+      count: number;
+      suppliers: string[];
+      categories: string[];
+      states: string[];
+    }[]
   >([]);
 
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
@@ -97,7 +104,7 @@ export default function Page() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  /* --------------------- TRIP BUILDER STATE ------------------- */
+  /* --------------------- TRIP BUILDER --------------------- */
   const [allStops, setAllStops] = useState<Stop[]>([]);
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [tripMode, setTripMode] = useState<"entered" | "optimize">("entered");
@@ -105,15 +112,13 @@ export default function Page() {
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
-  const [routeGeoJSON, setRouteGeoJSON] = useState<any | null>(null);
-  const [routeSummary, setRouteSummary] = useState<{ distance_m: number; duration_s: number } | null>(null);
-
-  /* ============================================================================
+  /* ======================================================================
      🧭 ADD STOP
-  ============================================================================ */
+  ======================================================================= */
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
-      if (prev.some((s) => s.label === stop.label && s.address === stop.address)) return prev;
+      if (prev.some((s) => s.label === stop.label && s.address === stop.address))
+        return prev;
 
       const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
       const home = prev.find((s) => s.label.startsWith("Home"));
@@ -122,24 +127,23 @@ export default function Page() {
     });
   };
 
-  /* ============================================================================
+  /* ======================================================================
      ❌ REMOVE STOP
-  ============================================================================ */
+  ======================================================================= */
   const handleRemoveStop = (index: number) => {
     setTripStops((prev) => prev.filter((_, i) => i !== index));
   };
 
-  /* ============================================================================
-     🗑️ CLEAR ALL STOPS
-  ============================================================================ */
+  /* ======================================================================
+     🗑️ CLEAR STOPS
+  ======================================================================= */
   const handleClearStops = () => {
     setTripStops((prev) => prev.filter((s) => s.label.startsWith("Home")));
-    setRouteSummary(null);
   };
 
-  /* ============================================================================
-     📍 ZIP GEOCODING → HOME STOP CREATION (coords!!)
-  ============================================================================ */
+  /* ======================================================================
+     📍 ZIP → GEOCOORDS
+  ======================================================================= */
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
@@ -171,10 +175,11 @@ export default function Page() {
         city,
         state,
         zip: homeZip,
-        coords: [lng, lat], // ← FIXED HERE
+        coords: [lng, lat],
       };
 
       setHomeCoords([lng, lat]);
+
       setTripStops((prev) => {
         const others = prev.filter((s) => !s.label.startsWith("Home"));
         return [newHome, ...others];
@@ -182,14 +187,16 @@ export default function Page() {
     } catch {}
   };
 
-  /* ============================================================================
-     🔍 FILTERED RETAILERS FOR SUMMARY (K4 RULE)
-  ============================================================================ */
+  /* ======================================================================
+     FILTERED RETAILERS SUMMARY (STATE-FIRST LOGIC)
+  ======================================================================= */
   const filteredRetailersForSummary = useMemo(() => {
     if (selectedStates.length === 0) return availableRetailers;
 
     return retailerSummary
-      .filter((s) => s.states.some((st) => selectedStates.includes(norm(st))))
+      .filter((s) =>
+        s.states.some((st) => selectedStates.includes(norm(st)))
+      )
       .map((s) => s.retailer)
       .filter((x, i, arr) => arr.indexOf(x) === i)
       .sort();
@@ -198,30 +205,30 @@ export default function Page() {
   const kingpinSummary = retailerSummary.filter(
     (s) => s.categories.includes("Kingpin") || norm(s.retailer) === "kingpin"
   );
+
   const normalSummary = retailerSummary.filter(
     (s) =>
       !s.categories.includes("Kingpin") && norm(s.retailer) !== "kingpin"
   );
 
-  /* ============================================================================
-     🧭 TRIP STOPS USED FOR ACTUAL ROUTE RENDERING
-  ============================================================================ */
+  /* ======================================================================
+     TRIP ORDER (HOME FIRST IF PRESENT)
+  ======================================================================= */
   const stopsForRoute = useMemo(() => {
     if (!homeCoords) return tripStops;
 
     const homeStop = tripStops.find((s) => s.label.startsWith("Home"));
     const rest = tripStops.filter((s) => !s.label.startsWith("Home"));
 
-    return homeStop ? [homeStop, ...rest, homeStop] : tripStops;
+    return homeStop ? [homeStop, ...rest] : tripStops;
   }, [tripStops, homeCoords]);
 
-  /* ============================================================================
-     🖼️ FINAL PAGE LAYOUT + SIDEBAR + MAP PANEL
-  ============================================================================ */
+  /* ======================================================================
+     UI
+  ======================================================================= */
   return (
     <div className="flex h-screen w-screen relative overflow-hidden">
-
-      {/* MOBILE MENU */}
+      {/* MOBILE MENU BUTTON */}
       <button
         className="absolute top-3 left-3 z-20 p-2 bg-gray-800 text-white rounded-md md:hidden"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -235,7 +242,6 @@ export default function Page() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
-
         {/* LOGO + THEME */}
         <div className="flex flex-col items-center mb-6 gap-3">
           <Image
@@ -319,13 +325,15 @@ export default function Page() {
           </div>
         </div>
 
-        {/* RETAILERS */}
+        {/* RETAILERS FILTER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
 
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-              onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
+              onClick={() =>
+                setSelectedRetailers(filteredRetailersForSummary.map(norm))
+              }
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
@@ -361,7 +369,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* SUPPLIERS */}
+        {/* SUPPLIERS FILTER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Suppliers</h2>
 
@@ -400,7 +408,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* CATEGORIES */}
+        {/* CATEGORIES FILTER */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Categories</h2>
 
@@ -449,6 +457,7 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 max-h-64 overflow-y-auto text-white">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Channel Summary</h2>
 
+          {/* NORMAL RETAILERS */}
           {normalSummary.map((s, i) => (
             <div key={i} className="mb-4 p-2 rounded bg-gray-700/40">
               <strong className="text-yellow-300 text-[17px]">{s.retailer}</strong>
@@ -463,6 +472,7 @@ export default function Page() {
             </div>
           ))}
 
+          {/* KINGPINS */}
           {kingpinSummary.length > 0 && (
             <div className="mt-4 p-2 rounded bg-gray-800/60">
               <strong className="text-yellow-400">Kingpins:</strong>
@@ -478,6 +488,7 @@ export default function Page() {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mt-4 text-white">
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Trip Optimization</h2>
 
+          {/* Mode Selection */}
           <div className="flex space-x-4 mb-3">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
@@ -500,19 +511,7 @@ export default function Page() {
             </label>
           </div>
 
-          {routeSummary && (
-            <div className="text-sm mb-3 p-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded">
-              <strong>
-                {(routeSummary.distance_m / 1609.34).toFixed(1)} miles •{" "}
-                {(routeSummary.duration_s / 60).toFixed(0)} minutes
-              </strong>
-              <br />
-              {tripMode === "optimize"
-                ? "Optimized for shortest driving time"
-                : "Mapped in entered order"}
-            </div>
-          )}
-
+          {/* STOP LIST */}
           {tripStops.length > 0 ? (
             <div className="space-y-3">
               <ol className="ml-5 space-y-3">
@@ -542,6 +541,7 @@ export default function Page() {
                 ))}
               </ol>
 
+              {/* BUTTONS */}
               <div className="flex flex-wrap gap-2 mt-2">
                 <button
                   onClick={handleClearStops}
@@ -593,7 +593,7 @@ export default function Page() {
             selectedCategories={selectedCategories}
             homeCoords={homeCoords}
             tripStops={stopsForRoute}
-            routeGeoJSON={routeGeoJSON}
+            routeGeoJSON={null}           {/* REQUIRED FOR PROP MATCH */}
             onStatesLoaded={setAvailableStates}
             onRetailersLoaded={setAvailableRetailers}
             onSuppliersLoaded={setAvailableSuppliers}
