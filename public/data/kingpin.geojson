@@ -21,7 +21,8 @@
                                             "OfficePhone":  "651-923-4496",
                                             "CellPhone":  "651-764-3095",
                                             "Email":  "dans@agpartners.net",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -44,7 +45,8 @@
                                             "OfficePhone":  "800-228-1352",
                                             "CellPhone":  "308-962-4589",
                                             "Email":  "kmnielsen@agvalley.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -67,7 +69,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "605-928-3381",
                                             "Email":  "todd@aglandsd.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -90,7 +93,8 @@
                                             "OfficePhone":  "(515) 462-5353",
                                             "CellPhone":  "TBD",
                                             "Email":  "jknobloch@agrilandfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -113,7 +117,8 @@
                                             "OfficePhone":  "605-570-0772",
                                             "CellPhone":  "605-225-5500",
                                             "Email":  "brett.harrison@agtegra.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -136,7 +141,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "605-350-3821",
                                             "Email":  "aaron.rogers@agtegra.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -159,7 +165,8 @@
                                             "OfficePhone":  "(605) 651-4159",
                                             "CellPhone":  "(605) 725-8331",
                                             "Email":  "brad.ruden@agtegra.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -182,7 +189,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "(605)-350-3156",
                                             "Email":  "ryan.schuchhardt@agtegra.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -205,7 +213,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "605-846-1166",
                                             "Email":  "jason.white@agtegra.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -228,7 +237,8 @@
                                             "OfficePhone":  " 605-225-3280",
                                             "CellPhone":  "605-268-0775",
                                             "Email":  "david.merxbauer@agtegra.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -251,7 +261,8 @@
                                             "OfficePhone":  "(319) 483-4900",
                                             "CellPhone":  "TBD",
                                             "Email":  "mkruse@agvantagefs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -274,7 +285,8 @@
                                             "OfficePhone":  "319-827-3531",
                                             "CellPhone":  "319-839-7580",
                                             "Email":  "bflaharty@agvantagefs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -297,7 +309,8 @@
                                             "OfficePhone":  "641-228-1153",
                                             "CellPhone":  "319-215-9278",
                                             "Email":  "jheit@agvantagefs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -320,7 +333,8 @@
                                             "OfficePhone":  "563-652-5636",
                                             "CellPhone":  "319-559-8471",
                                             "Email":  "rschwennen@agvantagefs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -343,7 +357,8 @@
                                             "OfficePhone":  "605-886-8333",
                                             "CellPhone":  "606-695-3986 ",
                                             "Email":  "wgoens@agwrxcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -366,7 +381,8 @@
                                             "OfficePhone":  "641-566-3658",
                                             "CellPhone":  "TBD",
                                             "Email":  "harlan@afschem.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -389,7 +405,8 @@
                                             "OfficePhone":  "641-566-3672",
                                             "CellPhone":  "641-590-1658",
                                             "Email":  "amy@afschem.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -412,7 +429,8 @@
                                             "OfficePhone":  "641-566-3658",
                                             "CellPhone":  "TBD",
                                             "Email":  "cody@afschem.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -435,7 +453,8 @@
                                             "OfficePhone":  "402-694-2106",
                                             "CellPhone":  "308-746-2807",
                                             "Email":  "burchla13@gmail.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -458,7 +477,8 @@
                                             "OfficePhone":  "402-694-2106",
                                             "CellPhone":  "TBD",
                                             "Email":  "cdecker@auroracoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -481,7 +501,8 @@
                                             "OfficePhone":  "402-694-2106",
                                             "CellPhone":  "TBD",
                                             "Email":  "csmith@auroracoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -504,7 +525,8 @@
                                             "OfficePhone":  "402-694-2106",
                                             "CellPhone":  "TBD",
                                             "Email":  "jthroener@auroracoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -527,7 +549,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "815-674-6477",
                                             "Email":  "banddchemical@yahoo.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -550,7 +573,8 @@
                                             "OfficePhone":  "815-304-6687",
                                             "CellPhone":  "636-856-3400 ",
                                             "Email":  "banddchemical@yahoo.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -573,7 +597,8 @@
                                             "OfficePhone":  "217-476-3438",
                                             "CellPhone":  "TBD",
                                             "Email":  "tim.greer@brandt.co",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -596,7 +621,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "217-735-2571",
                                             "Email":  "brian.armitage@brandt.co",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -619,7 +645,8 @@
                                             "OfficePhone":  "217-488-3125",
                                             "CellPhone":  "217-652-4555",
                                             "Email":  "pat.hermes@brandt.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -642,7 +669,8 @@
                                             "OfficePhone":  "507-776-2831",
                                             "CellPhone":  "507-621-0243 ",
                                             "Email":  "twilmes@cfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -665,7 +693,8 @@
                                             "OfficePhone":  "605-940-7665",
                                             "CellPhone":  "507-330-3418",
                                             "Email":  "jschmiesing@cfc4ag.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -688,7 +717,8 @@
                                             "OfficePhone":  "402-362-8454",
                                             "CellPhone":  "402-710-0598",
                                             "Email":  "cary.skibinski@cvacoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -711,7 +741,8 @@
                                             "OfficePhone":  " 402-728-5252",
                                             "CellPhone":  "402-270-2909",
                                             "Email":  "korbin.kudera@cvacoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -734,7 +765,8 @@
                                             "OfficePhone":  "402-374-2180",
                                             "CellPhone":  "402-870-0224 ",
                                             "Email":  "brandt.anderson@cvacoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -757,7 +789,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "605-582-2415",
                                             "Email":  "tony.vanoverscheide@chsinc.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -780,7 +813,8 @@
                                             "OfficePhone":  "402-584-2272",
                                             "CellPhone":  "TBD",
                                             "Email":  "erik.haglund@chsinc.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -803,7 +837,8 @@
                                             "OfficePhone":  "507-289-4086",
                                             "CellPhone":  "507-226-5871",
                                             "Email":  "TBD",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -826,7 +861,8 @@
                                             "OfficePhone":  "507-289-4086",
                                             "CellPhone":  "507-259-3026",
                                             "Email":  "rod.hart@chsinc.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -849,7 +885,8 @@
                                             "OfficePhone":  "507-289-4086",
                                             "CellPhone":  "507-330-3418",
                                             "Email":  "gary.schmiesing@chsinc.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -872,7 +909,8 @@
                                             "OfficePhone":  " 815-334-5931",
                                             "CellPhone":  "815-529-1435",
                                             "Email":  "aday@conservfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -895,7 +933,8 @@
                                             "OfficePhone":  "712-758-3636",
                                             "CellPhone":  "712-330-6144",
                                             "Email":  "djacobsma@coopfe.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -918,7 +957,8 @@
                                             "OfficePhone":  "712-758-3636",
                                             "CellPhone":  "712-470-1416",
                                             "Email":  "jblauwet@coopfe.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -941,7 +981,8 @@
                                             "OfficePhone":  " 402-463-5148",
                                             "CellPhone":  "785-421-8327",
                                             "Email":  "mbattin@cpicoop.com  ",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -964,7 +1005,8 @@
                                             "OfficePhone":  "402-744-0090",
                                             "CellPhone":  "308-750-7912",
                                             "Email":  " khoffschneider@cpicoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -987,7 +1029,8 @@
                                             "OfficePhone":  "402-744-7870",
                                             "CellPhone":  "402-640-8344",
                                             "Email":  "cwagner@cpicoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1010,7 +1053,8 @@
                                             "OfficePhone":  "308-537-7141",
                                             "CellPhone":  "308-530-5050",
                                             "Email":  "pcullan@countrypartnerscoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1033,7 +1077,8 @@
                                             "OfficePhone":  "712-722-2675",
                                             "CellPhone":  "712-441-5632 ",
                                             "Email":  "randyvanveld@gmail.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1056,7 +1101,8 @@
                                             "OfficePhone":  "712-755-3185",
                                             "CellPhone":  "TBD",
                                             "Email":  "tylerreimers@fscoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1079,7 +1125,8 @@
                                             "OfficePhone":  "712-755-3185",
                                             "CellPhone":  "712-571-0349",
                                             "Email":  "jamesklein@fscoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1102,7 +1149,8 @@
                                             "OfficePhone":  "402-675-2375",
                                             "CellPhone":  "TBD",
                                             "Email":  "bhoffman@farmerspride.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1125,7 +1173,8 @@
                                             "OfficePhone":  "641-636-3748",
                                             "CellPhone":  "TBD",
                                             "Email":  "ebell@keotafarmerscoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1148,7 +1197,8 @@
                                             "OfficePhone":  "712-722-2671",
                                             "CellPhone":  "TBD",
                                             "Email":  "kris@farmerscoopsociety.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1171,7 +1221,8 @@
                                             "OfficePhone":  "712-722-2671",
                                             "CellPhone":  "712-729-3205",
                                             "Email":  "ben@farmerscoopsociety.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1194,7 +1245,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "308-655-0638",
                                             "Email":  "jrwessels@fvcoop.net",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1217,7 +1269,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "308-882-8425",
                                             "Email":  "bkopriva@fvcoop.net",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1240,7 +1293,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "308-353-7838",
                                             "Email":  "lkorf@fvcoop.net",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1263,7 +1317,8 @@
                                             "OfficePhone":  " 402-937-1800",
                                             "CellPhone":  " 402-209-0855",
                                             "Email":  "dave.reese@frontiercooperative.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1286,7 +1341,8 @@
                                             "OfficePhone":  "402-937-8052",
                                             "CellPhone":  "  402-480-0113",
                                             "Email":  "jason.penlerick@frontiercooperative.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1309,7 +1365,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "815-656-0730",
                                             "Email":  "plind@growmark.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1332,7 +1389,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "217-871-1662",
                                             "Email":  "bsoliday@growmark.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1355,7 +1413,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "618-527-9111",
                                             "Email":  "swestrich@growmark.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1378,7 +1437,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "217-248-5992",
                                             "Email":  "bisley@growmark.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1401,7 +1461,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "641-521-7064",
                                             "Email":  "jschnell@growmark.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1424,7 +1485,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "217-343-6311",
                                             "Email":  "jwiley@joink.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1447,7 +1509,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "jlinden@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1470,7 +1533,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "sbissell@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1493,7 +1557,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "efinch@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1516,7 +1581,8 @@
                                             "OfficePhone":  "515-225-1334",
                                             "CellPhone":  "515-975-6154",
                                             "Email":  "mvanwyk@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1539,7 +1605,8 @@
                                             "OfficePhone":  "515-225-1334",
                                             "CellPhone":  "515-314-1414",
                                             "Email":  "dcoppess@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1562,7 +1629,8 @@
                                             "OfficePhone":  "515-225-1334",
                                             "CellPhone":  "515-321-2416",
                                             "Email":  "corr@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1585,7 +1653,8 @@
                                             "OfficePhone":  "641-752-2418",
                                             "CellPhone":  "641-485-7006",
                                             "Email":  "bschnathorst@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1608,7 +1677,8 @@
                                             "OfficePhone":  "319-439-5382",
                                             "CellPhone":  "319-231-6569",
                                             "Email":  "mtoennies@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1631,7 +1701,8 @@
                                             "OfficePhone":  "712-485-8080",
                                             "CellPhone":  "712-355-4321",
                                             "Email":  "btomasek@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1654,7 +1725,8 @@
                                             "OfficePhone":  "641-473-2640",
                                             "CellPhone":  "641-751-9049",
                                             "Email":  "lhansen@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1677,7 +1749,8 @@
                                             "OfficePhone":  "641-528-2535",
                                             "CellPhone":  "641-990-5912",
                                             "Email":  "cwhite@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1700,7 +1773,8 @@
                                             "OfficePhone":  "641-227-3231",
                                             "CellPhone":  "641-831-6143",
                                             "Email":  "jstruthers@heartlandcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1723,7 +1797,8 @@
                                             "OfficePhone":  "515-309-3461",
                                             "CellPhone":  "515-650-7986",
                                             "Email":  "walterj@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1746,7 +1821,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "360-223-5463",
                                             "Email":  "smithd@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1769,7 +1845,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "515-669-1029",
                                             "Email":  "clarkg@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1792,7 +1869,8 @@
                                             "OfficePhone":  "515-267-0530",
                                             "CellPhone":  "309-645-5190",
                                             "Email":  "mccormickj@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1815,7 +1893,8 @@
                                             "OfficePhone":  "317-815-6370",
                                             "CellPhone":  "859-242-0683",
                                             "Email":  "ebstera@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1838,7 +1917,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "217-653-0465",
                                             "Email":  "heldtm@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1861,7 +1941,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "270-302-5015",
                                             "Email":  "mattinglyij@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1884,7 +1965,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "270-231-4984",
                                             "Email":  "kriegerk@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1907,7 +1989,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "317-294-4534",
                                             "Email":  "likensm@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1930,7 +2013,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "419-890-2397",
                                             "Email":  "asiebenecka@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1953,7 +2037,8 @@
                                             "OfficePhone":  "217-382-4241",
                                             "CellPhone":  "TBD",
                                             "Email":  "stevensr@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1976,7 +2061,8 @@
                                             "OfficePhone":  "217-584-1133",
                                             "CellPhone":  "217-204-8197",
                                             "Email":  "smithjason@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -1999,7 +2085,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "309-854-2912",
                                             "Email":  "TBD",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2022,7 +2109,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "217-202-8644",
                                             "Email":  "gregmills63@gmail.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2045,7 +2133,8 @@
                                             "OfficePhone":  "217-286-3562",
                                             "CellPhone":  "217-273-3260",
                                             "Email":  "harpers@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2068,7 +2157,8 @@
                                             "OfficePhone":  "217-286-3562",
                                             "CellPhone":  "217-799-1069",
                                             "Email":  "hathawayp@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2091,7 +2181,8 @@
                                             "OfficePhone":  "  515-309-3515",
                                             "CellPhone":  "316-640-3248",
                                             "Email":  "smarsha@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2114,7 +2205,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "402-380-1208",
                                             "Email":  "harneys@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2137,7 +2229,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "402-300-0437",
                                             "Email":  "machk@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2160,7 +2253,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "402-741-2464",
                                             "Email":  "krieger@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2183,7 +2277,8 @@
                                             "OfficePhone":  "402-944-2139",
                                             "CellPhone":  "531-358-0494",
                                             "Email":  "tarind@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2206,7 +2301,8 @@
                                             "OfficePhone":  "402-379-2910",
                                             "CellPhone":  "402-245-7212",
                                             "Email":  "schollb@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2229,7 +2325,8 @@
                                             "OfficePhone":  " 402-685-6206",
                                             "CellPhone":  "402-360-2436",
                                             "Email":  "quillj@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2252,7 +2349,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "402-943-6892",
                                             "Email":  "breckenkridges@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2275,7 +2373,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "531-212-0470",
                                             "Email":  "lynnja@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2298,7 +2397,8 @@
                                             "OfficePhone":  " 402-379-2910",
                                             "CellPhone":  "402-641-8246",
                                             "Email":  "neujahrm@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2321,7 +2421,8 @@
                                             "OfficePhone":  " 515-309-3461",
                                             "CellPhone":  "515-650-7986",
                                             "Email":  "walterj@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2344,7 +2445,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "19-588-7188",
                                             "Email":  "mckechnies@helenagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2367,7 +2469,8 @@
                                             "OfficePhone":  "641-747-6303",
                                             "CellPhone":  "641-757-0607",
                                             "Email":  "schreckj@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2390,7 +2493,8 @@
                                             "OfficePhone":  "605-857-5047",
                                             "CellPhone":  "605-870-0520",
                                             "Email":  "lentzn@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2413,7 +2517,8 @@
                                             "OfficePhone":  "515-309-3461",
                                             "CellPhone":  "515-650-7986",
                                             "Email":  "walterj@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2436,7 +2541,8 @@
                                             "OfficePhone":  "515-309-3483",
                                             "CellPhone":  "515-291-7601",
                                             "Email":  "fischerscott@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2459,7 +2565,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "515-267-0530",
                                             "Email":  "boyerm@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2482,7 +2589,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "515-460-4142",
                                             "Email":  "beschg@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2505,7 +2613,8 @@
                                             "OfficePhone":  "515-309-3461",
                                             "CellPhone":  "515-650-7986",
                                             "Email":  "walterj@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2528,7 +2637,8 @@
                                             "OfficePhone":  "515-309-3490",
                                             "CellPhone":  "319-588-7188",
                                             "Email":  "mckechnies@helenagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2551,7 +2661,8 @@
                                             "OfficePhone":  "641-747-6303",
                                             "CellPhone":  "641-757-0607",
                                             "Email":  "schreckj@helenaagri.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2574,7 +2685,8 @@
                                             "OfficePhone":  "815-707-7020",
                                             "CellPhone":  "815-383-8314",
                                             "Email":  "jwesslund@heritagefs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2597,7 +2709,8 @@
                                             "OfficePhone":  "815-268-4030",
                                             "CellPhone":  "815-383-0003",
                                             "Email":  "philt@heritagefs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2620,7 +2733,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "TBD",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2643,7 +2757,8 @@
                                             "OfficePhone":  "815-426-6556",
                                             "CellPhone":  "815-378-3418",
                                             "Email":  "dschumacher@heritagefs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2666,7 +2781,8 @@
                                             "OfficePhone":  "217-498-7851",
                                             "CellPhone":  "217-273-6230",
                                             "Email":  "ghooten78@gmail.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2689,7 +2805,8 @@
                                             "OfficePhone":  "308-352-2800",
                                             "CellPhone":  "TBD",
                                             "Email":  "TBD",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2712,7 +2829,8 @@
                                             "OfficePhone":  "402-870-0278",
                                             "CellPhone":  "TBD",
                                             "Email":  "brettkazemba@hwy75.net",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2735,7 +2853,8 @@
                                             "OfficePhone":  " 402-870-0278",
                                             "CellPhone":  "402-936-5166",
                                             "Email":  "dashcameron@hwy75.net",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2758,7 +2877,8 @@
                                             "OfficePhone":  "712-439-2831",
                                             "CellPhone":  "712-441-1185",
                                             "Email":  "lonnie.egdorf@hullcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2781,7 +2901,8 @@
                                             "OfficePhone":  "712-439-2832",
                                             "CellPhone":  "712-470-0994",
                                             "Email":  "peter.westra@hullcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2804,7 +2925,8 @@
                                             "OfficePhone":  "217-837-2051",
                                             "CellPhone":  "217-497-2477 ",
                                             "Email":  "mdowell@illinifs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2827,7 +2949,8 @@
                                             "OfficePhone":  "217-837-2051",
                                             "CellPhone":  "217-280-0708",
                                             "Email":  "ncox@illinifs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2850,7 +2973,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "515-686-0850",
                                             "Email":  "scott.ahrenholtz@landus.ag",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2873,7 +2997,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "515-341-4247",
                                             "Email":  "wade.kent@@conduit.ag",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2896,7 +3021,8 @@
                                             "OfficePhone":  " 308-632-5301",
                                             "CellPhone":  "308-225-1232",
                                             "Email":  "sgross@panhandlecoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2919,7 +3045,8 @@
                                             "OfficePhone":  "507-752-7352",
                                             "CellPhone":  "507-221-0321",
                                             "Email":  "rprice@mfcoop.us",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2942,7 +3069,8 @@
                                             "OfficePhone":  "507-648-3831",
                                             "CellPhone":  "507-830-1251",
                                             "Email":  "cerickson@mfcoop.us",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2965,7 +3093,8 @@
                                             "OfficePhone":  "507-342-5163",
                                             "CellPhone":  "507-829-4929",
                                             "Email":  "bfischer@mfcoop.us",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -2988,7 +3117,8 @@
                                             "OfficePhone":  "402-374-2275",
                                             "CellPhone":  "402-870-2231",
                                             "Email":  "jasonhansenmws@gmail.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3011,7 +3141,8 @@
                                             "OfficePhone":  "(641) 236-3117",
                                             "CellPhone":  "TBD",
                                             "Email":  "tkoehler@newcenturyfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3034,7 +3165,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "sjaeshke@newcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3057,7 +3189,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "515-341-6717",
                                             "Email":  "ckraninger@newcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3080,7 +3213,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "217-822-8347",
                                             "Email":  "TBD",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3103,7 +3237,8 @@
                                             "OfficePhone":  " 402-478-4153",
                                             "CellPhone":  "402-533-3754",
                                             "Email":  "mike.monke@nutrien.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3126,7 +3261,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "563-543-7398",
                                             "Email":  "robb.kitzman@nutrien.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3149,7 +3285,8 @@
                                             "OfficePhone":  "515-320-0960",
                                             "CellPhone":  "515-882-3234",
                                             "Email":  "wade.eisenbarth@nutrien.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3172,7 +3309,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "319-551-8753 ",
                                             "Email":  "joel.nelson@nutrien.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3195,7 +3333,8 @@
                                             "OfficePhone":  "507-662-5442",
                                             "CellPhone":  "507-360-5621",
                                             "Email":  "tom.kellen@nutrien.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3218,7 +3357,8 @@
                                             "OfficePhone":  "308-324-4567",
                                             "CellPhone":  "308-325-7987",
                                             "Email":  "dustin.ohanlon@gmail.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3241,7 +3381,8 @@
                                             "OfficePhone":  "815-433-2090",
                                             "CellPhone":  "217-663-4770",
                                             "Email":  "apleasant@ottawaplantfood.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3264,7 +3405,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "402-936-5166",
                                             "Email":  "ryan@redstarne.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3287,7 +3429,8 @@
                                             "OfficePhone":  "844-502-9368",
                                             "CellPhone":  "712-301-2549",
                                             "Email":  "tomstanton@redstarfertilizer.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3310,7 +3453,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "641--525-2503",
                                             "Email":  "abaker@riw2000.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3333,7 +3477,8 @@
                                             "OfficePhone":  "507-664-0520",
                                             "CellPhone":  "612-240-5840",
                                             "Email":  "skoziolek@riw2000.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3356,7 +3501,8 @@
                                             "OfficePhone":  "Remote",
                                             "CellPhone":  "913-333-6108",
                                             "Email":  "klilly@riw2000.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3379,7 +3525,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "309-261-1378",
                                             "Email":  "sclapp@riw2000.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3402,7 +3549,8 @@
                                             "OfficePhone":  "402-423-3303",
                                             "CellPhone":  "308-380-1993",
                                             "Email":  "dclemans@riw2000.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3425,7 +3573,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "712-253-3452",
                                             "Email":  " jcurry@riw2000.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3448,7 +3597,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "605-253-6150",
                                             "Email":  "j.adams@southeastfarmers.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3471,7 +3621,8 @@
                                             "OfficePhone":  "217-204-7418",
                                             "CellPhone":  "TBD",
                                             "Email":  "rbarker@sunrise-fs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3494,7 +3645,8 @@
                                             "OfficePhone":  "217-826-6331",
                                             "CellPhone":  "217-822-0015",
                                             "Email":  "TBD",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3517,7 +3669,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "csalrin@threeriversfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3540,7 +3693,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "jvorwald@threeriversfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3563,7 +3717,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "jvorwald@threeriversfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3586,7 +3741,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "gconnolly@threeriversfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3609,7 +3765,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "proberg@threeriversfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3632,7 +3789,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "ckeehner@threeriversfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3655,7 +3813,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "TBD",
                                             "Email":  "tsmith@threeriversfs.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3678,7 +3837,8 @@
                                             "OfficePhone":  "217-485-6000",
                                             "CellPhone":  "217-343-6324",
                                             "Email":  "cmiller@unitedprairie.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3701,7 +3861,8 @@
                                             "OfficePhone":  "217-485-6000",
                                             "CellPhone":  "217-841-5360",
                                             "Email":  "tshunk@unitedprairie.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3724,7 +3885,8 @@
                                             "OfficePhone":  "217-485-6000",
                                             "CellPhone":  "217-841-5340",
                                             "Email":  "brawlins@unitedprairie.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3747,7 +3909,8 @@
                                             "OfficePhone":  "217-485-6000",
                                             "CellPhone":  "217-480-7142",
                                             "Email":  "gcahill@unitedprairie.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3770,7 +3933,8 @@
                                             "OfficePhone":  "217-485-6000",
                                             "CellPhone":  "217-841-5337",
                                             "Email":  "agrote@unitedprairie.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3793,7 +3957,8 @@
                                             "OfficePhone":  "217-485-6000",
                                             "CellPhone":  "309-212-8439",
                                             "Email":  "ahoerner@unitedprairie.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3816,7 +3981,8 @@
                                             "OfficePhone":  "217-462-7711",
                                             "CellPhone":  "217-419-5565",
                                             "Email":  "awiggins@unitedprairie.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3839,7 +4005,8 @@
                                             "OfficePhone":  "TBD",
                                             "CellPhone":  "217-242-9480",
                                             "Email":  "tphillips@ursacoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3862,7 +4029,8 @@
                                             "OfficePhone":  "320-394-2171",
                                             "CellPhone":  "218-948-2187",
                                             "Email":  "dbartz@west-con.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3885,7 +4053,8 @@
                                             "OfficePhone":  "507-283-2053",
                                             "CellPhone":  "507-220-2525",
                                             "Email":  "fickfive@gmail.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3908,7 +4077,8 @@
                                             "OfficePhone":  "320-394-2180",
                                             "CellPhone":  "320-241-7697",
                                             "Email":  "dbartz@west-con.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3931,7 +4101,8 @@
                                             "OfficePhone":  "320-394-2171",
                                             "CellPhone":  "320-288-3279",
                                             "Email":  "scott.mattocks@west-con.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      },
                      {
@@ -3954,7 +4125,8 @@
                                             "OfficePhone":  "320-563-8152",
                                             "CellPhone":  "320-808-4938",
                                             "Email":  "kevin.grimes@wdcoop.com",
-                                            "Category":  "Kingpin"
+                                            "Category":  "Kingpin",
+                                            "IsKingpin":  true
                                         }
                      }
                  ]
