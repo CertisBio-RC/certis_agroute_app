@@ -418,7 +418,7 @@ const geojson = {
 /* ========================================================================
    🌍 MAIN COMPONENT — CERTISMAP
 ======================================================================== */
-export default function CertisMap({
+}export default function CertisMap({
   selectedStates,
   selectedRetailers,
   selectedCategories,
