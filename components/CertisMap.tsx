@@ -359,8 +359,6 @@ function updateHomeMarker(map: Map, homeCoords: [number, number] | null) {
 function updateTripLine(map: Map, tripStops: Stop[]) {
   const coords = tripStops.map((s) => s.coords);
 
-const tripCoordinates = trip.map((s: any) => [s.Longitude, s.Latitude]);
-
 const geojson = {
   type: "Feature",
   geometry: {
