@@ -257,14 +257,15 @@ export default function CertisMap({
       // ======================================================================
       // SEND AVAILABLE FILTER VALUES (States, Retailers, Suppliers)
       // ======================================================================
-      if (onStatesLoaded)
-onStatesLoaded(
-  [...new Set(retailers.features.map((f: any) => String(f.properties.State || "")))] as string[]
-    .filter(Boolean)
-    .sort()
-);
+if (onStatesLoaded) {
+  const stateList = (
+    [...new Set(retailers.features.map((f: any) => String(f.properties.State || "")))]
+      .filter(Boolean)
+      .sort()
+  ) as string[];
 
-
+  onStatesLoaded(stateList);
+}
       if (onRetailersLoaded)
         onRetailersLoaded(
           [...new Set(retailers.features.map((f: any) => f.properties.Retailer || ""))]
