@@ -376,6 +376,27 @@ const geojson = {
     (map.getSource("trip-line") as GeoJSONSource).setData(geojson);
   }
 
+  function updateTripLine(map: Map, tripStops: Stop[]) {
+  const coords = tripStops.map((s) => s.coords);
+
+  const geojson: GeoJSON.Feature = {
+    type: "Feature",
+    geometry: {
+      type: "LineString",
+      coordinates: coords,
+    },
+    properties: {},
+  };
+
+  if (!map.getSource("trip-line")) {
+    map.addSource("trip-line", {
+      type: "geojson",
+      data: geojson,
+    });
+  } else {
+    (map.getSource("trip-line") as GeoJSONSource).setData(geojson);
+  }
+
   if (!map.getLayer("trip-line-layer")) {
     map.addLayer({
       id: "trip-line-layer",
@@ -386,12 +407,13 @@ const geojson = {
         "line-cap": "round",
       },
       paint: {
-        "line-color": "#facc15",
+        "line-color": "#facc15", // Bailey Rule – yellow line
         "line-width": 3,
       },
     });
   }
 }
+
 
 /* ========================================================================
    🌍 MAIN COMPONENT — CERTISMAP
