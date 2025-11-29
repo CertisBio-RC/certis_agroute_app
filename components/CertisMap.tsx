@@ -366,7 +366,8 @@ const geojson = {
     coordinates: coords,
   },
   properties: {},
-};
+} as const;
+
   if (!map.getSource("trip-line")) {
     map.addSource("trip-line", {
       type: "geojson",
