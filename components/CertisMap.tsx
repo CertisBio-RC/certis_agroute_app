@@ -360,13 +360,14 @@ function updateTripLine(map: Map, tripStops: Stop[]) {
   const coords = tripStops.map((s) => s.coords);
 
   const geojson = {
-    type: "Feature",
-    geometry: {
-      type: "LineString",
-      coordinates: coords,
-    },
-    properties: {},
-  };
+  type: "Feature",
+  geometry: {
+    type: "LineString",
+    coordinates: tripCoordinates,
+  },
+  properties: {},
+};
+
 
   if (!map.getSource("trip-line")) {
     map.addSource("trip-line", {
