@@ -258,11 +258,12 @@ export default function CertisMap({
       // SEND AVAILABLE FILTER VALUES (States, Retailers, Suppliers)
       // ======================================================================
       if (onStatesLoaded)
-        onStatesLoaded(
-          [...new Set(retailers.features.map((f: any) => f.properties.State || ""))]
-            .filter(Boolean)
-            .sort()
-        );
+onStatesLoaded(
+  [...new Set(retailers.features.map((f: any) => String(f.properties.State || "")))] as string[]
+    .filter(Boolean)
+    .sort()
+);
+
 
       if (onRetailersLoaded)
         onRetailersLoaded(
