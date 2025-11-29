@@ -511,7 +511,7 @@ const geojson = {
               .filter(Boolean)
           ),
         ].sort();
-        onRetailersLoaded(retailers);
+       onRetailersLoaded(retailers as string[]);
 
         const suppliers = [
           ...new Set(
