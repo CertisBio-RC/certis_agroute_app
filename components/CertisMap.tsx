@@ -363,7 +363,7 @@ const geojson = {
   type: "Feature",
   geometry: {
     type: "LineString",
-    coordinates: tripCoordinates,
+    coordinates: coords,
   },
   properties: {},
 };
