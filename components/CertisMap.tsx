@@ -219,7 +219,7 @@ function initializeBaseSourcesAndLayers(
   loadKingpinIcon();
 
   // Click handler for retailers + corporate HQ → Add to Trip
-  const clickHandler = (e: mapboxgl.MapMouseEvent & { features?: any[] }
+  const clickHandler = (e: mapboxgl.MapMouseEvent & { features?: any[] }) => {
     const feature = e.features?.[0] as any;
     if (!feature) return;
     const p = feature.properties || {};
