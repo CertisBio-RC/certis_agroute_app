@@ -260,11 +260,12 @@ function updateHomeMarker(map: Map, homeCoords: [number, number] | null) {
 
   const [lng, lat] = homeCoords;
 
+  // IMPORTANT — coordinates must be mutable `number[]` (not readonly tuple)
   const feature = {
     type: "Feature",
-    geometry: { type: "Point", coordinates: [lng, lat] },
+    geometry: { type: "Point", coordinates: [lng, lat] as number[] },
     properties: {},
-  } as const;
+  };
 
   const render = () => {
     if (!map.getSource("home")) {
