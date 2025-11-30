@@ -117,7 +117,7 @@ function initializeLayers(
       filter: buildRetailerFilterExpr([], [], [], []),
       paint: {
         "circle-radius": 4,
-        "circle-color": categoryColorExpr,
+       "circle-color": categoryColorExpr as unknown as mapboxgl.Expression,
         "circle-stroke-color": "#111827",
         "circle-stroke-width": 1
       }
