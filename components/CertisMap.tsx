@@ -219,7 +219,7 @@ export default function CertisMap(props: CertisMapProps) {
           source: "kingpins",
           layout: {
             "icon-image": "kingpin-icon",
-            "icon-size": 0.13,        // << correct "slightly smaller" size
+            "icon-size": 0.05,        // << correct "slightly smaller" size
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
           },
@@ -338,20 +338,25 @@ useEffect(() => {
   const m = mapRef.current;
   if (!m) return;
 
+  // 🚨 Ensure the retailer layer exists before applying filters or querying
+  const retailersExist = m.getLayer("retailers-circle");
+  const corpHqExist = m.getLayer("corp-hq-circle");
+
+  if (!retailersExist) return; // <-- prevents crash + console spam
+
   // Apply retailer filter
-  if (m.getLayer("retailers-circle"))
-    m.setFilter(
-      "retailers-circle",
-      buildRetailerFilterExpr(
-        selectedStates,
-        selectedRetailers,
-        selectedCategories,
-        selectedSuppliers
-      )
-    );
+  m.setFilter(
+    "retailers-circle",
+    buildRetailerFilterExpr(
+      selectedStates,
+      selectedRetailers,
+      selectedCategories,
+      selectedSuppliers
+    )
+  );
 
   // Apply Corporate HQ filter (State-only, per Bailey Rules)
-  if (m.getLayer("corp-hq-circle"))
+  if (corpHqExist)
     m.setFilter("corp-hq-circle", buildCorpHqFilterExpr(selectedStates));
 
   // Build summary based solely on visible (filtered) retailers
@@ -400,14 +405,20 @@ useEffect(() => {
       }))
     );
   } catch {
-    // ignore during first render
+    /* silently ignore during first render */
   }
-}, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
+}, [
+  selectedStates,
+  selectedRetailers,
+  selectedCategories,
+  selectedSuppliers,
+]);
 
 
 /* =========================================================================
    ROAD-FOLLOWING TRIP ROUTE — Mapbox Directions API (Driving)
 =========================================================================== */
+
 useEffect(() => {
   const m = mapRef.current;
   if (!m) return;
