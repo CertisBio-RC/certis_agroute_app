@@ -157,14 +157,14 @@ export default function CertisMap(props: CertisMapProps) {
       ).sort();
       onStatesLoaded(states);
 
-      const retailers = Array.from(
-        new Set(
-          (retailersData.features ?? [])
-            .map((f: any): string => String(f.properties?.Retailer ?? "").trim())
-            .filter((v: string) => v.length > 0)
-        )
-      ).sort();
-      onRetailersLoaded(retailers);
+const retailers: string[] = Array.from(
+  new Set(
+    (retailersData.features ?? [])
+      .map((f: any): string => String(f.properties?.Retailer ?? "").trim())
+  )
+).filter(Boolean).sort();
+
+onRetailersLoaded(retailers);
 
       const suppliers = Array.from(
         new Set(
@@ -384,7 +384,24 @@ export default function CertisMap(props: CertisMapProps) {
         draw();
       };
       img.src = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/icons/Blue_Home.png`;
-      const draw = () => {};
+ img.onload = () => {
+  if (!m.hasImage("home-icon"))
+    m.addImage("home-icon", img, { pixelRatio: 2 });
+
+  if (!m.getLayer("home")) {
+    m.addLayer({
+      id: "home",
+      type: "symbol",
+      source: "home",
+      layout: {
+        "icon-image": "home-icon",
+        "icon-size": 0.45,
+        "icon-anchor": "bottom",
+      },
+    });
+  }
+};
+
     } else if (!m.getLayer("home")) {
       m.addLayer({
         id: "home",
