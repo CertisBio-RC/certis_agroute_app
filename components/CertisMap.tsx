@@ -363,13 +363,13 @@ export default function CertisMap({
       onStatesLoaded(states);
 
       // ✅ **TS-SAFE Retailer Loading (Fix for build error)**
-      const retailersList: string[] = Array.from(
-        new Set(
-          (retailersData.features ?? [])
-            .map((f: any) => String(f.properties?.Retailer || "").trim())
-            .filter((v) => v.length > 0)
-        )
-      ).sort();
+const retailersList: string[] = Array.from(
+  new Set(
+    (retailersData.features ?? [])
+      .map((f: any): string => String(f.properties?.Retailer ?? "").trim())
+      .filter((v: string) => v.length > 0)
+  )
+).sort();
       onRetailersLoaded(retailersList);
 
       const suppliers = Array.from(
