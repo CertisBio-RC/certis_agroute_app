@@ -290,7 +290,7 @@ export default function Page() {
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-              onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
+             onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
@@ -303,7 +303,7 @@ export default function Page() {
             </button>
           </div>
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto">
-            {availableRetailers.map((r) => {
+	{filteredRetailersForSummary.map((r) => {
               const n = norm(r);
               return (
                 <label key={r} className="flex items-center space-x-2">
