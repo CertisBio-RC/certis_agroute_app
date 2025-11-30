@@ -336,8 +336,8 @@ function updateTripLine(map: Map, tripStops: Stop[]) {
       paint: {
         "line-color": "#facc15",
         "line-width": 3,
-        "line-join": "round",
-        "line-cap": "round",
+        "line-join-type": "round",
+        "line-cap-type": "round",
       },
     });
   }
