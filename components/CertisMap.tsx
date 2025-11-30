@@ -466,16 +466,14 @@ useEffect(() => {
 
       /* --- DM-ALL RETAILER SUMMARY (fires once on initial load) --- */
       {
-        const summaryMap = new Map<
-          string,
-          {
-            retailer: string;
-            count: number;
-            suppliers: Set<string>;
-            categories: Set<string>;
-            states: Set<string>;
-          }
-        >();
+const summaryMap = new Map<string, {
+  retailer: string;
+  count: number;
+  suppliers: Set<string>;
+  categories: Set<string>;
+  states: Set<string>;
+}>();
+
 
         for (const f of allFeatures) {
           const p = f.properties ?? {};
