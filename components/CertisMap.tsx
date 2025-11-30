@@ -375,62 +375,66 @@ export default function CertisMap({
   // prevent ESLint unused warning — used in future
   void routeGeoJSON;
 
-  /* ------------------------------------------------------------------------
-     🗺 INIT MAP + LOAD GEOJSON + DM-ALL CALLBACKS
-  ------------------------------------------------------------------------ */
-  useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
+/* ------------------------------------------------------------------------
+ 🗺 INIT MAP + LOAD GEOJSON + DM-ALL CALLBACKS
+------------------------------------------------------------------------ */
+useEffect(() => {
+  if (!mapContainerRef.current || mapRef.current) return;
 
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/satellite-streets-v12", // Bailey Rule
-      center: [-93.5, 41.5],
-      zoom: 5,
-      projection: { name: "mercator" }, // Bailey Rule
-    });
+  const map = new mapboxgl.Map({
+    container: mapContainerRef.current,
+    style: "mapbox://styles/mapbox/satellite-streets-v12", // Bailey Rule
+    center: [-93.5, 41.5],
+    zoom: 5,
+    projection: { name: "mercator" }, // Bailey Rule
+  });
 
-    mapRef.current = map;
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+  mapRef.current = map;
+  map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
 
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-    Promise.all([
-      fetch(`${basePath}/data/retailers.geojson`).then((r) => r.json()),
-      fetch(`${basePath}/data/kingpin.geojson`).then((r) => r.json()),
-    ])
-      .then(([retailersData, kingpinData]) => {
-        if (!mapRef.current) return;
-        const map = mapRef.current;
+  Promise.all([
+    fetch(`${basePath}/data/retailers.geojson`).then((r) => r.json()),
+    fetch(`${basePath}/data/kingpin.geojson`).then((r) => r.json()),
+  ])
+    .then(([retailersData, kingpinData]) => {
+      if (!mapRef.current) return;
+      const map = mapRef.current;
 
-        /* --- convert ALL to unified Stop[] --- */
-        const allFeatures = [
-          ...(retailersData.features ?? []),
-          ...(kingpinData.features ?? []),
-        ];
+      /* --- convert ALL to unified Stop[] --- */
+      const allFeatures = [
+        ...(retailersData.features ?? []),
+        ...(kingpinData.features ?? []),
+      ];
 
-        const stops: Stop[] = allFeatures
-          .map((f: any) => {
-            const p = f.properties ?? {};
-            const coords = f.geometry?.coordinates;
-            if (!coords) return null;
-            return {
-              label: p.Name || p.Retailer || "Unknown",
-              address: p.Address || "",
-              city: p.City || "",
-              state: p.State || "",
-              zip: p.Zip || "",
-              coords: coords as [number, number],
-            };
-          })
-          .filter(Boolean) as Stop[];
+      const stops: Stop[] = allFeatures
+        .map((f: any) => {
+          const p = f.properties ?? {};
+          const coords = f.geometry?.coordinates;
+          if (!coords) return null;
+          return {
+            label: p.Name || p.Retailer || "Unknown",
+            address: p.Address || "",
+            city: p.City || "",
+            state: p.State || "",
+            zip: p.Zip || "",
+            coords: coords as [number, number],
+          };
+        })
+        .filter(Boolean) as Stop[];
 
-        onAllStopsLoaded(stops);
-        /* --- DM-ALL STATE / RETAILER / SUPPLIER LISTS --- */
+      onAllStopsLoaded(stops);
+
+      /* --- DM-ALL STATE / RETAILER / SUPPLIER LISTS --- */
+      {
         const states = [
           ...new Set(
             allFeatures
-              .map((f: any) => (f.properties?.State || "").trim().toUpperCase())
-              .filter(Boolean)
+              .map((f: any) =>
+                String(f.properties?.State || "").trim().toUpperCase()
+              )
+              .filter((v) => v.length > 0)
           ),
         ].sort();
         onStatesLoaded(states);
@@ -438,10 +442,10 @@ export default function CertisMap({
         const retailers = [
           ...new Set(
             retailersData.features
-              ?.map((f: any) => (f.properties?.Retailer || "").trim())
-              .filter(Boolean)
+              ?.map((f: any) => String(f.properties?.Retailer || "").trim())
+              .filter((v: string) => v.length > 0)
           ),
-        ].sort();
+        ].sort() as string[];
         onRetailersLoaded(retailers);
 
         const suppliers = [
@@ -452,13 +456,16 @@ export default function CertisMap({
               return String(raw)
                 .split(",")
                 .map((s) => s.trim())
-                .filter(Boolean);
+                .filter((v) => v.length > 0);
             })
           ),
-        ].sort();
+        ].sort() as string[];
         onSuppliersLoaded(suppliers);
+      }
+      /* --- END DM-ALL STATE / RETAILER / SUPPLIER LISTS --- */
 
-        /* --- DM-ALL RETAILER SUMMARY (fires once on initial load) --- */
+      /* --- DM-ALL RETAILER SUMMARY (fires once on initial load) --- */
+      {
         const summaryMap = new Map<
           string,
           {
@@ -500,26 +507,26 @@ export default function CertisMap({
           summaryMap.set(retailer, entry);
         }
 
-        /* --- initialize map layers when style loads --- */
-        const initLayers = () => {
-          if ((map as any).__layers_initialized) return;
-          (map as any).__layers_initialized = true;
-          initializeBaseSourcesAndLayers(map, retailersData, kingpinData, onAddStop);
-        };
+        onRetailerSummary(
+          Array.from(summaryMap.values()).map((e) => ({
+            retailer: e.retailer,
+            count: e.count,
+            suppliers: Array.from(e.suppliers),
+            categories: Array.from(e.categories),
+            states: Array.from(e.states),
+          }))
+        );
+      }
+      /* --- END DM-ALL RETAILER SUMMARY --- */
 
-        if (map.isStyleLoaded()) initLayers();
-        else map.on("styledata", initLayers);
-      })
-      .catch((err) => console.error("GeoJSON load failure:", err));
-  }, [
-    onAllStopsLoaded,
-    onStatesLoaded,
-    onRetailersLoaded,
-    onSuppliersLoaded,
-    onRetailerSummary,
-    onAddStop,
-  ]);
-
+      // Initialize sources + layers AFTER data and DM-ALL callbacks
+      initializeBaseSourcesAndLayers(map, retailersData, kingpinData, onAddStop);
+    })
+    .catch((err) => console.error("GEOJSON load error:", err));
+}, []);
+/* ------------------------------------------------------------------------
+ END INIT MAP + LOAD GEOJSON
+------------------------------------------------------------------------ */
   /* ------------------------------------------------------------------------
    FILTERING — RS-FILTERED (Retailers filtered strictly by selections)
 ------------------------------------------------------------------------ */
