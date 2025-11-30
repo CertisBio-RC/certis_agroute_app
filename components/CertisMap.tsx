@@ -157,12 +157,14 @@ export default function CertisMap(props: CertisMapProps) {
       ).sort();
       onStatesLoaded(states);
 
-const retailers: string[] = Array.from(
+const retailers = Array.from(
   new Set(
     (retailersData.features ?? [])
       .map((f: any): string => String(f.properties?.Retailer ?? "").trim())
   )
-).filter(Boolean).sort();
+)
+  .filter(Boolean)
+  .sort() as string[];
 
 onRetailersLoaded(retailers);
 
