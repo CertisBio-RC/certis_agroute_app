@@ -260,15 +260,15 @@ function updateHomeMarker(map: Map, homeCoords: [number, number] | null) {
 
   const [lng, lat] = homeCoords;
 
-  // IMPORTANT — coordinates must be mutable `number[]` (not readonly tuple)
-const feature: GeoJSON.Feature = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [lng, lat],   // NO "as number[]" and NO readonly tuple
-  },
-  properties: {},
-};
+  // IMPORTANT — must be mutable coordinates and typed as Feature<Point>
+  const feature: GeoJSON.Feature<GeoJSON.Point> = {
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [lng, lat], // no readonly tuple and no casting
+    },
+    properties: {},
+  };
 
   const render = () => {
     if (!map.getSource("home")) {
@@ -304,10 +304,10 @@ const feature: GeoJSON.Feature = {
     render();
   }
 }
+
 /* =========================================================================
    🧭 TRIP POLYLINE — Yellow line (Bailey Rule)
 =========================================================================== */
-
 function updateTripLine(map: Map, tripStops: Stop[]) {
   if (!tripStops.length) {
     if (map.getLayer("trip-line-layer")) map.removeLayer("trip-line-layer");
@@ -316,9 +316,12 @@ function updateTripLine(map: Map, tripStops: Stop[]) {
   }
 
   const coords = tripStops.map((s) => s.coords);
-  const geojson: GeoJSON.Feature = {
+  const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
     type: "Feature",
-    geometry: { type: "LineString", coordinates: coords },
+    geometry: {
+      type: "LineString",
+      coordinates: coords,
+    },
     properties: {},
   };
 
@@ -333,16 +336,17 @@ function updateTripLine(map: Map, tripStops: Stop[]) {
       id: "trip-line-layer",
       type: "line",
       source: "trip-line",
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
+      },
       paint: {
         "line-color": "#facc15",
         "line-width": 3,
-        "line-join-type": "round",
-        "line-cap-type": "round",
       },
     });
   }
 }
-
 /* =========================================================================
    🌍 MAIN COMPONENT — CERTISMAP
 =========================================================================== */
