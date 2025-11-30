@@ -378,17 +378,38 @@ onRetailersLoaded(retailers);
     if (!m.getSource("home")) m.addSource("home", { type: "geojson", data: feature });
     else (m.getSource("home") as GeoJSONSource).setData(feature);
 
-    if (!m.hasImage("home-icon")) {
-      const img = new Image();
-      img.onload = () => {
-        if (!m.hasImage("home-icon"))
-          m.addImage("home-icon", img, { pixelRatio: 2 });
-        draw();
-      };
-      img.src = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/icons/Blue_Home.png`;
- img.onload = () => {
-  if (!m.hasImage("home-icon"))
-    m.addImage("home-icon", img, { pixelRatio: 2 });
+if (!m.hasImage("home-icon")) {
+  const img = new Image();
+  img.onload = () => {
+    if (!m.hasImage("home-icon"))
+      m.addImage("home-icon", img, { pixelRatio: 2 });
+
+    if (!m.getLayer("home")) {
+      m.addLayer({
+        id: "home",
+        type: "symbol",
+        source: "home",
+        layout: {
+          "icon-image": "home-icon",
+          "icon-size": 0.45,
+          "icon-anchor": "bottom",
+        },
+      });
+    }
+  };
+  img.src = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/icons/Blue_Home.png`;
+} else if (!m.getLayer("home")) {
+  m.addLayer({
+    id: "home",
+    type: "symbol",
+    source: "home",
+    layout: {
+      "icon-image": "home-icon",
+      "icon-size": 0.45,
+      "icon-anchor": "bottom",
+    },
+  });
+}
 
   if (!m.getLayer("home")) {
     m.addLayer({
