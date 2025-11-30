@@ -219,7 +219,7 @@ export default function CertisMap(props: CertisMapProps) {
           source: "kingpins",
           layout: {
             "icon-image": "kingpin-icon",
-            "icon-size": 0.05,        // << correct "slightly smaller" size
+            "icon-size": 0.025,        // << correct "slightly smaller" size
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
           },
