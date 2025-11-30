@@ -481,5 +481,4 @@ useEffect(() => {
    RENDER MAP
 =========================================================================== */
 return <div ref={containerRef} className="w-full h-full" />;
-
-// ━━━ END BLOCK 3 (EOF)
+}
