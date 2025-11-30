@@ -261,11 +261,14 @@ function updateHomeMarker(map: Map, homeCoords: [number, number] | null) {
   const [lng, lat] = homeCoords;
 
   // IMPORTANT — coordinates must be mutable `number[]` (not readonly tuple)
-  const feature = {
-    type: "Feature",
-    geometry: { type: "Point", coordinates: [lng, lat] as number[] },
-    properties: {},
-  };
+const feature: GeoJSON.Feature = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: [lng, lat],   // NO "as number[]" and NO readonly tuple
+  },
+  properties: {},
+};
 
   const render = () => {
     if (!map.getSource("home")) {
