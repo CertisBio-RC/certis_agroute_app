@@ -264,7 +264,7 @@ function updateHomeMarker(map: Map, homeCoords: [number, number] | null) {
     type: "Feature",
     geometry: { type: "Point", coordinates: [lng, lat] },
     properties: {},
-  };
+  } as const;
 
   const render = () => {
     if (!map.getSource("home")) {
@@ -290,7 +290,9 @@ function updateHomeMarker(map: Map, homeCoords: [number, number] | null) {
   if (!map.hasImage("home-icon")) {
     const img = new Image();
     img.onload = () => {
-      if (!map.hasImage("home-icon")) map.addImage("home-icon", img, { pixelRatio: 2 });
+      if (!map.hasImage("home-icon")) {
+        map.addImage("home-icon", img, { pixelRatio: 2 });
+      }
       render();
     };
     img.src = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/icons/Blue_Home.png`;
@@ -298,10 +300,10 @@ function updateHomeMarker(map: Map, homeCoords: [number, number] | null) {
     render();
   }
 }
-
 /* =========================================================================
    🧭 TRIP POLYLINE — Yellow line (Bailey Rule)
 =========================================================================== */
+
 function updateTripLine(map: Map, tripStops: Stop[]) {
   if (!tripStops.length) {
     if (map.getLayer("trip-line-layer")) map.removeLayer("trip-line-layer");
