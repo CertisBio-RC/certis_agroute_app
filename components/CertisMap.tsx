@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import mapboxgl, { GeoJSONSource, Map } from "mapbox-gl";
+import mapboxgl, { GeoJSONSource, Map as MapboxMap } from "mapbox-gl";
 
 export interface Stop {
   label: string;
@@ -96,9 +96,13 @@ function buildCorpHqFilterExpr(selectedStates: string[]): any[] {
   return f;
 }
 
-function initializeLayers(map: Map, retailersData: any, kingpinData: any, onAddStop: (stop: Stop) => void) {
+function initializeLayers(
+  map: MapboxMap,
+  retailersData: any,
+  kingpinData: any,
+  onAddStop: (stop: Stop) => void
+) {
   if (!map.getSource("retailers")) map.addSource("retailers", { type: "geojson", data: retailersData });
-
   if (!map.getSource("kingpins")) map.addSource("kingpins", { type: "geojson", data: kingpinData });
 
   const categoryColors: Record<string, string> = {
@@ -110,7 +114,7 @@ function initializeLayers(map: Map, retailersData: any, kingpinData: any, onAddS
     kingpin: "#38bdf8",
   };
 
-  // Keep this as an expression, but appease Mapbox GL TS typings without changing your behavior.
+  // Expression for circle-color; keep behavior, appease TS.
   const categoryColorExpr = [
     "case",
     ["==", ["downcase", ["get", "Category"]], "agronomy"],
@@ -138,7 +142,7 @@ function initializeLayers(map: Map, retailersData: any, kingpinData: any, onAddS
       },
     });
 
-  // Corporate HQ = red fill, yellow border (NO ICON)
+  // Corporate HQ = red fill + yellow border (NO ICON) — as always.
   if (!map.getLayer("corp-hq-circle"))
     map.addLayer({
       id: "corp-hq-circle",
@@ -179,9 +183,11 @@ function initializeLayers(map: Map, retailersData: any, kingpinData: any, onAddS
   const click = (e: any) => {
     const f = e.features?.[0];
     if (!f) return;
+
     const p = f.properties || {};
     const coords = f.geometry?.coordinates;
     if (!coords) return;
+
     const [lng, lat] = coords;
 
     const stop: Stop = {
@@ -226,7 +232,7 @@ function initializeLayers(map: Map, retailersData: any, kingpinData: any, onAddS
 /* =========================================================================
    🚩 HOME MARKER — Blue_Home.png
 =========================================================================== */
-function updateHome(map: Map, home: [number, number] | null) {
+function updateHome(map: MapboxMap, home: [number, number] | null) {
   if (!home) {
     if (map.getLayer("home-symbol")) map.removeLayer("home-symbol");
     if (map.getSource("home")) map.removeSource("home");
@@ -271,7 +277,7 @@ function updateHome(map: Map, home: [number, number] | null) {
 /* =========================================================================
    🧭 TRIP LINE — Yellow Polyline
 =========================================================================== */
-function updateTrip(map: Map, stops: Stop[]) {
+function updateTrip(map: MapboxMap, stops: Stop[]) {
   if (!stops.length) {
     if (map.getLayer("trip-line")) map.removeLayer("trip-line");
     if (map.getSource("trip-line")) map.removeSource("trip-line");
@@ -317,7 +323,7 @@ export default function CertisMap({
   onAllStopsLoaded,
   onAddStop,
 }: CertisMapProps) {
-  const mapRef = useRef<Map | null>(null);
+  const mapRef = useRef<MapboxMap | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -336,6 +342,7 @@ export default function CertisMap({
       zoom: 5,
       projection: { name: "mercator" }, // Bailey Rule
     });
+
     mapRef.current = map;
 
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -373,17 +380,15 @@ export default function CertisMap({
           .map((f: any) => String(f.properties?.State ?? "").trim().toUpperCase())
           .filter((v: string) => v.length > 0)
       );
-      const states: string[] = Array.from(statesSet).sort();
-      onStatesLoaded(states);
+      onStatesLoaded(Array.from(statesSet).sort());
 
-      // RETAILERS (NOTE: Set<string> is the key to killing the "unknown[]" loop)
+      // RETAILERS (kills unknown[] by construction)
       const retailersSet = new Set<string>(
         (retailersData.features ?? [])
           .map((f: any) => String(f.properties?.Retailer ?? "").trim())
           .filter((v: string) => v.length > 0)
       );
-      const retailersList: string[] = Array.from(retailersSet).sort();
-      onRetailersLoaded(retailersList);
+      onRetailersLoaded(Array.from(retailersSet).sort());
 
       // SUPPLIERS
       const suppliersSet = new Set<string>(
@@ -396,8 +401,7 @@ export default function CertisMap({
           )
           .filter((v: string) => v.length > 0)
       );
-      const suppliers: string[] = Array.from(suppliersSet).sort();
-      onSuppliersLoaded(suppliers);
+      onSuppliersLoaded(Array.from(suppliersSet).sort());
 
       initializeLayers(m, retailersData, kingpinData, onAddStop);
     });
@@ -425,6 +429,7 @@ export default function CertisMap({
     try {
       const visible = map.queryRenderedFeatures({ layers: ["retailers-circle"] });
 
+      // ✅ Now this is the real generic Map<K,V>, not mapbox-gl's Map class.
       const summary: Map<
         string,
         { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }
@@ -493,4 +498,3 @@ export default function CertisMap({
 
   return <div ref={containerRef} className="w-full h-full" />;
 }
-
