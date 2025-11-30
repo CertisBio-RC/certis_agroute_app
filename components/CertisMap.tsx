@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import mapboxgl, { Map, GeoJSONSource } from "mapbox-gl";
+import mapboxgl, { Map, GeoJSONSource, ExpressionSpecification } from "mapbox-gl";
 
 export interface Stop {
   label: string;
@@ -36,6 +36,9 @@ export interface CertisMapProps {
   onAddStop: (stop: Stop) => void;
 }
 
+/* =========================================================================
+   FILTER HELPERS
+=========================================================================== */
 function buildRetailerFilterExpr(
   selectedStates: string[],
   selectedRetailers: string[],
@@ -50,10 +53,8 @@ function buildRetailerFilterExpr(
 
   if (selectedStates.length)
     filter.push(["in", ["downcase", ["get", "State"]], ["literal", selectedStates]]);
-
   if (selectedRetailers.length)
     filter.push(["in", ["downcase", ["get", "Retailer"]], ["literal", selectedRetailers]]);
-
   if (selectedCategories.length)
     filter.push(["in", ["downcase", ["get", "Category"]], ["literal", selectedCategories]]);
 
@@ -65,20 +66,19 @@ function buildRetailerFilterExpr(
     ]);
     filter.push(["any", ...ors]);
   }
-
   return filter;
 }
 
 function buildCorpHqFilterExpr(selectedStates: string[]): any[] {
-  const f: any[] = [
-    "all",
-    ["==", ["downcase", ["get", "Category"]], "corporate hq"]
-  ];
+  const f: any[] = ["all", ["==", ["downcase", ["get", "Category"]], "corporate hq"]];
   if (selectedStates.length)
     f.push(["in", ["downcase", ["get", "State"]], ["literal", selectedStates]]);
   return f;
 }
 
+/* =========================================================================
+   INITIALIZE MAP LAYERS + POPUPS
+=========================================================================== */
 function initializeLayers(
   map: Map,
   retailersData: any,
@@ -87,7 +87,6 @@ function initializeLayers(
 ) {
   if (!map.getSource("retailers"))
     map.addSource("retailers", { type: "geojson", data: retailersData });
-
   if (!map.getSource("kingpins"))
     map.addSource("kingpins", { type: "geojson", data: kingpinData });
 
@@ -95,12 +94,10 @@ function initializeLayers(
     agronomy: "#22c55e",
     "grain/feed": "#f97316",
     "c-store/service/energy": "#0ea5e9",
-    distribution: "#a855f7",
-    "corporate hq": "#ff0000",
-    kingpin: "#38bdf8"
+    distribution: "#a855f7"
   };
 
-  const categoryColorExpr: any[] = [
+  const categoryColorExpr: ExpressionSpecification = [
     "case",
     ["==", ["downcase", ["get", "Category"]], "agronomy"], categoryColors["agronomy"],
     ["==", ["downcase", ["get", "Category"]], "grain/feed"], categoryColors["grain/feed"],
@@ -117,7 +114,7 @@ function initializeLayers(
       filter: buildRetailerFilterExpr([], [], [], []),
       paint: {
         "circle-radius": 4,
-       "circle-color": categoryColorExpr as unknown as mapboxgl.Expression,
+        "circle-color": categoryColorExpr,
         "circle-stroke-color": "#111827",
         "circle-stroke-width": 1
       }
@@ -143,7 +140,6 @@ function initializeLayers(
     img.onload = () => {
       if (!map.hasImage("kingpin-icon"))
         map.addImage("kingpin-icon", img, { pixelRatio: 2 });
-
       if (!map.getLayer("kingpin-symbol"))
         map.addLayer({
           id: "kingpin-symbol",
@@ -158,12 +154,13 @@ function initializeLayers(
     };
     img.src = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/icons/kingpin.png`;
   };
-
   loadKingpin();
+
   const click = (e: any) => {
     const f = e.features?.[0];
     if (!f) return;
-    const p = f.properties || {};
+
+    const p = f.properties ?? {};
     const coords = f.geometry?.coordinates;
     if (!coords) return;
     const [lng, lat] = coords;
@@ -193,11 +190,7 @@ function initializeLayers(
       </button>
     `;
 
-    new mapboxgl.Popup({ offset: 12 })
-      .setLngLat([lng, lat])
-      .setDOMContent(d)
-      .addTo(map);
-
+    new mapboxgl.Popup({ offset: 12 }).setLngLat([lng, lat]).setDOMContent(d).addTo(map);
     d.querySelector("#agroute-add-stop")!.addEventListener("click", () => onAddStop(stop));
   };
 
@@ -211,7 +204,7 @@ function initializeLayers(
 }
 
 /* =========================================================================
-   🚩 HOME MARKER — Blue_Home.png
+   HOME MARKER
 =========================================================================== */
 function updateHome(map: Map, home: [number, number] | null) {
   if (!home) {
@@ -219,22 +212,20 @@ function updateHome(map: Map, home: [number, number] | null) {
     if (map.getSource("home")) map.removeSource("home");
     return;
   }
-
   const feature: GeoJSON.Feature<GeoJSON.Point> = {
     type: "Feature",
     geometry: { type: "Point", coordinates: home },
     properties: {}
   };
-
   if (!map.getSource("home"))
     map.addSource("home", { type: "geojson", data: feature });
-  else
-    (map.getSource("home") as GeoJSONSource).setData(feature);
+  else (map.getSource("home") as GeoJSONSource).setData(feature);
 
   if (!map.hasImage("home-icon")) {
     const img = new Image();
     img.onload = () => {
-      if (!map.hasImage("home-icon")) map.addImage("home-icon", img, { pixelRatio: 2 });
+      if (!map.hasImage("home-icon"))
+        map.addImage("home-icon", img, { pixelRatio: 2 });
       render();
     };
     img.src = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/icons/Blue_Home.png`;
@@ -255,7 +246,7 @@ function updateHome(map: Map, home: [number, number] | null) {
 }
 
 /* =========================================================================
-   🧭 TRIP LINE — Yellow Polyline
+   TRIP LINE
 =========================================================================== */
 function updateTrip(map: Map, stops: Stop[]) {
   if (!stops.length) {
@@ -263,32 +254,26 @@ function updateTrip(map: Map, stops: Stop[]) {
     if (map.getSource("trip-line")) map.removeSource("trip-line");
     return;
   }
-
   const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
     type: "Feature",
     geometry: { type: "LineString", coordinates: stops.map((s) => s.coords) },
     properties: {}
   };
-
   if (!map.getSource("trip-line"))
     map.addSource("trip-line", { type: "geojson", data: geojson });
-  else
-    (map.getSource("trip-line") as GeoJSONSource).setData(geojson);
+  else (map.getSource("trip-line") as GeoJSONSource).setData(geojson);
 
   if (!map.getLayer("trip-line"))
     map.addLayer({
       id: "trip-line",
       type: "line",
       source: "trip-line",
-      paint: {
-        "line-color": "#facc15",
-        "line-width": 3
-      }
+      paint: { "line-color": "#facc15", "line-width": 3 }
     });
 }
 
 /* =========================================================================
-   🌍 MAIN COMPONENT — CERTISMAP
+   MAIN
 =========================================================================== */
 export default function CertisMap({
   selectedStates,
@@ -309,12 +294,13 @@ export default function CertisMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-
   void routeGeoJSON;
 
+  /* ------------------------------------------------------------------------
+     INIT MAP + DATA LOAD
+  ------------------------------------------------------------------------ */
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
@@ -322,7 +308,6 @@ export default function CertisMap({
       zoom: 5,
       projection: { name: "mercator" }
     });
-
     mapRef.current = map;
 
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -334,10 +319,7 @@ export default function CertisMap({
       if (!mapRef.current) return;
       const m = mapRef.current;
 
-      const all = [
-        ...(retailersData.features ?? []),
-        ...(kingpinData.features ?? [])
-      ];
+      const all = [...(retailersData.features ?? []), ...(kingpinData.features ?? [])];
 
       const stops: Stop[] = all
         .map((f: any) => {
@@ -353,39 +335,46 @@ export default function CertisMap({
             coords: c as [number, number]
           };
         })
-        .filter(Boolean) as Stop[];
-
+        .filter(Boolean);
       onAllStopsLoaded(stops);
 
-      const states = [...new Set(
-        all.map((f) => (f.properties?.State || "").trim().toUpperCase()).filter(Boolean)
-      )] as string[];
-      onStatesLoaded(states);
-
-      const retailersList = [...new Set(
-        (retailersData.features ?? []).map(
-          (f: any): string => String(f.properties?.Retailer ?? "").trim()
-        ).filter((v) => v.length > 0)
-      )] as string[];
-      onRetailersLoaded(retailersList);
-
-      const suppliers = [...new Set(
-        all.flatMap((f: any) =>
-          String(f.properties?.Suppliers || "")
-            .split(",")
-            .map((s) => s.trim())
+      const states = Array.from(
+        new Set(
+          all
+            .map((f) => (f.properties?.State || "").toString().trim().toUpperCase())
             .filter(Boolean)
         )
-      )] as string[];
+      ).sort();
+      onStatesLoaded(states);
+
+      const retailersList: string[] = Array.from(
+        new Set(
+          (retailersData.features ?? [])
+            .map((f: any): string => String(f.properties?.Retailer ?? "").trim())
+            .filter((v) => v.length > 0)
+        )
+      ).sort();
+      onRetailersLoaded(retailersList);
+
+      const suppliers = Array.from(
+        new Set(
+          all.flatMap((f: any) =>
+            String(f.properties?.Suppliers || "")
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          )
+        )
+      ).sort();
       onSuppliersLoaded(suppliers);
 
       initializeLayers(m, retailersData, kingpinData, onAddStop);
     });
   }, []);
 
-  /* =========================================================================
-     RETAILER SUMMARY — T2 LOGIC, VISIBLE RETAILERS ONLY
-  ========================================================================= */
+  /* ------------------------------------------------------------------------
+     RETAILER SUMMARY (T2)
+  ------------------------------------------------------------------------ */
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -407,10 +396,10 @@ export default function CertisMap({
     try {
       const visible = map.queryRenderedFeatures({ layers: ["retailers-circle"] });
 
-      const summary = new Map() as Map<
+      const summary = new Map<
         string,
         { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }
-      >;
+      >();
 
       for (const f of visible) {
         const p = f.properties || {};
@@ -454,13 +443,11 @@ export default function CertisMap({
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
 
   useEffect(() => {
-    if (!mapRef.current) return;
-    updateHome(mapRef.current, homeCoords);
+    if (mapRef.current) updateHome(mapRef.current, homeCoords);
   }, [homeCoords]);
 
   useEffect(() => {
-    if (!mapRef.current) return;
-    updateTrip(mapRef.current, tripStops);
+    if (mapRef.current) updateTrip(mapRef.current, tripStops);
   }, [tripStops]);
 
   return <div ref={containerRef} className="w-full h-full" />;
