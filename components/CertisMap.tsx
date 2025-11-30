@@ -356,61 +356,61 @@ onRetailersLoaded(retailers);
     } catch {}
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
 
-  /* =========================================================================
-     HOME MARKER
-  ========================================================================== */
-  useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
+/* =========================================================================
+   HOME MARKER
+=========================================================================== */
+useEffect(() => {
+  const m = mapRef.current;
+  if (!m) return;
 
-    if (!homeCoords) {
-      if (m.getLayer("home")) m.removeLayer("home");
-      if (m.getSource("home")) m.removeSource("home");
-      return;
-    }
+  // Remove home when not set
+  if (!homeCoords) {
+    if (m.getLayer("home")) m.removeLayer("home");
+    if (m.getSource("home")) m.removeSource("home");
+    return;
+  }
 
-    const feature: any = {
-      type: "Feature",
-      geometry: { type: "Point", coordinates: homeCoords },
-      properties: {},
+  const feature: any = {
+    type: "Feature",
+    geometry: { type: "Point", coordinates: homeCoords },
+    properties: {},
+  };
+
+  // Add + update source
+  if (!m.getSource("home")) {
+    m.addSource("home", { type: "geojson", data: feature });
+  } else {
+    (m.getSource("home") as GeoJSONSource).setData(feature);
+  }
+
+  // Add icon once
+  if (!m.hasImage("home-icon")) {
+    const img = new Image();
+    img.onload = () => {
+      if (!m.hasImage("home-icon")) {
+        m.addImage("home-icon", img, { pixelRatio: 2 });
+      }
+
+      // Add layer AFTER icon exists
+      if (!m.getLayer("home")) {
+        m.addLayer({
+          id: "home",
+          type: "symbol",
+          source: "home",
+          layout: {
+            "icon-image": "home-icon",
+            "icon-size": 0.45,
+            "icon-anchor": "bottom",
+          },
+        });
+      }
     };
 
-    if (!m.getSource("home")) m.addSource("home", { type: "geojson", data: feature });
-    else (m.getSource("home") as GeoJSONSource).setData(feature);
+    img.src = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/icons/Blue_Home.png`;
+    return;
+  }
 
-if (!m.hasImage("home-icon")) {
-  const img = new Image();
-  img.onload = () => {
-    if (!m.hasImage("home-icon"))
-      m.addImage("home-icon", img, { pixelRatio: 2 });
-
-    if (!m.getLayer("home")) {
-      m.addLayer({
-        id: "home",
-        type: "symbol",
-        source: "home",
-        layout: {
-          "icon-image": "home-icon",
-          "icon-size": 0.45,
-          "icon-anchor": "bottom",
-        },
-      });
-    }
-  };
-  img.src = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/icons/Blue_Home.png`;
-} else if (!m.getLayer("home")) {
-  m.addLayer({
-    id: "home",
-    type: "symbol",
-    source: "home",
-    layout: {
-      "icon-image": "home-icon",
-      "icon-size": 0.45,
-      "icon-anchor": "bottom",
-    },
-  });
-}
-
+  // Icon already present — ensure layer exists
   if (!m.getLayer("home")) {
     m.addLayer({
       id: "home",
@@ -423,21 +423,7 @@ if (!m.hasImage("home-icon")) {
       },
     });
   }
-};
-
-    } else if (!m.getLayer("home")) {
-      m.addLayer({
-        id: "home",
-        type: "symbol",
-        source: "home",
-        layout: {
-          "icon-image": "home-icon",
-          "icon-size": 0.45,
-          "icon-anchor": "bottom",
-        },
-      });
-    }
-  }, [homeCoords]);
+}, [homeCoords]);
 
   /* =========================================================================
      ROAD-FOLLOWING TRIP ROUTE — Mapbox Directions API (driving)
