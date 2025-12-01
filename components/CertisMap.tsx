@@ -303,69 +303,67 @@ export default function CertisMap(props: CertisMapProps) {
       m.on("click", "retailers-circle", clickRetail);
       m.on("click", "corp-hq-circle", clickRetail);
 
-      // ─────────────────────────────────────────────────────
-      // POPUP: Kingpin (No Add-to-Trip + business-card layout)
-      // ─────────────────────────────────────────────────────
-      const clickKingpin = (e: any) => {
-        const f = e.features?.[0];
-        if (!f) return;
-        const p = f.properties ?? {};
-        const [lng, lat] = f.geometry?.coordinates ?? [];
+// ─────────────────────────────────────────────────────
+// POPUP: Kingpin (No Add-to-Trip + business-card layout)
+// ─────────────────────────────────────────────────────
+const clickKingpin = (e: any) => {
+  const f = e.features?.[0];
+  if (!f) return;
+  const p = f.properties ?? {};
+  const [lng, lat] = f.geometry?.coordinates ?? [];
 
-        const retailerTitle = (p["RETAILER NAME"] || "").trim() || "Unknown Retailer";
-        const address = (p["ADDRESS"] || "").trim();
-        const city = (p["CITY"] || "").trim();
-        const state = (p["STATE"] || "").trim();
-        const zip = (p["ZIP CODE"] || "").trim();
-        const suppliers = (p["SUPPLIERS"] || "").trim() || "Not listed";
+  const retailerTitle = (p["RETAILER NAME"] || "").trim() || "Unknown Retailer";
+  const address = (p["ADDRESS"] || "").trim();
+  const city = (p["CITY"] || "").trim();
+  const state = (p["STATE"] || "").trim();
+  const zip = (p["ZIP CODE"] || "").trim();
+  const suppliers = (p["SUPPLIERS"] || "").trim() || "Not listed";
 
-        const contactName = (p["CONTACT NAME"] || "").trim();
-        const contactTitle = (p["CONTACT TITLE"] || "").trim();
-        const office = (p["OFFICE PHONE"] || "").trim();
-        const cell = (p["CELL PHONE"] || "").trim();
-        const email = (p["EMAIL"] || "").trim();
+  const contactName = (p["CONTACT NAME"] || "").trim();
+  const contactTitle = (p["CONTACT TITLE"] || "").trim();
+  const office = (p["OFFICE PHONE"] || "").trim();
+  const cell = (p["CELL PHONE"] || "").trim();
+  const email = (p["EMAIL"] || "").trim();
 
-        const contactLine =
-          office || cell || email
-            ? `O: ${office || "—"} — Cell: ${cell || "—"} — Email: ${email || "—"}`
-            : "";
+  const contactLine =
+    office || cell || email
+      ? `O: ${office || "—"} — Cell: ${cell || "—"} — Email: ${email || "—"}`
+      : "";
 
-        const div = document.createElement("div");
-        div.style.fontSize = "13px";
-        div.style.minWidth = "270px";
-        div.style.color = "#ffffff";
-        div.style.lineHeight = "1.3";
-        div.style.fontFamily = "Segoe UI, Arial";
+  const div = document.createElement("div");
+  div.style.fontSize = "13px";
+  div.style.minWidth = "270px";
+  div.style.color = "#ffffff";
+  div.style.lineHeight = "1.3";
+  div.style.fontFamily = "Segoe UI, Arial";
 
-        div.innerHTML = `
-          <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">
-            ${retailerTitle}
-          </div>
+  div.innerHTML = `
+    <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">
+      ${retailerTitle}
+    </div>
 
-          <div style="margin-bottom:6px;">
-            ${address}<br/>${city}, ${state} ${zip}
-          </div>
+    <div style="margin-bottom:6px;">
+      ${address}<br/>${city}, ${state} ${zip}
+    </div>
 
-          ${contactName ? `<div style="font-weight:700;margin-bottom:2px;">${contactName}</div>` : ""}
-          ${contactTitle ? `<div style="margin-bottom:6px;">${contactTitle}</div>` : ""}
-          ${contactLine ? `<div style="margin-bottom:8px;">${contactLine}</div>` : ""}
+    ${contactName ? `<div style="font-weight:700;margin-bottom:2px;">${contactName}</div>` : ""}
+    ${contactTitle ? `<div style="margin-bottom:6px;">${contactTitle}</div>` : ""}
+    ${contactLine ? `<div style="margin-bottom:8px;">${contactLine}</div>` : ""}
 
-          <div style="height:1px;background:#666;margin:6px 0;"></div>
+    <div style="height:1px;background:#666;margin:6px 0;"></div>
 
-          <div style="margin-bottom:4px;">
-            <span style="font-weight:700;">Suppliers:</span><br/>${suppliers}
-          </div>
-        `;
+    <div style="margin-bottom:4px;">
+      <span style="font-weight:700;">Suppliers:</span><br/>${suppliers}
+    </div>
+  `;
 
-        new mapboxgl.Popup({ offset: 14, closeButton: true, closeOnMove: false, maxWidth: "300px" })
-          .setLngLat([lng, lat])
-          .setDOMContent(div)
-          .addTo(m);
-      };
+  new mapboxgl.Popup({ offset: 14, closeButton: true, closeOnMove: false, maxWidth: "300px" })
+    .setLngLat([lng, lat])
+    .setDOMContent(div)
+    .addTo(m);
+};
 
-      m.on("click", "kingpin-symbol", clickKingpin);
-    });
-  }, []);
+m.on("click", "kingpin-symbol", clickKingpin);
 
 // ━━━ END BLOCK 2
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
