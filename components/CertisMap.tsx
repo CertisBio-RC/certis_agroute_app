@@ -364,6 +364,7 @@ const clickKingpin = (e: any) => {
 };
 
 m.on("click", "kingpin-symbol", clickKingpin);
+});
 
 // ━━━ END BLOCK 2
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
