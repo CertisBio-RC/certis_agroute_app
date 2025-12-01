@@ -1,85 +1,79 @@
 ﻿import pandas as pd
 import json
-import re
-import unicodedata
+import os
 
-# ================================================================
-# 🔧 SAME SANITIZER AS GEOCODER (Bailey Rule)
-# ================================================================
-def sanitize_address(raw_address: str, city: str, state: str, zip_code: str) -> str:
-    raw_address = unicodedata.normalize("NFKD", str(raw_address or ""))
-    raw_address = re.sub(r"\.0\b", "", raw_address)
-    raw_address = re.sub(r"\b\.$", "", raw_address)
-    raw_address = re.sub(r",\s*,", ", ", raw_address)
-    raw_address = re.sub(r"\s+", " ", raw_address).strip()
-    raw_address = raw_address.replace(" Ctr", " Center")
-    raw_address = raw_address.replace(" Hwy", " Highway")
+# ──────────────────────────────────────────────────────────────
+# CONFIGURATION
+# ──────────────────────────────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SOURCE_FILE = os.path.join(BASE_DIR, "data", "kingpin_latlong.xlsx")
+OUTPUT_FILE = os.path.join(BASE_DIR, "public", "data", "kingpin.geojson")
 
-    if not zip_code or not re.search(r"\d{5}", str(zip_code)):
-        zip_code = ""
+REQUIRED_COLUMNS = [
+    "RETAILER NAME",
+    "SUPPLIERS",
+    "CONTACT NAME",
+    "CONTACT TITLE",
+    "ADDRESS",
+    "CITY",
+    "STATE",
+    "ZIP CODE",
+    "OFFICE PHONE",
+    "CELL PHONE",
+    "EMAIL",
+    "Longitude",
+    "Latitude",
+]
 
-    if raw_address and city and state and zip_code:
-        return f"{raw_address}, {city}, {state} {zip_code}"
-    if raw_address and city and state:
-        return f"{raw_address}, {city}, {state}"
-    if city and state:
-        return f"{city} City Center, {state}"
-    return raw_address.strip()
+# ──────────────────────────────────────────────────────────────
+# LOAD & VALIDATE EXCEL
+# ──────────────────────────────────────────────────────────────
+df = pd.read_excel(SOURCE_FILE, dtype=str).fillna("")
 
+missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+if missing:
+    raise ValueError(f"❌ ERROR — Missing required columns: {', '.join(missing)}")
 
-# ================================================================
-# 📘 CONVERSION PIPELINE
-# ================================================================
-def main():
-    # Read the lat/long file from /data
-    df = pd.read_excel("data/kingpin_latlong.xlsx")
+# ──────────────────────────────────────────────────────────────
+# BUILD GEOJSON FEATURES
+# ──────────────────────────────────────────────────────────────
+features = []
+for _, row in df.iterrows():
+    try:
+        lon = float(row["Longitude"])
+        lat = float(row["Latitude"])
+    except ValueError:
+        continue  # skip rows without valid coordinates
 
-    features = []
-
-    for _, row in df.iterrows():
-        name = row.get("Name", "")
-        city = row.get("City", "")
-        state = row.get("State", "")
-        raw_address = row.get("Address", "")
-        zip_code = row.get("Zip", "")
-        lon = row.get("Longitude", "")
-        lat = row.get("Latitude", "")
-
-        clean_addr = sanitize_address(raw_address, city, state, zip_code)
-
-        # Skip rows with missing coordinates
-        if not lon or not lat:
-            continue
-
-        feature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [float(lon), float(lat)],
-            },
-            "properties": {
-                "Name": str(name),
-                "Address": str(clean_addr),
-                "City": str(city),
-                "State": str(state),
-                "Zip": str(zip_code),
-                "Category": "Kingpin"
-            }
-        }
-
-        features.append(feature)
-
-    geojson = {
-        "type": "FeatureCollection",
-        "features": features
+    props = {
+        "Retailer": row["RETAILER NAME"].strip(),
+        "Suppliers": row["SUPPLIERS"].strip(),
+        "ContactName": row["CONTACT NAME"].strip(),
+        "ContactTitle": row["CONTACT TITLE"].strip(),
+        "Address": row["ADDRESS"].strip(),
+        "City": row["CITY"].strip(),
+        "State": row["STATE"].strip(),
+        "Zip": row["ZIP CODE"].strip(),
+        "OfficePhone": row["OFFICE PHONE"].strip(),
+        "CellPhone": row["CELL PHONE"].strip(),
+        "Email": row["EMAIL"].strip(),
     }
 
-    # Output file goes to /public/data
-    with open("public/data/kingpin.geojson", "w", encoding="utf-8") as f:
-        json.dump(geojson, f, indent=2)
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [lon, lat]},
+        "properties": props,
+    }
+    features.append(feature)
 
-    print("public/data/kingpin.geojson successfully generated.")
+geojson = {"type": "FeatureCollection", "features": features}
 
+# ──────────────────────────────────────────────────────────────
+# WRITE FILE
+# ──────────────────────────────────────────────────────────────
+os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
+with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    json.dump(geojson, f, indent=2)
 
-if __name__ == "__main__":
-    main()
+print(f"✔ kingpin.geojson generated → {OUTPUT_FILE}")
+print(f"✔ Total features: {len(features)}")
