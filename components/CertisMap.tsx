@@ -366,7 +366,7 @@ export default function CertisMap(props: CertisMapProps) {
       m.on("click", "kingpin-symbol", clickKingpin);
     });
   }, []);
-}
+
 // ━━━ END BLOCK 2
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -533,5 +533,10 @@ useEffect(() => {
 /* =========================================================================
    RENDER MAP
 =========================================================================== */
-return <div ref={containerRef} className="w-full h-full" />;
-}
+return (
+  <div
+    ref={containerRef}
+    className="w-full h-full"
+  />
+);
+} // end of CertisMap component
