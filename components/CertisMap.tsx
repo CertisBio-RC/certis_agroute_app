@@ -367,174 +367,169 @@ m.on("click", "kingpin-symbol", clickKingpin);
 
 // ━━━ END BLOCK 2
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ━━━ BLOCK 3 — Filters + Summary + Trip Route + Cleanup + Return
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ━━━ BLOCK 3 — Filters + Summary + Trip Route + Cleanup + Return
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/* =========================================================================
-   FILTERS + RETAILER SUMMARY (based ONLY on visible, filtered retailers)
-=========================================================================== */
-useEffect(() => {
-  const m = mapRef.current;
-  if (!m) return;
+  /* =========================================================================
+     FILTERS + RETAILER SUMMARY (based ONLY on visible, filtered retailers)
+  =========================================================================== */
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
 
-  // 🚨 Ensure the retailer layer exists before applying filters or querying
-  const retailersExist = m.getLayer("retailers-circle");
-  const corpHqExist = m.getLayer("corp-hq-circle");
+    // 🚨 Ensure the retailer layer exists before applying filters or querying
+    const retailersExist = m.getLayer("retailers-circle");
+    const corpHqExist = m.getLayer("corp-hq-circle");
+    if (!retailersExist) return; // prevents crash during first render
 
-  if (!retailersExist) return; // <-- prevents crash + console spam
-
-  // Apply retailer filter
-  m.setFilter(
-    "retailers-circle",
-    buildRetailerFilterExpr(
-      selectedStates,
-      selectedRetailers,
-      selectedCategories,
-      selectedSuppliers
-    )
-  );
-
-  // Apply Corporate HQ filter (State-only, per Bailey Rules)
-  if (corpHqExist)
-    m.setFilter("corp-hq-circle", buildCorpHqFilterExpr(selectedStates));
-
-  // Build summary based solely on visible (filtered) retailers
-  try {
-    const visible = m.queryRenderedFeatures({ layers: ["retailers-circle"] });
-
-    const summaryStore: Record<
-      string,
-      { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }
-    > = {};
-
-    visible.forEach((f: any) => {
-      const p = f.properties ?? {};
-      const name = (p.Retailer || p.Name || "").trim();
-      if (!name) return;
-
-      if (!summaryStore[name]) {
-        summaryStore[name] = {
-          count: 0,
-          suppliers: new Set(),
-          categories: new Set(),
-          states: new Set(),
-        };
-      }
-
-      const rec = summaryStore[name];
-      rec.count++;
-
-      if (p.Suppliers)
-        p.Suppliers.split(",")
-          .map((v: string) => v.trim())
-          .filter(Boolean)
-          .forEach((v) => rec.suppliers.add(v));
-
-      if (p.Category) rec.categories.add(p.Category);
-      if (p.State) rec.states.add(p.State);
-    });
-
-    onRetailerSummary(
-      Object.entries(summaryStore).map(([retailer, v]) => ({
-        retailer,
-        count: v.count,
-        suppliers: [...v.suppliers],
-        categories: [...v.categories],
-        states: [...v.states],
-      }))
+    // Apply retailer filter
+    m.setFilter(
+      "retailers-circle",
+      buildRetailerFilterExpr(
+        selectedStates,
+        selectedRetailers,
+        selectedCategories,
+        selectedSuppliers
+      )
     );
-  } catch {
-    /* silently ignore during first render */
-  }
-}, [
-  selectedStates,
-  selectedRetailers,
-  selectedCategories,
-  selectedSuppliers,
-]);
 
+    // Apply Corporate HQ filter using ONLY State (Bailey Rules)
+    if (corpHqExist)
+      m.setFilter("corp-hq-circle", buildCorpHqFilterExpr(selectedStates));
 
-/* =========================================================================
-   ROAD-FOLLOWING TRIP ROUTE — Mapbox Directions API (Driving)
-=========================================================================== */
+    // Build summary table from VISIBLE retailers only
+    try {
+      const visible = m.queryRenderedFeatures({ layers: ["retailers-circle"] });
 
-useEffect(() => {
-  const m = mapRef.current;
-  if (!m) return;
+      const summaryStore: Record<
+        string,
+        { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }
+      > = {};
 
-  // If no stops → remove route
-  if (!tripStops.length) {
-    if (m.getLayer("trip-route")) m.removeLayer("trip-route");
-    if (m.getSource("trip-route")) m.removeSource("trip-route");
-    return;
-  }
+      visible.forEach((f: any) => {
+        const p = f.properties ?? {};
+        const name = (p.Retailer || p.Name || "").trim();
+        if (!name) return;
 
-  // If only one stop → no route
-  if (tripStops.length === 1) {
-    if (m.getLayer("trip-route")) m.removeLayer("trip-route");
-    if (m.getSource("trip-route")) m.removeSource("trip-route");
-    return;
-  }
+        if (!summaryStore[name]) {
+          summaryStore[name] = {
+            count: 0,
+            suppliers: new Set(),
+            categories: new Set(),
+            states: new Set(),
+          };
+        }
 
-  const coords = tripStops.map((s) => `${s.coords[0]},${s.coords[1]}`).join(";");
+        const rec = summaryStore[name];
+        rec.count++;
 
-  fetch(
-    `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&steps=false&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`
-  )
-    .then((r) => r.json())
-    .then((json) => {
-      const route = json?.routes?.[0]?.geometry;
-      if (!route) return;
+        if (p.Suppliers)
+          p.Suppliers.split(",")
+            .map((v: string) => v.trim())
+            .filter(Boolean)
+            .forEach((v) => rec.suppliers.add(v));
 
-      const feature: any = {
-        type: "Feature",
-        geometry: route,
-        properties: {},
-      };
+        if (p.Category) rec.categories.add(p.Category);
+        if (p.State) rec.states.add(p.State);
+      });
 
-      if (!m.getSource("trip-route"))
-        m.addSource("trip-route", { type: "geojson", data: feature });
-      else (m.getSource("trip-route") as GeoJSONSource).setData(feature);
-
-      if (!m.getLayer("trip-route")) {
-        m.addLayer({
-          id: "trip-route",
-          type: "line",
-          source: "trip-route",
-          paint: {
-            "line-color": "#facc15",
-            "line-width": 4,
-          },
-        });
-      }
-    })
-    .catch(() => {});
-}, [tripStops]);
-
-
-/* =========================================================================
-   CLEANUP — prevents memory leaks / duplicate map mounting
-=========================================================================== */
-useEffect(() => {
-  const m = mapRef.current;
-  return () => {
-    if (m) {
-      try {
-        m.remove();
-      } catch {}
+      onRetailerSummary(
+        Object.entries(summaryStore).map(([retailer, v]) => ({
+          retailer,
+          count: v.count,
+          suppliers: [...v.suppliers],
+          categories: [...v.categories],
+          states: [...v.states],
+        }))
+      );
+    } catch {
+      /* ignore first-render errors */
     }
-  };
-}, []);
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+  ]);
 
-/* =========================================================================
-   RENDER MAP
-=========================================================================== */
-return (
-  <div
-    ref={containerRef}
-    className="w-full h-full"
-  />
-);
-} // end of CertisMap component
+  /* =========================================================================
+     ROAD-FOLLOWING TRIP ROUTE — Mapbox Directions API (Driving)
+  =========================================================================== */
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+
+    // If no stops → remove route
+    if (!tripStops.length) {
+      if (m.getLayer("trip-route")) m.removeLayer("trip-route");
+      if (m.getSource("trip-route")) m.removeSource("trip-route");
+      return;
+    }
+
+    // If only one stop → no route
+    if (tripStops.length === 1) {
+      if (m.getLayer("trip-route")) m.removeLayer("trip-route");
+      if (m.getSource("trip-route")) m.removeSource("trip-route");
+      return;
+    }
+
+    const coords = tripStops.map((s) => `${s.coords[0]},${s.coords[1]}`).join(";");
+
+    fetch(
+      `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&steps=false&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`
+    )
+      .then((r) => r.json())
+      .then((json) => {
+        const route = json?.routes?.[0]?.geometry;
+        if (!route) return;
+
+        const feature: any = {
+          type: "Feature",
+          geometry: route,
+          properties: {},
+        };
+
+        if (!m.getSource("trip-route"))
+          m.addSource("trip-route", { type: "geojson", data: feature });
+        else (m.getSource("trip-route") as GeoJSONSource).setData(feature);
+
+        if (!m.getLayer("trip-route")) {
+          m.addLayer({
+            id: "trip-route",
+            type: "line",
+            source: "trip-route",
+            paint: {
+              "line-color": "#facc15",
+              "line-width": 4,
+            },
+          });
+        }
+      })
+      .catch(() => {});
+  }, [tripStops]);
+
+  /* =========================================================================
+     CLEANUP — prevents memory leaks / duplicate map mounting
+  =========================================================================== */
+  useEffect(() => {
+    const m = mapRef.current;
+    return () => {
+      if (m) {
+        try {
+          m.remove();
+        } catch {}
+      }
+    };
+  }, []);
+
+  /* =========================================================================
+     RENDER MAP
+  =========================================================================== */
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full"
+    />
+  );
+} // 🔥 FINAL AND ONLY closing brace of CertisMap component
