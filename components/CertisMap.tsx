@@ -357,14 +357,16 @@ const clickKingpin = (e: any) => {
     </div>
   `;
 
-  new mapboxgl.Popup({ offset: 14, closeButton: true, closeOnMove: false, maxWidth: "300px" })
-    .setLngLat([lng, lat])
-    .setDOMContent(div)
-    .addTo(m);
+new mapboxgl.Popup({ offset: 14, closeButton: true, closeOnMove: false, maxWidth: "300px" })
+  .setLngLat([lng, lat])
+  .setDOMContent(div)
+  .addTo(m);
 };
 
 m.on("click", "kingpin-symbol", clickKingpin);
-});
+    });               // closes .then(...)
+  });                // closes Promise.all(...)
+}, []);               // closes initial map useEffect
 
 // ━━━ END BLOCK 2
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
