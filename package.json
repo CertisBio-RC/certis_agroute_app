@@ -2,31 +2,18 @@
   "name": "certis_agroute_app",
   "version": "0.1.0",
   "private": true,
-
   "scripts": {
-    "//": "💠 UNIVERSAL NODE SCRIPTS — macOS, Linux, GitHub Actions",
-
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "export": "next export",   // Manual only — not used in deploy
+    "export": "next export",
     "deploy": "next build && gh-pages -d out -b gh-pages --dotfiles",
-
-    "//local": "💠 WINDOWS PORTABLE NODE SCRIPTS — using %USERPROFILE%/node-portable",
-
     "dev:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next dev",
     "build:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build",
     "start:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next start",
-
-    "//export-local": "💠 STATIC EXPORT (manual troubleshooting only)",
-
     "export:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next export",
-
-    "//deploy-local": "💠 WINDOWS-SAFE DEPLOY — build → publish (NO next export)",
-
     "deploy:local": "\"%USERPROFILE%\\node-portable\\node.exe\" ./node_modules/next/dist/bin/next build && \"%USERPROFILE%\\node-portable\\node.exe\" \"./node_modules/gh-pages/bin/gh-pages.js\" -d out -b gh-pages --dotfiles"
   },
-
   "dependencies": {
     "@types/mapbox-gl": "^3.4.1",
     "lucide-react": "^0.544.0",
@@ -35,7 +22,6 @@
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
-
   "devDependencies": {
     "@types/node": "20.11.24",
     "@types/react": "18.2.66",
