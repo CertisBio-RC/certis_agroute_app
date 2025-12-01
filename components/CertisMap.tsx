@@ -80,7 +80,7 @@ function buildCorpHqFilterExpr(selectedStates: string[]): any[] {
 }
 // ━━━ END BLOCK 1
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ━━━ BLOCK 2 — Init Map + Data Load + Popups
+// ━━━ BLOCK 2 — Init Map + Data Load + Popups (FINAL, CORRECTED)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function CertisMap(props: CertisMapProps) {
   const {
@@ -124,12 +124,12 @@ export default function CertisMap(props: CertisMapProps) {
       const m = mapRef.current;
       if (!m) return;
 
-      // Consolidated list of all stops for Trip Tools
       const all = [
         ...(retailersData.features ?? []),
         ...(kingpinData.features ?? []),
       ];
 
+      // Consolidated stops for Trip Tools
       const stops: Stop[] = all
         .map((f: any) => {
           const p = f.properties ?? {};
@@ -159,7 +159,9 @@ export default function CertisMap(props: CertisMapProps) {
       const retailers = [...new Set(
         (retailersData.features ?? [])
           .map((f: any) => String(f.properties?.Retailer ?? "").trim())
-      )].filter(Boolean).sort() as string[];
+      )]
+        .filter(Boolean)
+        .sort() as string[];
       onRetailersLoaded(retailers);
 
       const suppliers = [...new Set(
@@ -172,11 +174,15 @@ export default function CertisMap(props: CertisMapProps) {
       )].sort();
       onSuppliersLoaded(suppliers);
 
-      // Data sources
+      // ─────────────────────────────────────────────
+      // GEOJSON Sources
+      // ─────────────────────────────────────────────
       m.addSource("retailers", { type: "geojson", data: retailersData });
       m.addSource("kingpins", { type: "geojson", data: kingpinData });
 
-      // Retailer marker circles
+      // ─────────────────────────────────────────────
+      // Retailer Circles
+      // ─────────────────────────────────────────────
       m.addLayer({
         id: "retailers-circle",
         type: "circle",
@@ -198,7 +204,9 @@ export default function CertisMap(props: CertisMapProps) {
         },
       });
 
-      // Corporate HQ (red w/ yellow border)
+      // ─────────────────────────────────────────────
+      // Corporate HQ (Red circle, yellow border)
+      // ─────────────────────────────────────────────
       m.addLayer({
         id: "corp-hq-circle",
         type: "circle",
@@ -212,7 +220,9 @@ export default function CertisMap(props: CertisMapProps) {
         },
       });
 
-      // Kingpin PNG symbol
+      // ─────────────────────────────────────────────
+      // Kingpin PNG Symbol
+      // ─────────────────────────────────────────────
       const img = new Image();
       img.onload = () => {
         if (!m.hasImage("kingpin-icon"))
@@ -223,7 +233,7 @@ export default function CertisMap(props: CertisMapProps) {
           source: "kingpins",
           layout: {
             "icon-image": "kingpin-icon",
-            "icon-size": 0.025,
+            "icon-size": 0.04,
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
           },
@@ -231,9 +241,9 @@ export default function CertisMap(props: CertisMapProps) {
       };
       img.src = `${basePath}/icons/kingpin.png`;
 
-      // ─────────────────────────────────────────────────────────────
-      // RETAILER + CORP HQ POPUP (with Add-to-Trip)
-      // ─────────────────────────────────────────────────────────────
+      // ─────────────────────────────────────────────
+      // RETAILER POPUP (Correct + Add-to-Trip)
+      // ─────────────────────────────────────────────
       const clickRetail = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -241,44 +251,51 @@ export default function CertisMap(props: CertisMapProps) {
         const p = f.properties ?? {};
         const [lng, lat] = f.geometry?.coordinates ?? [];
 
-        const retailerTitle =
-          String(p.Retailer || p.RetailerName || p.Name || "Unknown").trim();
-        const locationTitle =
-          String(p.Name || p.LongName || retailerTitle).trim();
+        const retailer = (p["Retailer"] || "").trim() || "Unknown Retailer";
+        const name = (p["Name"] || "").trim();
+        const address = (p["Address"] || "").trim();
+        const city = (p["City"] || "").trim();
+        const state = (p["State"] || "").trim();
+        const zip = (p["Zip"] || "").trim();
+        const suppliers =
+          (p["Suppliers"] || "")
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+            .join(", ") || "Not listed";
+
+        const italicLine =
+          name && name.toLowerCase() !== retailer.toLowerCase()
+            ? `<div style="font-style:italic;color:#ffffff;margin-bottom:2px;">
+                 ${name}
+               </div>`
+            : "";
 
         const stop: Stop = {
-          label: locationTitle,
-          address: p.Address || "",
-          city: p.City || "",
-          state: p.State || "",
-          zip: p.Zip || "",
+          label: name || retailer,
+          address,
+          city,
+          state,
+          zip,
           coords: [lng, lat],
         };
 
-        const suppliers =
-          p.Suppliers?.split(",").map((s: string) => s.trim()).filter(Boolean).join(", ") ||
-          "Not listed";
-
         const div = document.createElement("div");
         div.style.fontSize = "13px";
-        div.style.minWidth = "260px";
+        div.style.minWidth = "270px";
         div.style.color = "#ffffff";
         div.style.lineHeight = "1.3";
         div.style.fontFamily = "Segoe UI, Arial";
 
-        const showItalic =
-          locationTitle && locationTitle !== retailerTitle
-            ? `<div style="font-style:italic;color:#ffffff;">${locationTitle}</div>`
-            : "";
-
         div.innerHTML = `
-          <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#facc15;">
-            ${retailerTitle}
+          <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">
+            ${retailer}
           </div>
 
+          ${italicLine}
+
           <div style="margin-bottom:6px;">
-            ${showItalic}
-            <div>${stop.address}<br/>${stop.city}, ${stop.state} ${stop.zip}</div>
+            ${address}<br/>${city}, ${state} ${zip}
           </div>
 
           <div style="margin-bottom:8px;">
@@ -294,20 +311,27 @@ export default function CertisMap(props: CertisMapProps) {
           </button>
         `;
 
-        new mapboxgl.Popup({ offset: 14, closeButton: true, closeOnMove: false, maxWidth: "300px" })
+        new mapboxgl.Popup({
+          offset: 14,
+          closeButton: true,
+          closeOnMove: false,
+          maxWidth: "300px",
+        })
           .setLngLat([lng, lat])
           .setDOMContent(div)
           .addTo(m);
 
-        div.querySelector("#add-stop")?.addEventListener("click", () => onAddStop(stop));
+        div.querySelector("#add-stop")?.addEventListener("click", () =>
+          onAddStop(stop)
+        );
       };
 
       m.on("click", "retailers-circle", clickRetail);
       m.on("click", "corp-hq-circle", clickRetail);
 
-      // ─────────────────────────────────────────────────────────────
-      // KINGPIN POPUP (no Add-to-Trip + full contact panel)
-      // ─────────────────────────────────────────────────────────────
+      // ─────────────────────────────────────────────
+      // KINGPIN POPUP (FULL CONTACT, NO Add-to-Trip)
+      // ─────────────────────────────────────────────
       const clickKingpin = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -315,7 +339,7 @@ export default function CertisMap(props: CertisMapProps) {
         const p = f.properties ?? {};
         const [lng, lat] = f.geometry?.coordinates ?? [];
 
-        const retailerTitle = (p["RETAILER NAME"] || "").trim() || "Unknown Retailer";
+        const retailer = (p["RETAILER NAME"] || "").trim() || "Unknown Retailer";
         const address = (p["ADDRESS"] || "").trim();
         const city = (p["CITY"] || "").trim();
         const state = (p["STATE"] || "").trim();
@@ -342,7 +366,7 @@ export default function CertisMap(props: CertisMapProps) {
 
         div.innerHTML = `
           <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">
-            ${retailerTitle}
+            ${retailer}
           </div>
 
           <div style="margin-bottom:6px;">
@@ -359,7 +383,12 @@ export default function CertisMap(props: CertisMapProps) {
           ${contactLine ? `<div style="margin-top:6px;margin-bottom:4px;">${contactLine}</div>` : ""}
         `;
 
-        new mapboxgl.Popup({ offset: 14, closeButton: true, closeOnMove: false, maxWidth: "300px" })
+        new mapboxgl.Popup({
+          offset: 14,
+          closeButton: true,
+          closeOnMove: false,
+          maxWidth: "300px",
+        })
           .setLngLat([lng, lat])
           .setDOMContent(div)
           .addTo(m);
