@@ -20,7 +20,7 @@ body,
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 0; /* prevents collapse */
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -76,23 +76,34 @@ body {
 }
 
 /* ====================================================================== */
-/* MAPBOX POPUP — K3-A GOLD */
+/* MAPBOX POPUP — K5 GOLD */
 /* ====================================================================== */
+/* 
+   IMPORTANT NOTES:
+   • We set a fixed width to solve text wrapping issues.
+   • No button changes — the width change gives button natural room.
+   • Retailer + Kingpin use the same popup container rules.
+*/
 
 .mapboxgl-popup {
-  max-width: 360px;
   z-index: 10;
 }
 
 .mapboxgl-popup-content {
+  /* The two numbers below define the entire look. */
+  min-width: 380px;   /* preferred working width on Desktop */
+  max-width: 400px;   /* prevents insane horizontal stretch */
+  
   background: #1e1e1e;
   color: #fff;
   font-size: 14px;
   border-radius: 6px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   line-height: 1.5;
+  box-shadow: 0 0 6px rgba(0,0,0,0.5);
 }
 
+/* Headers inside popups */
 .mapboxgl-popup-content h3 {
   margin: 0 0 6px;
   font-weight: bold;
@@ -105,20 +116,13 @@ body {
   line-height: 1.4;
 }
 
-/* KINGPIN1 popup (Tier 1) highlight override */
-.mapboxgl-popup-content .kp1-header {
-  color: #4da3ff;
-  font-size: 16px;
-  font-weight: bold;
-}
-
 /* ====================================================================== */
 /* MOBILE OPTIMIZATION */
 /* ====================================================================== */
 
 @media (max-width: 768px) {
   .sidebar {
-    display: none; /* hidden by default */
+    display: none;
   }
 
   .map-container {
@@ -128,7 +132,9 @@ body {
   }
 
   .mapboxgl-popup-content {
-    font-size: 16px; /* more readable for touch */
+    font-size: 16px;
+    min-width: 85vw;   /* fill most of screen */
+    max-width: 90vw;
   }
 }
 
@@ -145,7 +151,7 @@ body {
 }
 
 /* ====================================================================== */
-/* LEGEND — K3-A GOLD */
+/* LEGEND — K5 GOLD */
 /* ====================================================================== */
 
 /* KINGPIN (red/yellow) — NO checkbox */
@@ -159,8 +165,8 @@ body {
 .legend-kingpin .color-box {
   width: 16px;
   height: 16px;
-  background-color: #e10600;    /* red fill */
-  border: 2px solid #ffd60a;    /* yellow outline */
+  background-color: #e10600;
+  border: 2px solid #ffd60a;
   border-radius: 3px;
 }
 
@@ -169,7 +175,7 @@ body {
   line-height: 1.5;
 }
 
-/* KINGPIN1 (Tier 1) — optional: add if you want a legend entry */
+/* Future Kingpin tier if needed */
 .legend-kingpin1 {
   display: flex;
   align-items: center;
@@ -180,7 +186,7 @@ body {
 .legend-kingpin1 .color-box {
   width: 18px;
   height: 18px;
-  background-color: #0040ff;  /* blue highlight */
+  background-color: #0040ff;
   border: 2px solid #ffffff;
   border-radius: 3px;
 }
