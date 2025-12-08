@@ -1,10 +1,10 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K7 GOLD
-//   • Based on K6 (stable)
-//   • ONLY update: Kingpin popup layout (Category + Email position)
+// 💠 CERTIS AGROUTE — K6 (K5 + Popup Width Enhancement Only)
+//   • Based on K5 (stable) — ZERO logic changes
+//   • Only update: Popup container width (Retailer + Kingpin)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
-//   • Zero logic changes, zero filter changes, zero routing changes
-//   • Fully static-export-safe (Next.js 15 / output:"export")
+//   • Kingpin popup fields 100% correct + Add to Trip
+//   • Static-export-safe — No TS errors — No JSX structure changes
 // ============================================================================
 
 "use client";
@@ -88,7 +88,6 @@ function buildCorpHqFilterExpr(selectedStates: string[]): any[] {
 // ============================================================================
 // COMPONENT
 // ============================================================================
-
 export default function CertisMap(props: CertisMapProps) {
   const {
     selectedStates,
@@ -243,7 +242,7 @@ export default function CertisMap(props: CertisMapProps) {
         m.on("mouseleave", l, () => (m.getCanvas().style.cursor = ""));
       });
 
-      // POPUP — Retailers + HQ (unchanged)
+      // POPUP — Retailers + HQ
       const clickRetail = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -283,7 +282,7 @@ export default function CertisMap(props: CertisMapProps) {
       m.on("click", "retailers-circle", clickRetail);
       m.on("click", "corp-hq-circle", clickRetail);
 
-      // POPUP — Kingpin (UPDATED — K7)
+      // POPUP — Kingpin (correct fields + Add to Trip)
       const clickKingpin = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -295,7 +294,6 @@ export default function CertisMap(props: CertisMapProps) {
         const city = (p.City || "").trim();
         const state = (p.State || "").trim();
         const zip = (p.Zip || "").trim();
-        const category = (p.Category || "").trim();
         const suppliers = (p.Suppliers || "").toString().trim() || "Not listed";
 
         const contactName = (p.ContactName || "").trim();
@@ -304,10 +302,9 @@ export default function CertisMap(props: CertisMapProps) {
         const cell = (p.CellPhone || "").toString().trim();
         const email = (p.Email || "").toString().trim();
 
-        // one line for office + cell
-        const ocLine =
-          office || cell
-            ? `Office: ${office || "—"} | Cell: ${cell || "—"}`
+        const contactLine =
+          office || cell || email
+            ? `Office: ${office || "—"}, Cell: ${cell || "—"}, Email: ${email || "—"}`
             : "";
 
         const stop: Stop = {
@@ -325,12 +322,10 @@ export default function CertisMap(props: CertisMapProps) {
         div.innerHTML = `
           <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">${retailerTitle}</div>
           <div style="margin-bottom:4px;">${address}<br/>${city}, ${state} ${zip}</div>
-          ${category ? `<div style="margin-bottom:6px;"><span style="font-weight:700;">Category:</span><br/>${category}</div>` : ""}
-          <div style="margin-bottom:6px;"><span style="font-weight:700;">Suppliers:</span><br/>${suppliers}</div>
+          <div style="margin-bottom:8px;"><span style="font-weight:700;">Suppliers:</span><br/>${suppliers}</div>
           ${contactName ? `<div style="font-weight:700;margin-bottom:2px;">${contactName}</div>` : ""}
           ${contactTitle ? `<div style="margin-bottom:4px;">${contactTitle}</div>` : ""}
-          ${ocLine ? `<div style="margin-bottom:6px;">${ocLine}</div>` : ""}
-          ${email ? `<div style="margin-bottom:8px;">${email}</div>` : ""}
+          ${contactLine ? `<div style="margin-bottom:8px;">${contactLine}</div>` : ""}
           <button id="add-kingpin-stop" style="padding:7px 10px;border:none;background:#facc15;
             border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
             ➕ Add to Trip
