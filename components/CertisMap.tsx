@@ -1,12 +1,14 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K9 GOLD
-//   • Based on K8 (stable) — ONLY targeted fixes
-//   • Category added to popups (Retailer + Kingpin)
-//   • Kingpin popup supports multiple contacts at same coordinates
-//   • Office + Cell on one line; Email on bottom
-//   • Kingpin icon slightly smaller (0.03)
-//   • ZERO changes to filter logic, summary logic, types
-//   • Static-export-safe, no JSX structural changes
+// 💠 CERTIS AGROUTE — K9 GOLD (Clean Build)
+//   • Based on K8 logic – ZERO behavior changes
+//   • FIX: Separate Filter and Summary useEffects
+//   • FIX: Properly closed braces
+//   • FIX: Moved RetailerSummary type to top-level in component
+//   • Category in popups (Retailer + Kingpin)
+//   • Kingpin popup supports multiple contacts
+//   • Office + Cell on one line; Email at bottom
+//   • Kingpin icon smaller (0.03)
+//   • Static-export-safe
 // ============================================================================
 
 "use client";
@@ -109,6 +111,15 @@ export default function CertisMap(props: CertisMapProps) {
   const mapRef = useRef<Map | null>(null);
   mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
+  // TYPE (must be top-level inside component, not inside a hook)
+  type RetailerSummaryEntry = {
+    retailer: string;
+    count: number;
+    suppliers: Set<string>;
+    categories: Set<string>;
+    states: Set<string>;
+  };
+
   // INITIAL MAP LOAD ---------------------------------------------------------
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -136,7 +147,7 @@ export default function CertisMap(props: CertisMapProps) {
         ...(kingpinData.features ?? [])
       ];
 
-      // ALL STOPS FOR TRIP BUILDER
+      // ALL STOPS FOR TRIP BUILDER -----------------------------------------
       onAllStopsLoaded(
         all
           .map((f: any) => {
@@ -155,7 +166,7 @@ export default function CertisMap(props: CertisMapProps) {
           .filter(Boolean) as Stop[]
       );
 
-      // FILTER DROPDOWN DATA
+      // FILTER DROPDOWN DATA -----------------------------------------------
       onStatesLoaded([
         ...new Set(
           all
@@ -183,11 +194,11 @@ export default function CertisMap(props: CertisMapProps) {
         )
       ].sort());
 
-      // SOURCES
+      // SOURCES -------------------------------------------------------------
       m.addSource("retailers", { type: "geojson", data: retailersData });
       m.addSource("kingpins", { type: "geojson", data: kingpinData });
 
-      // LAYERS ---------------------------------------------------------------
+      // LAYERS --------------------------------------------------------------
       m.addLayer({
         id: "retailers-circle",
         type: "circle",
@@ -222,7 +233,7 @@ export default function CertisMap(props: CertisMapProps) {
         }
       });
 
-      // KINGPIN ICON SIZE REDUCED
+      // KINGPIN ICON --------------------------------------------------------
       const icon = new Image();
       icon.onload = () => {
         if (!m.hasImage("kingpin-icon"))
@@ -241,13 +252,15 @@ export default function CertisMap(props: CertisMapProps) {
       };
       icon.src = `${basePath}/icons/kingpin.png`;
 
-      // CURSOR
+      // CURSOR --------------------------------------------------------------
       ["retailers-circle", "corp-hq-circle", "kingpin-symbol"].forEach((l) => {
         m.on("mouseenter", l, () => (m.getCanvas().style.cursor = "default"));
         m.on("mouseleave", l, () => (m.getCanvas().style.cursor = ""));
       });
 
-      // POPUP — Retailers + HQ ----------------------------------------------
+      // ======================================================================
+      // POPUP — Retailers + HQ
+      // ======================================================================
       const clickRetail = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -302,21 +315,22 @@ export default function CertisMap(props: CertisMapProps) {
       m.on("click", "retailers-circle", clickRetail);
       m.on("click", "corp-hq-circle", clickRetail);
 
-      // POPUP — Kingpin (MULTIPLE CONTACTS SUPPORT) -------------------------
+      // ======================================================================
+      // POPUP — Kingpins (Multiple Contacts)
+      // ======================================================================
       const clickKingpin = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
         const p0 = f.properties ?? {};
         const [lng, lat] = f.geometry?.coordinates ?? [];
 
-        // find ALL kingpins at this exact coordinate
+        // collect all contacts at this exact coordinate
         const same = kingpinData.features.filter(
           (ff: any) =>
             ff.geometry?.coordinates?.[0] === lng &&
             ff.geometry?.coordinates?.[1] === lat
         );
 
-        // convert to uniform array
         const contacts = same.map((ff: any) => {
           const p = ff.properties ?? {};
           return {
@@ -366,7 +380,9 @@ export default function CertisMap(props: CertisMapProps) {
               `
             : "";
 
-          popup.setDOMContent(createDiv(contactBlock));
+          popup.setDOMContent(
+            createDiv(contactBlock)
+          );
         };
 
         const createDiv = (contactBlock: string) => {
@@ -398,7 +414,6 @@ export default function CertisMap(props: CertisMapProps) {
             }
           `;
 
-          // wire buttons
           div.querySelector("#add-kingpin-stop")?.addEventListener("click", () => onAddStop(stop));
 
           div.querySelector("#prev-kp")?.addEventListener("click", () => {
@@ -420,19 +435,14 @@ export default function CertisMap(props: CertisMapProps) {
       m.on("click", "kingpin-symbol", clickKingpin);
     });
   }, []); // END INITIAL MAP LOAD
+
   // ========================================================================
-  // FILTER EFFECT (Retailers + HQ)
+  // FILTER EFFECT (Retailers + HQ only)
   // ========================================================================
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    const retailers = map.getSource("retailers") as GeoJSONSource;
-    if (!retailers) return;
-    const kingpins = map.getSource("kingpins") as GeoJSONSource;
-    if (!kingpins) return;
-
-    // Stock filters (Bailey Rules)
     const retailerFilter = buildRetailerFilterExpr(
       selectedStates.map((s) => s.toLowerCase()),
       selectedRetailers.map((r) => r.toLowerCase()),
@@ -444,18 +454,29 @@ export default function CertisMap(props: CertisMapProps) {
       selectedStates.map((s) => s.toLowerCase())
     );
 
-    // Apply filters to layers
     map.setFilter("retailers-circle", retailerFilter);
     map.setFilter("corp-hq-circle", hqFilter);
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers
+  ]);
 
-    // ======================================================================
-    // SUMMARY (Retailer summary based on filtered retailers only)
-    // ======================================================================
+  // ========================================================================
+  // SUMMARY EFFECT (Retailers only)
+  // ========================================================================
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const src = map.getSource("retailers") as GeoJSONSource;
+    if (!src) return;
+
     try {
-      const data = (retailers._data as any) || {};
+      const data = (src as any)._data || {};
       const feats = (data.features ?? []) as any[];
 
-      // Apply same filter logic in-memory so summary matches
       const filtered = feats.filter((f) => {
         const p = f.properties ?? {};
         const stateOk =
@@ -479,22 +500,13 @@ export default function CertisMap(props: CertisMapProps) {
         return stateOk && retailerOk && categoryOk && supplierOk;
       });
 
-      // Aggregate summary
-      const byRetailer = new Map<
-        string,
-        {
-          retailer: string;
-          count: number;
-          suppliers: Set<string>;
-          categories: Set<string>;
-          states: Set<string>;
-        }
-      >();
+      const byRetailer = new Map<string, RetailerSummaryEntry>();
 
       for (const f of filtered) {
         const p = f.properties ?? {};
         const r = String(p.Retailer || "").trim();
         if (!r) continue;
+
         if (!byRetailer.has(r)) {
           byRetailer.set(r, {
             retailer: r,
@@ -506,6 +518,7 @@ export default function CertisMap(props: CertisMapProps) {
         }
         const entry = byRetailer.get(r)!;
         entry.count += 1;
+
         (String(p.Suppliers || "")
           .split(",")
           .map((s) => s.trim())
@@ -535,13 +548,12 @@ export default function CertisMap(props: CertisMapProps) {
   ]);
 
   // ========================================================================
-  // ROUTE DISPLAY (Static export-safe: GeoJSON updated via props)
+  // ROUTE DISPLAY
   // ========================================================================
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !props.routeGeoJSON) return;
 
-    // Remove old route if exists
     if (map.getSource("route"))
       (map.getSource("route") as GeoJSONSource).setData(props.routeGeoJSON);
     else {
@@ -562,15 +574,16 @@ export default function CertisMap(props: CertisMapProps) {
   }, [props.routeGeoJSON]);
 
   // ========================================================================
-  // HOME MARKER (Blue house)
+  // HOME MARKER
   // ========================================================================
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // Remove old home if present
-    if (map.getSource("home"))
-      map.removeLayer("home-symbol"), map.removeSource("home");
+    if (map.getSource("home")) {
+      map.removeLayer("home-symbol");
+      map.removeSource("home");
+    }
 
     if (!props.homeCoords) return;
     const [lng, lat] = props.homeCoords;
@@ -617,8 +630,7 @@ export default function CertisMap(props: CertisMapProps) {
   }, []);
 
   // ========================================================================
-  // UI RENDER
+  // RENDER
   // ========================================================================
   return <div ref={containerRef} className="w-full h-full" />;
 }
-
