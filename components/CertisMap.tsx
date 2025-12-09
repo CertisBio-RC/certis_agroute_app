@@ -1,8 +1,8 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K9 (K8 + Category Colors + Icon Size)
-//   • Based on K8 GOLD (stable)
-//   • Category colors updated per Bailey Rule
-//   • Kingpin icon slightly smaller (0.025)
+// 💠 CERTIS AGROUTE — K10 GOLD (K9 + 100m Offset + Category on Kingpin Popup)
+//   • Based on K9 GOLD (stable, deployed)
+//   • Adds 100m offset to Kingpins for clearer separation from Corporate HQ
+//   • Adds Category line to Kingpin popups (yellow label, matched to Retailer)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Static-export-safe — No TS errors — No JSX structure changes
 // ============================================================================
@@ -129,9 +129,29 @@ export default function CertisMap(props: CertisMapProps) {
       const m = mapRef.current;
       if (!m) return;
 
+      // ================================================================
+      // 💛 APPLY 100m OFFSET TO KINGPINS
+      // ================================================================
+      // ≈100m at this latitude
+      const OFFSET_LNG = 0.0013;
+
+      const offsetKingpins = {
+        ...kingpinData,
+        features: (kingpinData.features ?? []).map((f: any) => {
+          const [lng, lat] = f.geometry.coordinates ?? [0, 0];
+          return {
+            ...f,
+            geometry: {
+              ...f.geometry,
+              coordinates: [lng + OFFSET_LNG, lat]
+            }
+          };
+        })
+      };
+
       const all = [
         ...(retailersData.features ?? []),
-        ...(kingpinData.features ?? [])
+        ...offsetKingpins.features
       ];
 
       // All Stops → Trip Builder master list
@@ -183,7 +203,7 @@ export default function CertisMap(props: CertisMapProps) {
 
       // ADD SOURCES ----------------------------------------------------------
       m.addSource("retailers", { type: "geojson", data: retailersData });
-      m.addSource("kingpins", { type: "geojson", data: kingpinData });
+      m.addSource("kingpins", { type: "geojson", data: offsetKingpins });
 
       // LAYERS ---------------------------------------------------------------
       m.addLayer({
@@ -196,10 +216,14 @@ export default function CertisMap(props: CertisMapProps) {
           "circle-color": [
             "match",
             ["downcase", ["get", "Category"]],
-            "agronomy", "#facc15",
-            "grain/feed", "#22c55e",
-            "c-store/service/energy", "#a855f7",
-            "distribution", "#ffffff",
+            "agronomy",
+            "#22c55e",
+            "grain/feed",
+            "#f97316",
+            "c-store/service/energy",
+            "#0ea5e9",
+            "distribution",
+            "#a855f7",
             "#f9fafb"
           ],
           "circle-stroke-width": 1,
@@ -229,7 +253,7 @@ export default function CertisMap(props: CertisMapProps) {
           source: "kingpins",
           layout: {
             "icon-image": "kingpin-icon",
-            "icon-size": 0.025,
+            "icon-size": 0.03,            // Option A (unchanged)
             "icon-anchor": "bottom",
             "icon-allow-overlap": true
           }
@@ -274,7 +298,7 @@ export default function CertisMap(props: CertisMapProps) {
           <div style="margin-bottom:4px;">${stop.address}<br/>${stop.city}, ${stop.state} ${stop.zip}</div>
           ${
             category
-              ? `<div style="margin-bottom:6px;"><span style="font-weight:700;">Category:</span> ${category}</div>`
+              ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${category}</div>`
               : ""
           }
           <div style="margin-bottom:8px;"><span style="font-weight:700;">Suppliers:</span><br/>${suppliers}</div>
@@ -292,7 +316,7 @@ export default function CertisMap(props: CertisMapProps) {
       m.on("click", "retailers-circle", clickRetail);
       m.on("click", "corp-hq-circle", clickRetail);
 
-      // POPUP — Kingpin -----------------------------------------------------
+      // POPUP — Kingpin ------------------------------------------------------
       const clickKingpin = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -335,7 +359,7 @@ export default function CertisMap(props: CertisMapProps) {
           <div style="margin-bottom:4px;">${address}<br/>${city}, ${state} ${zip}</div>
           ${
             category
-              ? `<div style="margin-bottom:6px;"><span style="font-weight:700;">Category:</span> ${category}</div>`
+              ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${category}</div>`
               : ""
           }
           <div style="margin-bottom:8px;"><span style="font-weight:700;">Suppliers:</span><br/>${suppliers}</div>

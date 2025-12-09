@@ -79,7 +79,7 @@ function buildRetailerFilterExpr(
 
 // HQ filters ONLY by State — Bailey Rule
 function buildCorpHqFilterExpr(selectedStates: string[]): any[] {
-  const filter: any[] = ["all", ["==", ["downcase", ["get", "Category"]], "corporate hq"]]];
+  const filter: any[] = ["all", ["==", ["downcase", ["get", "Category"]], "corporate hq"]];
   if (selectedStates.length)
     filter.push(["in", ["downcase", ["get", "State"]], ["literal", selectedStates]]);
   return filter;
