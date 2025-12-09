@@ -2,8 +2,8 @@
 // 💠 CERTIS AGROUTE — K9 GOLD (Clean Build)
 //   • Based on K8 logic – ZERO behavior changes
 //   • FIX: Separate Filter and Summary useEffects
-//   • FIX: Properly closed braces
-//   • FIX: Moved RetailerSummary type to top-level in component
+//   • FIX: Closed braces and placement correctness
+//   • FIX: RetailerSummary moved to top-level inside component
 //   • Category in popups (Retailer + Kingpin)
 //   • Kingpin popup supports multiple contacts
 //   • Office + Cell on one line; Email at bottom
@@ -98,7 +98,6 @@ export default function CertisMap(props: CertisMapProps) {
     selectedRetailers,
     selectedCategories,
     selectedSuppliers,
-    tripStops,
     onStatesLoaded,
     onRetailersLoaded,
     onSuppliersLoaded,
@@ -111,7 +110,7 @@ export default function CertisMap(props: CertisMapProps) {
   const mapRef = useRef<Map | null>(null);
   mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-  // TYPE (must be top-level inside component, not inside a hook)
+  // TYPE: must be defined top-level in component scope
   type RetailerSummaryEntry = {
     retailer: string;
     count: number;
@@ -120,7 +119,9 @@ export default function CertisMap(props: CertisMapProps) {
     states: Set<string>;
   };
 
-  // INITIAL MAP LOAD ---------------------------------------------------------
+  // ========================================================================
+  // INITIAL MAP LOAD
+  // ========================================================================
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -147,7 +148,7 @@ export default function CertisMap(props: CertisMapProps) {
         ...(kingpinData.features ?? [])
       ];
 
-      // ALL STOPS FOR TRIP BUILDER -----------------------------------------
+      // ALL STOPS FOR TRIP BUILDER
       onAllStopsLoaded(
         all
           .map((f: any) => {
@@ -166,14 +167,14 @@ export default function CertisMap(props: CertisMapProps) {
           .filter(Boolean) as Stop[]
       );
 
-      // FILTER DROPDOWN DATA -----------------------------------------------
+      // DROPDOWN OPTIONS
       onStatesLoaded([
         ...new Set(
-          all
-            .map((f) => String(f.properties?.State ?? "").trim().toUpperCase())
-            .filter(Boolean)
+          all.map((f: any) =>
+            String(f.properties?.State ?? "").trim().toUpperCase()
+          ).filter(Boolean)
         )
-      ].sort() as string[]);
+      ].sort());
 
       onRetailersLoaded([
         ...new Set(
@@ -181,7 +182,7 @@ export default function CertisMap(props: CertisMapProps) {
             (f: any) => String(f.properties?.Retailer ?? "").trim()
           )
         )
-      ].filter(Boolean).sort() as string[]);
+      ].filter(Boolean).sort());
 
       onSuppliersLoaded([
         ...new Set(
@@ -194,11 +195,11 @@ export default function CertisMap(props: CertisMapProps) {
         )
       ].sort());
 
-      // SOURCES -------------------------------------------------------------
+      // SOURCES
       m.addSource("retailers", { type: "geojson", data: retailersData });
       m.addSource("kingpins", { type: "geojson", data: kingpinData });
 
-      // LAYERS --------------------------------------------------------------
+      // RETAILERS LAYER
       m.addLayer({
         id: "retailers-circle",
         type: "circle",
@@ -220,6 +221,7 @@ export default function CertisMap(props: CertisMapProps) {
         }
       });
 
+      // HQ LAYER
       m.addLayer({
         id: "corp-hq-circle",
         type: "circle",
@@ -233,11 +235,12 @@ export default function CertisMap(props: CertisMapProps) {
         }
       });
 
-      // KINGPIN ICON --------------------------------------------------------
+      // KINGPIN ICON
       const icon = new Image();
       icon.onload = () => {
         if (!m.hasImage("kingpin-icon"))
           m.addImage("kingpin-icon", icon, { pixelRatio: 2 });
+
         m.addLayer({
           id: "kingpin-symbol",
           type: "symbol",
@@ -252,15 +255,13 @@ export default function CertisMap(props: CertisMapProps) {
       };
       icon.src = `${basePath}/icons/kingpin.png`;
 
-      // CURSOR --------------------------------------------------------------
-      ["retailers-circle", "corp-hq-circle", "kingpin-symbol"].forEach((l) => {
-        m.on("mouseenter", l, () => (m.getCanvas().style.cursor = "default"));
-        m.on("mouseleave", l, () => (m.getCanvas().style.cursor = ""));
+      // CURSOR
+      ["retailers-circle", "corp-hq-circle", "kingpin-symbol"].forEach((layer) => {
+        m.on("mouseenter", layer, () => (m.getCanvas().style.cursor = "default"));
+        m.on("mouseleave", layer, () => (m.getCanvas().style.cursor = ""));
       });
 
-      // ======================================================================
-      // POPUP — Retailers + HQ
-      // ======================================================================
+      // CLICK: Retailers + HQ
       const clickRetail = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -315,16 +316,13 @@ export default function CertisMap(props: CertisMapProps) {
       m.on("click", "retailers-circle", clickRetail);
       m.on("click", "corp-hq-circle", clickRetail);
 
-      // ======================================================================
-      // POPUP — Kingpins (Multiple Contacts)
-      // ======================================================================
+      // CLICK: Kingpins (supports multiple contacts)
       const clickKingpin = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
         const p0 = f.properties ?? {};
         const [lng, lat] = f.geometry?.coordinates ?? [];
 
-        // collect all contacts at this exact coordinate
         const same = kingpinData.features.filter(
           (ff: any) =>
             ff.geometry?.coordinates?.[0] === lng &&
@@ -364,27 +362,6 @@ export default function CertisMap(props: CertisMapProps) {
         const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false })
           .setLngLat([lng, lat]);
 
-        const render = () => {
-          const c = contacts[index];
-          const contactBlock = c
-            ? `
-                <div style="margin-top:6px;">
-                  ${c.name ? `<div style="font-weight:700;margin-bottom:2px;">${c.name}</div>` : ""}
-                  ${c.title ? `<div style="margin-bottom:6px;">${c.title}</div>` : ""}
-                  <div style="margin-bottom:4px;">
-                    <b>Office:</b> ${c.office || "—"}, 
-                    <b>Cell:</b> ${c.cell || "—"}
-                  </div>
-                  ${c.email ? `<div style="margin-bottom:6px;"><b>Email:</b> ${c.email}</div>` : ""}
-                </div>
-              `
-            : "";
-
-          popup.setDOMContent(
-            createDiv(contactBlock)
-          );
-        };
-
         const createDiv = (contactBlock: string) => {
           const div = document.createElement("div");
           div.style.cssText =
@@ -405,17 +382,19 @@ export default function CertisMap(props: CertisMapProps) {
             ${
               contacts.length > 1
                 ? `
-            <div style="display:flex;justify-content:space-between;margin-top:8px;">
-              <button id="prev-kp" style="background:none;border:none;color:#facc15;cursor:pointer;">⭠ Prev</button>
-              <div style="font-size:12px;color:#ccc;">${index + 1} / ${contacts.length}</div>
-              <button id="next-kp" style="background:none;border:none;color:#facc15;cursor:pointer;">Next ⭢</button>
-            </div>`
+                <div style="display:flex;justify-content:space-between;margin-top:8px;">
+                  <button id="prev-kp" style="background:none;border:none;color:#facc15;cursor:pointer;">⭠ Prev</button>
+                  <div style="font-size:12px;color:#ccc;">${index + 1} / ${contacts.length}</div>
+                  <button id="next-kp" style="background:none;border:none;color:#facc15;cursor:pointer;">Next ⭢</button>
+                </div>`
                 : ""
             }
           `;
 
+          // Add stop
           div.querySelector("#add-kingpin-stop")?.addEventListener("click", () => onAddStop(stop));
 
+          // Prev/Next
           div.querySelector("#prev-kp")?.addEventListener("click", () => {
             index = (index - 1 + contacts.length) % contacts.length;
             render();
@@ -429,12 +408,32 @@ export default function CertisMap(props: CertisMapProps) {
           return div;
         };
 
+        const render = () => {
+          const c = contacts[index];
+          const contactBlock = c
+            ? `
+              <div style="margin-top:6px;">
+                ${c.name ? `<div style="font-weight:700;margin-bottom:2px;">${c.name}</div>` : ""}
+                ${c.title ? `<div style="margin-bottom:6px;">${c.title}</div>` : ""}
+                <div style="margin-bottom:4px;">
+                  <b>Office:</b> ${c.office || "—"},
+                  <b>Cell:</b> ${c.cell || "—"}
+                </div>
+                ${c.email ? `<div style="margin-bottom:6px;"><b>Email:</b> ${c.email}</div>` : ""}
+              </div>
+            `
+            : "";
+
+          popup.setDOMContent(createDiv(contactBlock));
+        };
+
         render();
         popup.addTo(mapRef.current!);
       };
       m.on("click", "kingpin-symbol", clickKingpin);
     });
   }, []); // END INITIAL MAP LOAD
+
 
   // ========================================================================
   // FILTER EFFECT (Retailers + HQ only)
@@ -462,6 +461,7 @@ export default function CertisMap(props: CertisMapProps) {
     selectedCategories,
     selectedSuppliers
   ]);
+
 
   // ========================================================================
   // SUMMARY EFFECT (Retailers only)
@@ -500,7 +500,7 @@ export default function CertisMap(props: CertisMapProps) {
         return stateOk && retailerOk && categoryOk && supplierOk;
       });
 
-      const byRetailer = new Map<string, RetailerSummaryEntry>();
+      const byRetailer = new Map() as Map<string, RetailerSummaryEntry>;
 
       for (const f of filtered) {
         const p = f.properties ?? {};
@@ -523,6 +523,7 @@ export default function CertisMap(props: CertisMapProps) {
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean) || []).forEach((s) => entry.suppliers.add(s));
+
         if (p.Category) entry.categories.add(String(p.Category).trim());
         if (p.State) entry.states.add(String(p.State).trim());
       }
@@ -546,6 +547,7 @@ export default function CertisMap(props: CertisMapProps) {
     selectedSuppliers,
     onRetailerSummary
   ]);
+
 
   // ========================================================================
   // ROUTE DISPLAY
@@ -572,6 +574,7 @@ export default function CertisMap(props: CertisMapProps) {
       });
     }
   }, [props.routeGeoJSON]);
+
 
   // ========================================================================
   // HOME MARKER
@@ -617,6 +620,7 @@ export default function CertisMap(props: CertisMapProps) {
     icon.src = `${basePath}/icons/home.png`;
   }, [props.homeCoords]);
 
+
   // ========================================================================
   // CLEANUP
   // ========================================================================
@@ -628,6 +632,7 @@ export default function CertisMap(props: CertisMapProps) {
       }
     };
   }, []);
+
 
   // ========================================================================
   // RENDER
