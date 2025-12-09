@@ -1,10 +1,9 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K8 (K7 + Category Line + Email Layout)
-//   • Based on K7 GOLD (stable)
-//   • Adds Category line to Retailer + Kingpin popups
-//   • Moves Kingpin Email to its own line at the bottom
+// 💠 CERTIS AGROUTE — K9 (K8 + Category Colors + Icon Size)
+//   • Based on K8 GOLD (stable)
+//   • Category colors updated per Bailey Rule
+//   • Kingpin icon slightly smaller (0.025)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
-//   • Kingpin popup fields 100% correct + Add to Trip
 //   • Static-export-safe — No TS errors — No JSX structure changes
 // ============================================================================
 
@@ -80,7 +79,7 @@ function buildRetailerFilterExpr(
 
 // HQ filters ONLY by State — Bailey Rule
 function buildCorpHqFilterExpr(selectedStates: string[]): any[] {
-  const filter: any[] = ["all", ["==", ["downcase", ["get", "Category"]], "corporate hq"]];
+  const filter: any[] = ["all", ["==", ["downcase", ["get", "Category"]], "corporate hq"]]];
   if (selectedStates.length)
     filter.push(["in", ["downcase", ["get", "State"]], ["literal", selectedStates]]);
   return filter;
@@ -197,14 +196,10 @@ export default function CertisMap(props: CertisMapProps) {
           "circle-color": [
             "match",
             ["downcase", ["get", "Category"]],
-            "agronomy",
-            "#22c55e",
-            "grain/feed",
-            "#f97316",
-            "c-store/service/energy",
-            "#0ea5e9",
-            "distribution",
-            "#a855f7",
+            "agronomy", "#facc15",
+            "grain/feed", "#22c55e",
+            "c-store/service/energy", "#a855f7",
+            "distribution", "#ffffff",
             "#f9fafb"
           ],
           "circle-stroke-width": 1,
@@ -234,7 +229,7 @@ export default function CertisMap(props: CertisMapProps) {
           source: "kingpins",
           layout: {
             "icon-image": "kingpin-icon",
-            "icon-size": 0.03,
+            "icon-size": 0.025,
             "icon-anchor": "bottom",
             "icon-allow-overlap": true
           }
@@ -297,7 +292,7 @@ export default function CertisMap(props: CertisMapProps) {
       m.on("click", "retailers-circle", clickRetail);
       m.on("click", "corp-hq-circle", clickRetail);
 
-      // POPUP — Kingpin (Category + email-at-bottom) ------------------------
+      // POPUP — Kingpin -----------------------------------------------------
       const clickKingpin = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
