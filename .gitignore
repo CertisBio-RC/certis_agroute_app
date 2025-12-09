@@ -1,19 +1,43 @@
-﻿node_modules/
+﻿# =========================
+# CERTIS AGROUTE — .gitignore (Corrected)
+# =========================
+
+# Node / Next build artifacts
+node_modules/
 .next/
 out/
+
+# Env files (never commit)
 .env*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+
+# ETL cache / intermediate artifacts (never commit)
 data/geocode-cache.json
+scripts/out/
+
+# Token / secrets (never commit)
+data/token.txt
+data/token.json
+data/token*.txt
+data/token*.json
+public/data/token.txt
+public/data/token.json
+public/data/token*.txt
+public/data/token*.json
+
+# Portable tool archives
 *.7z.exe
 PortableGit*.7z.exe
-
 PortableGit/
-data/*.xlsx
 
-!public/data/token.txt
+# Data inputs (keep raw XLSX out of git)
+data/*.xlsx
 
 # Archive of working versions
 __archive/
+
 # Ignore Gold Baseline backup folders
 backup/
-
-
