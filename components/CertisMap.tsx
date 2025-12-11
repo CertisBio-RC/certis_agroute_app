@@ -3,6 +3,7 @@
 //   • Based on K9 GOLD (stable, deployed)
 //   • Adds 100m offset to Kingpins for clearer separation from Corporate HQ
 //   • Adds Category line to Kingpin popups (yellow label, matched to Retailer)
+//   • Phone line: missing office/cell show as "TBD" instead of "—"
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Static-export-safe — No TS errors — No JSX structure changes
 // ============================================================================
@@ -174,32 +175,38 @@ export default function CertisMap(props: CertisMapProps) {
       );
 
       // FILTER DROPDOWNS -----------------------------------------------------
-      onStatesLoaded([
-        ...new Set(
-          all
-            .map((f) => String(f.properties?.State ?? "").trim().toUpperCase())
-            .filter(Boolean)
-        )
-      ].sort());
-
-      onRetailersLoaded([
-        ...new Set(
-          (retailersData.features ?? []).map(
-            (f: any) => String(f.properties?.Retailer ?? "").trim()
-          )
-        )
-      ].filter(Boolean).sort() as string[]);
-
-      onSuppliersLoaded([
-        ...new Set(
-          all.flatMap((f: any) =>
-            String(f.properties?.Suppliers || "")
-              .split(",")
-              .map((s) => s.trim())
+      onStatesLoaded(
+        [
+          ...new Set(
+            all
+              .map((f) => String(f.properties?.State ?? "").trim().toUpperCase())
               .filter(Boolean)
           )
-        )
-      ].sort());
+        ].sort()
+      );
+
+      onRetailersLoaded(
+        ([
+          ...new Set(
+            (retailersData.features ?? []).map(
+              (f: any) => String(f.properties?.Retailer ?? "").trim()
+            )
+          )
+        ].filter(Boolean).sort() as string[])
+      );
+
+      onSuppliersLoaded(
+        [
+          ...new Set(
+            all.flatMap((f: any) =>
+              String(f.properties?.Suppliers || "")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            )
+          )
+        ].sort()
+      );
 
       // ADD SOURCES ----------------------------------------------------------
       m.addSource("retailers", { type: "geojson", data: retailersData });
@@ -253,7 +260,7 @@ export default function CertisMap(props: CertisMapProps) {
           source: "kingpins",
           layout: {
             "icon-image": "kingpin-icon",
-            "icon-size": 0.03,            // Option A (unchanged)
+            "icon-size": 0.03, // Option A (unchanged)
             "icon-anchor": "bottom",
             "icon-allow-overlap": true
           }
@@ -263,8 +270,12 @@ export default function CertisMap(props: CertisMapProps) {
 
       // PRECISION CURSOR -----------------------------------------------------
       ["retailers-circle", "corp-hq-circle", "kingpin-symbol"].forEach((l) => {
-        m.on("mouseenter", l, () => (m.getCanvas().style.cursor = "default"));
-        m.on("mouseleave", l, () => (m.getCanvas().style.cursor = ""));
+        m.on("mouseenter", l, () => {
+          m.getCanvas().style.cursor = "default";
+        });
+        m.on("mouseleave", l, () => {
+          m.getCanvas().style.cursor = "";
+        });
       });
 
       // POPUP — Retailers + HQ ----------------------------------------------
@@ -276,8 +287,10 @@ export default function CertisMap(props: CertisMapProps) {
         const retailerTitle = (p.Retailer || "").trim() || "Unknown Retailer";
         const subLabel = (p.Name || "").trim();
         const suppliers =
-          p.Suppliers?.split(",").map((s: string) => s.trim()).filter(Boolean).join(", ") ||
-          "Not listed";
+          p.Suppliers?.split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+            .join(", ") || "Not listed";
         const category = (p.Category || "").toString().trim();
 
         const stop: Stop = {
@@ -332,15 +345,21 @@ export default function CertisMap(props: CertisMapProps) {
         const suppliers = (p.Suppliers || "").toString().trim() || "Not listed";
 
         const contactName = (p.ContactName || "").trim();
-        const contactTitle = (p.ContactTitle || "").trim();
-        const office = (p.OfficePhone || "").toString().trim();
-        const cell = (p.CellPhone || "").toString().trim();
-        const email = (p.Email || "").toString().trim();
+        const contactTitle = (p.ContactTitle || p.Title || "").toString().trim();
 
-        const contactLine =
-          office || cell
-            ? `Office: ${office || "—"}, Cell: ${cell || "—"}`
-            : "";
+        const officeRaw = (p.OfficePhone || "").toString().trim();
+        const cellRaw = (p.CellPhone || "").toString().trim();
+
+        // If a number is missing, surface that as "TBD" rather than a silent dash.
+        const officeDisplay = officeRaw || "TBD";
+        const cellDisplay = cellRaw || "TBD";
+
+        const hasAnyPhone = !!(officeRaw || cellRaw);
+        const contactLine = hasAnyPhone
+          ? `Office: ${officeDisplay}, Cell: ${cellDisplay}`
+          : "";
+
+        const email = (p.Email || "").toString().trim();
 
         const stop: Stop = {
           label: contactName || retailerTitle,
@@ -447,7 +466,9 @@ export default function CertisMap(props: CertisMapProps) {
           states: [...s.states]
         }))
       );
-    } catch {}
+    } catch {
+      // swallow queryRenderedFeatures edge cases (e.g., map not fully ready)
+    }
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
 
   // ========================================================================
@@ -493,7 +514,9 @@ export default function CertisMap(props: CertisMapProps) {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Directions failures shouldn't kill the map
+      });
   }, [tripStops]);
 
   // ========================================================================
@@ -504,7 +527,9 @@ export default function CertisMap(props: CertisMapProps) {
     return () => {
       try {
         m?.remove();
-      } catch {}
+      } catch {
+        // ignore
+      }
     };
   }, []);
 
