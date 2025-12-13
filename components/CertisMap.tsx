@@ -1,9 +1,11 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K10 GOLD (K9 + 100m Offset + Category on Kingpin Popup)
-//   • Based on K9 GOLD (stable, deployed)
-//   • Adds 100m offset to Kingpins for clearer separation from Corporate HQ
-//   • Adds Category line to Kingpin popups (yellow label, matched to Retailer)
-//   • Phone line: missing office/cell show as "TBD" instead of "—"
+// 💠 CERTIS AGROUTE — K11 GOLD
+//   • Based on K10 GOLD (stable, deployed)
+//   • Uses NEXT_PUBLIC_MAPBOX_TOKEN with fallback to utils/MAPBOX_TOKEN
+//   • 100 m offset to Kingpins for separation from Corporate HQ
+//   • Category line in Kingpin & Retailer/HQ popups
+//   • Shows "TBD" for missing Kingpin phones
+//   • Restores Home icon layer (Blue_Home.png) when homeCoords is set
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Static-export-safe — No TS errors — No JSX structure changes
 // ============================================================================
@@ -12,8 +14,11 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl, { Map, GeoJSONSource } from "mapbox-gl";
+import { MAPBOX_TOKEN } from "../utils/token";
 
-// TYPES ----------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// TYPES
+// ---------------------------------------------------------------------------
 export interface Stop {
   label: string;
   address: string;
@@ -30,7 +35,7 @@ export interface CertisMapProps {
   selectedSuppliers: string[];
   homeCoords: [number, number] | null;
   tripStops: Stop[];
-  routeGeoJSON: any;
+  routeGeoJSON: any; // kept for prop compatibility (not used internally)
   onStatesLoaded: (states: string[]) => void;
   onRetailersLoaded: (retailers: string[]) => void;
   onSuppliersLoaded: (suppliers: string[]) => void;
@@ -48,8 +53,21 @@ export interface CertisMapProps {
 }
 
 // ---------------------------------------------------------------------------
+// TOKEN HANDLING
+// ---------------------------------------------------------------------------
+
+// One place to resolve the effective token for both the map and Directions API.
+// NEXT_PUBLIC_MAPBOX_TOKEN is replaced at build time; MAPBOX_TOKEN is a safe
+// hardcoded fallback in utils/token.ts (local only, not committed elsewhere).
+const EFFECTIVE_TOKEN =
+  (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string | undefined) || MAPBOX_TOKEN || "";
+
+mapboxgl.accessToken = EFFECTIVE_TOKEN;
+
+// ---------------------------------------------------------------------------
 // FILTER HELPERS
 // ---------------------------------------------------------------------------
+
 function buildRetailerFilterExpr(
   selectedStates: string[],
   selectedRetailers: string[],
@@ -61,12 +79,24 @@ function buildRetailerFilterExpr(
     ["!=", ["downcase", ["get", "Category"]], "corporate hq"],
     ["!=", ["downcase", ["get", "Category"]], "kingpin"]
   ];
-  if (selectedStates.length)
+
+  if (selectedStates.length) {
     filter.push(["in", ["downcase", ["get", "State"]], ["literal", selectedStates]]);
-  if (selectedRetailers.length)
-    filter.push(["in", ["downcase", ["get", "Retailer"]], ["literal", selectedRetailers]]);
-  if (selectedCategories.length)
-    filter.push(["in", ["downcase", ["get", "Category"]], ["literal", selectedCategories]]);
+  }
+  if (selectedRetailers.length) {
+    filter.push([
+      "in",
+      ["downcase", ["get", "Retailer"]],
+      ["literal", selectedRetailers]
+    ]);
+  }
+  if (selectedCategories.length) {
+    filter.push([
+      "in",
+      ["downcase", ["get", "Category"]],
+      ["literal", selectedCategories]
+    ]);
+  }
   if (selectedSuppliers.length) {
     const ors = selectedSuppliers.map((s) => [
       ">=",
@@ -75,26 +105,30 @@ function buildRetailerFilterExpr(
     ]);
     filter.push(["any", ...ors]);
   }
+
   return filter;
 }
 
 // HQ filters ONLY by State — Bailey Rule
 function buildCorpHqFilterExpr(selectedStates: string[]): any[] {
   const filter: any[] = ["all", ["==", ["downcase", ["get", "Category"]], "corporate hq"]];
-  if (selectedStates.length)
+  if (selectedStates.length) {
     filter.push(["in", ["downcase", ["get", "State"]], ["literal", selectedStates]]);
+  }
   return filter;
 }
 
 // ============================================================================
 // COMPONENT
 // ============================================================================
+
 export default function CertisMap(props: CertisMapProps) {
   const {
     selectedStates,
     selectedRetailers,
     selectedCategories,
     selectedSuppliers,
+    homeCoords,
     tripStops,
     onStatesLoaded,
     onRetailersLoaded,
@@ -106,7 +140,6 @@ export default function CertisMap(props: CertisMapProps) {
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
-  mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
   // INITIAL MAP LOAD ---------------------------------------------------------
   useEffect(() => {
@@ -150,10 +183,7 @@ export default function CertisMap(props: CertisMapProps) {
         })
       };
 
-      const all = [
-        ...(retailersData.features ?? []),
-        ...offsetKingpins.features
-      ];
+      const all = [...(retailersData.features ?? []), ...offsetKingpins.features];
 
       // All Stops → Trip Builder master list
       onAllStopsLoaded(
@@ -162,14 +192,24 @@ export default function CertisMap(props: CertisMapProps) {
             const p = f.properties ?? {};
             const c = f.geometry?.coordinates;
             if (!c) return null;
+
+            // Label logic:
+            //   • Retailers: Name or Retailer
+            //   • Kingpins: ContactName or Retailer
+            const label =
+              p.ContactName?.toString().trim() ||
+              p.Name?.toString().trim() ||
+              p.Retailer?.toString().trim() ||
+              "Unknown";
+
             return {
-              label: p.Name || p.Retailer || "Unknown",
+              label,
               address: p.Address || "",
               city: p.City || "",
               state: p.State || "",
               zip: p.Zip || "",
               coords: c as [number, number]
-            };
+            } as Stop;
           })
           .filter(Boolean) as Stop[]
       );
@@ -186,13 +226,15 @@ export default function CertisMap(props: CertisMapProps) {
       );
 
       onRetailersLoaded(
-        ([
+        [
           ...new Set(
             (retailersData.features ?? []).map(
               (f: any) => String(f.properties?.Retailer ?? "").trim()
             )
           )
-        ].filter(Boolean).sort() as string[])
+        ]
+          .filter(Boolean)
+          .sort() as string[]
       );
 
       onSuppliersLoaded(
@@ -251,16 +293,19 @@ export default function CertisMap(props: CertisMapProps) {
         }
       });
 
+      // Kingpin icon
       const icon = new Image();
       icon.onload = () => {
-        if (!m.hasImage("kingpin-icon")) m.addImage("kingpin-icon", icon, { pixelRatio: 2 });
+        if (!m.hasImage("kingpin-icon")) {
+          m.addImage("kingpin-icon", icon, { pixelRatio: 2 });
+        }
         m.addLayer({
           id: "kingpin-symbol",
           type: "symbol",
           source: "kingpins",
           layout: {
             "icon-image": "kingpin-icon",
-            "icon-size": 0.03, // Option A (unchanged)
+            "icon-size": 0.03,
             "icon-anchor": "bottom",
             "icon-allow-overlap": true
           }
@@ -284,6 +329,7 @@ export default function CertisMap(props: CertisMapProps) {
         if (!f) return;
         const p = f.properties ?? {};
         const [lng, lat] = f.geometry?.coordinates ?? [];
+
         const retailerTitle = (p.Retailer || "").trim() || "Unknown Retailer";
         const subLabel = (p.Name || "").trim();
         const suppliers =
@@ -324,8 +370,10 @@ export default function CertisMap(props: CertisMapProps) {
           .setLngLat([lng, lat])
           .setDOMContent(div)
           .addTo(m);
+
         div.querySelector("#add-stop")?.addEventListener("click", () => onAddStop(stop));
       };
+
       m.on("click", "retailers-circle", clickRetail);
       m.on("click", "corp-hq-circle", clickRetail);
 
@@ -345,21 +393,15 @@ export default function CertisMap(props: CertisMapProps) {
         const suppliers = (p.Suppliers || "").toString().trim() || "Not listed";
 
         const contactName = (p.ContactName || "").trim();
-        const contactTitle = (p.ContactTitle || p.Title || "").toString().trim();
-
-        const officeRaw = (p.OfficePhone || "").toString().trim();
-        const cellRaw = (p.CellPhone || "").toString().trim();
-
-        // If a number is missing, surface that as "TBD" rather than a silent dash.
-        const officeDisplay = officeRaw || "TBD";
-        const cellDisplay = cellRaw || "TBD";
-
-        const hasAnyPhone = !!(officeRaw || cellRaw);
-        const contactLine = hasAnyPhone
-          ? `Office: ${officeDisplay}, Cell: ${cellDisplay}`
-          : "";
-
+        const contactTitle = (p.ContactTitle || p.Title || "").trim();
+        const office = (p.OfficePhone || "").toString().trim();
+        const cell = (p.CellPhone || "").toString().trim();
         const email = (p.Email || "").toString().trim();
+
+        // Always show phones; "TBD" when missing
+        const officeDisplay = office || "TBD";
+        const cellDisplay = cell || "TBD";
+        const contactLine = `Office: ${officeDisplay}, Cell: ${cellDisplay}`;
 
         const stop: Stop = {
           label: contactName || retailerTitle,
@@ -384,7 +426,7 @@ export default function CertisMap(props: CertisMapProps) {
           <div style="margin-bottom:8px;"><span style="font-weight:700;">Suppliers:</span><br/>${suppliers}</div>
           ${contactName ? `<div style="font-weight:700;margin-bottom:2px;">${contactName}</div>` : ""}
           ${contactTitle ? `<div style="margin-bottom:4px;">${contactTitle}</div>` : ""}
-          ${contactLine ? `<div style="margin-bottom:4px;">${contactLine}</div>` : ""}
+          <div style="margin-bottom:4px;">${contactLine}</div>
           ${email ? `<div style="margin-bottom:8px;">Email: ${email}</div>` : ""}
           <button id="add-kingpin-stop" style="padding:7px 10px;border:none;background:#facc15;
             border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
@@ -395,13 +437,22 @@ export default function CertisMap(props: CertisMapProps) {
           .setLngLat([lng, lat])
           .setDOMContent(div)
           .addTo(m);
+
         div
           .querySelector("#add-kingpin-stop")
           ?.addEventListener("click", () => onAddStop(stop));
       };
+
       m.on("click", "kingpin-symbol", clickKingpin);
     });
-  }, []); // END INITIAL MAP USEEFFECT
+  }, [
+    onAllStopsLoaded,
+    onRetailersLoaded,
+    onRetailerSummary,
+    onStatesLoaded,
+    onSuppliersLoaded,
+    onAddStop
+  ]); // END INITIAL MAP USEEFFECT
 
   // ========================================================================
   // FILTERS + SUMMARY — only visible retailers
@@ -437,22 +488,24 @@ export default function CertisMap(props: CertisMapProps) {
         const name = (p.Retailer || p.Name || "").trim();
         if (!name) return;
 
-        if (!summary[name])
+        if (!summary[name]) {
           summary[name] = {
             count: 0,
             suppliers: new Set(),
             categories: new Set(),
             states: new Set()
           };
+        }
 
         const s = summary[name];
         s.count++;
 
-        if (p.Suppliers)
+        if (p.Suppliers) {
           p.Suppliers.split(",")
             .map((v: string) => v.trim())
             .filter(Boolean)
             .forEach((v) => s.suppliers.add(v));
+        }
         if (p.Category) s.categories.add(p.Category);
         if (p.State) s.states.add(p.State);
       });
@@ -467,9 +520,15 @@ export default function CertisMap(props: CertisMapProps) {
         }))
       );
     } catch {
-      // swallow queryRenderedFeatures edge cases (e.g., map not fully ready)
+      // swallow issues from queryRenderedFeatures during rapid filter changes
     }
-  }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers, onRetailerSummary]);
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+    onRetailerSummary
+  ]);
 
   // ========================================================================
   // TRIP ROUTE — Mapbox Directions
@@ -491,9 +550,12 @@ export default function CertisMap(props: CertisMapProps) {
     }
 
     const coords = tripStops.map((s) => `${s.coords[0]},${s.coords[1]}`).join(";");
-    fetch(
-      `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&steps=false&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`
-    )
+
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&steps=false&access_token=${encodeURIComponent(
+      EFFECTIVE_TOKEN
+    )}`;
+
+    fetch(url)
       .then((r) => r.json())
       .then((json) => {
         const route = json?.routes?.[0]?.geometry;
@@ -501,9 +563,11 @@ export default function CertisMap(props: CertisMapProps) {
 
         const feature: any = { type: "Feature", geometry: route, properties: {} };
 
-        if (!m.getSource("trip-route"))
+        if (!m.getSource("trip-route")) {
           m.addSource("trip-route", { type: "geojson", data: feature });
-        else (m.getSource("trip-route") as GeoJSONSource).setData(feature);
+        } else {
+          (m.getSource("trip-route") as GeoJSONSource).setData(feature);
+        }
 
         if (!m.getLayer("trip-route")) {
           m.addLayer({
@@ -515,9 +579,64 @@ export default function CertisMap(props: CertisMapProps) {
         }
       })
       .catch(() => {
-        // Directions failures shouldn't kill the map
+        // fail silently; worst case the route just doesn't render
       });
   }, [tripStops]);
+
+  // ========================================================================
+  // HOME ICON — Blue_Home.png at homeCoords
+  // ========================================================================
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+
+    const sourceId = "home-marker";
+    const layerId = "home-marker";
+
+    if (!homeCoords) {
+      if (m.getLayer(layerId)) m.removeLayer(layerId);
+      if (m.getSource(sourceId)) m.removeSource(sourceId);
+      return;
+    }
+
+    const feature = {
+      type: "Feature" as const,
+      geometry: {
+        type: "Point" as const,
+        coordinates: homeCoords
+      },
+      properties: {}
+    };
+
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+    if (!m.getSource(sourceId)) {
+      m.addSource(sourceId, { type: "geojson", data: feature });
+
+      const img = new Image();
+      img.onload = () => {
+        if (!m.hasImage("home-icon")) {
+          m.addImage("home-icon", img, { pixelRatio: 2 });
+        }
+        if (!m.getLayer(layerId)) {
+          m.addLayer({
+            id: layerId,
+            type: "symbol",
+            source: sourceId,
+            layout: {
+              "icon-image": "home-icon",
+              "icon-size": 0.06,
+              "icon-anchor": "bottom",
+              "icon-allow-overlap": true
+            }
+          });
+        }
+      };
+      img.src = `${basePath}/icons/Blue_Home.png`;
+    } else {
+      (m.getSource(sourceId) as GeoJSONSource).setData(feature);
+    }
+  }, [homeCoords]);
 
   // ========================================================================
   // CLEANUP — prevent duplicate map + memory leaks
