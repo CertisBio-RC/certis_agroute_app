@@ -530,59 +530,93 @@ export default function CertisMap(props: CertisMapProps) {
     onRetailerSummary
   ]);
 
-  // ========================================================================
-  // TRIP ROUTE — Mapbox Directions
-  // ========================================================================
-  useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
+// ========================================================================
+// TRIP ROUTE — Mapbox Directions (K11.1)
+//   • Uses mapboxgl.accessToken (same as basemap)
+//   • Falls back to straight line if Directions fails
+// ========================================================================
 
-    if (!tripStops.length) {
-      if (m.getLayer("trip-route")) m.removeLayer("trip-route");
-      if (m.getSource("trip-route")) m.removeSource("trip-route");
-      return;
+const MAPBOX_DIRECTIONS_URL =
+  "https://api.mapbox.com/directions/v5/mapbox/driving";
+
+type SimpleStop = { lon: number; lat: number };
+
+/**
+ * Build a road-following route using Mapbox Directions API.
+ * Falls back to a straight LineString if Directions fails for any reason.
+ */
+async function buildRouteGeometry(
+  stops: SimpleStop[],
+): Promise<GeoJSON.LineString | null> {
+  if (!stops || stops.length < 2) {
+    return null;
+  }
+
+  // Use the same token the basemap is using
+  const token = mapboxgl.accessToken;
+
+  if (!token) {
+    console.warn(
+      "[Route] No token on mapboxgl.accessToken; falling back to straight line.",
+    );
+    return {
+      type: "LineString",
+      coordinates: stops.map((s) => [s.lon, s.lat]),
+    };
+  }
+
+  // Build coordinates string "lon,lat;lon,lat;..."
+  const coordsStr = stops
+    .map((s) => `${s.lon.toFixed(6)},${s.lat.toFixed(6)}`)
+    .join(";");
+
+  const url = `${MAPBOX_DIRECTIONS_URL}/${coordsStr}?geometries=geojson&overview=full&access_token=${encodeURIComponent(
+    token,
+  )}`;
+
+  try {
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      console.warn(
+        `[Route] Directions error ${res.status} — falling back to straight line.`,
+      );
+      return {
+        type: "LineString",
+        coordinates: stops.map((s) => [s.lon, s.lat]),
+      };
     }
 
-    if (tripStops.length === 1) {
-      if (m.getLayer("trip-route")) m.removeLayer("trip-route");
-      if (m.getSource("trip-route")) m.removeSource("trip-route");
-      return;
+    const data = await res.json();
+    const route = data?.routes?.[0]?.geometry;
+
+    if (
+      !route ||
+      route.type !== "LineString" ||
+      !Array.isArray(route.coordinates)
+    ) {
+      console.warn(
+        "[Route] No valid LineString geometry in directions response; falling back to straight line.",
+      );
+      return {
+        type: "LineString",
+        coordinates: stops.map((s) => [s.lon, s.lat]),
+      };
     }
 
-    const coords = tripStops.map((s) => `${s.coords[0]},${s.coords[1]}`).join(";");
-
-    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&steps=false&access_token=${encodeURIComponent(
-      EFFECTIVE_TOKEN
-    )}`;
-
-    fetch(url)
-      .then((r) => r.json())
-      .then((json) => {
-        const route = json?.routes?.[0]?.geometry;
-        if (!route) return;
-
-        const feature: any = { type: "Feature", geometry: route, properties: {} };
-
-        if (!m.getSource("trip-route")) {
-          m.addSource("trip-route", { type: "geojson", data: feature });
-        } else {
-          (m.getSource("trip-route") as GeoJSONSource).setData(feature);
-        }
-
-        if (!m.getLayer("trip-route")) {
-          m.addLayer({
-            id: "trip-route",
-            type: "line",
-            source: "trip-route",
-            paint: { "line-color": "#facc15", "line-width": 4 }
-          });
-        }
-      })
-      .catch(() => {
-        // fail silently; worst case the route just doesn't render
-      });
-  }, [tripStops]);
-
+    // ✅ Happy path: road-following geometry from Mapbox
+    return route as GeoJSON.LineString;
+  } catch (err) {
+    console.warn(
+      "[Route] Directions exception — falling back to straight line.",
+      err,
+    );
+    return {
+      type: "LineString",
+      coordinates: stops.map((s) => [s.lon, s.lat]),
+    };
+  }
+}
   // ========================================================================
   // HOME ICON — Blue_Home.png at homeCoords
   // ========================================================================
