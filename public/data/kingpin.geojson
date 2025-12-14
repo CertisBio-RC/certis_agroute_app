@@ -72,7 +72,7 @@
       },
       "properties": {
         "Retailer": "AgLand Coop",
-        "Suppliers": "",
+        "Suppliers": "nan",
         "ContactName": "Todd Kludt",
         "ContactTitle": "VP Agronomy",
         "Title": "VP Agronomy",
@@ -3156,8 +3156,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -87.977937,
-          40.770845
+          -88.031823,
+          40.741477
         ]
       },
       "properties": {
@@ -3522,7 +3522,7 @@
       },
       "properties": {
         "Retailer": "Landus Coop.",
-        "Suppliers": "",
+        "Suppliers": "IAP",
         "ContactName": "Scott Ahrenholz",
         "ContactTitle": "Tech. Sales Mgr.",
         "Title": "Tech. Sales Mgr.",
@@ -3535,10 +3535,10 @@
         "Zip": "50036",
         "FullAddress": "1095 T. Ave., Boone, IA 50036",
         "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
+        "FacilityName": "Boone",
+        "LongName": "Landus Coop - IA MN",
+        "MatchTier": "T1",
+        "GeoSource": "FACILITY"
       }
     },
     {
@@ -3552,7 +3552,7 @@
       },
       "properties": {
         "Retailer": "Landus Coop.",
-        "Suppliers": "",
+        "Suppliers": "IAP",
         "ContactName": "Wade Kent",
         "ContactTitle": "Acre Edge Mgr.",
         "Title": "Acre Edge Mgr.",
@@ -3565,10 +3565,10 @@
         "Zip": "50036",
         "FullAddress": "1095 T. Ave., Boone, IA 50036",
         "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
+        "FacilityName": "Boone",
+        "LongName": "Landus Coop - IA MN",
+        "MatchTier": "T1",
+        "GeoSource": "FACILITY"
       }
     },
     {

@@ -8,6 +8,10 @@ CERTIS AGROUTE — Build public/data/kingpin.geojson (Hybrid)
       - data/token.txt (raw token OR JSON)
       - data/token.json (BOM-safe)
       - env MAPBOX_TOKEN or NEXT_PUBLIC_MAPBOX_TOKEN
+  • Category rules (updated):
+      - Facility categories are canonicalized; any "nan"/"NaN"/"None"/"null" are treated as missing
+      - Missing/invalid facility categories default to "Agronomy"
+      - Unmatched kingpins (TBD) always default Category to "Agronomy"
 
 Outputs:
   - public/data/kingpin.geojson
@@ -138,11 +142,17 @@ def canonicalize_category(raw: str) -> str:
     Canonical categories (Bailey Rule set):
       Agronomy, Grain/Feed, C-Store/Service/Energy, Distribution, Corporate HQ, Kingpin
     We treat messy combos (e.g. "Agronomy, Feed/Grain") by choosing best match.
+
+    IMPORTANT: 'nan', 'NaN', 'None', 'null' are treated as missing (return "").
     """
     s = _clean_ws(raw)
     if not s:
         return ""
     low = s.lower()
+
+    # treat these as missing
+    if low in {"nan", "none", "null"}:
+        return ""
 
     # If multiple categories are stuffed together, we still choose a single canonical.
     # Priority: Corporate HQ > Distribution > C-Store/Service/Energy > Grain/Feed > Agronomy > Kingpin
@@ -231,7 +241,10 @@ def load_retailers_geojson(path: str) -> List[Facility]:
         c_raw = _clean_ws(props.get("City", ""))
         st = normalize_state(props.get("State", ""))
         z = normalize_zip(props.get("Zip", ""))
-        cat = canonicalize_category(props.get("Category", ""))
+
+        # canonicalize, but allow blank / 'nan' to fall back to Agronomy later
+        cat_raw = props.get("Category", "")
+        cat = canonicalize_category(cat_raw)
         supp = canonical_suppliers(props.get("Suppliers", ""))
         name = _clean_ws(props.get("Name", ""))
         longname = _clean_ws(props.get("LongName", ""))
@@ -239,8 +252,10 @@ def load_retailers_geojson(path: str) -> List[Facility]:
         # Require the fields we need for matching
         if not (r_raw and a_raw and c_raw and st and z):
             continue
+
+        # If category is missing/invalid (nan/null/etc.), default to Agronomy.
         if not cat:
-            continue
+            cat = "Agronomy"
 
         out.append(
             Facility(
@@ -617,7 +632,7 @@ def main() -> int:
         lonlat: Optional[Tuple[float, float]] = None
 
         if matched_fac is not None:
-            props["Category"] = matched_fac.category
+            props["Category"] = matched_fac.category  # already cleaned / defaulted away from "nan"
             props["FacilityName"] = matched_fac.name
             props["LongName"] = matched_fac.longname
             props["MatchTier"] = match_tier
@@ -632,6 +647,7 @@ def main() -> int:
         else:
             # Unmatched => TBD values (then geocode if enabled)
             n_tbd += 1
+            # Category for unmatched kingpins: always Agronomy (per your preference)
             props["Category"] = "Agronomy"
             props["FacilityName"] = ""
             props["LongName"] = ""
@@ -667,7 +683,11 @@ def main() -> int:
                         fail_status_counts[k] = fail_status_counts.get(k, 0) + 1
                         if printed_failures < args.debug_geocode_failures:
                             printed_failures += 1
-                            print(f"⚠️  Geocode failed [{status}] {reason} :: {addr_raw}, {city_raw}, {state} {zipc} (Retailer: {retailer_raw})")
+                            print(
+                                f"⚠️  Geocode failed [{status}] {reason} :: "
+                                f"{addr_raw}, {city_raw}, {state} {zipc} "
+                                f"(Retailer: {retailer_raw})"
+                            )
 
         if lonlat is not None:
             enriched.append({**props, "Longitude": str(lonlat[0]), "Latitude": str(lonlat[1])})
