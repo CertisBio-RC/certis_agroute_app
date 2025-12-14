@@ -16,9 +16,12 @@ interface Props {
 
   /** Add stop to trip */
   onAddStop: (stop: Stop) => void;
+
+  /** NEW: ask the map to zoom to this stop */
+  onZoomTo: (stop: Stop) => void;
 }
 
-export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
+export default function SearchLocationsTile({ allStops, onAddStop, onZoomTo }: Props) {
   const [query, setQuery] = useState("");
 
   // ======================================================================
@@ -50,6 +53,11 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
     setQuery(""); // Clear after selecting a location
   };
 
+  const handleZoom = (stop: Stop) => {
+    onZoomTo(stop);
+    // keep query so user can keep playing with the same search
+  };
+
   // ======================================================================
   // 🖼️ UI RENDER
   // ======================================================================
@@ -78,8 +86,7 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
         {results.map((s, i) => (
           <div
             key={i}
-            className="p-2 rounded bg-gray-700/40 hover:bg-gray-700/60 cursor-pointer"
-            onClick={() => handleAdd(s)}
+            className="p-2 rounded bg-gray-700/40 hover:bg-gray-700/60"
           >
             {/* RETAILER NAME */}
             <div className="font-semibold text-yellow-300 text-[17px]">
@@ -97,16 +104,21 @@ export default function SearchLocationsTile({ allStops, onAddStop }: Props) {
               {s.city}, {s.state} {s.zip}
             </div>
 
-            {/* ADD BUTTON */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAdd(s);
-              }}
-              className="mt-2 px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-            >
-              Add to Trip
-            </button>
+            {/* BUTTONS */}
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={() => handleZoom(s)}
+                className="px-2 py-1 bg-gray-200 text-gray-900 rounded text-sm hover:bg-gray-300"
+              >
+                Zoom To
+              </button>
+              <button
+                onClick={() => handleAdd(s)}
+                className="px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+              >
+                Add to Trip
+              </button>
+            </div>
           </div>
         ))}
       </div>

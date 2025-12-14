@@ -1,22 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import CertisMap from "@/components/CertisMap";
+import CertisMap, { Stop } from "@/components/CertisMap";
 import SearchLocationsTile from "@/components/SearchLocationsTile";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
-
-/* ========================================================================
-   ⛳ STOP TYPE — must match CertisMap.tsx exactly
-======================================================================== */
-export interface Stop {
-  label: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  coords: [number, number];
-}
 
 /* ========================================================================
    🌗 THEME — Bailey Rule: dark default
@@ -70,7 +58,7 @@ function buildAppleMapsUrl(stops: Stop[]) {
 }
 
 /* ========================================================================
-   🚀 MAIN — CERTIS AGROUTE — K4 GOLD FINAL
+   🚀 MAIN — CERTIS AGROUTE — K11 GOLD + Zoom-To
 ======================================================================== */
 export default function Page() {
   const { theme, toggleTheme } = useTheme();
@@ -105,6 +93,9 @@ export default function Page() {
   const [homeZip, setHomeZip] = useState("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
 
+  /* ---------- ZOOM TARGET (Search → Zoom To) ---------- */
+  const [zoomToStop, setZoomToStop] = useState<Stop | null>(null);
+
   /* Add stop */
   const handleAddStop = (stop: Stop) => {
     setTripStops((prev) => {
@@ -113,6 +104,15 @@ export default function Page() {
       const nonHome = prev.filter((s) => !s.label.startsWith("Home"));
       const home = prev.find((s) => s.label.startsWith("Home"));
       return home ? [home, ...nonHome, stop] : [...prev, stop];
+    });
+  };
+
+  /* Zoom handler for SearchLocationsTile */
+  const handleZoomToStop = (stop: Stop) => {
+    // clone to ensure state change even if same object is selected twice
+    setZoomToStop({
+      ...stop,
+      coords: [...stop.coords] as [number, number],
     });
   };
 
@@ -155,7 +155,9 @@ export default function Page() {
         const others = p.filter((s) => !s.label.startsWith("Home"));
         return [home, ...others];
       });
-    } catch {}
+    } catch {
+      // silent fail ok
+    }
   };
 
   /* ---------- RETAILER SUMMARY ---------- */
@@ -189,7 +191,6 @@ export default function Page() {
   ======================================================================== */
   return (
     <div className="flex h-screen w-screen relative overflow-hidden">
-
       {/* MOBILE MENU BUTTON */}
       <button
         className="absolute top-3 left-3 z-40 p-2 bg-gray-800 text-white rounded-md md:hidden"
@@ -245,7 +246,11 @@ export default function Page() {
         </div>
 
         {/* SEARCH TILE */}
-        <SearchLocationsTile allStops={allStops} onAddStop={handleAddStop} />
+        <SearchLocationsTile
+          allStops={allStops}
+          onAddStop={handleAddStop}
+          onZoomTo={handleZoomToStop}
+        />
 
         {/* STATES */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
@@ -290,7 +295,9 @@ export default function Page() {
           <h2 className="text-lg font-bold text-yellow-400 mb-3">Retailers</h2>
           <div className="flex flex-wrap gap-2 mb-2">
             <button
-             onClick={() => setSelectedRetailers(filteredRetailersForSummary.map(norm))}
+              onClick={() =>
+                setSelectedRetailers(filteredRetailersForSummary.map(norm))
+              }
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
             >
               Select All
@@ -303,7 +310,7 @@ export default function Page() {
             </button>
           </div>
           <div className="grid grid-cols-2 gap-x-4 max-h-48 overflow-y-auto">
-	{filteredRetailersForSummary.map((r) => {
+            {filteredRetailersForSummary.map((r) => {
               const n = norm(r);
               return (
                 <label key={r} className="flex items-center space-x-2">
@@ -365,7 +372,9 @@ export default function Page() {
             <button
               onClick={() =>
                 setSelectedCategories(
-                  ["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(norm)
+                  ["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(
+                    norm
+                  )
                 )
               }
               className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
@@ -380,23 +389,25 @@ export default function Page() {
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map((cat) => {
-              const n = norm(cat);
-              return (
-                <label key={cat} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(n)}
-                    onChange={() =>
-                      setSelectedCategories((p) =>
-                        p.includes(n) ? p.filter((c) => c !== n) : [...p, n]
-                      )
-                    }
-                  />
-                  <span className="text-white">{cat}</span>
-                </label>
-              );
-            })}
+            {["Agronomy", "Grain/Feed", "C-Store/Service/Energy", "Distribution"].map(
+              (cat) => {
+                const n = norm(cat);
+                return (
+                  <label key={cat} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.includes(n)}
+                      onChange={() =>
+                        setSelectedCategories((p) =>
+                          p.includes(n) ? p.filter((c) => c !== n) : [...p, n]
+                        )
+                      }
+                    />
+                    <span className="text-white">{cat}</span>
+                  </label>
+                );
+              }
+            )}
           </div>
         </div>
 
@@ -528,7 +539,6 @@ export default function Page() {
         </div>
 
         <div className="flex-1">
-
           <CertisMap
             selectedStates={selectedStates}
             selectedRetailers={selectedRetailers}
@@ -543,6 +553,7 @@ export default function Page() {
             onRetailerSummary={setRetailerSummary}
             onAllStopsLoaded={setAllStops}
             onAddStop={handleAddStop}
+            zoomToStop={zoomToStop}
           />
         </div>
       </main>

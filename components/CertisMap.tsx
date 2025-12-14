@@ -1,16 +1,14 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K11.3 GOLD
-//   • Based on K11.2 GOLD
-//   • Agronomy-first color rule:
-//       - Any site whose Category string contains "Agronomy"
-//         (alone OR combined with any other category except Corporate HQ)
-//         is shown in Agronomy green
+// 💠 CERTIS AGROUTE — K11 GOLD + Zoom-To Support
+//   • Based on K11.3 (NaN-clean, deployed)
 //   • Uses NEXT_PUBLIC_MAPBOX_TOKEN with fallback to utils/MAPBOX_TOKEN
 //   • 100 m offset to Kingpins for separation from Corporate HQ
 //   • Category line in Kingpin & Retailer/HQ popups
 //   • Shows "TBD" for missing Kingpin phones
 //   • Restores Home icon layer (Blue_Home.png) when homeCoords is set
-//   • Trip route uses Mapbox Directions API (road-following) with safe fallback
+//   • "Agronomy-dominant" coloring: any category containing Agronomy
+//     (except Corporate HQ) uses the Agronomy color
+//   • Adds zoomToStop prop so sidebar "Zoom To" button can fly the map
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Static-export-safe — No TS errors — No JSX structure changes
 // ============================================================================
@@ -55,14 +53,17 @@ export interface CertisMapProps {
   ) => void;
   onAllStopsLoaded: (stops: Stop[]) => void;
   onAddStop: (stop: Stop) => void;
+  /** NEW: when this changes, map will fly to that Stop */
+  zoomToStop: Stop | null;
 }
 
 // ---------------------------------------------------------------------------
 // TOKEN HANDLING
 // ---------------------------------------------------------------------------
 
-// NEXT_PUBLIC_MAPBOX_TOKEN is replaced at build time;
-// MAPBOX_TOKEN is a safe hardcoded fallback in utils/token.ts.
+// One place to resolve the effective token for both the map and Directions API.
+// NEXT_PUBLIC_MAPBOX_TOKEN is replaced at build time; MAPBOX_TOKEN is a safe
+// hardcoded fallback in utils/token.ts (local only, not committed elsewhere).
 const EFFECTIVE_TOKEN =
   (process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string | undefined) || MAPBOX_TOKEN || "";
 
@@ -81,7 +82,7 @@ function buildRetailerFilterExpr(
   const filter: any[] = [
     "all",
     ["!=", ["downcase", ["get", "Category"]], "corporate hq"],
-    ["!=", ["downcase", ["get", "Category"]], "kingpin"],
+    ["!=", ["downcase", ["get", "Category"]], "kingpin"]
   ];
 
   if (selectedStates.length) {
@@ -91,21 +92,21 @@ function buildRetailerFilterExpr(
     filter.push([
       "in",
       ["downcase", ["get", "Retailer"]],
-      ["literal", selectedRetailers],
+      ["literal", selectedRetailers]
     ]);
   }
   if (selectedCategories.length) {
     filter.push([
       "in",
       ["downcase", ["get", "Category"]],
-      ["literal", selectedCategories],
+      ["literal", selectedCategories]
     ]);
   }
   if (selectedSuppliers.length) {
     const ors = selectedSuppliers.map((s) => [
       ">=",
       ["index-of", s.toLowerCase(), ["downcase", ["get", "Suppliers"]]],
-      0,
+      0
     ]);
     filter.push(["any", ...ors]);
   }
@@ -120,96 +121,6 @@ function buildCorpHqFilterExpr(selectedStates: string[]): any[] {
     filter.push(["in", ["downcase", ["get", "State"]], ["literal", selectedStates]]);
   }
   return filter;
-}
-
-// ---------------------------------------------------------------------------
-// ROUTE HELPERS — Mapbox Directions API (road-following)
-// ---------------------------------------------------------------------------
-
-const MAPBOX_DIRECTIONS_URL = "https://api.mapbox.com/directions/v5/mapbox/driving";
-
-type SimpleStop = { lon: number; lat: number };
-
-type RouteLineString = {
-  type: "LineString";
-  coordinates: [number, number][];
-};
-
-/**
- * Build a road-following route using Mapbox Directions API.
- * Falls back to a straight LineString if Directions fails for any reason.
- */
-async function buildRouteGeometry(
-  stops: SimpleStop[]
-): Promise<RouteLineString | null> {
-  if (!stops || stops.length < 2) {
-    return null;
-  }
-
-  const token = mapboxgl.accessToken as string | undefined;
-
-  if (!token) {
-    console.warn(
-      "[Route] No token on mapboxgl.accessToken; falling back to straight line."
-    );
-    return {
-      type: "LineString",
-      coordinates: stops.map((s) => [s.lon, s.lat]),
-    };
-  }
-
-  const coordsStr = stops
-    .map((s) => `${s.lon.toFixed(6)},${s.lat.toFixed(6)}`)
-    .join(";");
-
-  const url = `${MAPBOX_DIRECTIONS_URL}/${coordsStr}?geometries=geojson&overview=full&access_token=${encodeURIComponent(
-    token
-  )}`;
-
-  try {
-    const res = await fetch(url);
-
-    if (!res.ok) {
-      console.warn(
-        `[Route] Directions error ${res.status} — falling back to straight line.`
-      );
-      return {
-        type: "LineString",
-        coordinates: stops.map((s) => [s.lon, s.lat]),
-      };
-    }
-
-    const data = await res.json();
-    const route = data?.routes?.[0]?.geometry;
-
-    if (
-      !route ||
-      route.type !== "LineString" ||
-      !Array.isArray(route.coordinates)
-    ) {
-      console.warn(
-        "[Route] No valid LineString geometry in directions response; falling back to straight line."
-      );
-      return {
-        type: "LineString",
-        coordinates: stops.map((s) => [s.lon, s.lat]),
-      };
-    }
-
-    return {
-      type: "LineString",
-      coordinates: route.coordinates as [number, number][],
-    };
-  } catch (err) {
-    console.warn(
-      "[Route] Directions exception — falling back to straight line.",
-      err
-    );
-    return {
-      type: "LineString",
-      coordinates: stops.map((s) => [s.lon, s.lat]),
-    };
-  }
 }
 
 // ============================================================================
@@ -230,6 +141,7 @@ export default function CertisMap(props: CertisMapProps) {
     onRetailerSummary,
     onAllStopsLoaded,
     onAddStop,
+    zoomToStop
   } = props;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -244,7 +156,7 @@ export default function CertisMap(props: CertisMapProps) {
       style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [-93.5, 41.5],
       zoom: 5,
-      projection: { name: "mercator" },
+      projection: { name: "mercator" }
     });
 
     mapRef.current = map;
@@ -252,7 +164,7 @@ export default function CertisMap(props: CertisMapProps) {
 
     Promise.all([
       fetch(`${basePath}/data/retailers.geojson`).then((r) => r.json()),
-      fetch(`${basePath}/data/kingpin.geojson`).then((r) => r.json()),
+      fetch(`${basePath}/data/kingpin.geojson`).then((r) => r.json())
     ]).then(([retailersData, kingpinData]) => {
       const m = mapRef.current;
       if (!m) return;
@@ -260,6 +172,7 @@ export default function CertisMap(props: CertisMapProps) {
       // ================================================================
       // 💛 APPLY 100m OFFSET TO KINGPINS
       // ================================================================
+      // ≈100m at this latitude
       const OFFSET_LNG = 0.0013;
 
       const offsetKingpins = {
@@ -270,10 +183,10 @@ export default function CertisMap(props: CertisMapProps) {
             ...f,
             geometry: {
               ...f.geometry,
-              coordinates: [lng + OFFSET_LNG, lat],
-            },
+              coordinates: [lng + OFFSET_LNG, lat]
+            }
           };
-        }),
+        })
       };
 
       const all = [...(retailersData.features ?? []), ...offsetKingpins.features];
@@ -286,6 +199,9 @@ export default function CertisMap(props: CertisMapProps) {
             const c = f.geometry?.coordinates;
             if (!c) return null;
 
+            // Label logic:
+            //   • Retailers: Name or Retailer
+            //   • Kingpins: ContactName or Retailer
             const label =
               p.ContactName?.toString().trim() ||
               p.Name?.toString().trim() ||
@@ -298,7 +214,7 @@ export default function CertisMap(props: CertisMapProps) {
               city: p.City || "",
               state: p.State || "",
               zip: p.Zip || "",
-              coords: c as [number, number],
+              coords: c as [number, number]
             } as Stop;
           })
           .filter(Boolean) as Stop[]
@@ -311,7 +227,7 @@ export default function CertisMap(props: CertisMapProps) {
             all
               .map((f) => String(f.properties?.State ?? "").trim().toUpperCase())
               .filter(Boolean)
-          ),
+          )
         ].sort()
       );
 
@@ -321,7 +237,7 @@ export default function CertisMap(props: CertisMapProps) {
             (retailersData.features ?? []).map(
               (f: any) => String(f.properties?.Retailer ?? "").trim()
             )
-          ),
+          )
         ]
           .filter(Boolean)
           .sort() as string[]
@@ -336,7 +252,7 @@ export default function CertisMap(props: CertisMapProps) {
                 .map((s) => s.trim())
                 .filter(Boolean)
             )
-          ),
+          )
         ].sort()
       );
 
@@ -352,36 +268,51 @@ export default function CertisMap(props: CertisMapProps) {
         filter: buildRetailerFilterExpr([], [], [], []),
         paint: {
           "circle-radius": 4,
-          // 🔴 AGRONOMY-FIRST COLOR RULE
-          // If Category string (downcased) contains "agronomy" AND is not corporate hq,
-          // color as Agronomy, even if other categories (e.g. "Agronomy, Grain/Feed").
+          // AGRONOMY-DOMINANT COLORING:
+          //  • If Category string contains "agronomy" (and is NOT Corporate HQ),
+          //    always use Agronomy green — even if other categories are present.
+          //  • Otherwise fall through to Grain/Feed, C-Store/Service/Energy,
+          //    Distribution, or default light gray.
           "circle-color": [
             "case",
+            // 1) Agronomy present anywhere in Category (non-HQ)
             [
               "all",
-              [
-                ">=",
-                [
-                  "index-of",
-                  "agronomy",
-                  ["downcase", ["get", "Category"]],
-                ],
-                0,
-              ],
-              ["!=", ["downcase", ["get", "Category"]], "corporate hq"],
+              [">=", ["index-of", "agronomy", ["downcase", ["get", "Category"]]], 0],
+              ["!=", ["downcase", ["get", "Category"]], "corporate hq"]
             ],
-            "#22c55e", // Agronomy
-            ["==", ["downcase", ["get", "Category"]], "grain/feed"],
-            "#f97316", // Grain/Feed
-            ["==", ["downcase", ["get", "Category"]], "c-store/service/energy"],
-            "#0ea5e9", // C-Store/Service/Energy
-            ["==", ["downcase", ["get", "Category"]], "distribution"],
-            "#a855f7", // Distribution
-            "#f9fafb", // default
+            "#22c55e", // Agronomy green
+
+            // 2) Grain/Feed present
+            [
+              ">=",
+              ["index-of", "grain/feed", ["downcase", ["get", "Category"]]],
+              0
+            ],
+            "#f97316", // Grain/Feed orange
+
+            // 3) C-Store/Service/Energy present
+            [
+              ">=",
+              ["index-of", "c-store/service/energy", ["downcase", ["get", "Category"]]],
+              0
+            ],
+            "#0ea5e9", // C-Store blue
+
+            // 4) Distribution present
+            [
+              ">=",
+              ["index-of", "distribution", ["downcase", ["get", "Category"]]],
+              0
+            ],
+            "#a855f7", // Distribution purple
+
+            // 5) Fallback
+            "#f9fafb"
           ],
           "circle-stroke-width": 1,
-          "circle-stroke-color": "#111827",
-        },
+          "circle-stroke-color": "#111827"
+        }
       });
 
       m.addLayer({
@@ -393,8 +324,8 @@ export default function CertisMap(props: CertisMapProps) {
           "circle-radius": 7,
           "circle-color": "#ff0000",
           "circle-stroke-color": "#facc15",
-          "circle-stroke-width": 2,
-        },
+          "circle-stroke-width": 2
+        }
       });
 
       // Kingpin icon
@@ -403,19 +334,17 @@ export default function CertisMap(props: CertisMapProps) {
         if (!m.hasImage("kingpin-icon")) {
           m.addImage("kingpin-icon", icon, { pixelRatio: 2 });
         }
-        if (!m.getLayer("kingpin-symbol")) {
-          m.addLayer({
-            id: "kingpin-symbol",
-            type: "symbol",
-            source: "kingpins",
-            layout: {
-              "icon-image": "kingpin-icon",
-              "icon-size": 0.03,
-              "icon-anchor": "bottom",
-              "icon-allow-overlap": true,
-            },
-          });
-        }
+        m.addLayer({
+          id: "kingpin-symbol",
+          type: "symbol",
+          source: "kingpins",
+          layout: {
+            "icon-image": "kingpin-icon",
+            "icon-size": 0.03,
+            "icon-anchor": "bottom",
+            "icon-allow-overlap": true
+          }
+        });
       };
       icon.src = `${basePath}/icons/kingpin.png`;
 
@@ -451,7 +380,7 @@ export default function CertisMap(props: CertisMapProps) {
           city: p.City || "",
           state: p.State || "",
           zip: p.Zip || "",
-          coords: [lng, lat],
+          coords: [lng, lat]
         };
 
         const div = document.createElement("div");
@@ -504,6 +433,7 @@ export default function CertisMap(props: CertisMapProps) {
         const cell = (p.CellPhone || "").toString().trim();
         const email = (p.Email || "").toString().trim();
 
+        // Always show phones; "TBD" when missing
         const officeDisplay = office || "TBD";
         const cellDisplay = cell || "TBD";
         const contactLine = `Office: ${officeDisplay}, Cell: ${cellDisplay}`;
@@ -514,7 +444,7 @@ export default function CertisMap(props: CertisMapProps) {
           city,
           state,
           zip,
-          coords: [lng, lat],
+          coords: [lng, lat]
         };
 
         const div = document.createElement("div");
@@ -550,7 +480,14 @@ export default function CertisMap(props: CertisMapProps) {
 
       m.on("click", "kingpin-symbol", clickKingpin);
     });
-  }, [onAllStopsLoaded, onRetailersLoaded, onStatesLoaded, onSuppliersLoaded, onAddStop]);
+  }, [
+    onAllStopsLoaded,
+    onRetailersLoaded,
+    onRetailerSummary,
+    onStatesLoaded,
+    onSuppliersLoaded,
+    onAddStop
+  ]); // END INITIAL MAP USEEFFECT
 
   // ========================================================================
   // FILTERS + SUMMARY — only visible retailers
@@ -591,7 +528,7 @@ export default function CertisMap(props: CertisMapProps) {
             count: 0,
             suppliers: new Set(),
             categories: new Set(),
-            states: new Set(),
+            states: new Set()
           };
         }
 
@@ -614,7 +551,7 @@ export default function CertisMap(props: CertisMapProps) {
           count: s.count,
           suppliers: [...s.suppliers],
           categories: [...s.categories],
-          states: [...s.states],
+          states: [...s.states]
         }))
       );
     } catch {
@@ -625,82 +562,114 @@ export default function CertisMap(props: CertisMapProps) {
     selectedRetailers,
     selectedCategories,
     selectedSuppliers,
-    onRetailerSummary,
+    onRetailerSummary
   ]);
 
   // ========================================================================
-  // TRIP ROUTE — Mapbox Directions (road-following)
+  // TRIP ROUTE — Mapbox Directions (K11.1)
+  //   • Uses mapboxgl.accessToken (same as basemap)
+  //   • Falls back to straight line if Directions fails
+  // ========================================================================
+
+  const MAPBOX_DIRECTIONS_URL =
+    "https://api.mapbox.com/directions/v5/mapbox/driving";
+
+  type SimpleStop = { lon: number; lat: number };
+
+  /**
+   * Build a road-following route using Mapbox Directions API.
+   * Falls back to a straight LineString if Directions fails for any reason.
+   */
+  async function buildRouteGeometry(
+    stops: SimpleStop[]
+  ): Promise<GeoJSON.LineString | null> {
+    if (!stops || stops.length < 2) {
+      return null;
+    }
+
+    // Use the same token the basemap is using
+    const token = mapboxgl.accessToken;
+
+    if (!token) {
+      console.warn(
+        "[Route] No token on mapboxgl.accessToken; falling back to straight line."
+      );
+      return {
+        type: "LineString",
+        coordinates: stops.map((s) => [s.lon, s.lat])
+      };
+    }
+
+    // Build coordinates string "lon,lat;lon,lat;..."
+    const coordsStr = stops
+      .map((s) => `${s.lon.toFixed(6)},${s.lat.toFixed(6)}`)
+      .join(";");
+
+    const url = `${MAPBOX_DIRECTIONS_URL}/${coordsStr}?geometries=geojson&overview=full&access_token=${encodeURIComponent(
+      token
+    )}`;
+
+    try {
+      const res = await fetch(url);
+
+      if (!res.ok) {
+        console.warn(
+          `[Route] Directions error ${res.status} — falling back to straight line.`
+        );
+        return {
+          type: "LineString",
+          coordinates: stops.map((s) => [s.lon, s.lat])
+        };
+      }
+
+      const data = await res.json();
+      const route = data?.routes?.[0]?.geometry;
+
+      if (
+        !route ||
+        route.type !== "LineString" ||
+        !Array.isArray(route.coordinates)
+      ) {
+        console.warn(
+          "[Route] No valid LineString geometry in directions response; falling back to straight line."
+        );
+        return {
+          type: "LineString",
+          coordinates: stops.map((s) => [s.lon, s.lat])
+        };
+      }
+
+      // ✅ Happy path: road-following geometry from Mapbox
+      return route as GeoJSON.LineString;
+    } catch (err) {
+      console.warn(
+        "[Route] Directions exception — falling back to straight line.",
+        err
+      );
+      return {
+        type: "LineString",
+        coordinates: stops.map((s) => [s.lon, s.lat])
+      };
+    }
+  }
+
+  // ========================================================================
+  // ZOOM-TO — when sidebar requests a specific Stop
   // ========================================================================
   useEffect(() => {
     const m = mapRef.current;
-    if (!m) return;
+    if (!m || !zoomToStop) return;
 
-    const sourceId = "trip-route";
-    const layerId = "trip-route";
+    const [lng, lat] = zoomToStop.coords;
 
-    if (!tripStops || tripStops.length < 2) {
-      if (m.getLayer(layerId)) m.removeLayer(layerId);
-      if (m.getSource(sourceId)) m.removeSource(sourceId);
-      return;
-    }
-
-    let cancelled = false;
-
-    const updateRoute = async () => {
-      const simpleStops: SimpleStop[] = tripStops.map((s) => ({
-        lon: s.coords[0],
-        lat: s.coords[1],
-      }));
-
-      const geometry = await buildRouteGeometry(simpleStops);
-      if (!geometry || cancelled) return;
-
-      const feature = {
-        type: "Feature" as const,
-        geometry,
-        properties: {},
-      };
-
-      const data = {
-        type: "FeatureCollection" as const,
-        features: [feature],
-      };
-
-      if (!m.getSource(sourceId)) {
-        m.addSource(sourceId, { type: "geojson", data });
-
-        if (!m.getLayer(layerId)) {
-          m.addLayer({
-            id: layerId,
-            type: "line",
-            source: sourceId,
-            layout: {
-              "line-join": "round",
-              "line-cap": "round",
-            },
-            paint: {
-              "line-color": "#38bdf8",
-              "line-width": 4,
-            },
-          });
-        }
-      } else {
-        (m.getSource(sourceId) as GeoJSONSource).setData(data);
-      }
-
-      const bounds = new mapboxgl.LngLatBounds();
-      geometry.coordinates.forEach(([lon, lat]) => bounds.extend([lon, lat]));
-      if (!bounds.isEmpty()) {
-        m.fitBounds(bounds, { padding: 60, maxZoom: 10 });
-      }
-    };
-
-    updateRoute();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [tripStops]);
+    m.flyTo({
+      center: [lng, lat],
+      zoom: 12.5,
+      speed: 1.2,
+      curve: 1.4,
+      essential: true
+    });
+  }, [zoomToStop]);
 
   // ========================================================================
   // HOME ICON — Blue_Home.png at homeCoords
@@ -722,9 +691,9 @@ export default function CertisMap(props: CertisMapProps) {
       type: "Feature" as const,
       geometry: {
         type: "Point" as const,
-        coordinates: homeCoords,
+        coordinates: homeCoords
       },
-      properties: {},
+      properties: {}
     };
 
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -746,8 +715,8 @@ export default function CertisMap(props: CertisMapProps) {
               "icon-image": "home-icon",
               "icon-size": 0.06,
               "icon-anchor": "bottom",
-              "icon-allow-overlap": true,
-            },
+              "icon-allow-overlap": true
+            }
           });
         }
       };
