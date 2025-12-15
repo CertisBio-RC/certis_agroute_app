@@ -1,16 +1,16 @@
 // ============================================================================
-// 💠 CERTIS AGROUTE — K11.8+ Route Line Hardening
-//   • Based on K11.8 (Zoom-To + Directions route)
-//   • Uses NEXT_PUBLIC_MAPBOX_TOKEN with fallback to utils/MAPBOX_TOKEN
+// 💠 CERTIS AGROUTE — K11.10 GOLD (Sync Trip Route Line)
+//   • Based on K11.6/K11.9 (NaN-clean, Zoom-To, Home icon, summaries)
+//   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • 100 m offset to Kingpins for separation from Corporate HQ
 //   • Category line in Kingpin & Retailer/HQ popups
 //   • Shows "TBD" for missing Kingpin phones
 //   • Restores Home icon layer (Blue_Home.png) when homeCoords is set
-//   • Agronomy-dominant retailer coloring
-//   • Zoom-To support via zoomToStop prop
-//   • Trip route line rebuilt with robust Mapbox Directions fallback
-//   • Satellite-streets-v12 + Mercator (Bailey Rule)
-//   • Static-export-safe — no TS errors — no JSX structure changes
+//   • Agronomy-dominant coloring for mixed-category Agronomy locations
+//   • Zoom-To support for sidebar search
+//   • NEW: Simple synchronous trip route line (no Mapbox Directions / promises)
+//     - Draws a LineString through tripStops in order
+//     - Safely updates/removes source & layer
 // ============================================================================
 
 "use client";
@@ -22,13 +22,14 @@ import { MAPBOX_TOKEN } from "../utils/token";
 // ---------------------------------------------------------------------------
 // TYPES
 // ---------------------------------------------------------------------------
+
 export interface Stop {
   label: string;
   address: string;
   city: string;
   state: string;
   zip: string;
-  coords: [number, number];
+  coords: [number, number]; // [lng, lat]
 }
 
 export interface CertisMapProps {
@@ -53,7 +54,7 @@ export interface CertisMapProps {
   ) => void;
   onAllStopsLoaded: (stops: Stop[]) => void;
   onAddStop: (stop: Stop) => void;
-  /** When this changes, map will fly to that Stop */
+  /** When this changes, the map will fly to that Stop */
   zoomToStop: Stop | null;
 }
 
@@ -85,8 +86,13 @@ function buildRetailerFilterExpr(
   ];
 
   if (selectedStates.length) {
-    filter.push(["in", ["downcase", ["get", "State"]], ["literal", selectedStates]]);
+    filter.push([
+      "in",
+      ["downcase", ["get", "State"]],
+      ["literal", selectedStates],
+    ]);
   }
+
   if (selectedRetailers.length) {
     filter.push([
       "in",
@@ -94,6 +100,7 @@ function buildRetailerFilterExpr(
       ["literal", selectedRetailers],
     ]);
   }
+
   if (selectedCategories.length) {
     filter.push([
       "in",
@@ -101,6 +108,7 @@ function buildRetailerFilterExpr(
       ["literal", selectedCategories],
     ]);
   }
+
   if (selectedSuppliers.length) {
     const ors = selectedSuppliers.map((s) => [
       ">=",
@@ -120,93 +128,13 @@ function buildCorpHqFilterExpr(selectedStates: string[]): any[] {
     ["==", ["downcase", ["get", "Category"]], "corporate hq"],
   ];
   if (selectedStates.length) {
-    filter.push(["in", ["downcase", ["get", "State"]], ["literal", selectedStates]]);
+    filter.push([
+      "in",
+      ["downcase", ["get", "State"]],
+      ["literal", selectedStates],
+    ]);
   }
   return filter;
-}
-
-// ---------------------------------------------------------------------------
-// ROUTE BUILDER (Mapbox Directions + robust fallback)
-// ---------------------------------------------------------------------------
-
-const MAPBOX_DIRECTIONS_URL =
-  "https://api.mapbox.com/directions/v5/mapbox/driving";
-
-type SimpleStop = { lon: number; lat: number };
-
-/**
- * Build a road-following route using Mapbox Directions API.
- * If ANYTHING goes wrong, returns a straight LineString between stops.
- */
-async function buildRouteGeometry(
-  stops: SimpleStop[]
-): Promise<GeoJSON.LineString | null> {
-  if (!stops || stops.length < 2) {
-    return null;
-  }
-
-  // Normalize coords defensively (in case something is string-typed)
-  const normalizedStops = stops.map((s) => ({
-    lon: Number(s.lon),
-    lat: Number(s.lat),
-  }));
-
-  const fallbackLine: GeoJSON.LineString = {
-    type: "LineString",
-    coordinates: normalizedStops.map((s) => [s.lon, s.lat]),
-  };
-
-  const token = mapboxgl.accessToken;
-
-  if (!token) {
-    console.warn(
-      "[Route] No token on mapboxgl.accessToken; using straight-line fallback."
-    );
-    return fallbackLine;
-  }
-
-  try {
-    // Build coordinates string "lon,lat;lon,lat;..."
-    const coordsStr = normalizedStops
-      .map((s) => `${s.lon},${s.lat}`)
-      .join(";");
-
-    const url = `${MAPBOX_DIRECTIONS_URL}/${coordsStr}?geometries=geojson&overview=full&access_token=${encodeURIComponent(
-      token
-    )}`;
-
-    const res = await fetch(url);
-
-    if (!res.ok) {
-      console.warn(
-        `[Route] Directions error ${res.status}; using straight-line fallback.`
-      );
-      return fallbackLine;
-    }
-
-    const data = await res.json();
-    const route = data?.routes?.[0]?.geometry;
-
-    if (
-      !route ||
-      route.type !== "LineString" ||
-      !Array.isArray(route.coordinates)
-    ) {
-      console.warn(
-        "[Route] No valid LineString geometry in directions response; using straight-line fallback."
-      );
-      return fallbackLine;
-    }
-
-    // ✅ Happy path: road-following geometry from Mapbox
-    return route as GeoJSON.LineString;
-  } catch (err) {
-    console.warn(
-      "[Route] Directions exception; using straight-line fallback.",
-      err
-    );
-    return fallbackLine;
-  }
 }
 
 // ============================================================================
@@ -233,7 +161,9 @@ export default function CertisMap(props: CertisMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
 
-  // INITIAL MAP LOAD ---------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // INITIAL MAP LOAD
+  // -------------------------------------------------------------------------
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -255,10 +185,10 @@ export default function CertisMap(props: CertisMapProps) {
       const m = mapRef.current;
       if (!m) return;
 
-      // ================================================================
+      // ---------------------------------------------------------------
       // 💛 APPLY 100m OFFSET TO KINGPINS
-      // ================================================================
-      const OFFSET_LNG = 0.0013;
+      // ---------------------------------------------------------------
+      const OFFSET_LNG = 0.0013; // ≈100m
 
       const offsetKingpins = {
         ...kingpinData,
@@ -274,9 +204,14 @@ export default function CertisMap(props: CertisMapProps) {
         }),
       };
 
-      const all = [...(retailersData.features ?? []), ...offsetKingpins.features];
+      const all = [
+        ...(retailersData.features ?? []),
+        ...(offsetKingpins.features ?? []),
+      ];
 
+      // ---------------------------------------------------------------
       // All Stops → Trip Builder master list
+      // ---------------------------------------------------------------
       onAllStopsLoaded(
         all
           .map((f: any) => {
@@ -302,7 +237,9 @@ export default function CertisMap(props: CertisMapProps) {
           .filter(Boolean) as Stop[]
       );
 
-      // FILTER DROPDOWNS -------------------------------------------------
+      // ---------------------------------------------------------------
+      // FILTER DROPDOWNS
+      // ---------------------------------------------------------------
       onStatesLoaded(
         [
           ...new Set(
@@ -318,8 +255,8 @@ export default function CertisMap(props: CertisMapProps) {
       onRetailersLoaded(
         [
           ...new Set(
-            (retailersData.features ?? []).map(
-              (f: any) => String(f.properties?.Retailer ?? "").trim()
+            (retailersData.features ?? []).map((f: any) =>
+              String(f.properties?.Retailer ?? "").trim()
             )
           ),
         ]
@@ -340,11 +277,15 @@ export default function CertisMap(props: CertisMapProps) {
         ].sort()
       );
 
-      // ADD SOURCES ------------------------------------------------------
+      // ---------------------------------------------------------------
+      // SOURCES
+      // ---------------------------------------------------------------
       m.addSource("retailers", { type: "geojson", data: retailersData });
       m.addSource("kingpins", { type: "geojson", data: offsetKingpins });
 
-      // LAYERS -----------------------------------------------------------
+      // ---------------------------------------------------------------
+      // LAYERS — RETAILERS
+      // ---------------------------------------------------------------
       m.addLayer({
         id: "retailers-circle",
         type: "circle",
@@ -354,6 +295,7 @@ export default function CertisMap(props: CertisMapProps) {
           "circle-radius": 4,
           "circle-color": [
             "case",
+            // Agronomy in Category (non-HQ) → Agronomy green
             [
               "all",
               [
@@ -364,12 +306,16 @@ export default function CertisMap(props: CertisMapProps) {
               ["!=", ["downcase", ["get", "Category"]], "corporate hq"],
             ],
             "#22c55e", // Agronomy green
+
+            // Grain/Feed
             [
               ">=",
               ["index-of", "grain/feed", ["downcase", ["get", "Category"]]],
               0,
             ],
-            "#f97316", // Grain/Feed orange
+            "#f97316", // orange
+
+            // C-Store/Service/Energy
             [
               ">=",
               [
@@ -379,20 +325,27 @@ export default function CertisMap(props: CertisMapProps) {
               ],
               0,
             ],
-            "#0ea5e9", // C-Store blue
+            "#0ea5e9", // blue
+
+            // Distribution
             [
               ">=",
               ["index-of", "distribution", ["downcase", ["get", "Category"]]],
               0,
             ],
-            "#a855f7", // Distribution purple
-            "#f9fafb", // fallback
+            "#a855f7", // purple
+
+            // fallback
+            "#f9fafb",
           ],
           "circle-stroke-width": 1,
           "circle-stroke-color": "#111827",
         },
       });
 
+      // ---------------------------------------------------------------
+      // LAYERS — CORPORATE HQ
+      // ---------------------------------------------------------------
       m.addLayer({
         id: "corp-hq-circle",
         type: "circle",
@@ -406,7 +359,9 @@ export default function CertisMap(props: CertisMapProps) {
         },
       });
 
-      // Kingpin icon
+      // ---------------------------------------------------------------
+      // LAYERS — KINGPIN ICONS
+      // ---------------------------------------------------------------
       const icon = new Image();
       icon.onload = () => {
         if (!m.hasImage("kingpin-icon")) {
@@ -426,7 +381,9 @@ export default function CertisMap(props: CertisMapProps) {
       };
       icon.src = `${basePath}/icons/kingpin.png`;
 
-      // PRECISION CURSOR -------------------------------------------------
+      // ---------------------------------------------------------------
+      // PRECISION CURSOR
+      // ---------------------------------------------------------------
       ["retailers-circle", "corp-hq-circle", "kingpin-symbol"].forEach((l) => {
         m.on("mouseenter", l, () => {
           m.getCanvas().style.cursor = "default";
@@ -436,7 +393,9 @@ export default function CertisMap(props: CertisMapProps) {
         });
       });
 
-      // POPUP — Retailers + HQ -------------------------------------------
+      // ---------------------------------------------------------------
+      // POPUP — RETAILERS + HQ
+      // ---------------------------------------------------------------
       const clickRetail = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -478,25 +437,25 @@ export default function CertisMap(props: CertisMapProps) {
               : ""
           }
           <div style="margin-bottom:8px;"><span style="font-weight:700;">Suppliers:</span><br/>${suppliers}</div>
-          <button id="add-stop" style="padding:7px 10px;border:none;background:#facc15;
-            border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
-            ➕ Add to Trip
-          </button>
+          <button id="add-stop" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">➕ Add to Trip</button>
         `;
+
         new mapboxgl.Popup({ offset: 14, closeOnMove: false })
           .setLngLat([lng, lat])
           .setDOMContent(div)
           .addTo(m);
 
-        div
-          .querySelector("#add-stop")
-          ?.addEventListener("click", () => onAddStop(stop));
+        div.querySelector("#add-stop")?.addEventListener("click", () =>
+          onAddStop(stop)
+        );
       };
 
       m.on("click", "retailers-circle", clickRetail);
       m.on("click", "corp-hq-circle", clickRetail);
 
-      // POPUP — Kingpin --------------------------------------------------
+      // ---------------------------------------------------------------
+      // POPUP — KINGPIN
+      // ---------------------------------------------------------------
       const clickKingpin = (e: any) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -550,11 +509,9 @@ export default function CertisMap(props: CertisMapProps) {
           ${contactTitle ? `<div style="margin-bottom:4px;">${contactTitle}</div>` : ""}
           <div style="margin-bottom:4px;">${contactLine}</div>
           ${email ? `<div style="margin-bottom:8px;">Email: ${email}</div>` : ""}
-          <button id="add-kingpin-stop" style="padding:7px 10px;border:none;background:#facc15;
-            border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
-            ➕ Add to Trip
-          </button>
+          <button id="add-kingpin-stop" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">➕ Add to Trip</button>
         `;
+
         new mapboxgl.Popup({ offset: 14, closeOnMove: false })
           .setLngLat([lng, lat])
           .setDOMContent(div)
@@ -574,11 +531,11 @@ export default function CertisMap(props: CertisMapProps) {
     onStatesLoaded,
     onSuppliersLoaded,
     onAddStop,
-  ]); // END INITIAL MAP USEEFFECT
+  ]);
 
-  // ========================================================================
-  // FILTERS + SUMMARY — only visible retailers
-  // ========================================================================
+  // -------------------------------------------------------------------------
+  // FILTERS + RETAILER SUMMARY (VISIBLE RETAILERS ONLY)
+  // -------------------------------------------------------------------------
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
@@ -599,7 +556,10 @@ export default function CertisMap(props: CertisMapProps) {
     }
 
     try {
-      const visible = m.queryRenderedFeatures({ layers: ["retailers-circle"] });
+      const visible = m.queryRenderedFeatures({
+        layers: ["retailers-circle"],
+      });
+
       const summary: Record<
         string,
         {
@@ -625,7 +585,7 @@ export default function CertisMap(props: CertisMapProps) {
         }
 
         const s = summary[name];
-        s.count++;
+        s.count += 1;
 
         if (p.Suppliers) {
           p.Suppliers.split(",")
@@ -647,7 +607,7 @@ export default function CertisMap(props: CertisMapProps) {
         }))
       );
     } catch {
-      // swallow queryRenderedFeatures issues during rapid filter changes
+      // ignore transient queryRenderedFeatures issues during rapid filter changes
     }
   }, [
     selectedStates,
@@ -657,78 +617,94 @@ export default function CertisMap(props: CertisMapProps) {
     onRetailerSummary,
   ]);
 
-  // ========================================================================
-  // TRIP ROUTE — Mapbox Directions with robust fallback
-  // ========================================================================
+  // -------------------------------------------------------------------------
+  // SIMPLE TRIP ROUTE LINE (NO DIRECTIONS API, NO PROMISES)
+  // -------------------------------------------------------------------------
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
 
     const sourceId = "trip-route";
-    const layerId = "trip-route-line";
+    const layerId = "trip-route";
 
-    const run = async () => {
-      if (!tripStops || tripStops.length < 2) {
-        if (m.getLayer(layerId)) m.removeLayer(layerId);
-        if (m.getSource(sourceId)) m.removeSource(sourceId);
-        return;
-      }
+    // Remove existing route if fewer than 2 stops
+    if (!tripStops || tripStops.length < 2) {
+      if (m.getLayer(layerId)) m.removeLayer(layerId);
+      if (m.getSource(sourceId)) m.removeSource(sourceId);
+      return;
+    }
 
-      const simpleStops: SimpleStop[] = tripStops.map((s) => ({
-        lon: Number(s.coords[0]),
-        lat: Number(s.coords[1]),
-      }));
+    const coords = tripStops
+      .map((s) => s.coords)
+      .filter(
+        (c): c is [number, number] =>
+          Array.isArray(c) &&
+          typeof c[0] === "number" &&
+          typeof c[1] === "number"
+      );
 
-      const line = await buildRouteGeometry(simpleStops);
+    if (coords.length < 2) {
+      if (m.getLayer(layerId)) m.removeLayer(layerId);
+      if (m.getSource(sourceId)) m.removeSource(sourceId);
+      return;
+    }
 
-      if (!line) {
-        if (m.getLayer(layerId)) m.removeLayer(layerId);
-        if (m.getSource(sourceId)) m.removeSource(sourceId);
-        return;
-      }
-
-      const featureCollection: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-        type: "FeatureCollection",
-        features: [
-          {
-            type: "Feature",
-            geometry: line,
-            properties: {},
-          },
-        ],
-      };
-
-      if (m.getSource(sourceId)) {
-        (m.getSource(sourceId) as GeoJSONSource).setData(featureCollection);
-      } else {
-        m.addSource(sourceId, { type: "geojson", data: featureCollection });
-        m.addLayer({
-          id: layerId,
-          type: "line",
-          source: sourceId,
-          layout: {
-            "line-join": "round",
-            "line-cap": "round",
-          },
-          paint: {
-            "line-color": "#38bdf8",
-            "line-width": 3,
-          },
-        });
-      }
+    const feature = {
+      type: "Feature" as const,
+      geometry: {
+        type: "LineString" as const,
+        coordinates: coords,
+      },
+      properties: {},
     };
 
-    run();
+    if (!m.getSource(sourceId)) {
+      m.addSource(sourceId, { type: "geojson", data: feature });
+      m.addLayer({
+        id: layerId,
+        type: "line",
+        source: sourceId,
+        layout: {
+          "line-join": "round",
+          "line-cap": "round",
+        },
+        paint: {
+          "line-color": "#38bdf8",
+          "line-width": 3,
+        },
+      });
+    } else {
+      (m.getSource(sourceId) as GeoJSONSource).setData(feature);
+    }
+
+    // Fit bounds to the trip
+    try {
+      const bounds = new mapboxgl.LngLatBounds();
+      coords.forEach(([lng, lat]) => bounds.extend([lng, lat]));
+      if (!bounds.isEmpty()) {
+        m.fitBounds(bounds, { padding: 80, duration: 600 });
+      }
+    } catch {
+      // ignore any fitBounds weirdness; route line is still drawn
+    }
   }, [tripStops]);
 
-  // ========================================================================
+  // -------------------------------------------------------------------------
   // ZOOM-TO — when sidebar requests a specific Stop
-  // ========================================================================
+  // -------------------------------------------------------------------------
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !zoomToStop) return;
 
     const [lng, lat] = zoomToStop.coords;
+    if (
+      typeof lng !== "number" ||
+      Number.isNaN(lng) ||
+      typeof lat !== "number" ||
+      Number.isNaN(lat)
+    ) {
+      return;
+    }
 
     m.flyTo({
       center: [lng, lat],
@@ -739,9 +715,9 @@ export default function CertisMap(props: CertisMapProps) {
     });
   }, [zoomToStop]);
 
-  // ========================================================================
+  // -------------------------------------------------------------------------
   // HOME ICON — Blue_Home.png at homeCoords
-  // ========================================================================
+  // -------------------------------------------------------------------------
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
@@ -794,9 +770,9 @@ export default function CertisMap(props: CertisMapProps) {
     }
   }, [homeCoords]);
 
-  // ========================================================================
-  // CLEANUP — prevent duplicate map + memory leaks
-  // ========================================================================
+  // -------------------------------------------------------------------------
+  // CLEANUP
+  // -------------------------------------------------------------------------
   useEffect(() => {
     const m = mapRef.current;
     return () => {
@@ -808,8 +784,5 @@ export default function CertisMap(props: CertisMapProps) {
     };
   }, []);
 
-  // ========================================================================
-  // RENDER
-  // ========================================================================
   return <div ref={containerRef} className="w-full h-full" />;
 }
