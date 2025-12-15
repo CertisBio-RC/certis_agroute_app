@@ -18,7 +18,7 @@ import mapboxgl from "mapbox-gl";
 import { MAPBOX_TOKEN } from "../utils/token";
 
 // -----------------------------
-// Types
+// Types (IMPORTANT: uses `coords` to match app/page.tsx)
 // -----------------------------
 
 type StopKind = "retailer" | "hq" | "kingpin";
@@ -27,6 +27,7 @@ export type Stop = {
   id: string;
   kind: StopKind;
   label: string;
+
   retailer?: string;
   name?: string;
   address?: string;
@@ -41,7 +42,8 @@ export type Stop = {
   phoneOffice?: string;
   phoneCell?: string;
 
-  coordinates: [number, number]; // [lng, lat]
+  // NOTE: keep `coords` (not `coordinates`) for compatibility
+  coords: [number, number]; // [lng, lat]
 };
 
 export type RetailerSummaryRow = {
@@ -105,7 +107,7 @@ const LYR_ROUTE = "trip-route-line";
 const KINGPIN_ICON_ID = "kingpin-icon";
 
 // -----------------------------
-// Helpers (typed; avoids unknown[])
+// Helpers (typed; avoids unknown[] issues)
 // -----------------------------
 
 function s(v: unknown): string {
@@ -118,7 +120,7 @@ function uniq(values: string[]): string[] {
   return out;
 }
 
-function splitMulti(raw: unknown): string[] {
+function splitSuppliers(raw: unknown): string[] {
   const str = s(raw);
   if (!str) return [];
   return str
@@ -201,7 +203,7 @@ function retailerStopFromFeature(f: GeoJSONPointFeature): Stop {
     zip,
     category,
     suppliers,
-    coordinates: f.geometry.coordinates,
+    coords: f.geometry.coordinates,
   };
 }
 
@@ -237,7 +239,7 @@ function kingpinStopFromFeature(f: GeoJSONPointFeature): Stop {
     email: email || "TBD",
     phoneOffice: office,
     phoneCell: cell,
-    coordinates: f.geometry.coordinates,
+    coords: f.geometry.coordinates,
   };
 }
 
@@ -286,7 +288,6 @@ export default function CertisMap({
     return env || (MAPBOX_TOKEN || "").trim();
   }, []);
 
-  // Set Mapbox token once
   useEffect(() => {
     if (!mapboxgl.accessToken) {
       mapboxgl.accessToken = token;
@@ -316,13 +317,13 @@ export default function CertisMap({
       try {
         if (!map.hasImage(KINGPIN_ICON_ID)) {
           const iconUrl = `${basePath}/icons/kingpin.png`;
-          const image = await new Promise<HTMLImageElement | ImageBitmap>((resolve, reject) => {
+          const image = await new Promise<any>((resolve, reject) => {
             map.loadImage(iconUrl, (err, img) => {
               if (err || !img) reject(err || new Error("loadImage failed"));
               else resolve(img);
             });
           });
-          map.addImage(KINGPIN_ICON_ID, image as any, { pixelRatio: 2 });
+          map.addImage(KINGPIN_ICON_ID, image, { pixelRatio: 2 });
         }
       } catch (e) {
         console.warn("[CertisMap] Kingpin icon load failed:", e);
@@ -438,11 +439,12 @@ export default function CertisMap({
       }
 
       // Click handlers
-      const handleRetailerClick = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+      // ✅ FIX: Mapbox v3 types no longer export EventData — MapMouseEvent is enough.
+      const handleRetailerClick = (e: mapboxgl.MapMouseEvent) => {
         const features = map.queryRenderedFeatures(e.point, { layers: [LYR_RETAILERS, LYR_HQ] });
         if (!features.length) return;
 
-        const raw = features[0] as unknown as any;
+        const raw = features[0] as any;
         const f: GeoJSONPointFeature = {
           type: "Feature",
           geometry: raw.geometry,
@@ -493,11 +495,11 @@ export default function CertisMap({
         }, 0);
       };
 
-      const handleKingpinClick = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+      const handleKingpinClick = (e: mapboxgl.MapMouseEvent) => {
         const features = map.queryRenderedFeatures(e.point, { layers: [LYR_KINGPINS] });
         if (!features.length) return;
 
-        const raw = features[0] as unknown as any;
+        const raw = features[0] as any;
         const f: GeoJSONPointFeature = {
           type: "Feature",
           geometry: raw.geometry,
@@ -667,7 +669,7 @@ export default function CertisMap({
 
       const st = s(p.State);
       const rt = s(p.Retailer);
-      const sup = splitMulti(p.Suppliers);
+      const sup = splitSuppliers(p.Suppliers);
 
       if (states.length > 0 && !states.includes(st)) return false;
       if (retailers.length > 0 && !retailers.includes(rt)) return false;
@@ -677,11 +679,11 @@ export default function CertisMap({
       return true;
     });
 
-    // ✅ Typed dropdown lists (string[]) — eliminates your unknown[] build error
+    // Typed dropdown lists
     const statesList: string[] = uniq(visibleRetailers.map((f) => s(f.properties?.State)));
     const retailersList: string[] = uniq(visibleRetailers.map((f) => s(f.properties?.Retailer)));
     const categoriesList: string[] = uniq(visibleRetailers.flatMap((f) => splitCategories(f.properties?.Category)));
-    const suppliersList: string[] = uniq(visibleRetailers.flatMap((f) => splitMulti(f.properties?.Suppliers)));
+    const suppliersList: string[] = uniq(visibleRetailers.flatMap((f) => splitSuppliers(f.properties?.Suppliers)));
 
     const statesKey = statesList.join("||");
     const retailersKey = retailersList.join("||");
@@ -713,7 +715,7 @@ export default function CertisMap({
       const retailer = s(p.Retailer) || "Unknown Retailer";
       const st = s(p.State);
       const cats = splitCategories(p.Category);
-      const sups = splitMulti(p.Suppliers);
+      const sups = splitSuppliers(p.Suppliers);
 
       if (!summaryMap.has(retailer)) {
         summaryMap.set(retailer, { retailer, count: 0, suppliers: [], categories: [], states: [] });
@@ -784,7 +786,7 @@ export default function CertisMap({
     const map = mapRef.current;
     if (!map || !zoomToStop) return;
 
-    map.flyTo({ center: zoomToStop.coordinates, zoom: 12.5, essential: true });
+    map.flyTo({ center: zoomToStop.coords, zoom: 12.5, essential: true });
   }, [zoomToStop]);
 
   // -----------------------------
@@ -802,7 +804,7 @@ export default function CertisMap({
       return;
     }
 
-    const coords = tripStops.map((s0) => s0.coordinates);
+    const coords = tripStops.map((st) => st.coords);
     const coordsStr = coords.map((c) => `${c[0]},${c[1]}`).join(";");
 
     const url =
@@ -846,9 +848,6 @@ export default function CertisMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripStops, token]);
 
-  // -----------------------------
-  // Render
-  // -----------------------------
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <div
