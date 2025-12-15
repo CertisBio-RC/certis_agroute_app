@@ -38,6 +38,7 @@ export type Stop = {
   coords: [number, number]; // [lng, lat]
 };
 
+// Still exported for Page-side summary calculation
 export type RetailerSummaryRow = {
   retailer: string;
   count: number;
@@ -72,7 +73,6 @@ type Props = {
   onCategoriesLoaded: (categories: string[]) => void;
   onSuppliersLoaded: (suppliers: string[]) => void;
 
-  onRetailerSummary: (summary: RetailerSummaryRow[]) => void;
   onAllStopsLoaded: (stops: Stop[]) => void;
   onAddStop: (stop: Stop) => void;
 };
@@ -145,7 +145,6 @@ export default function CertisMap(props: Props) {
     onRetailersLoaded,
     onCategoriesLoaded,
     onSuppliersLoaded,
-    onRetailerSummary,
     onAllStopsLoaded,
     onAddStop,
   } = props;
@@ -276,7 +275,7 @@ export default function CertisMap(props: Props) {
           layout: {
             "icon-image": KINGPIN_ICON_ID,
 
-            // ✅ CRITICAL FIX: zoom-scaled size (prevents the “giant star carpet”)
+            // ✅ Your updated scaling values can live here
             "icon-size": [
               "interpolate",
               ["linear"],
@@ -302,7 +301,8 @@ export default function CertisMap(props: Props) {
           type: "line",
           source: SRC_ROUTE,
           paint: {
-            "line-color": "#00008B",
+            // ✅ Better default than dark blue: Certis yellow
+            "line-color": "#facc15",
             "line-width": 4,
             "line-opacity": 0.95,
           },
@@ -311,7 +311,7 @@ export default function CertisMap(props: Props) {
 
       // Load GeoJSON now that style/sources exist
       await loadData();
-      applyFiltersAndEmit();
+      applyFilters();
       updateHomeMarker();
       await updateRoute();
 
@@ -383,7 +383,10 @@ export default function CertisMap(props: Props) {
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
-      const label = kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
+      const label =
+        kind === "hq"
+          ? `${retailer || "Corporate HQ"} — Corporate HQ`
+          : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -408,7 +411,6 @@ export default function CertisMap(props: Props) {
 
       const retailer = s(p.Retailer);
       const contactName = s(p.Name || p.Contact || p.ContactName || p["Contact Name"]);
-      const title = s(p.Title || p.ContactTitle || p["Contact Title"]);
       const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
 
       allStops.push({
@@ -433,34 +435,17 @@ export default function CertisMap(props: Props) {
     onAllStopsLoaded(allStops);
 
     // Dropdown lists
-    onStatesLoaded(
-      uniqSorted(
-        allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)
-      )
-    );
-
+    onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
     onRetailersLoaded(
-      uniqSorted(
-        (retailersData.features ?? [])
-          .map((f: any) => s(f.properties?.Retailer))
-          .filter(Boolean)
-      )
+      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
     );
-
     onCategoriesLoaded(
-      uniqSorted(
-        (retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category))
-      )
+      uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category)))
     );
-
-    onSuppliersLoaded(
-      uniqSorted(
-        allStops.flatMap((st) => splitMulti(st.suppliers))
-      )
-    );
+    onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
 
-  function applyFiltersAndEmit() {
+  function applyFilters() {
     const map = mapRef.current;
     const retailersData = retailersRef.current;
     if (!map || !retailersData) return;
@@ -469,17 +454,14 @@ export default function CertisMap(props: Props) {
     const retailerFilter: any[] = ["all"];
     retailerFilter.push(["==", ["index-of", "corporate", ["downcase", ["get", "Category"]]], -1]);
 
-    if (selectedStates.length) retailerFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
+    if (selectedStates.length)
+      retailerFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
     if (selectedRetailers.length) retailerFilter.push(["in", ["get", "Retailer"], ["literal", selectedRetailers]]);
 
     if (selectedCategories.length) {
       retailerFilter.push([
         "any",
-        ...selectedCategories.map((c) => [
-          ">=",
-          ["index-of", c.toLowerCase(), ["downcase", ["get", "Category"]]],
-          0,
-        ]),
+        ...selectedCategories.map((c) => [">=", ["index-of", c.toLowerCase(), ["downcase", ["get", "Category"]]], 0]),
       ]);
     }
 
@@ -501,42 +483,11 @@ export default function CertisMap(props: Props) {
 
     map.setFilter(LYR_RETAILERS, retailerFilter as any);
     map.setFilter(LYR_HQ, hqFilter as any);
-
-    // Build retailer summary from visible retailers
-    const visibleRetailers = map.queryRenderedFeatures({ layers: [LYR_RETAILERS] }) as any[];
-
-    const acc: Record<string, { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }> =
-      {};
-
-    for (const f of visibleRetailers) {
-      const p = f.properties ?? {};
-      const retailer = s(p.Retailer) || "Unknown Retailer";
-      if (!acc[retailer]) {
-        acc[retailer] = { count: 0, suppliers: new Set(), categories: new Set(), states: new Set() };
-      }
-      acc[retailer].count += 1;
-      splitMulti(p.Suppliers).forEach((x) => acc[retailer].suppliers.add(x));
-      splitCategories(p.Category).forEach((x) => acc[retailer].categories.add(x));
-      const st = s(p.State);
-      if (st) acc[retailer].states.add(st);
-    }
-
-    onRetailerSummary(
-      Object.entries(acc)
-        .map(([retailer, v]) => ({
-          retailer,
-          count: v.count,
-          suppliers: Array.from(v.suppliers).sort(),
-          categories: Array.from(v.categories).sort(),
-          states: Array.from(v.states).sort(),
-        }))
-        .sort((a, b) => b.count - a.count)
-    );
   }
 
   // Re-apply filters when selections change
   useEffect(() => {
-    applyFiltersAndEmit();
+    applyFilters();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
 
@@ -693,7 +644,6 @@ export default function CertisMap(props: Props) {
     setTimeout(() => {
       const btn = document.getElementById("add-stop-btn");
       if (btn) btn.onclick = () => onAddStop(stop);
-      // Keep popup; user can close
     }, 0);
   }
 

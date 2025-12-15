@@ -7,12 +7,28 @@
 /* ====================================================================== */
 
 html,
-body,
-#__next,
-.app-container {
+body {
   height: 100%;
   margin: 0;
   padding: 0;
+}
+
+/* App Router doesn't use #__next, but harmless */
+#__next,
+.app-container {
+  height: 100%;
+}
+
+/* ✅ Restore "not-flat" background (no image required)
+   - Still dark-mode friendly
+   - Not the flat black slab you hated
+*/
+body {
+  color: #eaeef6;
+  background:
+    radial-gradient(1200px 700px at 10% 0%, rgba(16, 64, 120, 0.35), rgba(0, 0, 0, 0) 60%),
+    radial-gradient(900px 600px at 85% 10%, rgba(250, 204, 21, 0.14), rgba(0, 0, 0, 0) 55%),
+    linear-gradient(180deg, #06121f 0%, #050b12 40%, #04070c 100%);
 }
 
 /* Sidebar internal scroll without affecting map height */
@@ -57,32 +73,26 @@ body,
 /* Footer fixed cleanly */
 .footer {
   flex-shrink: 0;
-  @apply bg-gray-800 text-sm flex justify-between items-center px-4 py-2;
+  @apply text-sm flex justify-between items-center px-4 py-2;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
 }
 
 /* ====================================================================== */
 /* TILE STANDARDIZATION */
 /* ====================================================================== */
-
-.bg-white,
-.dark\:bg-gray-800 {
-  @apply rounded-lg shadow p-4 mb-4;
-}
-
-/* NECESSARY for dark mode (unified background) */
-body {
-  background-color: #111;
-  color: #fff;
-}
+/* NOTE:
+   Removed the broad .bg-white/.dark:bg-gray-800 override — it can accidentally
+   restyle lots of Tailwind components and wreck layout consistency.
+*/
 
 /* ====================================================================== */
 /* MAPBOX POPUP — K5 GOLD */
 /* ====================================================================== */
-/* 
+/*
    IMPORTANT NOTES:
-   • We set a fixed width to solve text wrapping issues.
-   • No button changes — the width change gives button natural room.
-   • Retailer + Kingpin use the same popup container rules.
+   • Fixed width solves text wrapping issues.
+   • Retailer + Kingpin use same popup container rules.
 */
 
 .mapboxgl-popup {
@@ -90,25 +100,23 @@ body {
 }
 
 .mapboxgl-popup-content {
-  /* The two numbers below define the entire look. */
-  min-width: 380px;   /* preferred working width on Desktop */
-  max-width: 400px;   /* prevents insane horizontal stretch */
-  
+  min-width: 380px;
+  max-width: 400px;
+
   background: #1e1e1e;
   color: #fff;
   font-size: 14px;
   border-radius: 6px;
   padding: 12px 14px;
   line-height: 1.5;
-  box-shadow: 0 0 6px rgba(0,0,0,0.5);
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
 }
 
-/* Headers inside popups */
 .mapboxgl-popup-content h3 {
   margin: 0 0 6px;
   font-weight: bold;
   font-size: 15px;
-  color: #ffd700; /* gold for header */
+  color: #ffd700;
 }
 
 .mapboxgl-popup-content p {
@@ -133,7 +141,7 @@ body {
 
   .mapboxgl-popup-content {
     font-size: 16px;
-    min-width: 85vw;   /* fill most of screen */
+    min-width: 85vw;
     max-width: 90vw;
   }
 }
@@ -154,7 +162,6 @@ body {
 /* LEGEND — K5 GOLD */
 /* ====================================================================== */
 
-/* KINGPIN (red/yellow) — NO checkbox */
 .legend-kingpin {
   display: flex;
   align-items: center;
@@ -175,7 +182,6 @@ body {
   line-height: 1.5;
 }
 
-/* Future Kingpin tier if needed */
 .legend-kingpin1 {
   display: flex;
   align-items: center;

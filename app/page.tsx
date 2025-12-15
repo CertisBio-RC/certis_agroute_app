@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
 import CertisMap, { Stop, RetailerSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
@@ -12,6 +11,22 @@ function normUpper(v: string) {
 }
 function includesLoose(hay: string, needle: string) {
   return hay.toLowerCase().includes(needle.toLowerCase());
+}
+function splitMulti(raw: any) {
+  const str = String(raw ?? "").trim();
+  if (!str) return [];
+  return str
+    .split(/[;,|]/g)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+function splitCategories(raw: any) {
+  const str = String(raw ?? "").trim();
+  if (!str) return [];
+  return str
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
 }
 
 export default function Page() {
@@ -30,14 +45,12 @@ export default function Page() {
   // Home ZIP
   const [homeZip, setHomeZip] = useState<string>("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
+  const [homeStatus, setHomeStatus] = useState<string>("");
 
   // Stops + Trip
   const [allStops, setAllStops] = useState<Stop[]>([]);
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [zoomToStop, setZoomToStop] = useState<Stop | null>(null);
-
-  // Summary
-  const [retailerSummary, setRetailerSummary] = useState<RetailerSummaryRow[]>([]);
 
   // Local sidebar search fields
   const [stateSearch, setStateSearch] = useState("");
@@ -108,20 +121,24 @@ export default function Page() {
       const json: any = await resp.json();
       const center = json?.features?.[0]?.center;
 
-      if (!Array.isArray(center) || center.length !== 2) {
-        throw new Error("No coords returned for ZIP");
-      }
+      if (!Array.isArray(center) || center.length !== 2) throw new Error("No coords returned for ZIP");
 
-      setHomeCoords([Number(center[0]), Number(center[1])]);
+      const lng = Number(center[0]);
+      const lat = Number(center[1]);
+
+      setHomeCoords([lng, lat]);
+      setHomeStatus(`Home Zip Code set to ${z}`);
     } catch (e) {
       console.error("[Page] Home ZIP geocode failed:", e);
       setHomeCoords(null);
+      setHomeStatus("Home Zip Code could not be set (geocode failed).");
     }
   };
 
   const clearHome = () => {
     setHomeZip("");
     setHomeCoords(null);
+    setHomeStatus("");
   };
 
   // Filtered option lists (sidebar search)
@@ -165,7 +182,6 @@ export default function Page() {
 
         if (!hit) return null;
 
-        // simple “relevance” scoring
         let score = 0;
         if (includesLoose(s.label, q)) score += 3;
         if (includesLoose(s.retailer || "", q)) score += 2;
@@ -180,42 +196,85 @@ export default function Page() {
     return scored.map((x) => x.s).slice(0, 40);
   }, [allStops, stopSearch]);
 
+  // ✅ Retailer summary based on TRIP STOPS
+  const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
+    const acc: Record<
+      string,
+      { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }
+    > = {};
+
+    for (const st of tripStops) {
+      const retailer = (st.retailer || "").trim() || "Unknown Retailer";
+      if (!acc[retailer]) {
+        acc[retailer] = { count: 0, suppliers: new Set(), categories: new Set(), states: new Set() };
+      }
+      acc[retailer].count += 1;
+
+      splitMulti(st.suppliers).forEach((x) => acc[retailer].suppliers.add(x));
+      splitCategories(st.category).forEach((x) => acc[retailer].categories.add(x));
+      if (st.state) acc[retailer].states.add(st.state);
+    }
+
+    return Object.entries(acc)
+      .map(([retailer, v]) => ({
+        retailer,
+        count: v.count,
+        suppliers: Array.from(v.suppliers).sort(),
+        categories: Array.from(v.categories).sort(),
+        states: Array.from(v.states).sort(),
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [tripStops]);
+
+  // Styling helpers (NO giant black shells)
+  const panelClass =
+    "rounded-xl border border-white/10 bg-transparent"; // let globals.css show through
+  const innerTileClass =
+    "rounded-lg border border-white/10 bg-black/20 p-2"; // readable, but not a slab
   const sidebarListClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2";
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-lg border border-white/10 bg-black/15 p-2";
   const sectionTitleClass = "text-sm font-semibold tracking-wide text-white/90";
   const clearBtnClass =
-    "text-xs px-2 py-1 rounded-md border border-white/15 hover:border-white/30 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed";
+    "text-xs px-2 py-1 rounded-md border border-white/15 hover:border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
   const smallInputClass =
-    "w-full rounded-lg bg-black/30 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
-
-  const basePath = useMemo(() => (process.env.NEXT_PUBLIC_BASE_PATH || "").trim(), []);
-  const logoSrc = `${basePath}/certis-logo.png`;
+    "w-full rounded-lg bg-black/15 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
 
   return (
-    <div className="min-h-screen w-full bg-[#0b0f14] text-white flex flex-col">
-      {/* HEADER (Title above map) */}
-      <header className="w-full border-b border-white/10 bg-black/40">
-        <div className="px-4 py-3 flex items-center gap-3">
+    // ✅ No page-level background. globals.css owns it.
+    <div className="min-h-screen w-full text-white">
+      {/* HEADER */}
+      <header className="w-full border-b border-white/10">
+        <div className="px-4 py-3 flex items-center justify-between gap-4">
+          {/* Logo */}
           <div className="flex items-center gap-3">
-            <Image src={logoSrc} alt="Certis Biologicals" width={120} height={32} priority />
-            <div className="text-lg font-bold tracking-wide">CERTIS AgRoute Database</div>
+            <img
+              src="/certis-logo.png"
+              alt="Certis Biologicals"
+              className="h-10 w-auto"
+              draggable={false}
+            />
           </div>
 
-          <div className="ml-auto text-xs text-white/60">
-            Token:{" "}
-            <span className={token ? "text-green-400" : "text-red-400"}>
-              {token ? "OK" : "MISSING"}
-            </span>
+          {/* Title RIGHT (yellow) */}
+          <div className="flex items-center gap-4 ml-auto">
+            <div className="text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
+              CERTIS AgRoute Database
+            </div>
+            <div className="text-xs text-white/60 whitespace-nowrap">
+              Token:{" "}
+              <span className={token ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                {token ? "OK" : "MISSING"}
+              </span>
+            </div>
           </div>
         </div>
       </header>
 
       {/* BODY */}
-      <div className="p-3 flex-1">
-        <div className="grid grid-cols-[380px_1fr] gap-3 h-[calc(100vh-24px-60px)]">
+      <div className="p-3">
+        <div className="grid grid-cols-[380px_1fr] gap-3 h-[calc(100vh-64px)]">
           {/* SIDEBAR */}
-          <aside className="rounded-xl border border-white/10 bg-black/40 overflow-hidden flex flex-col">
-            {/* Scrollable content */}
+          <aside className={`${panelClass} overflow-hidden flex flex-col`}>
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-6">
               {/* HOME ZIP */}
               <div className="space-y-2">
@@ -229,7 +288,7 @@ export default function Page() {
                   />
                   <button
                     onClick={setHomeFromZip}
-                    className="rounded-lg px-3 py-2 text-sm font-semibold bg-white text-black hover:bg-white/90"
+                    className="rounded-lg px-3 py-2 text-sm font-semibold bg-[#facc15] text-black hover:bg-[#facc15]/90"
                     disabled={!homeZip.trim() || !token}
                     title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
                   >
@@ -239,6 +298,10 @@ export default function Page() {
                     Clear
                   </button>
                 </div>
+
+                {/* ✅ Status line requested */}
+                {homeStatus && <div className="text-xs text-white/80">{homeStatus}</div>}
+
                 <div className="text-xs text-white/60">
                   Home marker (Blue_Home.png). ZIP geocoded via Mapbox.
                 </div>
@@ -257,11 +320,11 @@ export default function Page() {
                   Quick-add a stop without hunting on the map. (Loaded stops: {allStops.length})
                 </div>
 
-                <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-white/10 bg-black/20 p-2">
+                <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-white/10 bg-black/15 p-2">
                   {stopResults.map((st) => {
                     const inTrip = tripStops.some((x) => x.id === st.id);
                     return (
-                      <div key={st.id} className="rounded-md border border-white/10 bg-black/10 p-2">
+                      <div key={st.id} className={innerTileClass}>
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <div className="text-sm font-semibold leading-tight">{st.label}</div>
@@ -306,15 +369,13 @@ export default function Page() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className={sectionTitleClass}>State</div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setSelectedStates([])}
-                      className={clearBtnClass}
-                      disabled={selectedStates.length === 0}
-                    >
-                      Clear
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setSelectedStates([])}
+                    className={clearBtnClass}
+                    disabled={selectedStates.length === 0}
+                  >
+                    Clear
+                  </button>
                 </div>
                 <input
                   value={stateSearch}
@@ -447,7 +508,7 @@ export default function Page() {
 
                 <div className="space-y-2">
                   {tripStops.map((st, idx) => (
-                    <div key={st.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                    <div key={st.id} className={innerTileClass}>
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="text-sm font-semibold">
@@ -502,13 +563,13 @@ export default function Page() {
 
               {/* SUMMARY */}
               <div className="space-y-2">
-                <div className={sectionTitleClass}>Retailer Summary (Visible Retailers)</div>
+                <div className={sectionTitleClass}>Retailer Summary (Trip Stops)</div>
                 <div className="space-y-2">
-                  {retailerSummary.slice(0, 40).map((row) => (
-                    <div key={row.retailer} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                  {tripRetailerSummary.slice(0, 60).map((row) => (
+                    <div key={row.retailer} className={innerTileClass}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-sm font-semibold">{row.retailer}</div>
-                        <div className="text-xs text-white/70 whitespace-nowrap">{row.count} sites</div>
+                        <div className="text-xs text-white/70 whitespace-nowrap">{row.count} stops</div>
                       </div>
                       <div className="text-xs text-white/70 mt-1 space-y-1">
                         <div>
@@ -526,21 +587,21 @@ export default function Page() {
                       </div>
                     </div>
                   ))}
-                  {retailerSummary.length === 0 && (
-                    <div className="text-xs text-white/60">No visible retailers (or still loading).</div>
+                  {tripRetailerSummary.length === 0 && (
+                    <div className="text-xs text-white/60">No trip stops yet.</div>
                   )}
                 </div>
               </div>
 
-              {/* Small diagnostics */}
+              {/* Diagnostics */}
               <div className="text-[11px] text-white/50">
-                Loaded: {allStops.length} stops • Trip: {tripStops.length} • Token: {token ? "OK" : "MISSING"}
+                Loaded: {allStops.length} stops • Trip: {tripStops.length}
               </div>
             </div>
           </aside>
 
           {/* MAP */}
-          <main className="rounded-xl border border-white/10 overflow-hidden bg-black/30">
+          <main className={`${panelClass} overflow-hidden`}>
             <CertisMap
               selectedStates={selectedStates.map(normUpper)}
               selectedRetailers={selectedRetailers}
@@ -554,7 +615,6 @@ export default function Page() {
               onCategoriesLoaded={(c0) => setCategories(uniqSorted(c0))}
               onSuppliersLoaded={(s0) => setSuppliers(uniqSorted(s0))}
               onAllStopsLoaded={(stops) => setAllStops(stops)}
-              onRetailerSummary={(summary) => setRetailerSummary(summary)}
               onAddStop={addStopToTrip}
             />
           </main>
