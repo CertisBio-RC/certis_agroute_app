@@ -1,87 +1,59 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import Image from "next/image";
 import CertisMap, { Stop, RetailerSummaryRow } from "../components/CertisMap";
-import { MAPBOX_TOKEN } from "../utils/token";
 
-type HomeMeta = {
-  zip: string;
-  city: string;
-  state: string;
-};
-
-function uniqStrings(arr: string[]): string[] {
+function uniqSorted(arr: string[]) {
   return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+function normUpper(v: string) {
+  return (v || "").trim().toUpperCase();
+}
+function includesLoose(hay: string, needle: string) {
+  return hay.toLowerCase().includes(needle.toLowerCase());
 }
 
 export default function Page() {
-  // Filters (Bailey rules enforced inside CertisMap)
+  // Options loaded from map
+  const [states, setStates] = useState<string[]>([]);
+  const [retailers, setRetailers] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+
+  // Selection state
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
 
-  // Dropdown lists populated by map (from currently visible retailers, per your design)
-  const [statesList, setStatesList] = useState<string[]>([]);
-  const [retailersList, setRetailersList] = useState<string[]>([]);
-  const [categoriesList, setCategoriesList] = useState<string[]>([]);
-  const [suppliersList, setSuppliersList] = useState<string[]>([]);
-
-  // Home ZIP + coords (NOT a Stop)
+  // Home ZIP
   const [homeZip, setHomeZip] = useState<string>("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
-  const [homeMeta, setHomeMeta] = useState<HomeMeta | null>(null);
 
-  // Stops
+  // Stops + Trip
   const [allStops, setAllStops] = useState<Stop[]>([]);
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [zoomToStop, setZoomToStop] = useState<Stop | null>(null);
 
-  // Retailer summary from visible retailers
+  // Summary
   const [retailerSummary, setRetailerSummary] = useState<RetailerSummaryRow[]>([]);
 
-  // Search
-  const [searchText, setSearchText] = useState<string>("");
+  // Local sidebar search fields
+  const [stateSearch, setStateSearch] = useState("");
+  const [retailerSearch, setRetailerSearch] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [stopSearch, setStopSearch] = useState("");
 
-  const token = useMemo(() => {
-    const env = (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim();
-    return env || (MAPBOX_TOKEN || "").trim();
-  }, []);
+  const basePath = useMemo(() => (process.env.NEXT_PUBLIC_BASE_PATH || "").trim(), []);
+  const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
 
-  // ---------------------------
-  // Helpers
-  // ---------------------------
-
-  const addStopToTrip = (stop: Stop) => {
-    setTripStops((prev) => {
-      if (prev.some((s) => s.id === stop.id)) return prev;
-      return [...prev, stop];
-    });
-  };
-
-  const removeStopFromTrip = (id: string) => {
-    setTripStops((prev) => prev.filter((s) => s.id !== id));
-  };
-
-  const moveTripStop = (id: string, direction: -1 | 1) => {
-    setTripStops((prev) => {
-      const idx = prev.findIndex((s) => s.id === id);
-      if (idx < 0) return prev;
-      const nextIdx = idx + direction;
-      if (nextIdx < 0 || nextIdx >= prev.length) return prev;
-      const copy = [...prev];
-      const [item] = copy.splice(idx, 1);
-      copy.splice(nextIdx, 0, item);
-      return copy;
-    });
-  };
-
-  const zoomTo = (stop: Stop) => {
-    // ✅ IMPORTANT: do NOT spread/clone Stop (avoids “coords does not exist” type errors)
-    setZoomToStop(stop);
-    // clear it shortly after so the same stop can be zoomed again
-    setTimeout(() => setZoomToStop(null), 50);
-  };
+  const hasAnyFilters =
+    selectedStates.length ||
+    selectedRetailers.length ||
+    selectedCategories.length ||
+    selectedSuppliers.length;
 
   const clearAllFilters = () => {
     setSelectedStates([]);
@@ -90,497 +62,522 @@ export default function Page() {
     setSelectedSuppliers([]);
   };
 
-  // ---------------------------
-  // Home ZIP geocode (Mapbox)
-  // ---------------------------
-  const geocodeHomeZip = async () => {
-    const zip = homeZip.trim();
-    if (!zip) return;
+  const toggle = (value: string, current: string[], setter: (v: string[]) => void) => {
+    if (current.includes(value)) setter(current.filter((x) => x !== value));
+    else setter([...current, value]);
+  };
 
-    if (!token) {
-      alert("Mapbox token is missing. Ensure data/token.txt is loaded into NEXT_PUBLIC_MAPBOX_TOKEN before build.");
-      return;
-    }
+  const clearTrip = () => {
+    setTripStops([]);
+    setZoomToStop(null);
+  };
+
+  const addStopToTrip = (stop: Stop) => {
+    setTripStops((prev) => {
+      if (prev.some((s) => s.id === stop.id)) return prev;
+      return [...prev, stop];
+    });
+  };
+
+  const removeStop = (id: string) => setTripStops((prev) => prev.filter((s) => s.id !== id));
+
+  const moveStop = (idx: number, dir: -1 | 1) => {
+    setTripStops((prev) => {
+      const next = [...prev];
+      const j = idx + dir;
+      if (j < 0 || j >= next.length) return prev;
+      const tmp = next[idx];
+      next[idx] = next[j];
+      next[j] = tmp;
+      return next;
+    });
+  };
+
+  const zoomStop = (stop: Stop) => setZoomToStop(stop);
+
+  const setHomeFromZip = async () => {
+    const z = homeZip.trim();
+    if (!z) return;
 
     try {
-      // Use US ZIP geocoding via Mapbox forward geocode
       const url =
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(zip)}.json` +
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(z)}.json` +
         `?country=US&types=postcode&limit=1&access_token=${encodeURIComponent(token)}`;
 
       const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`Geocode failed: ${resp.status} ${resp.statusText}`);
+      if (!resp.ok) throw new Error(`Geocoding failed: ${resp.status}`);
+      const json: any = await resp.json();
+      const center = json?.features?.[0]?.center;
 
-      const data: any = await resp.json();
-      const feat = data?.features?.[0];
-      const coords = feat?.center;
-
-      if (!Array.isArray(coords) || coords.length !== 2) {
-        throw new Error("No coordinates returned for that ZIP.");
+      if (!Array.isArray(center) || center.length !== 2) {
+        throw new Error("No coords returned for ZIP");
       }
 
-      const [lng, lat] = coords as [number, number];
-      setHomeCoords([lng, lat]);
-
-      // Try to parse city/state from context (best-effort)
-      let city = "";
-      let state = "";
-      const ctx = Array.isArray(feat?.context) ? feat.context : [];
-      for (const c of ctx) {
-        const id = String(c?.id || "");
-        if (id.startsWith("place.")) city = String(c?.text || "");
-        if (id.startsWith("region.")) state = String(c?.short_code || String(c?.text || "")).replace("US-", "");
-      }
-      setHomeMeta({ zip, city, state });
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message || "Home ZIP geocoding failed.");
+      setHomeCoords([Number(center[0]), Number(center[1])]);
+    } catch (e) {
+      console.error("[Page] Home ZIP geocode failed:", e);
+      setHomeCoords(null);
     }
   };
 
-  // Enter key submits geocode
-  const onHomeZipKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") geocodeHomeZip();
+  const clearHome = () => {
+    setHomeZip("");
+    setHomeCoords(null);
   };
 
-  // ---------------------------
-  // Search filtered stops list
-  // ---------------------------
-  const filteredStops = useMemo(() => {
-    const q = searchText.trim().toLowerCase();
-    if (!q) return allStops.slice(0, 50);
+  // Filtered option lists (sidebar search)
+  const visibleStates = useMemo(() => {
+    const list = states.map(normUpper);
+    const q = stateSearch.trim();
+    return uniqSorted(q ? list.filter((x) => includesLoose(x, q)) : list);
+  }, [states, stateSearch]);
+
+  const visibleRetailers = useMemo(() => {
+    const q = retailerSearch.trim();
+    return q ? retailers.filter((x) => includesLoose(x, q)) : retailers;
+  }, [retailers, retailerSearch]);
+
+  const visibleCategories = useMemo(() => {
+    const q = categorySearch.trim();
+    return q ? categories.filter((x) => includesLoose(x, q)) : categories;
+  }, [categories, categorySearch]);
+
+  const visibleSuppliers = useMemo(() => {
+    const q = supplierSearch.trim();
+    return q ? suppliers.filter((x) => includesLoose(x, q)) : suppliers;
+  }, [suppliers, supplierSearch]);
+
+  // Stop search results
+  const stopResults = useMemo(() => {
+    const q = stopSearch.trim();
+    if (!q) return allStops.slice(0, 30);
 
     const scored = allStops
       .map((s) => {
-        const hay =
-          `${s.label} ${s.retailer || ""} ${s.name || ""} ${s.city || ""} ${s.state || ""} ${s.zip || ""}`
-            .toLowerCase()
-            .trim();
-        const hit = hay.includes(q);
-        return { s, hit };
+        const hay = `${s.label} ${s.retailer || ""} ${s.name || ""} ${s.city || ""} ${s.state || ""} ${s.zip || ""}`;
+        const hit =
+          includesLoose(s.label, q) ||
+          includesLoose(s.retailer || "", q) ||
+          includesLoose(s.name || "", q) ||
+          includesLoose(s.city || "", q) ||
+          includesLoose(s.state || "", q) ||
+          includesLoose(s.zip || "", q) ||
+          includesLoose(hay, q);
+
+        if (!hit) return null;
+
+        // simple “relevance” scoring
+        let score = 0;
+        if (includesLoose(s.label, q)) score += 3;
+        if (includesLoose(s.retailer || "", q)) score += 2;
+        if (includesLoose(s.city || "", q)) score += 1;
+        if (includesLoose(s.state || "", q)) score += 1;
+
+        return { s, score };
       })
-      .filter((x) => x.hit)
-      .map((x) => x.s);
+      .filter(Boolean) as { s: Stop; score: number }[];
 
-    return scored.slice(0, 75);
-  }, [allStops, searchText]);
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map((x) => x.s).slice(0, 40);
+  }, [allStops, stopSearch, tripStops]);
 
-  // Ensure dropdown lists remain unique/sorted if any source duplicates come in
-  useEffect(() => setStatesList((p) => uniqStrings(p)), []);
-  useEffect(() => setRetailersList((p) => uniqStrings(p)), []);
-  useEffect(() => setCategoriesList((p) => uniqStrings(p)), []);
-  useEffect(() => setSuppliersList((p) => uniqStrings(p)), []);
+  // =========================
+  // Styling (branding-only)
+  // =========================
+  const sidebarListClass =
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2";
+  const sectionTitleClass = "text-sm font-bold tracking-wide text-[#facc15]";
+  const clearBtnClass =
+    "text-xs px-2 py-1 rounded-md border border-white/15 hover:border-white/30 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed";
+  const smallInputClass =
+    "w-full rounded-lg bg-black/30 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
 
-  // ---------------------------
-  // UI
-  // ---------------------------
+  const logoSrc = "/certis_agroute_app/certis-logo.png";
+
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "380px 1fr",
-        height: "100vh",
-        width: "100vw",
-        gap: 12,
-        padding: 12,
-        boxSizing: "border-box",
-      }}
-    >
-      {/* Sidebar */}
-      <div
-        style={{
-          borderRadius: 12,
-          padding: 12,
-          overflow: "auto",
-          border: "1px solid rgba(255,255,255,0.12)",
-        }}
-      >
-        <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 10 }}>CERTIS AgRoute Planner</div>
-
-        {/* Home ZIP */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Home ZIP</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              value={homeZip}
-              onChange={(e) => setHomeZip(e.target.value)}
-              onKeyDown={onHomeZipKeyDown}
-              placeholder="e.g., 50010"
-              style={{
-                flex: 1,
-                padding: "8px 10px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "transparent",
-                color: "inherit",
-              }}
-            />
-            <button
-              onClick={geocodeHomeZip}
-              style={{
-                padding: "8px 10px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "transparent",
-                cursor: "pointer",
-                color: "inherit",
-              }}
-            >
-              Set
-            </button>
-          </div>
-          {homeCoords && (
-            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
-              Home set: {homeMeta?.city ? `${homeMeta.city}, ` : ""}
-              {homeMeta?.state ? `${homeMeta.state} ` : ""}
-              ({homeCoords[1].toFixed(4)}, {homeCoords[0].toFixed(4)})
-            </div>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontWeight: 800 }}>Filters</div>
-            <button
-              onClick={clearAllFilters}
-              style={{
-                padding: "6px 10px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "transparent",
-                cursor: "pointer",
-                color: "inherit",
-                fontSize: 12,
-              }}
-            >
-              Clear
-            </button>
-          </div>
-
-          <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-            <FilterMultiSelect
-              label="State"
-              options={statesList}
-              selected={selectedStates}
-              onChange={setSelectedStates}
-            />
-            <FilterMultiSelect
-              label="Retailer"
-              options={retailersList}
-              selected={selectedRetailers}
-              onChange={setSelectedRetailers}
-            />
-            <FilterMultiSelect
-              label="Category"
-              options={categoriesList}
-              selected={selectedCategories}
-              onChange={setSelectedCategories}
-            />
-            <FilterMultiSelect
-              label="Supplier"
-              options={suppliersList}
-              selected={selectedSuppliers}
-              onChange={setSelectedSuppliers}
-            />
-          </div>
-        </div>
-
-        {/* Search Stops */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>Search Stops</div>
-          <input
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Search retailer / kingpin / city / ZIP..."
-            style={{
-              width: "100%",
-              padding: "8px 10px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.18)",
-              background: "transparent",
-              color: "inherit",
-              boxSizing: "border-box",
-            }}
-          />
-
-          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-            {filteredStops.map((s0) => (
-              <div
-                key={s0.id}
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,0.12)",
-                }}
-              >
-                <div style={{ fontSize: 12, lineHeight: 1.2 }}>
-                  <div style={{ fontWeight: 700 }}>{s0.label}</div>
-                  <div style={{ opacity: 0.8 }}>
-                    {s0.city ? `${s0.city}, ` : ""}
-                    {s0.state || ""}
-                    {s0.zip ? ` ${s0.zip}` : ""}
+    <div className="min-h-screen w-full bg-[#0b0f14] text-white">
+      <div className="p-3">
+        {/* Two-column layout */}
+        <div className="grid grid-cols-[380px_1fr] gap-3 h-[calc(100vh-24px)]">
+          {/* SIDEBAR */}
+          <aside className="rounded-xl border border-white/10 bg-[#101722]/85 overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-white/10 bg-black/20">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative h-[34px] w-[140px]">
+                    <Image
+                      src={logoSrc}
+                      alt="Certis Biologicals"
+                      fill
+                      priority
+                      sizes="140px"
+                      className="object-contain"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-lg font-extrabold text-[#facc15] leading-tight">
+                      CERTIS AgRoute Planner
+                    </div>
+                    <div className="text-xs text-white/70">
+                      Retailers + Corporate HQ + Kingpin overlays • Filters • Trip Builder
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
+
+                <div className="text-[11px] text-white/55 text-right">
+                  Token:{" "}
+                  <span className={token ? "text-white/80" : "text-red-300"}>
+                    {token ? "OK" : "MISSING"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-6">
+              {/* HOME ZIP */}
+              <div className="space-y-2">
+                <div className={sectionTitleClass}>Home ZIP</div>
+                <div className="flex gap-2">
+                  <input
+                    value={homeZip}
+                    onChange={(e) => setHomeZip(e.target.value)}
+                    placeholder="e.g., 50010"
+                    className={smallInputClass}
+                  />
                   <button
-                    onClick={() => zoomTo(s0)}
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,0.18)",
-                      background: "transparent",
-                      cursor: "pointer",
-                      color: "inherit",
-                      fontSize: 12,
-                    }}
+                    onClick={setHomeFromZip}
+                    className="rounded-lg px-3 py-2 text-sm font-semibold bg-[#facc15] text-black hover:bg-[#facc15]/90"
+                    disabled={!homeZip.trim() || !token}
+                    title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
                   >
-                    Zoom
+                    Set
                   </button>
-                  <button
-                    onClick={() => addStopToTrip(s0)}
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,0.18)",
-                      background: "transparent",
-                      cursor: "pointer",
-                      color: "inherit",
-                      fontSize: 12,
-                    }}
-                  >
-                    Add
+                  <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
+                    Clear
+                  </button>
+                </div>
+                <div className="text-xs text-white/70">
+                  Home marker (Blue_Home.png). ZIP geocoded via Mapbox.
+                </div>
+              </div>
+
+              {/* STOP SEARCH */}
+              <div className="space-y-2">
+                <div className={sectionTitleClass}>Find a Stop</div>
+                <input
+                  value={stopSearch}
+                  onChange={(e) => setStopSearch(e.target.value)}
+                  placeholder="Search by retailer, city, state, name, contact…"
+                  className={smallInputClass}
+                />
+                <div className="text-xs text-white/70">
+                  Quick-add a stop without hunting on the map. (Loaded stops: {allStops.length})
+                </div>
+
+                <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-white/10 bg-black/20 p-2">
+                  {stopResults.map((st) => {
+                    const inTrip = tripStops.some((x) => x.id === st.id);
+                    return (
+                      <div key={st.id} className="rounded-md border border-white/10 bg-black/10 p-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-semibold leading-tight">{st.label}</div>
+                            <div className="text-xs text-white/75">
+                              {(st.city || "") + (st.city ? ", " : "")}
+                              {st.state || ""}
+                              {st.zip ? ` ${st.zip}` : ""}
+                              {st.kind ? ` • ${st.kind}` : ""}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                              Zoom
+                            </button>
+                            <button
+                              onClick={() => addStopToTrip(st)}
+                              className="text-xs px-2 py-1 rounded-md bg-[#facc15] text-black font-semibold hover:bg-[#facc15]/90 disabled:opacity-50"
+                              disabled={inTrip}
+                            >
+                              {inTrip ? "Added" : "Add"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {stopResults.length === 0 && <div className="text-xs text-white/70">No matches.</div>}
+                </div>
+              </div>
+
+              {/* FILTERS HEADER */}
+              <div className="flex items-center justify-between">
+                <div className={sectionTitleClass}>Filters</div>
+                <div className="flex gap-2">
+                  <button onClick={clearAllFilters} className={clearBtnClass} disabled={!hasAnyFilters}>
+                    Clear All
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Trip Builder */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>Trip Stops ({tripStops.length})</div>
+              {/* State */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className={sectionTitleClass}>State</div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedStates([])}
+                      className={clearBtnClass}
+                      disabled={selectedStates.length === 0}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <input
+                  value={stateSearch}
+                  onChange={(e) => setStateSearch(e.target.value)}
+                  placeholder="Search states…"
+                  className={smallInputClass}
+                />
+                <div className={sidebarListClass}>
+                  {visibleStates.map((st) => (
+                    <label key={st} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedStates.includes(st)}
+                        onChange={() => toggle(st, selectedStates, setSelectedStates)}
+                      />
+                      <span>{st}</span>
+                    </label>
+                  ))}
+                  {visibleStates.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                </div>
+              </div>
 
-          {tripStops.length === 0 ? (
-            <div style={{ fontSize: 12, opacity: 0.8 }}>
-              Add stops from map popups or from the search results above.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 6 }}>
-              {tripStops.map((s0, idx) => (
-                <div
-                  key={s0.id}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 10,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                    <div style={{ fontSize: 12, lineHeight: 1.2 }}>
-                      <div style={{ fontWeight: 800 }}>
-                        {idx + 1}. {s0.label}
-                      </div>
-                      <div style={{ opacity: 0.8 }}>
-                        {s0.city ? `${s0.city}, ` : ""}
-                        {s0.state || ""}
-                        {s0.zip ? ` ${s0.zip}` : ""}
+              {/* Retailer */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className={sectionTitleClass}>Retailer</div>
+                  <button
+                    onClick={() => setSelectedRetailers([])}
+                    className={clearBtnClass}
+                    disabled={selectedRetailers.length === 0}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <input
+                  value={retailerSearch}
+                  onChange={(e) => setRetailerSearch(e.target.value)}
+                  placeholder="Search retailers…"
+                  className={smallInputClass}
+                />
+                <div className={sidebarListClass}>
+                  {visibleRetailers.map((r) => (
+                    <label key={r} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedRetailers.includes(r)}
+                        onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)}
+                      />
+                      <span>{r}</span>
+                    </label>
+                  ))}
+                  {visibleRetailers.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                </div>
+              </div>
+
+              {/* Category */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className={sectionTitleClass}>Category</div>
+                  <button
+                    onClick={() => setSelectedCategories([])}
+                    className={clearBtnClass}
+                    disabled={selectedCategories.length === 0}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <input
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  placeholder="Search categories…"
+                  className={smallInputClass}
+                />
+                <div className={sidebarListClass}>
+                  {visibleCategories.map((c) => (
+                    <label key={c} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedCategories.includes(c)}
+                        onChange={() => toggle(c, selectedCategories, setSelectedCategories)}
+                      />
+                      <span>{c}</span>
+                    </label>
+                  ))}
+                  {visibleCategories.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                </div>
+              </div>
+
+              {/* Supplier */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className={sectionTitleClass}>Supplier</div>
+                  <button
+                    onClick={() => setSelectedSuppliers([])}
+                    className={clearBtnClass}
+                    disabled={selectedSuppliers.length === 0}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <input
+                  value={supplierSearch}
+                  onChange={(e) => setSupplierSearch(e.target.value)}
+                  placeholder="Search suppliers…"
+                  className={smallInputClass}
+                />
+                <div className={sidebarListClass}>
+                  {visibleSuppliers.map((sp) => (
+                    <label key={sp} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedSuppliers.includes(sp)}
+                        onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)}
+                      />
+                      <span>{sp}</span>
+                    </label>
+                  ))}
+                  {visibleSuppliers.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                </div>
+              </div>
+
+              {/* TRIP BUILDER */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className={sectionTitleClass}>Trip Builder</div>
+                  <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0}>
+                    Clear Trip
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {tripStops.map((st, idx) => (
+                    <div key={st.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-semibold">
+                            {idx + 1}. {st.label}
+                          </div>
+                          <div className="text-xs text-white/75">
+                            {(st.city || "") + (st.city ? ", " : "")}
+                            {st.state || ""}
+                            {st.zip ? ` ${st.zip}` : ""}
+                            {st.kind ? ` • ${st.kind}` : ""}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2 justify-end">
+                            <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                              Zoom
+                            </button>
+                            <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
+                              Remove
+                            </button>
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => moveStop(idx, -1)}
+                              className={clearBtnClass}
+                              disabled={idx === 0}
+                              title="Move up"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              onClick={() => moveStop(idx, 1)}
+                              className={clearBtnClass}
+                              disabled={idx === tripStops.length - 1}
+                              title="Move down"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => removeStopFromTrip(s0.id)}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 10,
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "transparent",
-                        cursor: "pointer",
-                        color: "inherit",
-                        fontSize: 12,
-                        height: 32,
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  ))}
 
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <button
-                      onClick={() => zoomTo(s0)}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 10,
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "transparent",
-                        cursor: "pointer",
-                        color: "inherit",
-                        fontSize: 12,
-                      }}
-                    >
-                      Zoom to Stop
-                    </button>
-                    <button
-                      disabled={idx === 0}
-                      onClick={() => moveTripStop(s0.id, -1)}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 10,
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "transparent",
-                        cursor: idx === 0 ? "not-allowed" : "pointer",
-                        color: "inherit",
-                        fontSize: 12,
-                        opacity: idx === 0 ? 0.5 : 1,
-                      }}
-                    >
-                      Up
-                    </button>
-                    <button
-                      disabled={idx === tripStops.length - 1}
-                      onClick={() => moveTripStop(s0.id, 1)}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 10,
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "transparent",
-                        cursor: idx === tripStops.length - 1 ? "not-allowed" : "pointer",
-                        color: "inherit",
-                        fontSize: 12,
-                        opacity: idx === tripStops.length - 1 ? 0.5 : 1,
-                      }}
-                    >
-                      Down
-                    </button>
-                  </div>
+                  {tripStops.length === 0 && (
+                    <div className="text-xs text-white/70">
+                      Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
 
-        {/* Retailer summary */}
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>Retailer Summary</div>
-          {retailerSummary.length === 0 ? (
-            <div style={{ fontSize: 12, opacity: 0.8 }}>No visible retailers (check filters).</div>
-          ) : (
-            <div style={{ display: "grid", gap: 6 }}>
-              {retailerSummary.slice(0, 50).map((r) => (
-                <div
-                  key={r.retailer}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 10,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    fontSize: 12,
-                    lineHeight: 1.25,
-                  }}
-                >
-                  <div style={{ fontWeight: 800 }}>
-                    {r.retailer} <span style={{ opacity: 0.85 }}>({r.count})</span>
-                  </div>
-                  <div style={{ opacity: 0.85, marginTop: 4 }}>
-                    <b>States:</b> {r.states.join(", ") || "—"}
-                  </div>
-                  <div style={{ opacity: 0.85 }}>
-                    <b>Categories:</b> {r.categories.join(", ") || "—"}
-                  </div>
-                  <div style={{ opacity: 0.85 }}>
-                    <b>Suppliers:</b> {r.suppliers.join(", ") || "—"}
-                  </div>
+              {/* SUMMARY */}
+              <div className="space-y-2">
+                <div className={sectionTitleClass}>Retailer Summary (Visible Retailers)</div>
+                <div className="space-y-2">
+                  {retailerSummary.slice(0, 40).map((row) => (
+                    <div key={row.retailer} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold">{row.retailer}</div>
+                        <div className="text-xs text-white/75 whitespace-nowrap">{row.count} sites</div>
+                      </div>
+                      <div className="text-xs text-white/75 mt-1 space-y-1">
+                        <div>
+                          <span className="font-semibold text-white/85">States:</span>{" "}
+                          {row.states.join(", ") || "—"}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-white/85">Categories:</span>{" "}
+                          {row.categories.join(", ") || "—"}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-white/85">Suppliers:</span>{" "}
+                          {row.suppliers.join(", ") || "—"}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {retailerSummary.length === 0 && (
+                    <div className="text-xs text-white/70">No visible retailers (or still loading).</div>
+                  )}
                 </div>
-              ))}
+              </div>
+
+              {/* Small diagnostics */}
+              <div className="text-[11px] text-white/60">
+                Loaded: {allStops.length} stops • Trip: {tripStops.length}
+              </div>
             </div>
-          )}
+          </aside>
+
+          {/* MAP */}
+          <main className="rounded-xl border border-white/10 overflow-hidden bg-black/30">
+            <CertisMap
+              selectedStates={selectedStates.map(normUpper)}
+              selectedRetailers={selectedRetailers}
+              selectedCategories={selectedCategories}
+              selectedSuppliers={selectedSuppliers}
+              homeCoords={homeCoords}
+              tripStops={tripStops}
+              zoomToStop={zoomToStop}
+              onStatesLoaded={(s0) => setStates(uniqSorted(s0.map(normUpper)))}
+              onRetailersLoaded={(r0) => setRetailers(uniqSorted(r0))}
+              onCategoriesLoaded={(c0) => setCategories(uniqSorted(c0))}
+              onSuppliersLoaded={(s0) => setSuppliers(uniqSorted(s0))}
+              onAllStopsLoaded={(stops) => setAllStops(stops)}
+              onRetailerSummary={(summary) => setRetailerSummary(summary)}
+              onAddStop={addStopToTrip}
+            />
+          </main>
         </div>
-      </div>
-
-      {/* Map */}
-      <div
-        style={{
-          borderRadius: 12,
-          overflow: "hidden",
-          border: "1px solid rgba(255,255,255,0.12)",
-        }}
-      >
-        <CertisMap
-          selectedStates={selectedStates}
-          selectedRetailers={selectedRetailers}
-          selectedCategories={selectedCategories}
-          selectedSuppliers={selectedSuppliers}
-          homeCoords={homeCoords}
-          tripStops={tripStops}
-          zoomToStop={zoomToStop}
-          onStatesLoaded={setStatesList}
-          onRetailersLoaded={setRetailersList}
-          onCategoriesLoaded={setCategoriesList}
-          onSuppliersLoaded={setSuppliersList}
-          onAllStopsLoaded={setAllStops}
-          onRetailerSummary={setRetailerSummary}
-          onAddStop={addStopToTrip}
-        />
-      </div>
-    </div>
-  );
-}
-
-// --------------------------------------------
-// Simple multi-select (checkbox list)
-// --------------------------------------------
-function FilterMultiSelect({
-  label,
-  options,
-  selected,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-}) {
-  const toggle = (value: string) => {
-    onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
-  };
-
-  const clear = () => onChange([]);
-
-  return (
-    <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div style={{ fontWeight: 800 }}>{label}</div>
-        <button
-          onClick={clear}
-          style={{
-            padding: "4px 8px",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.18)",
-            background: "transparent",
-            cursor: "pointer",
-            color: "inherit",
-            fontSize: 12,
-          }}
-        >
-          Clear
-        </button>
-      </div>
-
-      <div style={{ marginTop: 8, maxHeight: 140, overflow: "auto", display: "grid", gap: 6 }}>
-        {options.length === 0 ? (
-          <div style={{ fontSize: 12, opacity: 0.75 }}>No options (adjust filters).</div>
-        ) : (
-          options.map((opt) => (
-            <label key={opt} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}>
-              <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} />
-              <span>{opt}</span>
-            </label>
-          ))
-        )}
       </div>
     </div>
   );
