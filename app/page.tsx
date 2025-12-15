@@ -46,7 +46,6 @@ export default function Page() {
   const [supplierSearch, setSupplierSearch] = useState("");
   const [stopSearch, setStopSearch] = useState("");
 
-  const basePath = useMemo(() => (process.env.NEXT_PUBLIC_BASE_PATH || "").trim(), []);
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
 
   const hasAnyFilters =
@@ -179,61 +178,43 @@ export default function Page() {
 
     scored.sort((a, b) => b.score - a.score);
     return scored.map((x) => x.s).slice(0, 40);
-  }, [allStops, stopSearch, tripStops]);
+  }, [allStops, stopSearch]);
 
-  // =========================
-  // Styling (branding-only)
-  // =========================
   const sidebarListClass =
     "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2";
-  const sectionTitleClass = "text-sm font-bold tracking-wide text-[#facc15]";
+  const sectionTitleClass = "text-sm font-semibold tracking-wide text-white/90";
   const clearBtnClass =
     "text-xs px-2 py-1 rounded-md border border-white/15 hover:border-white/30 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed";
   const smallInputClass =
     "w-full rounded-lg bg-black/30 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
 
-  const logoSrc = "/certis_agroute_app/certis-logo.png";
+  const basePath = useMemo(() => (process.env.NEXT_PUBLIC_BASE_PATH || "").trim(), []);
+  const logoSrc = `${basePath}/certis-logo.png`;
 
   return (
-    <div className="min-h-screen w-full bg-[#0b0f14] text-white">
-      <div className="p-3">
-        {/* Two-column layout */}
-        <div className="grid grid-cols-[380px_1fr] gap-3 h-[calc(100vh-24px)]">
+    <div className="min-h-screen w-full bg-[#0b0f14] text-white flex flex-col">
+      {/* HEADER (Title above map) */}
+      <header className="w-full border-b border-white/10 bg-black/40">
+        <div className="px-4 py-3 flex items-center gap-3">
+          <div className="flex items-center gap-3">
+            <Image src={logoSrc} alt="Certis Biologicals" width={120} height={32} priority />
+            <div className="text-lg font-bold tracking-wide">CERTIS AgRoute Database</div>
+          </div>
+
+          <div className="ml-auto text-xs text-white/60">
+            Token:{" "}
+            <span className={token ? "text-green-400" : "text-red-400"}>
+              {token ? "OK" : "MISSING"}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {/* BODY */}
+      <div className="p-3 flex-1">
+        <div className="grid grid-cols-[380px_1fr] gap-3 h-[calc(100vh-24px-60px)]">
           {/* SIDEBAR */}
-          <aside className="rounded-xl border border-white/10 bg-[#101722]/85 overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-white/10 bg-black/20">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="relative h-[34px] w-[140px]">
-                    <Image
-                      src={logoSrc}
-                      alt="Certis Biologicals"
-                      fill
-                      priority
-                      sizes="140px"
-                      className="object-contain"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-lg font-extrabold text-[#facc15] leading-tight">
-                      CERTIS AgRoute Planner
-                    </div>
-                    <div className="text-xs text-white/70">
-                      Retailers + Corporate HQ + Kingpin overlays • Filters • Trip Builder
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-[11px] text-white/55 text-right">
-                  Token:{" "}
-                  <span className={token ? "text-white/80" : "text-red-300"}>
-                    {token ? "OK" : "MISSING"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
+          <aside className="rounded-xl border border-white/10 bg-black/40 overflow-hidden flex flex-col">
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-6">
               {/* HOME ZIP */}
@@ -248,7 +229,7 @@ export default function Page() {
                   />
                   <button
                     onClick={setHomeFromZip}
-                    className="rounded-lg px-3 py-2 text-sm font-semibold bg-[#facc15] text-black hover:bg-[#facc15]/90"
+                    className="rounded-lg px-3 py-2 text-sm font-semibold bg-white text-black hover:bg-white/90"
                     disabled={!homeZip.trim() || !token}
                     title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
                   >
@@ -258,7 +239,7 @@ export default function Page() {
                     Clear
                   </button>
                 </div>
-                <div className="text-xs text-white/70">
+                <div className="text-xs text-white/60">
                   Home marker (Blue_Home.png). ZIP geocoded via Mapbox.
                 </div>
               </div>
@@ -272,7 +253,7 @@ export default function Page() {
                   placeholder="Search by retailer, city, state, name, contact…"
                   className={smallInputClass}
                 />
-                <div className="text-xs text-white/70">
+                <div className="text-xs text-white/60">
                   Quick-add a stop without hunting on the map. (Loaded stops: {allStops.length})
                 </div>
 
@@ -284,7 +265,7 @@ export default function Page() {
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <div className="text-sm font-semibold leading-tight">{st.label}</div>
-                            <div className="text-xs text-white/75">
+                            <div className="text-xs text-white/70">
                               {(st.city || "") + (st.city ? ", " : "")}
                               {st.state || ""}
                               {st.zip ? ` ${st.zip}` : ""}
@@ -307,7 +288,7 @@ export default function Page() {
                       </div>
                     );
                   })}
-                  {stopResults.length === 0 && <div className="text-xs text-white/70">No matches.</div>}
+                  {stopResults.length === 0 && <div className="text-xs text-white/60">No matches.</div>}
                 </div>
               </div>
 
@@ -352,7 +333,7 @@ export default function Page() {
                       <span>{st}</span>
                     </label>
                   ))}
-                  {visibleStates.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                  {visibleStates.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
                 </div>
               </div>
 
@@ -385,7 +366,7 @@ export default function Page() {
                       <span>{r}</span>
                     </label>
                   ))}
-                  {visibleRetailers.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                  {visibleRetailers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
                 </div>
               </div>
 
@@ -418,7 +399,7 @@ export default function Page() {
                       <span>{c}</span>
                     </label>
                   ))}
-                  {visibleCategories.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                  {visibleCategories.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
                 </div>
               </div>
 
@@ -451,7 +432,7 @@ export default function Page() {
                       <span>{sp}</span>
                     </label>
                   ))}
-                  {visibleSuppliers.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                  {visibleSuppliers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
                 </div>
               </div>
 
@@ -472,7 +453,7 @@ export default function Page() {
                           <div className="text-sm font-semibold">
                             {idx + 1}. {st.label}
                           </div>
-                          <div className="text-xs text-white/75">
+                          <div className="text-xs text-white/70">
                             {(st.city || "") + (st.city ? ", " : "")}
                             {st.state || ""}
                             {st.zip ? ` ${st.zip}` : ""}
@@ -512,7 +493,7 @@ export default function Page() {
                   ))}
 
                   {tripStops.length === 0 && (
-                    <div className="text-xs text-white/70">
+                    <div className="text-xs text-white/60">
                       Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
                     </div>
                   )}
@@ -527,33 +508,33 @@ export default function Page() {
                     <div key={row.retailer} className="rounded-lg border border-white/10 bg-black/20 p-2">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-sm font-semibold">{row.retailer}</div>
-                        <div className="text-xs text-white/75 whitespace-nowrap">{row.count} sites</div>
+                        <div className="text-xs text-white/70 whitespace-nowrap">{row.count} sites</div>
                       </div>
-                      <div className="text-xs text-white/75 mt-1 space-y-1">
+                      <div className="text-xs text-white/70 mt-1 space-y-1">
                         <div>
-                          <span className="font-semibold text-white/85">States:</span>{" "}
+                          <span className="font-semibold text-white/80">States:</span>{" "}
                           {row.states.join(", ") || "—"}
                         </div>
                         <div>
-                          <span className="font-semibold text-white/85">Categories:</span>{" "}
+                          <span className="font-semibold text-white/80">Categories:</span>{" "}
                           {row.categories.join(", ") || "—"}
                         </div>
                         <div>
-                          <span className="font-semibold text-white/85">Suppliers:</span>{" "}
+                          <span className="font-semibold text-white/80">Suppliers:</span>{" "}
                           {row.suppliers.join(", ") || "—"}
                         </div>
                       </div>
                     </div>
                   ))}
                   {retailerSummary.length === 0 && (
-                    <div className="text-xs text-white/70">No visible retailers (or still loading).</div>
+                    <div className="text-xs text-white/60">No visible retailers (or still loading).</div>
                   )}
                 </div>
               </div>
 
               {/* Small diagnostics */}
-              <div className="text-[11px] text-white/60">
-                Loaded: {allStops.length} stops • Trip: {tripStops.length}
+              <div className="text-[11px] text-white/50">
+                Loaded: {allStops.length} stops • Trip: {tripStops.length} • Token: {token ? "OK" : "MISSING"}
               </div>
             </div>
           </aside>
