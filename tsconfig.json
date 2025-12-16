@@ -1,4 +1,4 @@
-{
+﻿{
   "compilerOptions": {
     "target": "ES2021",
     "lib": ["dom", "dom.iterable", "es2021"],
@@ -23,17 +23,16 @@
       }
     ]
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts"
-  ],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": [
     "node_modules",
     "baseline",
     ".next",
     "out",
-    "backups"
+    "backups",
+    "BACKUPS",
+    "backups/**",
+    "BACKUPS/**"
   ]
 }
+

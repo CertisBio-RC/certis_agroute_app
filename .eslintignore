@@ -1,1 +1,7 @@
-baseline/
+﻿# Ignore backup/archived code
+BACKUPS/**
+backups/**
+
+# Build outputs
+.next/**
+out/**
