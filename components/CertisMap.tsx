@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE — GOLD (K10-informed + Build-safe + Kingpin icon scaling fix)
+// 💠 CERTIS AGROUTE — GOLD (K10-informed + Build-safe + Home-aware routing fix)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Corporate HQ filtered ONLY by State (Bailey HQ rule)
@@ -9,6 +9,8 @@
 //   • Applies ~100m offset to Kingpins (lng + 0.0013) like K10
 //   • Kingpin icon size is ZOOM-SCALED (prevents giant stars)
 //   • Trip route: Mapbox Directions (driving) + straight-line fallback
+//   • ✅ FIX: Route honors Home ZIP and works with 1 stop (Home + stop)
+//   • ✅ FIX: Route rebuilds on homeCoords change; aborts in-flight calls (loop guard)
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -157,6 +159,11 @@ export default function CertisMap(props: Props) {
 
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
+  // ✅ Directions loop guards
+  const directionsAbortRef = useRef<AbortController | null>(null);
+  const routeDebounceRef = useRef<number | null>(null);
+  const lastRouteKeyRef = useRef<string>("");
+
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
     return bp || "/certis_agroute_app";
@@ -211,25 +218,24 @@ export default function CertisMap(props: Props) {
             "circle-stroke-color": "#111827",
             "circle-color": [
               "case",
-              // Agronomy-dominant if "Agronomy" appears anywhere AND not Corporate HQ
               [
                 "all",
                 ["==", ["index-of", "corporate", ["downcase", ["get", "Category"]]], -1],
                 [">=", ["index-of", "agronomy", ["downcase", ["get", "Category"]]], 0],
               ],
-              "#22c55e", // green
+              "#22c55e",
               [">=", ["index-of", "grain", ["downcase", ["get", "Category"]]], 0],
-              "#f97316", // orange
+              "#f97316",
               [
                 "any",
                 [">=", ["index-of", "c-store", ["downcase", ["get", "Category"]]], 0],
                 [">=", ["index-of", "service", ["downcase", ["get", "Category"]]], 0],
                 [">=", ["index-of", "energy", ["downcase", ["get", "Category"]]], 0],
               ],
-              "#0ea5e9", // blue
+              "#0ea5e9",
               [">=", ["index-of", "distribution", ["downcase", ["get", "Category"]]], 0],
-              "#a855f7", // purple
-              "#f9fafb", // default light gray
+              "#a855f7",
+              "#f9fafb",
             ],
           },
         });
@@ -274,19 +280,21 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-
-            // ✅ Your updated scaling values can live here
             "icon-size": [
               "interpolate",
               ["linear"],
               ["zoom"],
-              3, 0.015,
-              5, 0.025,
-              7, 0.035,
-              9, 0.045,
-              12, 0.055,
+              3,
+              0.015,
+              5,
+              0.025,
+              7,
+              0.035,
+              9,
+              0.045,
+              12,
+              0.055,
             ],
-
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -301,7 +309,6 @@ export default function CertisMap(props: Props) {
           type: "line",
           source: SRC_ROUTE,
           paint: {
-            // ✅ Better default than dark blue: Certis yellow
             "line-color": "#facc15",
             "line-width": 4,
             "line-opacity": 0.95,
@@ -313,7 +320,7 @@ export default function CertisMap(props: Props) {
       await loadData();
       applyFilters();
       updateHomeMarker();
-      await updateRoute();
+      await updateRoute(true);
 
       // Click / cursor
       const setPointer = () => (map.getCanvas().style.cursor = "pointer");
@@ -332,6 +339,16 @@ export default function CertisMap(props: Props) {
     });
 
     return () => {
+      try {
+        directionsAbortRef.current?.abort();
+      } catch {}
+      directionsAbortRef.current = null;
+
+      if (routeDebounceRef.current) {
+        window.clearTimeout(routeDebounceRef.current);
+        routeDebounceRef.current = null;
+      }
+
       try {
         map.remove();
       } catch {}
@@ -523,6 +540,8 @@ export default function CertisMap(props: Props) {
 
   useEffect(() => {
     updateHomeMarker();
+    // ✅ home change should also rebuild route
+    updateRoute();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeCoords, basePath]);
 
@@ -533,53 +552,83 @@ export default function CertisMap(props: Props) {
     map.flyTo({ center: zoomToStop.coords, zoom: 12.5, essential: true });
   }, [zoomToStop]);
 
+  // ✅ Build route coordinate list: Home (if set) + tripStops
+  function buildRouteCoords(): [number, number][] {
+    const pts: [number, number][] = [];
+    if (homeCoords) pts.push(homeCoords);
+    for (const st of tripStops || []) pts.push(st.coords);
+    return pts;
+  }
+
   // Trip route (Directions + fallback)
-  async function updateRoute() {
+  async function updateRoute(force = false) {
     const map = mapRef.current;
     if (!map) return;
 
     const src = map.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
     if (!src) return;
 
-    if (!tripStops || tripStops.length < 2) {
+    const pts = buildRouteCoords();
+
+    // ✅ Need at least two points to draw a route
+    if (pts.length < 2) {
       src.setData({ type: "FeatureCollection", features: [] } as any);
+      lastRouteKeyRef.current = "";
       return;
     }
 
-    const coords = tripStops.map((st) => st.coords);
-    const coordsStr = coords.map((c) => `${c[0]},${c[1]}`).join(";");
+    // ✅ Key prevents repeated identical requests
+    const key = pts.map((c) => `${c[0].toFixed(6)},${c[1].toFixed(6)}`).join("|");
+    if (!force && key === lastRouteKeyRef.current) return;
+    lastRouteKeyRef.current = key;
 
-    const url =
-      `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsStr}` +
-      `?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(token)}`;
+    // ✅ Debounce rapid add/remove/reorder
+    if (routeDebounceRef.current) window.clearTimeout(routeDebounceRef.current);
+    routeDebounceRef.current = window.setTimeout(async () => {
+      // Abort any in-flight directions request
+      try {
+        directionsAbortRef.current?.abort();
+      } catch {}
+      const controller = new AbortController();
+      directionsAbortRef.current = controller;
 
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`Directions HTTP ${resp.status} ${resp.statusText}`);
-      const json: any = await resp.json();
+      const coordsStr = pts.map((c) => `${c[0]},${c[1]}`).join(";");
 
-      const geom = json?.routes?.[0]?.geometry;
-      if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
+      const url =
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsStr}` +
+        `?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(token)}`;
 
-      src.setData({
-        type: "FeatureCollection",
-        features: [{ type: "Feature", geometry: geom, properties: {} }],
-      } as any);
+      try {
+        const resp = await fetch(url, { signal: controller.signal });
+        if (!resp.ok) throw new Error(`Directions HTTP ${resp.status} ${resp.statusText}`);
+        const json: any = await resp.json();
 
-      console.info("[CertisMap] Directions OK (road-following).");
-    } catch (e) {
-      console.warn("[CertisMap] Directions FAILED — fallback straight line:", e);
-      src.setData({
-        type: "FeatureCollection",
-        features: [
-          {
-            type: "Feature",
-            geometry: { type: "LineString", coordinates: coords },
-            properties: { fallback: true },
-          },
-        ],
-      } as any);
-    }
+        const geom = json?.routes?.[0]?.geometry;
+        if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
+
+        src.setData({
+          type: "FeatureCollection",
+          features: [{ type: "Feature", geometry: geom, properties: {} }],
+        } as any);
+
+        console.info("[CertisMap] Directions OK (road-following).");
+      } catch (e: any) {
+        // Ignore abort noise
+        if (e?.name === "AbortError") return;
+
+        console.warn("[CertisMap] Directions FAILED — fallback straight line:", e);
+        src.setData({
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: { type: "LineString", coordinates: pts },
+              properties: { fallback: true },
+            },
+          ],
+        } as any);
+      }
+    }, 150);
   }
 
   useEffect(() => {
@@ -611,7 +660,10 @@ export default function CertisMap(props: Props) {
     const stop: Stop = {
       id: makeId(kind, coords, p),
       kind,
-      label: kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`,
+      label:
+        kind === "hq"
+          ? `${retailer || "Corporate HQ"} — Corporate HQ`
+          : `${retailer || "Retailer"} — ${name || "Site"}`,
       retailer,
       name,
       address,
@@ -636,10 +688,7 @@ export default function CertisMap(props: Props) {
       </div>
     `;
 
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false })
-      .setLngLat(coords)
-      .setHTML(popupHtml)
-      .addTo(map);
+    new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
 
     setTimeout(() => {
       const btn = document.getElementById("add-stop-btn");
@@ -706,10 +755,7 @@ export default function CertisMap(props: Props) {
       </div>
     `;
 
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false })
-      .setLngLat(coords)
-      .setHTML(popupHtml)
-      .addTo(map);
+    new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
 
     setTimeout(() => {
       const btn = document.getElementById("add-kingpin-btn");
