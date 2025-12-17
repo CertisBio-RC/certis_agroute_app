@@ -61,6 +61,16 @@ export default function Page() {
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
 
+  // ✅ BasePath helper (GitHub Pages safe, but works in dev)
+  const basePath = useMemo(() => {
+    const env = (process.env.NEXT_PUBLIC_BASE_PATH || "").trim();
+    // If env is set, trust it. Otherwise: prod assumes gh-pages path; dev uses "".
+    if (env) return env;
+    return process.env.NODE_ENV === "production" ? "/certis_agroute_app" : "";
+  }, []);
+
+  const asset = (p: string) => `${basePath}${p.startsWith("/") ? p : `/${p}`}`;
+
   const hasAnyFilters =
     selectedStates.length ||
     selectedRetailers.length ||
@@ -182,24 +192,18 @@ export default function Page() {
 
       let s = 0;
 
-      // Exact match is king
       if (v === q) s += 50 * weight;
-
-      // Starts-with match (very strong)
       if (v.startsWith(q)) s += 28 * weight;
 
-      // Whole-word match (strong)
       const words = toWords(v);
       if (words.includes(q)) s += 20 * weight;
 
-      // Substring match (weaker)
       if (v.includes(q)) s += 10 * weight;
 
-      // Token coverage boost (AND-style)
       if (qTokens.length >= 2) {
         const hits = qTokens.filter((t) => t && v.includes(t)).length;
         if (hits > 0) s += hits * 6 * weight;
-        if (hits === qTokens.length) s += 22 * weight; // all tokens present
+        if (hits === qTokens.length) s += 22 * weight;
       }
 
       return s;
@@ -230,7 +234,6 @@ export default function Page() {
 
     const scored = allStops
       .map((st) => {
-        // Primary fields: these should dominate ranking
         const labelScore = scoreField(st.label, 4);
         const retailerScore = scoreField(st.retailer || "", 3);
         const nameScore = scoreField(st.name || "", 3);
@@ -239,17 +242,14 @@ export default function Page() {
         const zipScore = scoreField(st.zip || "", 3);
         const addressScore = scoreField(st.address || "", 1);
 
-        // Kingpin contact fields
         const emailScore = scoreField(st.email || "", 3);
         const officeScore = scorePhone(st.phoneOffice || "", 3);
         const cellScore = scorePhone(st.phoneCell || "", 3);
 
-        // Secondary fields
         const catScore = scoreField(st.category || "", 1);
         const supScore = scoreField(st.suppliers || "", 1);
         const kindScore = scoreKind(st.kind, 1);
 
-        // Light “catch-all” haystack (kept but de-emphasized)
         const hay = `${st.label} ${st.retailer || ""} ${st.name || ""} ${st.address || ""} ${st.city || ""} ${
           st.state || ""
         } ${st.zip || ""} ${st.category || ""} ${st.suppliers || ""} ${st.email || ""} ${
@@ -258,21 +258,22 @@ export default function Page() {
         const hayScore = hay.includes(q) ? 2 : 0;
 
         const primaryTotal =
-          labelScore + retailerScore + nameScore + cityScore + stateScore + zipScore + addressScore + emailScore + officeScore + cellScore;
+          labelScore +
+          retailerScore +
+          nameScore +
+          cityScore +
+          stateScore +
+          zipScore +
+          addressScore +
+          emailScore +
+          officeScore +
+          cellScore;
 
-        // ✅ Gate: if query is meaningful, require a real hit in a primary field
         if (meaningful && primaryTotal <= 0) return null;
 
-        const total =
-          primaryTotal +
-          catScore +
-          supScore +
-          kindScore +
-          hayScore;
-
+        const total = primaryTotal + catScore + supScore + kindScore + hayScore;
         if (total <= 0) return null;
 
-        // Prefer things not already in trip (small nudge)
         const inTrip = tripStops.some((x) => x.id === st.id);
         const tripPenalty = inTrip ? -2 : 0;
 
@@ -286,10 +287,8 @@ export default function Page() {
 
   // ✅ Retailer summary based on TRIP STOPS
   const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
-    const acc: Record<
-      string,
-      { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }
-    > = {};
+    const acc: Record<string, { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }> =
+      {};
 
     for (const st of tripStops) {
       const retailer = (st.retailer || "").trim() || "Unknown Retailer";
@@ -326,16 +325,23 @@ export default function Page() {
     "w-full rounded-lg bg-black/15 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
 
   return (
-    <div className="min-h-screen w-full text-white">
+    <div className="min-h-screen w-full text-white flex flex-col">
       {/* HEADER */}
       <header className="w-full border-b border-white/10">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
+            {/* ✅ Correct logo path + basePath-safe */}
             <img
-              src="/certis-logo.png"
+              src={asset("/icons/certis-logo.png")}
               alt="Certis Biologicals"
               className="h-10 w-auto"
               draggable={false}
+              onError={(e) => {
+                // Fail loudly in console if path is wrong (helps avoid “silent missing logo”)
+                // eslint-disable-next-line no-console
+                console.warn("[Page] Logo failed to load:", asset("/icons/certis-logo.png"));
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
             />
           </div>
 
@@ -354,11 +360,13 @@ export default function Page() {
       </header>
 
       {/* BODY */}
-      <div className="p-3">
-        <div className="grid grid-cols-[380px_1fr] gap-3 h-[calc(100vh-64px)]">
+      <div className="p-3 flex-1 min-h-0">
+        {/* ✅ This grid needs a real height: use flex-1/min-h-0 wrapper */}
+        <div className="grid grid-cols-[380px_1fr] gap-3 h-full min-h-0">
           {/* SIDEBAR */}
-          <aside className={`${panelClass} overflow-hidden flex flex-col`}>
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-6">
+          {/* ✅ Critical: apply `.sidebar` so globals.css controls internal scrolling + height */}
+          <aside className={`${panelClass} sidebar overflow-hidden flex flex-col`}>
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-6 min-h-0">
               {/* HOME ZIP */}
               <div className="space-y-2">
                 <div className={sectionTitleClass}>Home ZIP</div>
@@ -384,9 +392,7 @@ export default function Page() {
 
                 {homeStatus && <div className="text-xs text-white/80">{homeStatus}</div>}
 
-                <div className="text-xs text-white/60">
-                  Home marker (Blue_Home.png). ZIP geocoded via Mapbox.
-                </div>
+                <div className="text-xs text-white/60">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
               </div>
 
               {/* STOP SEARCH */}
@@ -655,8 +661,7 @@ export default function Page() {
                       </div>
                       <div className="text-xs text-white/70 mt-1 space-y-1">
                         <div>
-                          <span className="font-semibold text-white/80">States:</span>{" "}
-                          {row.states.join(", ") || "—"}
+                          <span className="font-semibold text-white/80">States:</span> {row.states.join(", ") || "—"}
                         </div>
                         <div>
                           <span className="font-semibold text-white/80">Categories:</span>{" "}
@@ -669,21 +674,18 @@ export default function Page() {
                       </div>
                     </div>
                   ))}
-                  {tripRetailerSummary.length === 0 && (
-                    <div className="text-xs text-white/60">No trip stops yet.</div>
-                  )}
+                  {tripRetailerSummary.length === 0 && <div className="text-xs text-white/60">No trip stops yet.</div>}
                 </div>
               </div>
 
               {/* Diagnostics */}
-              <div className="text-[11px] text-white/50">
-                Loaded: {allStops.length} stops • Trip: {tripStops.length}
-              </div>
+              <div className="text-[11px] text-white/50">Loaded: {allStops.length} stops • Trip: {tripStops.length}</div>
             </div>
           </aside>
 
           {/* MAP */}
-          <main className={`${panelClass} overflow-hidden`}>
+          {/* ✅ Critical: apply `.map-container` so globals.css locks height */}
+          <main className={`${panelClass} map-container overflow-hidden`}>
             <CertisMap
               selectedStates={selectedStates.map(normUpper)}
               selectedRetailers={selectedRetailers}
