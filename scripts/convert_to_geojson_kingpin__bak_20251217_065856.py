@@ -2,27 +2,6 @@
 import json
 import os
 
-# -----------------------------
-# City-center fallback (3 contacts)
-# -----------------------------
-CITY_CENTER_FALLBACKS = {
-    "Jeremiah Curry": {"lat": 41.2586, "lon": -95.9378, "city": "Omaha", "state": "NE", "zip": "68102"},
-    "Matt Heldt": {"lat": 39.8017, "lon": -89.6436, "city": "Springfield", "state": "IL", "zip": "62701"},
-    "Matthew LIkens": {"lat": 39.7684, "lon": -86.1581, "city": "Indianapolis", "state": "IN", "zip": "46204"},
-}
-
-def _norm(s):
-    return str(s or "").strip()
-
-def _to_float(s):
-    s = _norm(s)
-    if s == "":
-        return None
-    try:
-        return float(s)
-    except Exception:
-        return None
-
 # ──────────────────────────────────────────────────────────────
 # CONFIGURATION
 # ──────────────────────────────────────────────────────────────
@@ -98,4 +77,3 @@ with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
 
 print(f"✔ kingpin.geojson generated → {OUTPUT_FILE}")
 print(f"✔ Total features: {len(features)}")
-
