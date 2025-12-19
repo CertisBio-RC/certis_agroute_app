@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE DATABASE — GOLD (K11 hardening + popup safety + resize debounce)
+// 💠 CERTIS AGROUTE — GOLD (K10-informed + Build-safe + Home-aware routing fix)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Corporate HQ filtered ONLY by State (Bailey HQ rule)
@@ -9,10 +9,10 @@
 //   • Applies ~100m offset to Kingpins (lng + 0.0013) like K10
 //   • Kingpin icon size is ZOOM-SCALED (prevents giant stars)
 //   • Trip route: Mapbox Directions (driving) + straight-line fallback
-//   • ✅ Route honors Home ZIP and works with 1 stop (Home + stop)
-//   • ✅ Route rebuilds on homeCoords change; aborts in-flight calls (loop guard)
-//   • ✅ Map RESIZES on container changes (debounced; prevents “black half-page”)
-//   • ✅ Popup buttons use unique IDs per-stop (prevents collisions)
+//   • ✅ FIX: Route honors Home ZIP and works with 1 stop (Home + stop)
+//   • ✅ FIX: Route rebuilds on homeCoords change; aborts in-flight calls (loop guard)
+//   • ✅ FIX: Map RESIZES on container changes (prevents “black half-page”)
+//   • ✅ UI: Suppliers line stays on ONE LINE in all popups (ellipsis + tooltip)
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -121,20 +121,9 @@ function splitCategories(raw: any) {
     .filter(Boolean);
 }
 
-/** Corporate HQ rule used consistently across: stop kind + layer filters */
 function isCorporateHQ(category: string) {
-  const c = (category || "").toLowerCase();
+  const c = category.toLowerCase();
   return c.includes("corporate") && c.includes("hq");
-}
-
-/** Escape user/data-provided strings for safe HTML injection into popup */
-function escapeHtml(input: string) {
-  return (input ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>) {
@@ -143,6 +132,15 @@ function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>
   const st = s(p.State);
   const zip = s(p.Zip);
   return `${kind}:${retailer}|${name}|${st}|${zip}|${coords[0].toFixed(6)},${coords[1].toFixed(6)}`;
+}
+
+function escapeHtml(v: string) {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export default function CertisMap(props: Props) {
@@ -170,14 +168,11 @@ export default function CertisMap(props: Props) {
 
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
-  // Directions guards
   const directionsAbortRef = useRef<AbortController | null>(null);
   const routeDebounceRef = useRef<number | null>(null);
   const lastRouteKeyRef = useRef<string>("");
 
-  // Resize guard
   const resizeObsRef = useRef<ResizeObserver | null>(null);
-  const resizeDebounceRef = useRef<number | null>(null);
 
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
@@ -189,12 +184,11 @@ export default function CertisMap(props: Props) {
     return env || (MAPBOX_TOKEN || "").trim();
   }, []);
 
-  // Ensure mapbox token is set once
   useEffect(() => {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
   }, [token]);
 
-  // INIT MAP (once) — no volatile deps (Bailey loop guard)
+  // INIT MAP (once)
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -209,23 +203,21 @@ export default function CertisMap(props: Props) {
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
-    // ✅ ResizeObserver (debounced) — prevents route/map churn from layout changes
+    // ✅ ResizeObserver: keeps the map canvas synced with layout changes
     try {
       resizeObsRef.current = new ResizeObserver(() => {
-        if (resizeDebounceRef.current) window.clearTimeout(resizeDebounceRef.current);
-        resizeDebounceRef.current = window.setTimeout(() => {
-          const m = mapRef.current;
-          if (!m) return;
+        const m = mapRef.current;
+        if (!m) return;
+        requestAnimationFrame(() => {
           try {
             m.resize();
           } catch {}
-        }, 80);
+        });
       });
       resizeObsRef.current.observe(containerRef.current);
     } catch {}
 
     map.on("load", async () => {
-      // Sources
       if (!map.getSource(SRC_RETAILERS)) {
         map.addSource(SRC_RETAILERS, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
@@ -236,18 +228,11 @@ export default function CertisMap(props: Props) {
         map.addSource(SRC_ROUTE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
 
-      // Retailers (non-HQ)
       if (!map.getLayer(LYR_RETAILERS)) {
         map.addLayer({
           id: LYR_RETAILERS,
           type: "circle",
           source: SRC_RETAILERS,
-          // ✅ Exclude Corporate HQ consistently: must contain "corporate" AND "hq"
-          filter: [
-            "all",
-            ["==", ["index-of", "corporate", ["downcase", ["get", "Category"]]], -1],
-            ["==", ["index-of", "hq", ["downcase", ["get", "Category"]]], -1],
-          ],
           paint: {
             "circle-radius": 4,
             "circle-stroke-width": 1,
@@ -256,8 +241,8 @@ export default function CertisMap(props: Props) {
               "case",
               [
                 "all",
-                [">=", ["index-of", "agronomy", ["downcase", ["get", "Category"]]], 0],
                 ["==", ["index-of", "corporate", ["downcase", ["get", "Category"]]], -1],
+                [">=", ["index-of", "agronomy", ["downcase", ["get", "Category"]]], 0],
               ],
               "#22c55e",
               [">=", ["index-of", "grain", ["downcase", ["get", "Category"]]], 0],
@@ -277,17 +262,12 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Corporate HQ (same source, separate filter; Bailey HQ rule = State only)
       if (!map.getLayer(LYR_HQ)) {
         map.addLayer({
           id: LYR_HQ,
           type: "circle",
           source: SRC_RETAILERS,
-          filter: [
-            "all",
-            [">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0],
-            [">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0],
-          ],
+          filter: [">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0],
           paint: {
             "circle-radius": 7,
             "circle-color": "#ff0000",
@@ -320,7 +300,21 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.015, 5, 0.025, 7, 0.035, 9, 0.045, 12, 0.055],
+            "icon-size": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              3,
+              0.015,
+              5,
+              0.025,
+              7,
+              0.035,
+              9,
+              0.045,
+              12,
+              0.055,
+            ],
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -358,7 +352,7 @@ export default function CertisMap(props: Props) {
       map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
 
-      // Final resize after load
+      // ✅ one more resize after everything is mounted
       requestAnimationFrame(() => {
         try {
           map.resize();
@@ -379,11 +373,6 @@ export default function CertisMap(props: Props) {
         routeDebounceRef.current = null;
       }
 
-      if (resizeDebounceRef.current) {
-        window.clearTimeout(resizeDebounceRef.current);
-        resizeDebounceRef.current = null;
-      }
-
       try {
         resizeObsRef.current?.disconnect();
       } catch {}
@@ -395,7 +384,7 @@ export default function CertisMap(props: Props) {
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [basePath, token]);
 
   async function loadData() {
     const map = mapRef.current;
@@ -405,8 +394,6 @@ export default function CertisMap(props: Props) {
     const kingpinsUrl = `${basePath}/data/kingpin.geojson`;
 
     const [r1, r2] = await Promise.all([fetch(retailersUrl), fetch(kingpinsUrl)]);
-    if (!r1.ok) throw new Error(`Retailers fetch failed: ${r1.status}`);
-    if (!r2.ok) throw new Error(`Kingpins fetch failed: ${r2.status}`);
 
     const retailersData = (await r1.json()) as FeatureCollection;
     const kingpinData = (await r2.json()) as FeatureCollection;
@@ -414,8 +401,11 @@ export default function CertisMap(props: Props) {
     const offsetKingpins: FeatureCollection = {
       ...kingpinData,
       features: (kingpinData.features ?? []).map((f: any) => {
-        const [lng, lat] = (f.geometry?.coordinates ?? [0, 0]) as [number, number];
-        return { ...f, geometry: { ...f.geometry, coordinates: [lng + KINGPIN_OFFSET_LNG, lat] } };
+        const [lng, lat] = f.geometry?.coordinates ?? [0, 0];
+        return {
+          ...f,
+          geometry: { ...f.geometry, coordinates: [lng + KINGPIN_OFFSET_LNG, lat] },
+        };
       }),
     };
 
@@ -427,7 +417,6 @@ export default function CertisMap(props: Props) {
 
     const allStops: Stop[] = [];
 
-    // Retailers + HQ stops
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
       const coords = f.geometry?.coordinates;
@@ -438,7 +427,6 @@ export default function CertisMap(props: Props) {
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
-
       const label =
         kind === "hq"
           ? `${retailer || "Corporate HQ"} — Corporate HQ`
@@ -460,7 +448,6 @@ export default function CertisMap(props: Props) {
       });
     }
 
-    // Kingpins
     for (const f of offsetKingpins.features ?? []) {
       const p = f.properties ?? {};
       const coords = f.geometry?.coordinates;
@@ -491,17 +478,13 @@ export default function CertisMap(props: Props) {
 
     onAllStopsLoaded(allStops);
 
-    // Sidebar option lists
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-
     onRetailersLoaded(
       uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
     );
-
     onCategoriesLoaded(
       uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category)))
     );
-
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
 
@@ -510,28 +493,17 @@ export default function CertisMap(props: Props) {
     const retailersData = retailersRef.current;
     if (!map || !retailersData) return;
 
-    // Retailers = State ∩ Retailer ∩ Category ∩ Supplier (and NOT Corporate HQ)
     const retailerFilter: any[] = ["all"];
-
-    // Exclude Corporate HQ using the SAME logic (corporate AND hq)
     retailerFilter.push(["==", ["index-of", "corporate", ["downcase", ["get", "Category"]]], -1]);
-    retailerFilter.push(["==", ["index-of", "hq", ["downcase", ["get", "Category"]]], -1]);
 
-    if (selectedStates.length) {
+    if (selectedStates.length)
       retailerFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
-    }
-    if (selectedRetailers.length) {
-      retailerFilter.push(["in", ["get", "Retailer"], ["literal", selectedRetailers]]);
-    }
+    if (selectedRetailers.length) retailerFilter.push(["in", ["get", "Retailer"], ["literal", selectedRetailers]]);
 
     if (selectedCategories.length) {
       retailerFilter.push([
         "any",
-        ...selectedCategories.map((c) => [
-          ">=",
-          ["index-of", c.toLowerCase(), ["downcase", ["get", "Category"]]],
-          0,
-        ]),
+        ...selectedCategories.map((c) => [">=", ["index-of", c.toLowerCase(), ["downcase", ["get", "Category"]]], 0]),
       ]);
     }
 
@@ -546,14 +518,9 @@ export default function CertisMap(props: Props) {
       ]);
     }
 
-    // Corporate HQ = State only (Bailey HQ rule)
     const hqFilter: any[] = ["all"];
     hqFilter.push([">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0]);
-    hqFilter.push([">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0]);
-
-    if (selectedStates.length) {
-      hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
-    }
+    if (selectedStates.length) hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
 
     map.setFilter(LYR_RETAILERS, retailerFilter as any);
     map.setFilter(LYR_HQ, hqFilter as any);
@@ -578,12 +545,14 @@ export default function CertisMap(props: Props) {
 
     if (!homeMarkerRef.current) {
       const el = document.createElement("div");
-      el.className = "home-marker"; // keeps your globals.css .home-marker rules
+      el.style.width = "28px";
+      el.style.height = "28px";
       el.style.backgroundImage = `url(${iconUrl})`;
+      el.style.backgroundSize = "contain";
+      el.style.backgroundRepeat = "no-repeat";
+      el.style.backgroundPosition = "center";
 
-      homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-        .setLngLat(homeCoords)
-        .addTo(map);
+      homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" }).setLngLat(homeCoords).addTo(map);
     } else {
       homeMarkerRef.current.setLngLat(homeCoords);
     }
@@ -593,7 +562,7 @@ export default function CertisMap(props: Props) {
     updateHomeMarker();
     updateRoute();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [homeCoords]);
+  }, [homeCoords, basePath]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -656,7 +625,6 @@ export default function CertisMap(props: Props) {
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
-        // Fallback: straight-line polyline through the stops
         src.setData({
           type: "FeatureCollection",
           features: [
@@ -712,29 +680,32 @@ export default function CertisMap(props: Props) {
       coords,
     };
 
-    const btnId = `add-stop-${stop.id.replaceAll(/[^a-zA-Z0-9_-]/g, "_")}`;
+    const suppliersText = suppliers || "Not listed";
+    const suppliersTitle = escapeHtml(suppliersText);
 
     const popupHtml = `
-      <div>
-        <h3>${escapeHtml(retailer || "Unknown Retailer")}</h3>
-        ${name ? `<p><em>${escapeHtml(name)}</em></p>` : ""}
-        <p>${escapeHtml(address)}<br/>${escapeHtml(city)}${city ? ", " : ""}${escapeHtml(state)} ${escapeHtml(zip)}</p>
-        ${category ? `<p><strong>Category:</strong> ${escapeHtml(category)}</p>` : ""}
-        <p><strong>Suppliers:</strong><br/>${escapeHtml(suppliers || "Not listed")}</p>
-        <button id="${btnId}" style="padding:7px 10px;border:none;background:#facc15;border-radius:6px;font-weight:800;font-size:13px;color:#111827;cursor:pointer;width:100%;">
+      <div style="font-size:13px;min-width:300px;max-width:320px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#facc15;">${escapeHtml(retailer || "Unknown Retailer")}</div>
+        ${name ? `<div style="font-style:italic;margin-bottom:4px;">${escapeHtml(name)}</div>` : ""}
+        <div style="margin-bottom:4px;">${escapeHtml(address)}<br/>${escapeHtml(city)}, ${escapeHtml(state)} ${escapeHtml(zip)}</div>
+        ${category ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${escapeHtml(category)}</div>` : ""}
+        <!-- ✅ Suppliers stays ONE LINE -->
+        <div style="margin-bottom:8px;display:flex;gap:6px;align-items:baseline;">
+          <span style="font-weight:700;">Suppliers:</span>
+          <span title="${suppliersTitle}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;display:inline-block;">${escapeHtml(suppliersText)}</span>
+        </div>
+        <button id="add-stop-btn" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
           ➕ Add to Trip
         </button>
       </div>
     `;
 
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
+    new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
 
-    // Attach handler safely to THIS popup only
-    requestAnimationFrame(() => {
-      const el = popup.getElement();
-      const btn = el?.querySelector<HTMLButtonElement>(`#${CSS.escape(btnId)}`);
+    setTimeout(() => {
+      const btn = document.getElementById("add-stop-btn");
       if (btn) btn.onclick = () => onAddStop(stop);
-    });
+    }, 0);
   }
 
   function handleKingpinClick(e: mapboxgl.MapMouseEvent) {
@@ -780,32 +751,36 @@ export default function CertisMap(props: Props) {
       coords,
     };
 
-    const btnId = `add-kingpin-${stop.id.replaceAll(/[^a-zA-Z0-9_-]/g, "_")}`;
+    const suppliersText = suppliers || "Not listed";
+    const suppliersTitle = escapeHtml(suppliersText);
 
     const popupHtml = `
-      <div>
-        <h3>${escapeHtml(retailer || "Unknown Retailer")}</h3>
-        <p>${escapeHtml(address)}<br/>${escapeHtml(city)}${city ? ", " : ""}${escapeHtml(state)} ${escapeHtml(zip)}</p>
-        ${category ? `<p><strong>Category:</strong> ${escapeHtml(category)}</p>` : ""}
-        <p><strong>Suppliers:</strong><br/>${escapeHtml(suppliers)}</p>
-        ${contactName ? `<p><strong>${escapeHtml(contactName)}</strong></p>` : ""}
-        ${contactTitle ? `<p>${escapeHtml(contactTitle)}</p>` : ""}
-        <p>Office: ${escapeHtml(office)} • Cell: ${escapeHtml(cell)}</p>
-        <p>Email: ${escapeHtml(email)}</p>
-        <button id="${btnId}" style="padding:7px 10px;border:none;background:#facc15;border-radius:6px;font-weight:800;font-size:13px;color:#111827;cursor:pointer;width:100%;">
+      <div style="font-size:13px;min-width:300px;max-width:320px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">${escapeHtml(retailer || "Unknown Retailer")}</div>
+        <div style="margin-bottom:4px;">${escapeHtml(address)}<br/>${escapeHtml(city)}, ${escapeHtml(state)} ${escapeHtml(zip)}</div>
+        ${category ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${escapeHtml(category)}</div>` : ""}
+        <!-- ✅ Suppliers stays ONE LINE -->
+        <div style="margin-bottom:8px;display:flex;gap:6px;align-items:baseline;">
+          <span style="font-weight:700;">Suppliers:</span>
+          <span title="${suppliersTitle}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;display:inline-block;">${escapeHtml(suppliersText)}</span>
+        </div>
+        ${contactName ? `<div style="font-weight:700;margin-bottom:2px;">${escapeHtml(contactName)}</div>` : ""}
+        ${contactTitle ? `<div style="margin-bottom:4px;">${escapeHtml(contactTitle)}</div>` : ""}
+        <div style="margin-bottom:4px;">Office: ${escapeHtml(office)} • Cell: ${escapeHtml(cell)}</div>
+        <div style="margin-bottom:8px;">Email: ${escapeHtml(email)}</div>
+        <button id="add-kingpin-btn" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
           ➕ Add to Trip
         </button>
       </div>
     `;
 
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
+    new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
 
-    requestAnimationFrame(() => {
-      const el = popup.getElement();
-      const btn = el?.querySelector<HTMLButtonElement>(`#${CSS.escape(btnId)}`);
+    setTimeout(() => {
+      const btn = document.getElementById("add-kingpin-btn");
       if (btn) btn.onclick = () => onAddStop(stop);
-    });
+    }, 0);
   }
 
-  return <div ref={containerRef} className="w-full h-full min-h-0 bg-transparent" />;
+  return <div ref={containerRef} className="w-full h-full min-h-0" />;
 }
