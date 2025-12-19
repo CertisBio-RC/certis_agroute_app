@@ -60,16 +60,14 @@ export default function Page() {
   const [stopSearch, setStopSearch] = useState("");
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
-
-  // ✅ BasePath helper (GitHub Pages safe, but works in dev)
   const basePath = useMemo(() => {
-    const env = (process.env.NEXT_PUBLIC_BASE_PATH || "").trim();
-    // If env is set, trust it. Otherwise: prod assumes gh-pages path; dev uses "".
-    if (env) return env;
-    return process.env.NODE_ENV === "production" ? "/certis_agroute_app" : "";
+    const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
+    return bp || "/certis_agroute_app";
   }, []);
 
-  const asset = (p: string) => `${basePath}${p.startsWith("/") ? p : `/${p}`}`;
+  const logoSrcPrimary = `${basePath}/icons/certis-logo.png`;
+  // If someone ever deletes/renames the lowercase file, this is a fallback you DO have:
+  const logoSrcFallback = `${basePath}/icons/Certis%20logo.png`;
 
   const hasAnyFilters =
     selectedStates.length ||
@@ -173,7 +171,7 @@ export default function Page() {
     return q ? suppliers.filter((x) => includesLoose(x, q)) : suppliers;
   }, [suppliers, supplierSearch]);
 
-  // ✅ Stop search results (ranked + token-aware using real Stop fields from CertisMap.tsx)
+  // Stop search results (ranked)
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
     if (!qRaw) return allStops.slice(0, 30);
@@ -191,13 +189,11 @@ export default function Page() {
       if (!v) return 0;
 
       let s = 0;
-
       if (v === q) s += 50 * weight;
       if (v.startsWith(q)) s += 28 * weight;
 
       const words = toWords(v);
       if (words.includes(q)) s += 20 * weight;
-
       if (v.includes(q)) s += 10 * weight;
 
       if (qTokens.length >= 2) {
@@ -221,15 +217,6 @@ export default function Page() {
       return 0;
     };
 
-    const scoreKind = (kind: string | undefined, weight: number) => {
-      const k = (kind || "").toLowerCase();
-      if (!k) return 0;
-      if (k === q) return 16 * weight;
-      if (qTokens.length > 0 && qTokens.some((t) => t && k === t)) return 12 * weight;
-      if (k.includes(q)) return 6 * weight;
-      return 0;
-    };
-
     const meaningful = q.length >= 3;
 
     const scored = allStops
@@ -246,17 +233,6 @@ export default function Page() {
         const officeScore = scorePhone(st.phoneOffice || "", 3);
         const cellScore = scorePhone(st.phoneCell || "", 3);
 
-        const catScore = scoreField(st.category || "", 1);
-        const supScore = scoreField(st.suppliers || "", 1);
-        const kindScore = scoreKind(st.kind, 1);
-
-        const hay = `${st.label} ${st.retailer || ""} ${st.name || ""} ${st.address || ""} ${st.city || ""} ${
-          st.state || ""
-        } ${st.zip || ""} ${st.category || ""} ${st.suppliers || ""} ${st.email || ""} ${
-          st.phoneOffice || ""
-        } ${st.phoneCell || ""} ${st.kind || ""}`.toLowerCase();
-        const hayScore = hay.includes(q) ? 2 : 0;
-
         const primaryTotal =
           labelScore +
           retailerScore +
@@ -271,7 +247,10 @@ export default function Page() {
 
         if (meaningful && primaryTotal <= 0) return null;
 
-        const total = primaryTotal + catScore + supScore + kindScore + hayScore;
+        const catScore = scoreField(st.category || "", 1);
+        const supScore = scoreField(st.suppliers || "", 1);
+
+        const total = primaryTotal + catScore + supScore;
         if (total <= 0) return null;
 
         const inTrip = tripStops.some((x) => x.id === st.id);
@@ -285,10 +264,12 @@ export default function Page() {
     return scored.map((x) => x.st).slice(0, 50);
   }, [allStops, stopSearch, tripStops]);
 
-  // ✅ Retailer summary based on TRIP STOPS
+  // Retailer summary (Trip Stops)
   const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
-    const acc: Record<string, { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }> =
-      {};
+    const acc: Record<
+      string,
+      { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }
+    > = {};
 
     for (const st of tripStops) {
       const retailer = (st.retailer || "").trim() || "Unknown Retailer";
@@ -313,7 +294,7 @@ export default function Page() {
       .sort((a, b) => b.count - a.count);
   }, [tripStops]);
 
-  // Styling helpers (NO giant black shells)
+  // Styling helpers (tiles)
   const panelClass = "rounded-xl border border-white/10 bg-transparent";
   const innerTileClass = "rounded-lg border border-white/10 bg-black/20 p-2";
   const sidebarListClass =
@@ -325,23 +306,20 @@ export default function Page() {
     "w-full rounded-lg bg-black/15 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
 
   return (
-    <div className="min-h-screen w-full text-white flex flex-col">
+    <div className="h-screen w-full text-white flex flex-col">
       {/* HEADER */}
-      <header className="w-full border-b border-white/10">
+      <header className="w-full border-b border-white/10 flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            {/* ✅ Correct logo path + basePath-safe */}
             <img
-              src={asset("/icons/certis-logo.png")}
+              src={logoSrcPrimary}
+              onError={(e) => {
+                const img = e.currentTarget as HTMLImageElement;
+                if (img.src.includes("certis-logo.png")) img.src = logoSrcFallback;
+              }}
               alt="Certis Biologicals"
               className="h-10 w-auto"
               draggable={false}
-              onError={(e) => {
-                // Fail loudly in console if path is wrong (helps avoid “silent missing logo”)
-                // eslint-disable-next-line no-console
-                console.warn("[Page] Logo failed to load:", asset("/icons/certis-logo.png"));
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
             />
           </div>
 
@@ -359,13 +337,11 @@ export default function Page() {
         </div>
       </header>
 
-      {/* BODY */}
-      <div className="p-3 flex-1 min-h-0">
-        {/* ✅ This grid needs a real height: use flex-1/min-h-0 wrapper */}
-        <div className="grid grid-cols-[380px_1fr] gap-3 h-full min-h-0">
-          {/* SIDEBAR */}
-          {/* ✅ Critical: apply `.sidebar` so globals.css controls internal scrolling + height */}
-          <aside className={`${panelClass} sidebar overflow-hidden flex flex-col`}>
+      {/* BODY — true flex fill, no calc() assumptions */}
+      <div className="flex-1 min-h-0 p-3">
+        <div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[380px_1fr] gap-3">
+          {/* SIDEBAR (hidden on mobile) */}
+          <aside className={`${panelClass} sidebar hidden md:flex overflow-hidden flex-col min-h-0`}>
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-6 min-h-0">
               {/* HOME ZIP */}
               <div className="space-y-2">
@@ -678,29 +654,34 @@ export default function Page() {
                 </div>
               </div>
 
-              {/* Diagnostics */}
               <div className="text-[11px] text-white/50">Loaded: {allStops.length} stops • Trip: {tripStops.length}</div>
             </div>
           </aside>
 
-          {/* MAP */}
-          {/* ✅ Critical: apply `.map-container` so globals.css locks height */}
-          <main className={`${panelClass} map-container overflow-hidden`}>
-            <CertisMap
-              selectedStates={selectedStates.map(normUpper)}
-              selectedRetailers={selectedRetailers}
-              selectedCategories={selectedCategories}
-              selectedSuppliers={selectedSuppliers}
-              homeCoords={homeCoords}
-              tripStops={tripStops}
-              zoomToStop={zoomToStop}
-              onStatesLoaded={(s0) => setStates(uniqSorted(s0.map(normUpper)))}
-              onRetailersLoaded={(r0) => setRetailers(uniqSorted(r0))}
-              onCategoriesLoaded={(c0) => setCategories(uniqSorted(c0))}
-              onSuppliersLoaded={(s0) => setSuppliers(uniqSorted(s0))}
-              onAllStopsLoaded={(stops) => setAllStops(stops)}
-              onAddStop={addStopToTrip}
-            />
+          {/* MAP (full height, works on mobile) */}
+          <main className={`${panelClass} map-container overflow-hidden min-h-0`}>
+            {/* Mobile hint bar */}
+            <div className="md:hidden px-3 py-2 border-b border-white/10 text-xs text-white/70">
+              Mobile mode: filters/sidebar hidden. Use map popups to add stops. (Desktop for full workflow.)
+            </div>
+
+            <div className="w-full h-full min-h-0">
+              <CertisMap
+                selectedStates={selectedStates.map(normUpper)}
+                selectedRetailers={selectedRetailers}
+                selectedCategories={selectedCategories}
+                selectedSuppliers={selectedSuppliers}
+                homeCoords={homeCoords}
+                tripStops={tripStops}
+                zoomToStop={zoomToStop}
+                onStatesLoaded={(s0) => setStates(uniqSorted(s0.map(normUpper)))}
+                onRetailersLoaded={(r0) => setRetailers(uniqSorted(r0))}
+                onCategoriesLoaded={(c0) => setCategories(uniqSorted(c0))}
+                onSuppliersLoaded={(s0) => setSuppliers(uniqSorted(s0))}
+                onAllStopsLoaded={(stops) => setAllStops(stops)}
+                onAddStop={addStopToTrip}
+              />
+            </div>
           </main>
         </div>
       </div>
