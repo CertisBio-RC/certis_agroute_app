@@ -13,6 +13,7 @@
 //   • ✅ FIX: Route rebuilds on homeCoords change; aborts in-flight calls (loop guard)
 //   • ✅ FIX: Map RESIZES on container changes (prevents “black half-page”)
 //   • ✅ UI: Suppliers line stays on ONE LINE in all popups (ellipsis + tooltip)
+//   • ✅ Debounce: map.resize() coalesced (prevents resize thrash)
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -174,6 +175,10 @@ export default function CertisMap(props: Props) {
 
   const resizeObsRef = useRef<ResizeObserver | null>(null);
 
+  // ✅ NEW: debounce + RAF for resize (prevents resize thrash)
+  const resizeDebounceRef = useRef<number | null>(null);
+  const resizeRafRef = useRef<number | null>(null);
+
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
     return bp || "/certis_agroute_app";
@@ -204,16 +209,28 @@ export default function CertisMap(props: Props) {
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
     // ✅ ResizeObserver: keeps the map canvas synced with layout changes
+    // ✅ Debounced to avoid rapid resize storms
     try {
       resizeObsRef.current = new ResizeObserver(() => {
         const m = mapRef.current;
         if (!m) return;
-        requestAnimationFrame(() => {
-          try {
-            m.resize();
-          } catch {}
-        });
+
+        // coalesce bursts
+        if (resizeDebounceRef.current) window.clearTimeout(resizeDebounceRef.current);
+
+        resizeDebounceRef.current = window.setTimeout(() => {
+          const mm = mapRef.current;
+          if (!mm) return;
+
+          if (resizeRafRef.current) cancelAnimationFrame(resizeRafRef.current);
+          resizeRafRef.current = requestAnimationFrame(() => {
+            try {
+              mm.resize();
+            } catch {}
+          });
+        }, 60);
       });
+
       resizeObsRef.current.observe(containerRef.current);
     } catch {}
 
@@ -300,21 +317,7 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            "icon-size": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              3,
-              0.015,
-              5,
-              0.025,
-              7,
-              0.035,
-              9,
-              0.045,
-              12,
-              0.055,
-            ],
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.015, 5, 0.025, 7, 0.035, 9, 0.045, 12, 0.055],
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -373,6 +376,16 @@ export default function CertisMap(props: Props) {
         routeDebounceRef.current = null;
       }
 
+      // ✅ cleanup resize debounce + raf
+      if (resizeDebounceRef.current) {
+        window.clearTimeout(resizeDebounceRef.current);
+        resizeDebounceRef.current = null;
+      }
+      if (resizeRafRef.current) {
+        cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
+
       try {
         resizeObsRef.current?.disconnect();
       } catch {}
@@ -427,10 +440,7 @@ export default function CertisMap(props: Props) {
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
-      const label =
-        kind === "hq"
-          ? `${retailer || "Corporate HQ"} — Corporate HQ`
-          : `${retailer || "Retailer"} — ${name || "Site"}`;
+      const label = kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -479,12 +489,8 @@ export default function CertisMap(props: Props) {
     onAllStopsLoaded(allStops);
 
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-    onRetailersLoaded(
-      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
-    );
-    onCategoriesLoaded(
-      uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category)))
-    );
+    onRetailersLoaded(uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean)));
+    onCategoriesLoaded(uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category))));
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
 
@@ -496,8 +502,7 @@ export default function CertisMap(props: Props) {
     const retailerFilter: any[] = ["all"];
     retailerFilter.push(["==", ["index-of", "corporate", ["downcase", ["get", "Category"]]], -1]);
 
-    if (selectedStates.length)
-      retailerFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
+    if (selectedStates.length) retailerFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
     if (selectedRetailers.length) retailerFilter.push(["in", ["get", "Retailer"], ["literal", selectedRetailers]]);
 
     if (selectedCategories.length) {
@@ -510,11 +515,7 @@ export default function CertisMap(props: Props) {
     if (selectedSuppliers.length) {
       retailerFilter.push([
         "any",
-        ...selectedSuppliers.map((sp) => [
-          ">=",
-          ["index-of", sp.toLowerCase(), ["downcase", ["get", "Suppliers"]]],
-          0,
-        ]),
+        ...selectedSuppliers.map((sp) => [">=", ["index-of", sp.toLowerCase(), ["downcase", ["get", "Suppliers"]]], 0]),
       ]);
     }
 

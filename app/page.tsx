@@ -171,14 +171,10 @@ export default function Page() {
   // Stop search results
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
-
-    // Default: show something immediately
     if (!qRaw) return allStops.slice(0, 30);
 
     const qLower = qRaw.toLowerCase();
 
-    // ✅ Fix: short follow-up queries (<3 chars) should still return responsive results
-    // (The old scoring often returned 0 for short queries, which feels like the search "breaks".)
     if (qRaw.length < 3) {
       const quick = allStops.filter((st) => {
         const fields = [
@@ -330,15 +326,15 @@ export default function Page() {
     "w-full rounded-xl bg-black/20 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
 
   return (
-    <div className="min-h-screen w-full text-white">
-      {/* HEADER */}
-      <header className="w-full border-b border-white/10 bg-black/10 backdrop-blur-md">
+    <div className="min-h-screen w-full text-white flex flex-col">
+      {/* HEADER (flex-shrink-0 keeps height stable) */}
+      <header className="w-full border-b border-white/10 bg-black/10 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img
               src={`${basePath}/icons/certis-logo.png`}
               alt="Certis Biologicals"
-              className="h-12 sm:h-14 w-auto drop-shadow-[0_8px_16px_rgba(0,0,0,0.55)]"
+              className="h-14 sm:h-16 w-auto drop-shadow-[0_8px_16px_rgba(0,0,0,0.55)]"
               draggable={false}
             />
           </div>
@@ -357,12 +353,11 @@ export default function Page() {
         </div>
       </header>
 
-      {/* BODY */}
-      <div className="p-3">
-        {/* Desktop: 2-col grid. Mobile: stacked panels */}
-        <div className="flex flex-col md:grid md:grid-cols-[380px_1fr] gap-3 md:h-[calc(100vh-64px)]">
-          {/* SIDEBAR */}
-          <aside className={`${panelClass} sidebar md:h-full max-h-[48vh] md:max-h-none`}>
+      {/* BODY (flex-1 + min-h-0 is the key to killing the “half black” space) */}
+      <div className="flex-1 min-h-0 p-3">
+        <div className="h-full min-h-0 flex flex-col md:grid md:grid-cols-[380px_1fr] gap-3">
+          {/* SIDEBAR (do NOT hide on mobile; stacked layout) */}
+          <aside className={`${panelClass} sidebar min-h-0 md:h-full`}>
             <div className="overflow-y-auto px-4 py-3 space-y-6">
               {/* HOME ZIP */}
               <div className="space-y-2">
@@ -387,7 +382,6 @@ export default function Page() {
                   </button>
                 </div>
 
-                {/* ✅ Yellow status message */}
                 {homeStatus && <div className="text-xs text-yellow-400 font-semibold">{homeStatus}</div>}
 
                 <div className="text-xs text-white/60">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
@@ -413,7 +407,6 @@ export default function Page() {
                       <div key={st.id} className={innerTileClass}>
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            {/* ✅ Tile title yellow */}
                             <div className={tileTitleClass}>{st.label}</div>
                             <div className="text-xs text-white/70">
                               {(st.city || "") + (st.city ? ", " : "")}
@@ -598,7 +591,6 @@ export default function Page() {
                     <div key={st.id} className={innerTileClass}>
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          {/* ✅ Tile title yellow */}
                           <div className={`${tileTitleClass} !text-sm`}>
                             {idx + 1}. {st.label}
                           </div>
@@ -656,7 +648,6 @@ export default function Page() {
                   {tripRetailerSummary.slice(0, 60).map((row) => (
                     <div key={row.retailer} className={innerTileClass}>
                       <div className="flex items-center justify-between gap-2">
-                        {/* ✅ Tile title yellow */}
                         <div className={tileTitleClass}>{row.retailer}</div>
                         <div className="text-xs text-white/70 whitespace-nowrap">{row.count} stops</div>
                       </div>
@@ -687,7 +678,7 @@ export default function Page() {
           </aside>
 
           {/* MAP */}
-          <main className={`${panelClass} overflow-hidden map-container md:h-full min-h-[48vh] md:min-h-0`}>
+          <main className={`${panelClass} overflow-hidden map-container min-h-[50vh] md:min-h-0 md:h-full`}>
             <CertisMap
               selectedStates={selectedStates.map(normUpper)}
               selectedRetailers={selectedRetailers}
