@@ -19,17 +19,37 @@ body {
   height: 100%;
 }
 
+/* ====================================================================== */
+/* THEME TOKENS */
+/* ====================================================================== */
+
+:root {
+  /* Brand / highlight */
+  --accent-yellow: #facc15;
+
+  /* Tile styling */
+  --tile-bg: rgba(255, 255, 255, 0.045);     /* slightly lighter than before */
+  --tile-bg-hover: rgba(255, 255, 255, 0.065);
+  --tile-border: rgba(250, 204, 21, 0.22);   /* subtle yellow-tinted border */
+  --tile-border-strong: rgba(250, 204, 21, 0.32);
+  --tile-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
+  --tile-shadow-hover: 0 12px 30px rgba(0, 0, 0, 0.46);
+
+  /* Body text */
+  --text-main: #eaeef6;
+}
+
 /* ✅ Midnight-blue / not-flat background (no image required)
-   - More color than the prior version
+   - Slightly LIGHTER than prior version per your feedback
    - Still dark-mode friendly
 */
 body {
-  color: #eaeef6;
+  color: var(--text-main);
   background:
-    radial-gradient(1200px 700px at 12% 0%, rgba(12, 46, 94, 0.55), rgba(0, 0, 0, 0) 62%),
-    radial-gradient(900px 650px at 88% 8%, rgba(250, 204, 21, 0.16), rgba(0, 0, 0, 0) 58%),
-    radial-gradient(1000px 800px at 60% 110%, rgba(22, 78, 150, 0.22), rgba(0, 0, 0, 0) 55%),
-    linear-gradient(180deg, #071a2f 0%, #050d18 45%, #04070c 100%);
+    radial-gradient(1200px 700px at 12% 0%, rgba(12, 46, 94, 0.62), rgba(0, 0, 0, 0) 62%),
+    radial-gradient(900px 650px at 88% 8%, rgba(250, 204, 21, 0.18), rgba(0, 0, 0, 0) 58%),
+    radial-gradient(1000px 800px at 60% 110%, rgba(22, 78, 150, 0.26), rgba(0, 0, 0, 0) 55%),
+    linear-gradient(180deg, #081e36 0%, #061222 45%, #050b12 100%);
 }
 
 /* Sidebar internal scroll without affecting map height */
@@ -77,6 +97,65 @@ body {
   @apply text-sm flex justify-between items-center px-4 py-2;
   background: rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(6px);
+}
+
+/* ====================================================================== */
+/* ✅ #1 — SIDEBAR TILE "POP" + HEADING COLOR */
+/* ====================================================================== */
+
+/* Headings in the sidebar should be yellow (Home ZIP, Find a Stop, Filters, Trip Builder...) */
+.sidebar h1,
+.sidebar h2,
+.sidebar h3,
+.sidebar .tile-title,
+.sidebar .section-title,
+.sidebar .panel-title {
+  color: var(--accent-yellow);
+}
+
+/* Give tiles a lighter bg + border + shadow.
+   We target common "tile-like" wrappers without breaking layout. */
+.sidebar .tile,
+.sidebar .panel,
+.sidebar .card,
+.sidebar .tile-card,
+.sidebar .filter-tile,
+.sidebar .trip-tile,
+.sidebar .rounded-xl,
+.sidebar .rounded-2xl {
+  background: var(--tile-bg);
+  border: 1px solid var(--tile-border);
+  box-shadow: var(--tile-shadow);
+  backdrop-filter: blur(6px);
+}
+
+/* Hover/active pop (subtle) */
+.sidebar .tile:hover,
+.sidebar .panel:hover,
+.sidebar .card:hover,
+.sidebar .tile-card:hover,
+.sidebar .filter-tile:hover,
+.sidebar .trip-tile:hover {
+  background: var(--tile-bg-hover);
+  border-color: var(--tile-border-strong);
+  box-shadow: var(--tile-shadow-hover);
+}
+
+/* If a tile has internal padding, keep it feeling roomy */
+.sidebar .tile,
+.sidebar .panel,
+.sidebar .card,
+.sidebar .tile-card,
+.sidebar .filter-tile,
+.sidebar .trip-tile {
+  border-radius: 14px;
+}
+
+/* Make "Clear" / small side actions readable but not competing with headings */
+.sidebar .clear,
+.sidebar button.clear,
+.sidebar .muted {
+  color: rgba(234, 238, 246, 0.75);
 }
 
 /* ====================================================================== */
