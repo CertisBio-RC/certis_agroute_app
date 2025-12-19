@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import CertisMap, { Stop, RetailerSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
@@ -60,14 +61,11 @@ export default function Page() {
   const [stopSearch, setStopSearch] = useState("");
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
+
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
     return bp || "/certis_agroute_app";
   }, []);
-
-  const logoSrcPrimary = `${basePath}/icons/certis-logo.png`;
-  // If someone ever deletes/renames the lowercase file, this is a fallback you DO have:
-  const logoSrcFallback = `${basePath}/icons/Certis%20logo.png`;
 
   const hasAnyFilters =
     selectedStates.length ||
@@ -188,21 +186,23 @@ export default function Page() {
       const v = (value || "").toLowerCase().trim();
       if (!v) return 0;
 
-      let s = 0;
-      if (v === q) s += 50 * weight;
-      if (v.startsWith(q)) s += 28 * weight;
+      let s0 = 0;
+
+      if (v === q) s0 += 50 * weight;
+      if (v.startsWith(q)) s0 += 28 * weight;
 
       const words = toWords(v);
-      if (words.includes(q)) s += 20 * weight;
-      if (v.includes(q)) s += 10 * weight;
+      if (words.includes(q)) s0 += 20 * weight;
+
+      if (v.includes(q)) s0 += 10 * weight;
 
       if (qTokens.length >= 2) {
         const hits = qTokens.filter((t) => t && v.includes(t)).length;
-        if (hits > 0) s += hits * 6 * weight;
-        if (hits === qTokens.length) s += 22 * weight;
+        if (hits > 0) s0 += hits * 6 * weight;
+        if (hits === qTokens.length) s0 += 22 * weight;
       }
 
-      return s;
+      return s0;
     };
 
     const scorePhone = (value: string | undefined, weight: number) => {
@@ -247,10 +247,8 @@ export default function Page() {
 
         if (meaningful && primaryTotal <= 0) return null;
 
-        const catScore = scoreField(st.category || "", 1);
-        const supScore = scoreField(st.suppliers || "", 1);
+        const total = primaryTotal;
 
-        const total = primaryTotal + catScore + supScore;
         if (total <= 0) return null;
 
         const inTrip = tripStops.some((x) => x.id === st.id);
@@ -264,12 +262,10 @@ export default function Page() {
     return scored.map((x) => x.st).slice(0, 50);
   }, [allStops, stopSearch, tripStops]);
 
-  // Retailer summary (Trip Stops)
+  // Retailer summary based on TRIP STOPS
   const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
-    const acc: Record<
-      string,
-      { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }
-    > = {};
+    const acc: Record<string, { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }> =
+      {};
 
     for (const st of tripStops) {
       const retailer = (st.retailer || "").trim() || "Unknown Retailer";
@@ -294,33 +290,42 @@ export default function Page() {
       .sort((a, b) => b.count - a.count);
   }, [tripStops]);
 
-  // Styling helpers (tiles)
-  const panelClass = "rounded-xl border border-white/10 bg-transparent";
-  const innerTileClass = "rounded-lg border border-white/10 bg-black/20 p-2";
+  // “Glass tiles” tuned to reduce the “flat black slab” feel
+  // Key: panels are translucent, bounded, and scroll-contained — body background always shows through.
+  const panelClass =
+    "rounded-2xl border border-white/10 bg-slate-950/25 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.35)]";
+  const innerTileClass =
+    "rounded-xl border border-white/10 bg-slate-950/25 backdrop-blur-sm p-3 shadow-[0_10px_18px_rgba(0,0,0,0.35)]";
   const sidebarListClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-lg border border-white/10 bg-black/15 p-2";
-  const sectionTitleClass = "text-sm font-semibold tracking-wide text-white/90";
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-white/10 bg-slate-950/20 backdrop-blur-sm p-2";
+  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-white/90";
   const clearBtnClass =
-    "text-xs px-2 py-1 rounded-md border border-white/15 hover:border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
+    "text-xs px-2 py-1 rounded-lg border border-white/15 hover:border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
   const smallInputClass =
-    "w-full rounded-lg bg-black/15 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
+    "w-full rounded-xl bg-slate-950/20 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
+
+  // Height strategy (fixes background mismatch / slab issues)
+  // Header is fixed 64px, body fills the remainder.
+  const HEADER_H = 64;
 
   return (
-    <div className="h-screen w-full text-white flex flex-col">
-      {/* HEADER */}
-      <header className="w-full border-b border-white/10 flex-shrink-0">
-        <div className="px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <img
-              src={logoSrcPrimary}
-              onError={(e) => {
-                const img = e.currentTarget as HTMLImageElement;
-                if (img.src.includes("certis-logo.png")) img.src = logoSrcFallback;
-              }}
-              alt="Certis Biologicals"
-              className="h-10 w-auto"
-              draggable={false}
-            />
+    <div className="w-full text-white overflow-hidden">
+      {/* HEADER (fixed height) */}
+      <header className="w-full border-b border-white/10 bg-slate-950/15 backdrop-blur-md" style={{ height: HEADER_H }}>
+        <div className="h-full px-4 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Logo (slightly larger, Next/Image, basePath-safe) */}
+            <div className="relative h-12 sm:h-14 w-[170px] sm:w-[200px]">
+              <Image
+                src={`${basePath}/icons/certis-logo.png`}
+                alt="Certis Biologicals"
+                fill
+                priority
+                sizes="200px"
+                className="object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.55)]"
+                draggable={false}
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-4 ml-auto">
@@ -337,61 +342,251 @@ export default function Page() {
         </div>
       </header>
 
-      {/* BODY — true flex fill, no calc() assumptions */}
-      <div className="flex-1 min-h-0 p-3">
-        <div className="h-full min-h-0 grid grid-cols-1 md:grid-cols-[380px_1fr] gap-3">
-          {/* SIDEBAR (hidden on mobile) */}
-          <aside className={`${panelClass} sidebar hidden md:flex overflow-hidden flex-col min-h-0`}>
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-6 min-h-0">
-              {/* HOME ZIP */}
-              <div className="space-y-2">
-                <div className={sectionTitleClass}>Home ZIP</div>
-                <div className="flex gap-2">
+      {/* BODY (fills remaining viewport height consistently) */}
+      <div className="w-full" style={{ height: `calc(100vh - ${HEADER_H}px)` }}>
+        <div className="h-full p-3">
+          {/* Desktop: grid. Mobile: stacked. Both share ONE height system (h-full) */}
+          <div className="h-full flex flex-col md:grid md:grid-cols-[380px_1fr] gap-3 min-h-0">
+            {/* SIDEBAR */}
+            <aside className={`${panelClass} flex flex-col min-h-0`}>
+              {/* Scroll lives INSIDE the panel so body background never “ends” early */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-6">
+                {/* HOME ZIP */}
+                <div className="space-y-2">
+                  <div className={sectionTitleClass}>Home ZIP</div>
+                  <div className="flex gap-2">
+                    <input
+                      value={homeZip}
+                      onChange={(e) => setHomeZip(e.target.value)}
+                      placeholder="e.g., 50010"
+                      className={smallInputClass}
+                    />
+                    <button
+                      onClick={setHomeFromZip}
+                      className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#facc15] text-black hover:bg-[#facc15]/90"
+                      disabled={!homeZip.trim() || !token}
+                      title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
+                    >
+                      Set
+                    </button>
+                    <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
+                      Clear
+                    </button>
+                  </div>
+
+                  {homeStatus && <div className="text-xs text-white/80">{homeStatus}</div>}
+
+                  <div className="text-xs text-white/60">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
+                </div>
+
+                {/* STOP SEARCH */}
+                <div className="space-y-2">
+                  <div className={sectionTitleClass}>Find a Stop</div>
                   <input
-                    value={homeZip}
-                    onChange={(e) => setHomeZip(e.target.value)}
-                    placeholder="e.g., 50010"
+                    value={stopSearch}
+                    onChange={(e) => setStopSearch(e.target.value)}
+                    placeholder="Search by retailer, city, state, name, contact…"
                     className={smallInputClass}
                   />
-                  <button
-                    onClick={setHomeFromZip}
-                    className="rounded-lg px-3 py-2 text-sm font-semibold bg-[#facc15] text-black hover:bg-[#facc15]/90"
-                    disabled={!homeZip.trim() || !token}
-                    title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
-                  >
-                    Set
-                  </button>
-                  <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
-                    Clear
-                  </button>
+                  <div className="text-xs text-white/60">
+                    Quick-add a stop without hunting on the map. (Loaded stops: {allStops.length})
+                  </div>
+
+                  {/* Give this a firm max height so mobile doesn’t swallow the whole UI */}
+                  <div className="max-h-64 overflow-y-auto space-y-2 rounded-xl border border-white/10 bg-slate-950/20 backdrop-blur-sm p-2">
+                    {stopResults.map((st) => {
+                      const inTrip = tripStops.some((x) => x.id === st.id);
+                      return (
+                        <div key={st.id} className={innerTileClass}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="text-sm font-extrabold leading-tight break-words">{st.label}</div>
+                              <div className="text-xs text-white/70">
+                                {(st.city || "") + (st.city ? ", " : "")}
+                                {st.state || ""}
+                                {st.zip ? ` ${st.zip}` : ""}
+                                {st.kind ? ` • ${st.kind}` : ""}
+                              </div>
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                                Zoom
+                              </button>
+                              <button
+                                onClick={() => addStopToTrip(st)}
+                                className="text-xs px-2 py-1 rounded-lg bg-[#facc15] text-black font-extrabold hover:bg-[#facc15]/90 disabled:opacity-50"
+                                disabled={inTrip}
+                              >
+                                {inTrip ? "Added" : "Add"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {stopResults.length === 0 && <div className="text-xs text-white/60">No matches.</div>}
+                  </div>
                 </div>
 
-                {homeStatus && <div className="text-xs text-white/80">{homeStatus}</div>}
-
-                <div className="text-xs text-white/60">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
-              </div>
-
-              {/* STOP SEARCH */}
-              <div className="space-y-2">
-                <div className={sectionTitleClass}>Find a Stop</div>
-                <input
-                  value={stopSearch}
-                  onChange={(e) => setStopSearch(e.target.value)}
-                  placeholder="Search by retailer, city, state, name, contact…"
-                  className={smallInputClass}
-                />
-                <div className="text-xs text-white/60">
-                  Quick-add a stop without hunting on the map. (Loaded stops: {allStops.length})
+                {/* FILTERS HEADER */}
+                <div className="flex items-center justify-between">
+                  <div className={sectionTitleClass}>Filters</div>
+                  <div className="flex gap-2">
+                    <button onClick={clearAllFilters} className={clearBtnClass} disabled={!hasAnyFilters}>
+                      Clear All
+                    </button>
+                  </div>
                 </div>
 
-                <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-white/10 bg-black/15 p-2">
-                  {stopResults.map((st) => {
-                    const inTrip = tripStops.some((x) => x.id === st.id);
-                    return (
+                {/* State */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={sectionTitleClass}>State</div>
+                    <button
+                      onClick={() => setSelectedStates([])}
+                      className={clearBtnClass}
+                      disabled={selectedStates.length === 0}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <input
+                    value={stateSearch}
+                    onChange={(e) => setStateSearch(e.target.value)}
+                    placeholder="Search states…"
+                    className={smallInputClass}
+                  />
+                  <div className={sidebarListClass}>
+                    {visibleStates.map((st) => (
+                      <label key={st} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedStates.includes(st)}
+                          onChange={() => toggle(st, selectedStates, setSelectedStates)}
+                        />
+                        <span>{st}</span>
+                      </label>
+                    ))}
+                    {visibleStates.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
+                  </div>
+                </div>
+
+                {/* Retailer */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={sectionTitleClass}>Retailer</div>
+                    <button
+                      onClick={() => setSelectedRetailers([])}
+                      className={clearBtnClass}
+                      disabled={selectedRetailers.length === 0}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <input
+                    value={retailerSearch}
+                    onChange={(e) => setRetailerSearch(e.target.value)}
+                    placeholder="Search retailers…"
+                    className={smallInputClass}
+                  />
+                  <div className={sidebarListClass}>
+                    {visibleRetailers.map((r) => (
+                      <label key={r} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedRetailers.includes(r)}
+                          onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)}
+                        />
+                        <span>{r}</span>
+                      </label>
+                    ))}
+                    {visibleRetailers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
+                  </div>
+                </div>
+
+                {/* Category */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={sectionTitleClass}>Category</div>
+                    <button
+                      onClick={() => setSelectedCategories([])}
+                      className={clearBtnClass}
+                      disabled={selectedCategories.length === 0}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <input
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    placeholder="Search categories…"
+                    className={smallInputClass}
+                  />
+                  <div className={sidebarListClass}>
+                    {visibleCategories.map((c) => (
+                      <label key={c} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(c)}
+                          onChange={() => toggle(c, selectedCategories, setSelectedCategories)}
+                        />
+                        <span>{c}</span>
+                      </label>
+                    ))}
+                    {visibleCategories.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
+                  </div>
+                </div>
+
+                {/* Supplier */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={sectionTitleClass}>Supplier</div>
+                    <button
+                      onClick={() => setSelectedSuppliers([])}
+                      className={clearBtnClass}
+                      disabled={selectedSuppliers.length === 0}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <input
+                    value={supplierSearch}
+                    onChange={(e) => setSupplierSearch(e.target.value)}
+                    placeholder="Search suppliers…"
+                    className={smallInputClass}
+                  />
+                  <div className={sidebarListClass}>
+                    {visibleSuppliers.map((sp) => (
+                      <label key={sp} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedSuppliers.includes(sp)}
+                          onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)}
+                        />
+                        <span>{sp}</span>
+                      </label>
+                    ))}
+                    {visibleSuppliers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
+                  </div>
+                </div>
+
+                {/* TRIP BUILDER */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={sectionTitleClass}>Trip Builder</div>
+                    <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0}>
+                      Clear Trip
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {tripStops.map((st, idx) => (
                       <div key={st.id} className={innerTileClass}>
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="text-sm font-semibold leading-tight">{st.label}</div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-extrabold break-words">
+                              {idx + 1}. {st.label}
+                            </div>
                             <div className="text-xs text-white/70">
                               {(st.city || "") + (st.city ? ", " : "")}
                               {st.state || ""}
@@ -399,273 +594,88 @@ export default function Page() {
                               {st.kind ? ` • ${st.kind}` : ""}
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => zoomStop(st)} className={clearBtnClass}>
-                              Zoom
-                            </button>
-                            <button
-                              onClick={() => addStopToTrip(st)}
-                              className="text-xs px-2 py-1 rounded-md bg-[#facc15] text-black font-semibold hover:bg-[#facc15]/90 disabled:opacity-50"
-                              disabled={inTrip}
-                            >
-                              {inTrip ? "Added" : "Add"}
-                            </button>
+                          <div className="flex flex-col gap-2 shrink-0">
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                                Zoom
+                              </button>
+                              <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
+                                Remove
+                              </button>
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                onClick={() => moveStop(idx, -1)}
+                                className={clearBtnClass}
+                                disabled={idx === 0}
+                                title="Move up"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                onClick={() => moveStop(idx, 1)}
+                                className={clearBtnClass}
+                                disabled={idx === tripStops.length - 1}
+                                title="Move down"
+                              >
+                                ↓
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                  {stopResults.length === 0 && <div className="text-xs text-white/60">No matches.</div>}
-                </div>
-              </div>
+                    ))}
 
-              {/* FILTERS HEADER */}
-              <div className="flex items-center justify-between">
-                <div className={sectionTitleClass}>Filters</div>
-                <div className="flex gap-2">
-                  <button onClick={clearAllFilters} className={clearBtnClass} disabled={!hasAnyFilters}>
-                    Clear All
-                  </button>
-                </div>
-              </div>
-
-              {/* State */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>State</div>
-                  <button
-                    onClick={() => setSelectedStates([])}
-                    className={clearBtnClass}
-                    disabled={selectedStates.length === 0}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <input
-                  value={stateSearch}
-                  onChange={(e) => setStateSearch(e.target.value)}
-                  placeholder="Search states…"
-                  className={smallInputClass}
-                />
-                <div className={sidebarListClass}>
-                  {visibleStates.map((st) => (
-                    <label key={st} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedStates.includes(st)}
-                        onChange={() => toggle(st, selectedStates, setSelectedStates)}
-                      />
-                      <span>{st}</span>
-                    </label>
-                  ))}
-                  {visibleStates.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
-                </div>
-              </div>
-
-              {/* Retailer */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>Retailer</div>
-                  <button
-                    onClick={() => setSelectedRetailers([])}
-                    className={clearBtnClass}
-                    disabled={selectedRetailers.length === 0}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <input
-                  value={retailerSearch}
-                  onChange={(e) => setRetailerSearch(e.target.value)}
-                  placeholder="Search retailers…"
-                  className={smallInputClass}
-                />
-                <div className={sidebarListClass}>
-                  {visibleRetailers.map((r) => (
-                    <label key={r} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedRetailers.includes(r)}
-                        onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)}
-                      />
-                      <span>{r}</span>
-                    </label>
-                  ))}
-                  {visibleRetailers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
-                </div>
-              </div>
-
-              {/* Category */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>Category</div>
-                  <button
-                    onClick={() => setSelectedCategories([])}
-                    className={clearBtnClass}
-                    disabled={selectedCategories.length === 0}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <input
-                  value={categorySearch}
-                  onChange={(e) => setCategorySearch(e.target.value)}
-                  placeholder="Search categories…"
-                  className={smallInputClass}
-                />
-                <div className={sidebarListClass}>
-                  {visibleCategories.map((c) => (
-                    <label key={c} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedCategories.includes(c)}
-                        onChange={() => toggle(c, selectedCategories, setSelectedCategories)}
-                      />
-                      <span>{c}</span>
-                    </label>
-                  ))}
-                  {visibleCategories.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
-                </div>
-              </div>
-
-              {/* Supplier */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>Supplier</div>
-                  <button
-                    onClick={() => setSelectedSuppliers([])}
-                    className={clearBtnClass}
-                    disabled={selectedSuppliers.length === 0}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <input
-                  value={supplierSearch}
-                  onChange={(e) => setSupplierSearch(e.target.value)}
-                  placeholder="Search suppliers…"
-                  className={smallInputClass}
-                />
-                <div className={sidebarListClass}>
-                  {visibleSuppliers.map((sp) => (
-                    <label key={sp} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedSuppliers.includes(sp)}
-                        onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)}
-                      />
-                      <span>{sp}</span>
-                    </label>
-                  ))}
-                  {visibleSuppliers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
-                </div>
-              </div>
-
-              {/* TRIP BUILDER */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>Trip Builder</div>
-                  <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0}>
-                    Clear Trip
-                  </button>
+                    {tripStops.length === 0 && (
+                      <div className="text-xs text-white/60">
+                        Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
+                      </div>
+                    )}
+                  </div>
                 </div>
 
+                {/* SUMMARY */}
                 <div className="space-y-2">
-                  {tripStops.map((st, idx) => (
-                    <div key={st.id} className={innerTileClass}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="text-sm font-semibold">
-                            {idx + 1}. {st.label}
-                          </div>
-                          <div className="text-xs text-white/70">
-                            {(st.city || "") + (st.city ? ", " : "")}
-                            {st.state || ""}
-                            {st.zip ? ` ${st.zip}` : ""}
-                            {st.kind ? ` • ${st.kind}` : ""}
-                          </div>
+                  <div className={sectionTitleClass}>Retailer Summary (Trip Stops)</div>
+                  <div className="space-y-2">
+                    {tripRetailerSummary.slice(0, 60).map((row) => (
+                      <div key={row.retailer} className={innerTileClass}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-extrabold">{row.retailer}</div>
+                          <div className="text-xs text-white/70 whitespace-nowrap">{row.count} stops</div>
                         </div>
-                        <div className="flex flex-col gap-2">
-                          <div className="flex gap-2 justify-end">
-                            <button onClick={() => zoomStop(st)} className={clearBtnClass}>
-                              Zoom
-                            </button>
-                            <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
-                              Remove
-                            </button>
+                        <div className="text-xs text-white/70 mt-1 space-y-1">
+                          <div>
+                            <span className="font-extrabold text-white/80">States:</span> {row.states.join(", ") || "—"}
                           </div>
-                          <div className="flex gap-2 justify-end">
-                            <button
-                              onClick={() => moveStop(idx, -1)}
-                              className={clearBtnClass}
-                              disabled={idx === 0}
-                              title="Move up"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              onClick={() => moveStop(idx, 1)}
-                              className={clearBtnClass}
-                              disabled={idx === tripStops.length - 1}
-                              title="Move down"
-                            >
-                              ↓
-                            </button>
+                          <div>
+                            <span className="font-extrabold text-white/80">Categories:</span>{" "}
+                            {row.categories.join(", ") || "—"}
+                          </div>
+                          <div>
+                            <span className="font-extrabold text-white/80">Suppliers:</span>{" "}
+                            {row.suppliers.join(", ") || "—"}
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                    {tripRetailerSummary.length === 0 && <div className="text-xs text-white/60">No trip stops yet.</div>}
+                  </div>
+                </div>
 
-                  {tripStops.length === 0 && (
-                    <div className="text-xs text-white/60">
-                      Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
-                    </div>
-                  )}
+                {/* Diagnostics */}
+                <div className="text-[11px] text-white/50">
+                  Loaded: {allStops.length} stops • Trip: {tripStops.length}
                 </div>
               </div>
+            </aside>
 
-              {/* SUMMARY */}
-              <div className="space-y-2">
-                <div className={sectionTitleClass}>Retailer Summary (Trip Stops)</div>
-                <div className="space-y-2">
-                  {tripRetailerSummary.slice(0, 60).map((row) => (
-                    <div key={row.retailer} className={innerTileClass}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold">{row.retailer}</div>
-                        <div className="text-xs text-white/70 whitespace-nowrap">{row.count} stops</div>
-                      </div>
-                      <div className="text-xs text-white/70 mt-1 space-y-1">
-                        <div>
-                          <span className="font-semibold text-white/80">States:</span> {row.states.join(", ") || "—"}
-                        </div>
-                        <div>
-                          <span className="font-semibold text-white/80">Categories:</span>{" "}
-                          {row.categories.join(", ") || "—"}
-                        </div>
-                        <div>
-                          <span className="font-semibold text-white/80">Suppliers:</span>{" "}
-                          {row.suppliers.join(", ") || "—"}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {tripRetailerSummary.length === 0 && <div className="text-xs text-white/60">No trip stops yet.</div>}
-                </div>
-              </div>
-
-              <div className="text-[11px] text-white/50">Loaded: {allStops.length} stops • Trip: {tripStops.length}</div>
-            </div>
-          </aside>
-
-          {/* MAP (full height, works on mobile) */}
-          <main className={`${panelClass} map-container overflow-hidden min-h-0`}>
-            {/* Mobile hint bar */}
-            <div className="md:hidden px-3 py-2 border-b border-white/10 text-xs text-white/70">
-              Mobile mode: filters/sidebar hidden. Use map popups to add stops. (Desktop for full workflow.)
-            </div>
-
-            <div className="w-full h-full min-h-0">
+            {/* MAP */}
+            <main
+              className={`${panelClass} overflow-hidden min-h-[42vh] md:min-h-0`}
+              // Important: map panel participates in the same height system (min-h-0 on desktop)
+              style={{ minHeight: 0 }}
+            >
               <CertisMap
                 selectedStates={selectedStates.map(normUpper)}
                 selectedRetailers={selectedRetailers}
@@ -681,8 +691,8 @@ export default function Page() {
                 onAllStopsLoaded={(stops) => setAllStops(stops)}
                 onAddStop={addStopToTrip}
               />
-            </div>
-          </main>
+            </main>
+          </div>
         </div>
       </div>
     </div>

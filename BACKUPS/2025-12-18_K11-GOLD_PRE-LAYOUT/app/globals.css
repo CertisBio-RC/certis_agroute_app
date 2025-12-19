@@ -3,13 +3,12 @@
 @tailwind utilities;
 
 /* ====================================================================== */
-/* GLOBAL LAYOUT — K11 (Layout/Theme Lock + Mobile Safe) */
+/* GLOBAL LAYOUT */
 /* ====================================================================== */
 
-/* Use min-height instead of height:100% to avoid "paint ends early" issues. */
 html,
 body {
-  min-height: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
 }
@@ -17,71 +16,34 @@ body {
 /* App Router doesn't use #__next, but harmless */
 #__next,
 .app-container {
-  min-height: 100%;
+  height: 100%;
 }
 
-/* ✅ Midnight gradient background (not flat)
-   ✅ Stable across nested scroll containers
-   ✅ Avoids "half page black" artifacts by keeping the paint area unbounded
+/* ✅ Restore "not-flat" background (no image required)
+   - Still dark-mode friendly
+   - Not the flat black slab you hated
+   - ✅ Slightly more midnight-blue like you asked
+   - ✅ Background fixed to prevent “half page black” scroll artifacts
 */
 body {
   color: #eaeef6;
-
-  /* IMPORTANT:
-     background-attachment: fixed can cause inconsistent painting when nested
-     scroll containers exist. We keep the same look WITHOUT relying on fixed.
-  */
   background:
-    radial-gradient(1200px 760px at 10% 0%, rgba(18, 70, 140, 0.55), rgba(0, 0, 0, 0) 62%),
+    radial-gradient(1200px 750px at 10% 0%, rgba(18, 70, 140, 0.55), rgba(0, 0, 0, 0) 62%),
     radial-gradient(950px 650px at 85% 10%, rgba(250, 204, 21, 0.16), rgba(0, 0, 0, 0) 58%),
     linear-gradient(180deg, #071a33 0%, #06121f 40%, #04070c 100%);
-
-  /* Allow the page to scroll naturally; panels handle internal scroll. */
-  overflow-x: hidden;
+  background-attachment: fixed;
 }
 
-/* Optional: improves text rendering on dark backgrounds */
-body,
-button,
-input,
-select,
-textarea {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* ====================================================================== */
-/* PANEL SCROLL CONTAINMENT */
-/* ====================================================================== */
-
-/* Sidebar: scroll ONLY inside its inner content region */
+/* Sidebar internal scroll without affecting map height */
 .sidebar {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
 }
 
-/* The direct scroll container inside sidebar */
-.sidebar > .overflow-y-auto {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-/* Map panel: fill available space; map itself handles rendering */
-.map-container {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* ====================================================================== */
-/* LOGO */
-/* ====================================================================== */
-
+/* Protect logo from shrinking */
 .logo {
   flex-shrink: 0;
   padding: 1rem;
@@ -90,16 +52,51 @@ textarea {
   justify-content: center;
 }
 
-/* NOTE: page.tsx now uses next/image, but keep this safe for any legacy usage */
 .logo img {
   max-width: 100%;
   height: auto;
   object-fit: contain;
 }
 
+/* Internal scroll for tile list */
+.sidebar > .overflow-y-auto {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Map panel always full height */
+.map-container {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Footer fixed cleanly */
+.footer {
+  flex-shrink: 0;
+  @apply text-sm flex justify-between items-center px-4 py-2;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
+}
+
 /* ====================================================================== */
-/* MAPBOX POPUP — K5 GOLD (stable + readable) */
+/* TILE STANDARDIZATION */
 /* ====================================================================== */
+/* NOTE:
+   Removed the broad .bg-white/.dark:bg-gray-800 override — it can accidentally
+   restyle lots of Tailwind components and wreck layout consistency.
+*/
+
+/* ====================================================================== */
+/* MAPBOX POPUP — K5 GOLD */
+/* ====================================================================== */
+/*
+   IMPORTANT NOTES:
+   • Fixed width solves text wrapping issues.
+   • Retailer + Kingpin use same popup container rules.
+*/
 
 .mapboxgl-popup {
   z-index: 10;
@@ -135,8 +132,8 @@ textarea {
 /* MOBILE OPTIMIZATION */
 /* ====================================================================== */
 
-/* ✅ Do NOT hide sidebar on mobile — page layout stacks panels.
-   We just ensure practical heights.
+/* ✅ Do NOT hide sidebar on mobile — stack behavior should be handled by page layout.
+   If page.tsx currently forces a fixed 2-col grid on mobile, we’ll fix that next.
 */
 @media (max-width: 768px) {
   .sidebar {
@@ -146,6 +143,7 @@ textarea {
   }
 
   .map-container {
+    flex: 1;
     width: 100%;
     height: 52vh;
     min-height: 52vh;
@@ -159,23 +157,22 @@ textarea {
 }
 
 /* ====================================================================== */
-/* SIDEBAR CHECKBOX LABELS (Fix selector to match actual JSX structure)
-   In page.tsx, <input> is INSIDE the <label>, so the +label selector won't work.
-*/
-.sidebar label {
-  line-height: 1.5;
-}
+/* SIDEBAR CHECKBOX LABELS */
+/* ====================================================================== */
 
-.sidebar label input[type="checkbox"] {
-  transform: translateY(1px);
+.sidebar input[type="checkbox"] + label {
+  font-size: 1.05rem;
+  line-height: 1.5;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  display: inline-block;
 }
 
 /* ====================================================================== */
 /* LEGEND — K5 GOLD */
 /* ====================================================================== */
 
-.legend-kingpin,
-.legend-kingpin1 {
+.legend-kingpin {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -193,6 +190,13 @@ textarea {
 .legend-kingpin span {
   font-size: 1.05rem;
   line-height: 1.5;
+}
+
+.legend-kingpin1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
 }
 
 .legend-kingpin1 .color-box {
