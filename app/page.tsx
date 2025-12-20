@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import CertisMap, { Stop, RetailerSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
@@ -27,6 +28,50 @@ function splitCategories(raw: any) {
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);
+}
+
+type CollapsibleSectionProps = {
+  title: string;
+  defaultOpen?: boolean;
+  rightSlot?: React.ReactNode;
+  children: React.ReactNode;
+};
+
+function CollapsibleSection({ title, defaultOpen = true, rightSlot, children }: CollapsibleSectionProps) {
+  const [open, setOpen] = useState<boolean>(defaultOpen);
+
+  const headerTextClass =
+    "font-extrabold tracking-wide text-sm md:text-[13px] " +
+    "text-black dark:text-yellow-400";
+
+  const borderClass = "border border-black/10 dark:border-white/15";
+  const bgClass = "bg-white/70 dark:bg-black/20 backdrop-blur-md";
+  const panelShadow = "shadow-[0_18px_36px_rgba(0,0,0,0.25)]";
+
+  return (
+    <section className={`rounded-2xl ${borderClass} ${bgClass} ${panelShadow}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl"
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-2">
+          <span className={headerTextClass}>{title}</span>
+          <span className="text-xs text-black/50 dark:text-white/50">{open ? "▾" : "▸"}</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {rightSlot}
+          <span className="text-[11px] px-2 py-1 rounded-lg border border-black/10 dark:border-white/15 text-black/60 dark:text-white/60">
+            {open ? "Collapse" : "Expand"}
+          </span>
+        </div>
+      </button>
+
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </section>
+  );
 }
 
 export default function Page() {
@@ -58,6 +103,13 @@ export default function Page() {
   const [categorySearch, setCategorySearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
   const [stopSearch, setStopSearch] = useState("");
+
+  // Collapsible subsections (Filters)
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [stateOpen, setStateOpen] = useState(true);
+  const [retailerOpen, setRetailerOpen] = useState(true);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [supplierOpen, setSupplierOpen] = useState(false);
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
 
@@ -309,43 +361,52 @@ export default function Page() {
       .sort((a, b) => b.count - a.count);
   }, [tripStops]);
 
-  // YMS-style glass tiles
+  // Updated tile styles (clear borders + yellow headings)
   const panelClass =
-    "rounded-2xl border border-white/10 bg-black/20 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.35)]";
+    "rounded-2xl border border-black/10 dark:border-white/15 bg-white/60 dark:bg-black/20 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.25)]";
   const innerTileClass =
-    "rounded-xl border border-white/10 bg-black/25 backdrop-blur-sm p-3 shadow-[0_10px_18px_rgba(0,0,0,0.35)]";
+    "rounded-xl border border-black/10 dark:border-white/15 bg-white/70 dark:bg-black/25 backdrop-blur-sm p-3 shadow-[0_10px_18px_rgba(0,0,0,0.25)]";
   const sidebarListClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-white/10 bg-black/20 backdrop-blur-sm p-2";
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-black/10 dark:border-white/15 bg-white/60 dark:bg-black/20 backdrop-blur-sm p-2";
 
-  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-white/90";
-  const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-400";
+  const tileTitleClass = "text-sm font-extrabold leading-tight text-black dark:text-yellow-400";
+  const subTextClass = "text-xs text-black/60 dark:text-white/70";
 
   const clearBtnClass =
-    "text-xs px-2 py-1 rounded-lg border border-white/15 hover:border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
+    "text-xs px-2 py-1 rounded-lg border border-black/10 dark:border-white/15 hover:border-black/20 dark:hover:border-white/30 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
   const smallInputClass =
-    "w-full rounded-xl bg-black/20 border border-white/15 px-3 py-2 text-sm outline-none focus:border-white/30";
+    "w-full rounded-xl bg-white/70 dark:bg-black/20 border border-black/10 dark:border-white/15 px-3 py-2 text-sm text-black dark:text-white outline-none focus:border-black/20 dark:focus:border-white/30";
+
+  const miniSectionHeader =
+    "flex items-center justify-between rounded-xl border border-black/10 dark:border-white/15 bg-white/60 dark:bg-black/15 px-3 py-2";
+
+  const miniSectionTitle = "text-sm font-extrabold text-black dark:text-yellow-400";
 
   return (
-    <div className="min-h-screen w-full text-white flex flex-col">
-      {/* HEADER (flex-shrink-0 keeps height stable) */}
-      <header className="w-full border-b border-white/10 bg-black/10 backdrop-blur-md flex-shrink-0">
+    <div className="min-h-screen w-full text-black dark:text-white flex flex-col bg-[#f4f4f5] dark:bg-[#070a12]">
+      {/* HEADER */}
+      <header className="w-full border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/10 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img
+            <Image
               src={`${basePath}/icons/certis-logo.png`}
               alt="Certis Biologicals"
-              className="h-14 sm:h-16 w-auto drop-shadow-[0_8px_16px_rgba(0,0,0,0.55)]"
+              width={220}
+              height={72}
+              className="h-16 sm:h-18 w-auto drop-shadow-[0_8px_16px_rgba(0,0,0,0.35)] select-none"
               draggable={false}
+              priority
             />
           </div>
 
-          <div className="flex items-center gap-4 ml-auto">
-            <div className="text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
+          <div className="flex flex-col items-end gap-1 ml-auto">
+            <div className="text-yellow-500 dark:text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
               CERTIS AgRoute Database
             </div>
-            <div className="text-xs text-white/60 whitespace-nowrap">
+
+            <div className="text-xs text-black/60 dark:text-white/60 whitespace-nowrap">
               Token:{" "}
-              <span className={token ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+              <span className={token ? "text-green-600 dark:text-green-400 font-semibold" : "text-red-600 dark:text-red-400 font-semibold"}>
                 {token ? "OK" : "MISSING"}
               </span>
             </div>
@@ -353,239 +414,311 @@ export default function Page() {
         </div>
       </header>
 
-      {/* BODY (flex-1 + min-h-0 is the key to killing the “half black” space) */}
+      {/* BODY */}
       <div className="flex-1 min-h-0 p-3">
         <div className="h-full min-h-0 flex flex-col md:grid md:grid-cols-[380px_1fr] gap-3">
-          {/* SIDEBAR (do NOT hide on mobile; stacked layout) */}
+          {/* SIDEBAR */}
           <aside className={`${panelClass} sidebar min-h-0 md:h-full`}>
-            <div className="overflow-y-auto px-4 py-3 space-y-6">
+            <div className="overflow-y-auto px-4 py-4 space-y-4">
               {/* HOME ZIP */}
-              <div className="space-y-2">
-                <div className={sectionTitleClass}>Home ZIP</div>
-                <div className="flex gap-2">
-                  <input
-                    value={homeZip}
-                    onChange={(e) => setHomeZip(e.target.value)}
-                    placeholder="e.g., 50010"
-                    className={smallInputClass}
-                  />
-                  <button
-                    onClick={setHomeFromZip}
-                    className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#facc15] text-black hover:bg-[#facc15]/90"
-                    disabled={!homeZip.trim() || !token}
-                    title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
-                  >
-                    Set
-                  </button>
-                  <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
-                    Clear
-                  </button>
+              <CollapsibleSection title="Home ZIP" defaultOpen>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      value={homeZip}
+                      onChange={(e) => setHomeZip(e.target.value)}
+                      placeholder="e.g., 50010"
+                      className={smallInputClass}
+                    />
+                    <button
+                      onClick={setHomeFromZip}
+                      className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#facc15] text-black hover:bg-[#facc15]/90 disabled:opacity-50"
+                      disabled={!homeZip.trim() || !token}
+                      title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
+                    >
+                      Set
+                    </button>
+                    <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
+                      Clear
+                    </button>
+                  </div>
+
+                  {homeStatus && <div className="text-xs text-yellow-600 dark:text-yellow-400 font-semibold">{homeStatus}</div>}
+
+                  <div className={subTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
                 </div>
-
-                {homeStatus && <div className="text-xs text-yellow-400 font-semibold">{homeStatus}</div>}
-
-                <div className="text-xs text-white/60">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
-              </div>
+              </CollapsibleSection>
 
               {/* STOP SEARCH */}
-              <div className="space-y-2">
-                <div className={sectionTitleClass}>Find a Stop</div>
-                <input
-                  value={stopSearch}
-                  onChange={(e) => setStopSearch(e.target.value)}
-                  placeholder="Search by retailer, city, state, name, contact…"
-                  className={smallInputClass}
-                />
-                <div className="text-xs text-white/60">
-                  Quick-add a stop without hunting on the map. (Loaded stops: {allStops.length})
-                </div>
+              <CollapsibleSection
+                title="Find a Stop"
+                defaultOpen
+                rightSlot={<div className="text-xs text-black/50 dark:text-white/50">Loaded: {allStops.length}</div>}
+              >
+                <div className="space-y-2">
+                  <input
+                    value={stopSearch}
+                    onChange={(e) => setStopSearch(e.target.value)}
+                    placeholder="Search by retailer, city, state, name, contact…"
+                    className={smallInputClass}
+                  />
+                  <div className={subTextClass}>Quick-add without hunting on the map.</div>
 
-                <div className="max-h-64 overflow-y-auto space-y-2 rounded-xl border border-white/10 bg-black/20 backdrop-blur-sm p-2">
-                  {stopResults.map((st) => {
-                    const inTrip = tripStops.some((x) => x.id === st.id);
-                    return (
-                      <div key={st.id} className={innerTileClass}>
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className={tileTitleClass}>{st.label}</div>
-                            <div className="text-xs text-white/70">
-                              {(st.city || "") + (st.city ? ", " : "")}
-                              {st.state || ""}
-                              {st.zip ? ` ${st.zip}` : ""}
-                              {st.kind ? ` • ${st.kind}` : ""}
+                  <div className="max-h-64 overflow-y-auto space-y-2 rounded-xl border border-black/10 dark:border-white/15 bg-white/60 dark:bg-black/20 backdrop-blur-sm p-2">
+                    {stopResults.map((st) => {
+                      const inTrip = tripStops.some((x) => x.id === st.id);
+                      return (
+                        <div key={st.id} className={innerTileClass}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className={tileTitleClass}>{st.label}</div>
+                              <div className={subTextClass}>
+                                {(st.city || "") + (st.city ? ", " : "")}
+                                {st.state || ""}
+                                {st.zip ? ` ${st.zip}` : ""}
+                                {st.kind ? ` • ${st.kind}` : ""}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                                Zoom
+                              </button>
+                              <button
+                                onClick={() => addStopToTrip(st)}
+                                className="text-xs px-2 py-1 rounded-lg bg-[#facc15] text-black font-extrabold hover:bg-[#facc15]/90 disabled:opacity-50"
+                                disabled={inTrip}
+                              >
+                                {inTrip ? "Added" : "Add"}
+                              </button>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => zoomStop(st)} className={clearBtnClass}>
-                              Zoom
-                            </button>
-                            <button
-                              onClick={() => addStopToTrip(st)}
-                              className="text-xs px-2 py-1 rounded-lg bg-[#facc15] text-black font-extrabold hover:bg-[#facc15]/90 disabled:opacity-50"
-                              disabled={inTrip}
-                            >
-                              {inTrip ? "Added" : "Add"}
-                            </button>
-                          </div>
                         </div>
+                      );
+                    })}
+                    {stopResults.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">No matches.</div>}
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* FILTERS (master collapsible + nested collapsibles) */}
+              <section className={`${panelClass} p-0`}>
+                <div className="px-4 py-3 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFiltersOpen((v) => !v)}
+                    className="flex items-center gap-2"
+                    aria-expanded={filtersOpen}
+                  >
+                    <div className="font-extrabold tracking-wide text-sm text-black dark:text-yellow-400">Filters</div>
+                    <div className="text-xs text-black/50 dark:text-white/50">{filtersOpen ? "▾" : "▸"}</div>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button onClick={clearAllFilters} className={clearBtnClass} disabled={!hasAnyFilters}>
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+
+                {filtersOpen && (
+                  <div className="px-4 pb-4 space-y-3">
+                    {/* State */}
+                    <div className="space-y-2">
+                      <div className={miniSectionHeader}>
+                        <button
+                          type="button"
+                          onClick={() => setStateOpen((v) => !v)}
+                          className="flex items-center gap-2"
+                          aria-expanded={stateOpen}
+                        >
+                          <div className={miniSectionTitle}>State</div>
+                          <div className="text-xs text-black/50 dark:text-white/50">{stateOpen ? "▾" : "▸"}</div>
+                        </button>
+
+                        <button onClick={() => setSelectedStates([])} className={clearBtnClass} disabled={selectedStates.length === 0}>
+                          Clear
+                        </button>
                       </div>
-                    );
-                  })}
-                  {stopResults.length === 0 && <div className="text-xs text-white/60">No matches.</div>}
-                </div>
-              </div>
 
-              {/* FILTERS HEADER */}
-              <div className="flex items-center justify-between">
-                <div className={sectionTitleClass}>Filters</div>
-                <div className="flex gap-2">
-                  <button onClick={clearAllFilters} className={clearBtnClass} disabled={!hasAnyFilters}>
-                    Clear All
-                  </button>
-                </div>
-              </div>
+                      {stateOpen && (
+                        <>
+                          <input
+                            value={stateSearch}
+                            onChange={(e) => setStateSearch(e.target.value)}
+                            placeholder="Search states…"
+                            className={smallInputClass}
+                          />
+                          <div className={sidebarListClass}>
+                            {visibleStates.map((st) => (
+                              <label key={st} className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedStates.includes(st)}
+                                  onChange={() => toggle(st, selectedStates, setSelectedStates)}
+                                />
+                                <span>{st}</span>
+                              </label>
+                            ))}
+                            {visibleStates.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">Loading…</div>}
+                          </div>
+                        </>
+                      )}
+                    </div>
 
-              {/* State */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>State</div>
-                  <button
-                    onClick={() => setSelectedStates([])}
-                    className={clearBtnClass}
-                    disabled={selectedStates.length === 0}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <input
-                  value={stateSearch}
-                  onChange={(e) => setStateSearch(e.target.value)}
-                  placeholder="Search states…"
-                  className={smallInputClass}
-                />
-                <div className={sidebarListClass}>
-                  {visibleStates.map((st) => (
-                    <label key={st} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedStates.includes(st)}
-                        onChange={() => toggle(st, selectedStates, setSelectedStates)}
-                      />
-                      <span>{st}</span>
-                    </label>
-                  ))}
-                  {visibleStates.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
-                </div>
-              </div>
+                    {/* Retailer */}
+                    <div className="space-y-2">
+                      <div className={miniSectionHeader}>
+                        <button
+                          type="button"
+                          onClick={() => setRetailerOpen((v) => !v)}
+                          className="flex items-center gap-2"
+                          aria-expanded={retailerOpen}
+                        >
+                          <div className={miniSectionTitle}>Retailer</div>
+                          <div className="text-xs text-black/50 dark:text-white/50">{retailerOpen ? "▾" : "▸"}</div>
+                        </button>
 
-              {/* Retailer */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>Retailer</div>
-                  <button
-                    onClick={() => setSelectedRetailers([])}
-                    className={clearBtnClass}
-                    disabled={selectedRetailers.length === 0}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <input
-                  value={retailerSearch}
-                  onChange={(e) => setRetailerSearch(e.target.value)}
-                  placeholder="Search retailers…"
-                  className={smallInputClass}
-                />
-                <div className={sidebarListClass}>
-                  {visibleRetailers.map((r) => (
-                    <label key={r} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedRetailers.includes(r)}
-                        onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)}
-                      />
-                      <span>{r}</span>
-                    </label>
-                  ))}
-                  {visibleRetailers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
-                </div>
-              </div>
+                        <button
+                          onClick={() => setSelectedRetailers([])}
+                          className={clearBtnClass}
+                          disabled={selectedRetailers.length === 0}
+                        >
+                          Clear
+                        </button>
+                      </div>
 
-              {/* Category */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>Category</div>
-                  <button
-                    onClick={() => setSelectedCategories([])}
-                    className={clearBtnClass}
-                    disabled={selectedCategories.length === 0}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <input
-                  value={categorySearch}
-                  onChange={(e) => setCategorySearch(e.target.value)}
-                  placeholder="Search categories…"
-                  className={smallInputClass}
-                />
-                <div className={sidebarListClass}>
-                  {visibleCategories.map((c) => (
-                    <label key={c} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedCategories.includes(c)}
-                        onChange={() => toggle(c, selectedCategories, setSelectedCategories)}
-                      />
-                      <span>{c}</span>
-                    </label>
-                  ))}
-                  {visibleCategories.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
-                </div>
-              </div>
+                      {retailerOpen && (
+                        <>
+                          <input
+                            value={retailerSearch}
+                            onChange={(e) => setRetailerSearch(e.target.value)}
+                            placeholder="Search retailers…"
+                            className={smallInputClass}
+                          />
+                          <div className={sidebarListClass}>
+                            {visibleRetailers.map((r) => (
+                              <label key={r} className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRetailers.includes(r)}
+                                  onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)}
+                                />
+                                <span>{r}</span>
+                              </label>
+                            ))}
+                            {visibleRetailers.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">Loading…</div>}
+                          </div>
+                        </>
+                      )}
+                    </div>
 
-              {/* Supplier */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>Supplier</div>
-                  <button
-                    onClick={() => setSelectedSuppliers([])}
-                    className={clearBtnClass}
-                    disabled={selectedSuppliers.length === 0}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <input
-                  value={supplierSearch}
-                  onChange={(e) => setSupplierSearch(e.target.value)}
-                  placeholder="Search suppliers…"
-                  className={smallInputClass}
-                />
-                <div className={sidebarListClass}>
-                  {visibleSuppliers.map((sp) => (
-                    <label key={sp} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedSuppliers.includes(sp)}
-                        onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)}
-                      />
-                      <span>{sp}</span>
-                    </label>
-                  ))}
-                  {visibleSuppliers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
-                </div>
-              </div>
+                    {/* Category */}
+                    <div className="space-y-2">
+                      <div className={miniSectionHeader}>
+                        <button
+                          type="button"
+                          onClick={() => setCategoryOpen((v) => !v)}
+                          className="flex items-center gap-2"
+                          aria-expanded={categoryOpen}
+                        >
+                          <div className={miniSectionTitle}>Category</div>
+                          <div className="text-xs text-black/50 dark:text-white/50">{categoryOpen ? "▾" : "▸"}</div>
+                        </button>
+
+                        <button
+                          onClick={() => setSelectedCategories([])}
+                          className={clearBtnClass}
+                          disabled={selectedCategories.length === 0}
+                        >
+                          Clear
+                        </button>
+                      </div>
+
+                      {categoryOpen && (
+                        <>
+                          <input
+                            value={categorySearch}
+                            onChange={(e) => setCategorySearch(e.target.value)}
+                            placeholder="Search categories…"
+                            className={smallInputClass}
+                          />
+                          <div className={sidebarListClass}>
+                            {visibleCategories.map((c) => (
+                              <label key={c} className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedCategories.includes(c)}
+                                  onChange={() => toggle(c, selectedCategories, setSelectedCategories)}
+                                />
+                                <span>{c}</span>
+                              </label>
+                            ))}
+                            {visibleCategories.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">Loading…</div>}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Supplier */}
+                    <div className="space-y-2">
+                      <div className={miniSectionHeader}>
+                        <button
+                          type="button"
+                          onClick={() => setSupplierOpen((v) => !v)}
+                          className="flex items-center gap-2"
+                          aria-expanded={supplierOpen}
+                        >
+                          <div className={miniSectionTitle}>Supplier</div>
+                          <div className="text-xs text-black/50 dark:text-white/50">{supplierOpen ? "▾" : "▸"}</div>
+                        </button>
+
+                        <button
+                          onClick={() => setSelectedSuppliers([])}
+                          className={clearBtnClass}
+                          disabled={selectedSuppliers.length === 0}
+                        >
+                          Clear
+                        </button>
+                      </div>
+
+                      {supplierOpen && (
+                        <>
+                          <input
+                            value={supplierSearch}
+                            onChange={(e) => setSupplierSearch(e.target.value)}
+                            placeholder="Search suppliers…"
+                            className={smallInputClass}
+                          />
+                          <div className={sidebarListClass}>
+                            {visibleSuppliers.map((sp) => (
+                              <label key={sp} className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSuppliers.includes(sp)}
+                                  onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)}
+                                />
+                                <span>{sp}</span>
+                              </label>
+                            ))}
+                            {visibleSuppliers.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">Loading…</div>}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
 
               {/* TRIP BUILDER */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className={sectionTitleClass}>Trip Builder</div>
+              <CollapsibleSection
+                title="Trip Builder"
+                defaultOpen
+                rightSlot={
                   <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0}>
                     Clear Trip
                   </button>
-                </div>
-
+                }
+              >
                 <div className="space-y-2">
                   {tripStops.map((st, idx) => (
                     <div key={st.id} className={innerTileClass}>
@@ -594,7 +727,7 @@ export default function Page() {
                           <div className={`${tileTitleClass} !text-sm`}>
                             {idx + 1}. {st.label}
                           </div>
-                          <div className="text-xs text-white/70">
+                          <div className={subTextClass}>
                             {(st.city || "") + (st.city ? ", " : "")}
                             {st.state || ""}
                             {st.zip ? ` ${st.zip}` : ""}
@@ -634,46 +767,47 @@ export default function Page() {
                   ))}
 
                   {tripStops.length === 0 && (
-                    <div className="text-xs text-white/60">
+                    <div className="text-xs text-black/50 dark:text-white/60">
                       Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
                     </div>
                   )}
                 </div>
-              </div>
+              </CollapsibleSection>
 
               {/* SUMMARY */}
-              <div className="space-y-2">
-                <div className={sectionTitleClass}>Retailer Summary (Trip Stops)</div>
+              <CollapsibleSection title="Retailer Summary (Trip Stops)" defaultOpen={false}>
                 <div className="space-y-2">
                   {tripRetailerSummary.slice(0, 60).map((row) => (
                     <div key={row.retailer} className={innerTileClass}>
                       <div className="flex items-center justify-between gap-2">
                         <div className={tileTitleClass}>{row.retailer}</div>
-                        <div className="text-xs text-white/70 whitespace-nowrap">{row.count} stops</div>
+                        <div className="text-xs text-black/60 dark:text-white/70 whitespace-nowrap">{row.count} stops</div>
                       </div>
-                      <div className="text-xs text-white/70 mt-1 space-y-1">
+                      <div className="text-xs text-black/60 dark:text-white/70 mt-1 space-y-1">
                         <div>
-                          <span className="font-extrabold text-white/80">States:</span> {row.states.join(", ") || "—"}
+                          <span className="font-extrabold text-black/70 dark:text-white/80">States:</span> {row.states.join(", ") || "—"}
                         </div>
                         <div>
-                          <span className="font-extrabold text-white/80">Categories:</span>{" "}
+                          <span className="font-extrabold text-black/70 dark:text-white/80">Categories:</span>{" "}
                           {row.categories.join(", ") || "—"}
                         </div>
                         <div>
-                          <span className="font-extrabold text-white/80">Suppliers:</span>{" "}
+                          <span className="font-extrabold text-black/70 dark:text-white/80">Suppliers:</span>{" "}
                           {row.suppliers.join(", ") || "—"}
                         </div>
                       </div>
                     </div>
                   ))}
-                  {tripRetailerSummary.length === 0 && <div className="text-xs text-white/60">No trip stops yet.</div>}
+                  {tripRetailerSummary.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">No trip stops yet.</div>}
                 </div>
-              </div>
+              </CollapsibleSection>
 
               {/* Diagnostics */}
-              <div className="text-[11px] text-white/50">
-                Loaded: {allStops.length} stops • Trip: {tripStops.length}
-              </div>
+              <CollapsibleSection title="Diagnostics" defaultOpen={false}>
+                <div className="text-[11px] text-black/60 dark:text-white/50">
+                  Loaded: {allStops.length} stops • Trip: {tripStops.length}
+                </div>
+              </CollapsibleSection>
             </div>
           </aside>
 
