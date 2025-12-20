@@ -324,24 +324,6 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
         df.columns = [str(c).strip() for c in df.columns]
 
         # ------------------------------------------------------------
-        # Build canonical 'State' by coalescing STATE.1 -> STATE (prefer non-empty)
-        # This avoids losing state when both columns exist and one is blank.
-        # ------------------------------------------------------------
-        cols_upper = {str(c).strip().upper(): c for c in df.columns}
-        state1 = df[cols_upper['STATE.1']] if 'STATE.1' in cols_upper else ''
-        state0 = df[cols_upper['STATE']]   if 'STATE'   in cols_upper else ''
-        if 'STATE.1' in cols_upper or 'STATE' in cols_upper:
-            s1 = state1.astype(str).str.strip() if hasattr(state1, 'astype') else ''
-            df['State'] = state1.where(s1.ne(''), state0) if hasattr(state1, 'where') else state0
-            # Drop originals so later header mapping can't overwrite State
-            drop_cols = []
-            if 'STATE.1' in cols_upper: drop_cols.append(cols_upper['STATE.1'])
-            if 'STATE' in cols_upper: drop_cols.append(cols_upper['STATE'])
-            drop_cols = [c for c in drop_cols if c in df.columns and c != 'State']
-            if drop_cols: df = df.drop(columns=drop_cols)
-
-
-        # ------------------------------------------------------------
         # Header normalization (Kingpin XLSX variants -> canonical keys)
         # Accepts headers like 'CONTACT NAME', 'ZIP CODE', 'OFFICE PHONE', etc.
         # ------------------------------------------------------------
@@ -400,21 +382,6 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
                 return str(_k).strip()
 
             d = { _canon_key(k): ('' if pd.isna(v) else str(v)) for k, v in r.to_dict().items() }
-            # Ensure canonical State exists for downstream required-min checks
-            if not d.get('State'):
-                # Try multiple sources because upstream header normalization may rename columns
-                st = ''
-                for k in ('STATE.1','STATE','State','STATE.1 ','STATE ','STATE.1.1'):
-                    try:
-                        v = r.get(k, '')
-                    except Exception:
-                        v = ''
-                    s = str(v).strip() if v is not None else ''
-                    if s and s.lower() != 'nan':
-                        st = s
-                        break
-                d['State'] = st
-
             d["_Sheet"] = sh
             rows.append(d)
 

@@ -14,6 +14,8 @@
 //   • ✅ FIX: Map RESIZES on container changes (prevents “black half-page”)
 //   • ✅ UI: Suppliers line stays on ONE LINE in all popups (ellipsis + tooltip)
 //   • ✅ Debounce: map.resize() coalesced (prevents resize thrash)
+//   • ✅ FIX: Kingpin ContactName is canonical everywhere (search + popups)
+//   • ✅ FIX: Stop.coords for Kingpins = TRUE coords (routing); display uses offset
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -39,7 +41,7 @@ export type Stop = {
   phoneOffice?: string;
   phoneCell?: string;
 
-  coords: [number, number]; // [lng, lat]
+  coords: [number, number]; // TRUE coords [lng, lat] (Kingpins are un-offset here)
 };
 
 export type RetailerSummaryRow = {
@@ -127,12 +129,25 @@ function isCorporateHQ(category: string) {
   return c.includes("corporate") && c.includes("hq");
 }
 
+function getKingpinContactName(p: Record<string, any>) {
+  // ✅ Canonical schema: ContactName is present in your kingpin.geojson
+  return s(p.ContactName || p["Contact Name"] || p.Name || p.Contact);
+}
+
 function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>) {
   const retailer = s(p.Retailer);
-  const name = s(p.Name);
   const st = s(p.State);
   const zip = s(p.Zip);
-  return `${kind}:${retailer}|${name}|${st}|${zip}|${coords[0].toFixed(6)},${coords[1].toFixed(6)}`;
+
+  // ✅ Kingpins use ContactName for stable IDs (NOT Name)
+  const name =
+    kind === "kingpin"
+      ? getKingpinContactName(p)
+      : s(p.Name);
+
+  return `${kind}:${retailer}|${name}|${st}|${zip}|${coords[0].toFixed(6)},${coords[1].toFixed(
+    6
+  )}`;
 }
 
 function escapeHtml(v: string) {
@@ -142,6 +157,14 @@ function escapeHtml(v: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function kingpinDisplayCoords(trueCoords: [number, number]) {
+  return [trueCoords[0] + KINGPIN_OFFSET_LNG, trueCoords[1]] as [number, number];
+}
+
+function kingpinTrueCoordsFromDisplay(displayCoords: [number, number]) {
+  return [displayCoords[0] - KINGPIN_OFFSET_LNG, displayCoords[1]] as [number, number];
 }
 
 export default function CertisMap(props: Props) {
@@ -175,7 +198,7 @@ export default function CertisMap(props: Props) {
 
   const resizeObsRef = useRef<ResizeObserver | null>(null);
 
-  // ✅ NEW: debounce + RAF for resize (prevents resize thrash)
+  // ✅ debounce + RAF for resize (prevents resize thrash)
   const resizeDebounceRef = useRef<number | null>(null);
   const resizeRafRef = useRef<number | null>(null);
 
@@ -208,14 +231,12 @@ export default function CertisMap(props: Props) {
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
-    // ✅ ResizeObserver: keeps the map canvas synced with layout changes
-    // ✅ Debounced to avoid rapid resize storms
+    // ✅ ResizeObserver: keeps the map canvas synced with layout changes (debounced)
     try {
       resizeObsRef.current = new ResizeObserver(() => {
         const m = mapRef.current;
         if (!m) return;
 
-        // coalesce bursts
         if (resizeDebounceRef.current) window.clearTimeout(resizeDebounceRef.current);
 
         resizeDebounceRef.current = window.setTimeout(() => {
@@ -376,7 +397,6 @@ export default function CertisMap(props: Props) {
         routeDebounceRef.current = null;
       }
 
-      // ✅ cleanup resize debounce + raf
       if (resizeDebounceRef.current) {
         window.clearTimeout(resizeDebounceRef.current);
         resizeDebounceRef.current = null;
@@ -411,6 +431,7 @@ export default function CertisMap(props: Props) {
     const retailersData = (await r1.json()) as FeatureCollection;
     const kingpinData = (await r2.json()) as FeatureCollection;
 
+    // ✅ Map displays kingpins offset; Stop.coords remain TRUE coords (un-offset)
     const offsetKingpins: FeatureCollection = {
       ...kingpinData,
       features: (kingpinData.features ?? []).map((f: any) => {
@@ -430,6 +451,9 @@ export default function CertisMap(props: Props) {
 
     const allStops: Stop[] = [];
 
+    // --------------------------
+    // Retailers + HQ (TRUE coords)
+    // --------------------------
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
       const coords = f.geometry?.coordinates;
@@ -440,7 +464,10 @@ export default function CertisMap(props: Props) {
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
-      const label = kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
+      const label =
+        kind === "hq"
+          ? `${retailer || "Corporate HQ"} — Corporate HQ`
+          : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -458,14 +485,19 @@ export default function CertisMap(props: Props) {
       });
     }
 
-    for (const f of offsetKingpins.features ?? []) {
+    // --------------------------
+    // Kingpins (TRUE coords from kingpinData, NOT offsetKingpins)
+    // --------------------------
+    for (const f of kingpinData.features ?? []) {
       const p = f.properties ?? {};
       const coords = f.geometry?.coordinates;
       if (!coords) continue;
 
       const retailer = s(p.Retailer);
-      const contactName = s(p.Name || p.Contact || p.ContactName || p["Contact Name"]);
-      const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
+      const contactName = getKingpinContactName(p);
+      const label = retailer
+        ? `${contactName || "Kingpin"} — ${retailer}`
+        : `${contactName || "Kingpin"}`;
 
       allStops.push({
         id: makeId("kingpin", coords, p),
@@ -482,15 +514,19 @@ export default function CertisMap(props: Props) {
         email: s(p.Email) || "TBD",
         phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
         phoneCell: s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD",
-        coords,
+        coords, // TRUE coords
       });
     }
 
     onAllStopsLoaded(allStops);
 
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-    onRetailersLoaded(uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean)));
-    onCategoriesLoaded(uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category))));
+    onRetailersLoaded(
+      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
+    );
+    onCategoriesLoaded(
+      uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category)))
+    );
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
 
@@ -553,7 +589,9 @@ export default function CertisMap(props: Props) {
       el.style.backgroundRepeat = "no-repeat";
       el.style.backgroundPosition = "center";
 
-      homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" }).setLngLat(homeCoords).addTo(map);
+      homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat(homeCoords)
+        .addTo(map);
     } else {
       homeMarkerRef.current.setLngLat(homeCoords);
     }
@@ -568,13 +606,20 @@ export default function CertisMap(props: Props) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !zoomToStop) return;
-    map.flyTo({ center: zoomToStop.coords, zoom: 12.5, essential: true });
+
+    // ✅ Kingpin stops store TRUE coords; display is offset on the map
+    const center =
+      zoomToStop.kind === "kingpin"
+        ? kingpinDisplayCoords(zoomToStop.coords)
+        : zoomToStop.coords;
+
+    map.flyTo({ center, zoom: 12.5, essential: true });
   }, [zoomToStop]);
 
   function buildRouteCoords(): [number, number][] {
     const pts: [number, number][] = [];
     if (homeCoords) pts.push(homeCoords);
-    for (const st of tripStops || []) pts.push(st.coords);
+    for (const st of tripStops || []) pts.push(st.coords); // TRUE coords (kingpins un-offset)
     return pts;
   }
 
@@ -626,6 +671,7 @@ export default function CertisMap(props: Props) {
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
+        // straight-line fallback
         src.setData({
           type: "FeatureCollection",
           features: [
@@ -718,7 +764,10 @@ export default function CertisMap(props: Props) {
 
     const f = features[0];
     const p = f.properties ?? {};
-    const coords = (f.geometry?.coordinates ?? []) as [number, number];
+    const displayCoords = (f.geometry?.coordinates ?? []) as [number, number];
+
+    // ✅ Kingpin layer is OFFSET; store TRUE coords in Stop so routing/search is correct
+    const trueCoords = kingpinTrueCoordsFromDisplay(displayCoords);
 
     const retailer = s(p.Retailer);
     const address = s(p.Address);
@@ -728,14 +777,15 @@ export default function CertisMap(props: Props) {
     const category = s(p.Category);
     const suppliers = s(p.Suppliers) || "Not listed";
 
-    const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
+    // ✅ Canonical contact name (ContactName first)
+    const contactName = getKingpinContactName(p);
     const contactTitle = s(p.ContactTitle || p.Title || p["Contact Title"]);
     const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
     const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
     const email = s(p.Email) || "TBD";
 
     const stop: Stop = {
-      id: makeId("kingpin", coords, p),
+      id: makeId("kingpin", trueCoords, p),
       kind: "kingpin",
       label: contactName ? `${contactName} — ${retailer || "Kingpin"}` : `${retailer || "Kingpin"}`,
       retailer,
@@ -749,7 +799,7 @@ export default function CertisMap(props: Props) {
       phoneOffice: office,
       phoneCell: cell,
       email,
-      coords,
+      coords: trueCoords, // TRUE coords for routing
     };
 
     const suppliersText = suppliers || "Not listed";
@@ -775,7 +825,8 @@ export default function CertisMap(props: Props) {
       </div>
     `;
 
-    new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
+    // Popup should appear at the DISPLAY coords (offset), not the TRUE coords
+    new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(displayCoords).setHTML(popupHtml).addTo(map);
 
     setTimeout(() => {
       const btn = document.getElementById("add-kingpin-btn");

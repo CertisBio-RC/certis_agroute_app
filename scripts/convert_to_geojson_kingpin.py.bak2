@@ -324,24 +324,6 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
         df.columns = [str(c).strip() for c in df.columns]
 
         # ------------------------------------------------------------
-        # Build canonical 'State' by coalescing STATE.1 -> STATE (prefer non-empty)
-        # This avoids losing state when both columns exist and one is blank.
-        # ------------------------------------------------------------
-        cols_upper = {str(c).strip().upper(): c for c in df.columns}
-        state1 = df[cols_upper['STATE.1']] if 'STATE.1' in cols_upper else ''
-        state0 = df[cols_upper['STATE']]   if 'STATE'   in cols_upper else ''
-        if 'STATE.1' in cols_upper or 'STATE' in cols_upper:
-            s1 = state1.astype(str).str.strip() if hasattr(state1, 'astype') else ''
-            df['State'] = state1.where(s1.ne(''), state0) if hasattr(state1, 'where') else state0
-            # Drop originals so later header mapping can't overwrite State
-            drop_cols = []
-            if 'STATE.1' in cols_upper: drop_cols.append(cols_upper['STATE.1'])
-            if 'STATE' in cols_upper: drop_cols.append(cols_upper['STATE'])
-            drop_cols = [c for c in drop_cols if c in df.columns and c != 'State']
-            if drop_cols: df = df.drop(columns=drop_cols)
-
-
-        # ------------------------------------------------------------
         # Header normalization (Kingpin XLSX variants -> canonical keys)
         # Accepts headers like 'CONTACT NAME', 'ZIP CODE', 'OFFICE PHONE', etc.
         # ------------------------------------------------------------
@@ -383,38 +365,7 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
                     df = df.drop(df.columns[idxs[:-1]], axis=1)
 
         for _, r in df.iterrows():
-            def _canon_key(_k: str) -> str:
-                ku = str(_k).strip().upper()
-                if ku == 'RETAILER': return 'Retailer'
-                if ku in ('CONTACT NAME','CONTACTNAME'): return 'ContactName'
-                if ku == 'ADDRESS': return 'Address'
-                if ku == 'CITY': return 'City'
-                if ku in ('STATE.1','STATE'): return 'State'
-                if ku in ('ZIP','ZIP CODE','ZIPCODE'): return 'Zip'
-                if ku in ('OFFICE PHONE','OFFICEPHONE'): return 'OfficePhone'
-                if ku in ('CELL PHONE','CELLPHONE'): return 'CellPhone'
-                if ku == 'EMAIL': return 'Email'
-                if ku in ('TITLE','CONTACT TITLE','CONTACTTITLE'): return 'ContactTitle'
-                if ku in ('SUPPLIER','SUPPLIERS'): return 'Suppliers'
-                if ku in ('FULL BLOCK ADDRESS','FULLADDRESS','FULL ADDRESS'): return 'FullAddress'
-                return str(_k).strip()
-
-            d = { _canon_key(k): ('' if pd.isna(v) else str(v)) for k, v in r.to_dict().items() }
-            # Ensure canonical State exists for downstream required-min checks
-            if not d.get('State'):
-                # Try multiple sources because upstream header normalization may rename columns
-                st = ''
-                for k in ('STATE.1','STATE','State','STATE.1 ','STATE ','STATE.1.1'):
-                    try:
-                        v = r.get(k, '')
-                    except Exception:
-                        v = ''
-                    s = str(v).strip() if v is not None else ''
-                    if s and s.lower() != 'nan':
-                        st = s
-                        break
-                d['State'] = st
-
+            d = {k: (str(v) if v is not None else "") for k, v in r.to_dict().items()}
             d["_Sheet"] = sh
             rows.append(d)
 

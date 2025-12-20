@@ -206,7 +206,7 @@
         "City": "Pekin",
         "State": "IL",
         "Zip": "61554",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Ag-Land FS - IL"
       }
@@ -411,7 +411,7 @@
       },
       "properties": {
         "Retailer": "AGRILAND FS",
-        "Name": "AGRILAND FS \u2013 Humeston",
+        "Name": "AGRILAND FS – Humeston",
         "Address": "420 N 4th St",
         "City": "Humeston",
         "State": "IA",
@@ -453,7 +453,7 @@
       },
       "properties": {
         "Retailer": "AGRILAND FS",
-        "Name": "AGRILAND FS \u2013 Missouri Valley",
+        "Name": "AGRILAND FS – Missouri Valley",
         "Address": "1850 335th St",
         "City": "Missouri Valley",
         "State": "IA",
@@ -516,7 +516,7 @@
       },
       "properties": {
         "Retailer": "AGRILAND FS",
-        "Name": "AGRILAND FS \u2013 Stuart",
+        "Name": "AGRILAND FS – Stuart",
         "Address": "1003 SW 7th St",
         "City": "Stuart",
         "State": "IA",
@@ -542,7 +542,7 @@
         "City": "Winterset",
         "State": "IA",
         "Zip": "50273",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Agriland FS - IA"
       }
@@ -705,12 +705,12 @@
       },
       "properties": {
         "Retailer": "AgState",
-        "Name": "Cherokee \u2013 Corporate HQ",
+        "Name": "Cherokee – Regional HQ",
         "Address": "960 Riverview Dr",
         "City": "Cherokee",
         "State": "IA",
         "Zip": "51012",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "AgState - IA"
       }
@@ -1151,7 +1151,7 @@
         "City": "Aberdeen",
         "State": "SD",
         "Zip": "57401",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield, Rosen's",
         "LongName": "Agtegra - SD ND MN"
       }
@@ -2390,9 +2390,9 @@
         "City": "Arapahoe",
         "State": "NE",
         "Zip": "68922",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2413,7 +2413,7 @@
         "Zip": "68923",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2434,7 +2434,7 @@
         "Zip": "69020",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2455,7 +2455,7 @@
         "Zip": "69122",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2476,7 +2476,7 @@
         "Zip": "69022",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2497,7 +2497,7 @@
         "Zip": "68936",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2518,7 +2518,7 @@
         "Zip": "69028",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2539,7 +2539,7 @@
         "Zip": "68948",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2560,7 +2560,7 @@
         "Zip": "69034",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2581,7 +2581,7 @@
         "Zip": "69038",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2602,7 +2602,7 @@
         "Zip": "69103",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2623,7 +2623,7 @@
         "Zip": "68966",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2644,7 +2644,7 @@
         "Zip": "68967",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2665,7 +2665,7 @@
         "Zip": "69046",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2686,7 +2686,7 @@
         "Zip": "67643",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2707,7 +2707,7 @@
         "Zip": "67646",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -2728,7 +2728,7 @@
         "Zip": "67654",
         "Category": "Agronomy, Feed/Grain",
         "Suppliers": "Winfield",
-        "LongName": "Ag Valley Cooperative \u2013 NE KS"
+        "LongName": "Ag Valley Cooperative – NE KS"
       }
     },
     {
@@ -3104,7 +3104,7 @@
         "City": "Waverly",
         "State": "IA",
         "Zip": "50677",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "AgVantage FS - IA"
       }
@@ -3461,7 +3461,7 @@
         "City": "Watertown",
         "State": "SD",
         "Zip": "57201",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield, Rosen's, IAP",
         "LongName": "Agwrx Coop - SD"
       }
@@ -3498,12 +3498,12 @@
       },
       "properties": {
         "Retailer": "Asmus Farm Supply, Inc.",
-        "Name": "Asmus Farm Supply \u2013 Rake IA",
+        "Name": "Asmus Farm Supply – Rake IA",
         "Address": "50245 40th Ave",
         "City": "Rake",
         "State": "IA",
         "Zip": "50456",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien, Winfield",
         "LongName": "Asmus Farm Supply, Inc. - IA MN"
       }
@@ -3519,7 +3519,7 @@
       },
       "properties": {
         "Retailer": "Asmus Farm Supply, Inc.",
-        "Name": "Asmus Farm Supply \u2013 Estherville IA",
+        "Name": "Asmus Farm Supply – Estherville IA",
         "Address": "603 S 28th St",
         "City": "Estherville",
         "State": "IA",
@@ -3540,7 +3540,7 @@
       },
       "properties": {
         "Retailer": "Asmus Farm Supply, Inc.",
-        "Name": "Asmus Farm Supply \u2013 Manly IA",
+        "Name": "Asmus Farm Supply – Manly IA",
         "Address": "1873 Hwy 9",
         "City": "Manly",
         "State": "IA",
@@ -3561,7 +3561,7 @@
       },
       "properties": {
         "Retailer": "Asmus Farm Supply, Inc.",
-        "Name": "Asmus Farm Supply \u2013 Fulda MN",
+        "Name": "Asmus Farm Supply – Fulda MN",
         "Address": "2375 Hwy 62",
         "City": "Fulda",
         "State": "MN",
@@ -3582,7 +3582,7 @@
       },
       "properties": {
         "Retailer": "Asmus Farm Supply, Inc.",
-        "Name": "Asmus Farm Supply \u2013 Okabena MN",
+        "Name": "Asmus Farm Supply – Okabena MN",
         "Address": "102 S Front St",
         "City": "Okabena",
         "State": "MN",
@@ -3734,7 +3734,7 @@
         "City": "Aurora",
         "State": "NE",
         "Zip": "68818",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Aurora Coop - NE, IA, KS, CO, TX"
       }
@@ -5088,8 +5088,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -101.69602,
-          34.12474
+          -101.696357,
+          34.165942
         ]
       },
       "properties": {
@@ -5309,7 +5309,7 @@
         "City": "Truman",
         "State": "MN",
         "Zip": "56088",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Central Farm Service - MN IA"
       }
@@ -5372,7 +5372,7 @@
         "City": "Marion",
         "State": "SD",
         "Zip": "57043",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Central Farmers Cooperative - SD NE"
       }
@@ -5834,7 +5834,7 @@
         "City": "Sleepy Eye",
         "State": "MN",
         "Zip": "56085",
-        "Category": "Corporate HQ, Grain",
+        "Category": "Regional HQ, Grain",
         "Suppliers": "Winfield",
         "LongName": "Central United Coop - MN"
       }
@@ -5876,7 +5876,7 @@
         "City": "Sleepy Eye",
         "State": "MN",
         "Zip": "56085",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Central United Coop - MN"
       }
@@ -5939,7 +5939,7 @@
         "City": "Winthrop",
         "State": "MN",
         "Zip": "55396",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Central United Coop - MN"
       }
@@ -6065,7 +6065,7 @@
         "City": "Owatonna",
         "State": "MN",
         "Zip": "55060",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Central Valley Cooperative - MN"
       }
@@ -6926,7 +6926,7 @@
         "City": "York",
         "State": "NE",
         "Zip": "68467",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Central Valley Ag - NE IA"
       }
@@ -7068,7 +7068,7 @@
       },
       "properties": {
         "Retailer": "CHS Ag Services",
-        "Name": "CHS Ag Services \u2013 Erskine",
+        "Name": "CHS Ag Services – Erskine",
         "Address": "33388 190th Ave SE",
         "City": "Erskine",
         "State": "MN",
@@ -7104,8 +7104,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -97.094567,
-          48.920752
+          -97.093134,
+          48.919647
         ]
       },
       "properties": {
@@ -7257,7 +7257,7 @@
       },
       "properties": {
         "Retailer": "CHS Ag Services",
-        "Name": "Warren \u2013 Retail",
+        "Name": "Warren – Retail",
         "Address": "420 S Main St",
         "City": "Warren",
         "State": "MN",
@@ -7278,12 +7278,12 @@
       },
       "properties": {
         "Retailer": "CHS Ag Services",
-        "Name": "Warren \u2013 Admin Office",
+        "Name": "Warren – Admin Office",
         "Address": "747 S Main St",
         "City": "Warren",
         "State": "MN",
         "Zip": "56762",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Ag Services - MN ND"
       }
@@ -7299,7 +7299,7 @@
       },
       "properties": {
         "Retailer": "CHS Ag Services",
-        "Name": "CHS Ag Services \u2013 Drayton",
+        "Name": "CHS Ag Services – Drayton",
         "Address": "7851 Old Hwy 44",
         "City": "Drayton",
         "State": "ND",
@@ -7320,7 +7320,7 @@
       },
       "properties": {
         "Retailer": "CHS Ag Services",
-        "Name": "CHS Ag Services \u2013 Grand Forks",
+        "Name": "CHS Ag Services – Grand Forks",
         "Address": "2002 N Washington St",
         "City": "Grand Forks",
         "State": "ND",
@@ -7724,7 +7724,7 @@
         "City": "Brandon",
         "State": "SD",
         "Zip": "57005",
-        "Category": "Corporate HQ, Grain",
+        "Category": "Regional HQ, Grain",
         "Suppliers": "CHS",
         "LongName": "CHS Brandon - SD MN NE"
       }
@@ -7881,8 +7881,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -99.367733,
-          40.038
+          -99.362138,
+          40.098409
         ]
       },
       "properties": {
@@ -7902,8 +7902,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -99.39578,
-          40.434355
+          -99.313636,
+          40.44888
         ]
       },
       "properties": {
@@ -7934,7 +7934,7 @@
         "City": "Holdrege",
         "State": "NE",
         "Zip": "68949",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Central Plains - NE"
       }
@@ -8013,7 +8013,7 @@
       },
       "properties": {
         "Retailer": "CHS Dakota Plains Ag",
-        "Name": "CHS Dakota Plains Ag \u2013 Comstock Agronomy",
+        "Name": "CHS Dakota Plains Ag – Comstock Agronomy",
         "Address": "16214 18th St S",
         "City": "Comstock",
         "State": "MN",
@@ -8223,12 +8223,12 @@
       },
       "properties": {
         "Retailer": "CHS Dakota Plains Ag",
-        "Name": "CHS Dakota Plains Ag \u2013 Kindred Office",
+        "Name": "CHS Dakota Plains Ag – Kindred Office",
         "Address": "5324 165th Ave SE",
         "City": "Kindred",
         "State": "ND",
         "Zip": "58051",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Dakota Plains Ag - ND MN SD"
       }
@@ -8433,7 +8433,7 @@
       },
       "properties": {
         "Retailer": "CHS Dakota Plains Ag",
-        "Name": "CHS Dakota Plains Ag \u2013 Sanborn NH3",
+        "Name": "CHS Dakota Plains Ag – Sanborn NH3",
         "Address": "610 7th Ave",
         "City": "Sanborn",
         "State": "ND",
@@ -8475,7 +8475,7 @@
       },
       "properties": {
         "Retailer": "CHS Dakota Plains Ag",
-        "Name": "CHS Dakota Plains Ag \u2013 Valley City Agronomy",
+        "Name": "CHS Dakota Plains Ag – Valley City Agronomy",
         "Address": "151 9th Ave NW",
         "City": "Valley City",
         "State": "ND",
@@ -8538,7 +8538,7 @@
       },
       "properties": {
         "Retailer": "CHS Dakota Plains Ag",
-        "Name": "CHS Dakota Plains Ag \u2013 Claire City Agronomy, Grain/Feed",
+        "Name": "CHS Dakota Plains Ag – Claire City Agronomy, Grain/Feed",
         "Address": "390 Railroad Ave",
         "City": "Claire City",
         "State": "SD",
@@ -8664,7 +8664,7 @@
       },
       "properties": {
         "Retailer": "CHS Devils Lake",
-        "Name": "Devils Lake \u2014 Fertilizer Plant",
+        "Name": "Devils Lake — Fertilizer Plant",
         "Address": "4215 14th St NW",
         "City": "Devils Lake",
         "State": "ND",
@@ -8685,7 +8685,7 @@
       },
       "properties": {
         "Retailer": "CHS Devils Lake",
-        "Name": "Devils Lake \u2014 CPP Warehouse",
+        "Name": "Devils Lake — CPP Warehouse",
         "Address": "7946 Highway 2",
         "City": "Devils Lake",
         "State": "ND",
@@ -8706,7 +8706,7 @@
       },
       "properties": {
         "Retailer": "CHS Devils Lake",
-        "Name": "Devils Lake \u2014 Seed Plant",
+        "Name": "Devils Lake — Seed Plant",
         "Address": "1016 Kelly Ave",
         "City": "Devils Lake",
         "State": "ND",
@@ -8727,7 +8727,7 @@
       },
       "properties": {
         "Retailer": "CHS Devils Lake",
-        "Name": "Devils Lake \u2014 Downtown Elevator",
+        "Name": "Devils Lake — Downtown Elevator",
         "Address": "109 10th St NE",
         "City": "Devils Lake",
         "State": "ND",
@@ -8748,7 +8748,7 @@
       },
       "properties": {
         "Retailer": "CHS Devils Lake",
-        "Name": "Devils Lake \u2014 Terminal",
+        "Name": "Devils Lake — Terminal",
         "Address": "3919 14th St NW",
         "City": "Devils Lake",
         "State": "ND",
@@ -8769,12 +8769,12 @@
       },
       "properties": {
         "Retailer": "CHS Devils Lake",
-        "Name": "CHS Devils Lake \u2013 Main Office",
+        "Name": "CHS Devils Lake – Main Office",
         "Address": "3719 14th St NW",
         "City": "Devils Lake",
         "State": "ND",
         "Zip": "58301",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Devils Lake - ND"
       }
@@ -9005,7 +9005,7 @@
         "City": "Elburn",
         "State": "IL",
         "Zip": "60119",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Elburn - IL"
       }
@@ -9404,7 +9404,7 @@
         "City": "Mitchell",
         "State": "SD",
         "Zip": "57301",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Farmers Alliance - SD"
       }
@@ -9551,9 +9551,9 @@
         "City": "Princeton",
         "State": "MN",
         "Zip": "55371",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
-        "LongName": "CHS - Federated Co-ops \u2014 MN"
+        "LongName": "CHS - Federated Co-ops — MN"
       }
     },
     {
@@ -9574,7 +9574,7 @@
         "Zip": "55301",
         "Category": "Agronomy",
         "Suppliers": "Winfield",
-        "LongName": "CHS - Federated Co-ops \u2014 MN"
+        "LongName": "CHS - Federated Co-ops — MN"
       }
     },
     {
@@ -9595,7 +9595,7 @@
         "Zip": "55040",
         "Category": "Agronomy",
         "Suppliers": "Winfield",
-        "LongName": "CHS - Federated Co-ops \u2014 MN"
+        "LongName": "CHS - Federated Co-ops — MN"
       }
     },
     {
@@ -9616,7 +9616,7 @@
         "Zip": "56358",
         "Category": "Agronomy",
         "Suppliers": "Winfield",
-        "LongName": "CHS - Federated Co-ops \u2014 MN"
+        "LongName": "CHS - Federated Co-ops — MN"
       }
     },
     {
@@ -9637,7 +9637,7 @@
         "Zip": "55069",
         "Category": "Agronomy",
         "Suppliers": "Winfield",
-        "LongName": "CHS - Federated Co-ops \u2014 MN"
+        "LongName": "CHS - Federated Co-ops — MN"
       }
     },
     {
@@ -9656,7 +9656,7 @@
         "City": "Garrison",
         "State": "ND",
         "Zip": "58540",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Garrison - ND"
       }
@@ -9693,7 +9693,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Browns Valley",
+        "Name": "CHS Herman – Browns Valley",
         "Address": "207 Broadway St",
         "City": "Browns Valley",
         "State": "MN",
@@ -9735,7 +9735,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Chokio",
+        "Name": "CHS Herman – Chokio",
         "Address": "503 S Main St",
         "City": "Chokio",
         "State": "MN",
@@ -9777,7 +9777,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Clinton",
+        "Name": "CHS Herman – Clinton",
         "Address": "136 NW 2nd St",
         "City": "Clinton",
         "State": "MN",
@@ -9798,7 +9798,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "Clinton \u2013 Agronomy",
+        "Name": "Clinton – Agronomy",
         "Address": "31999 US Hwy 75",
         "City": "Clinton",
         "State": "MN",
@@ -9840,7 +9840,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Elrosa",
+        "Name": "CHS Herman – Elrosa",
         "Address": "41135 County Rd 14",
         "City": "Elrosa",
         "State": "MN",
@@ -9924,12 +9924,12 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Herman Main Office",
+        "Name": "CHS Herman – Herman Main Office",
         "Address": "1000 Pacific Ave N",
         "City": "Herman",
         "State": "MN",
         "Zip": "56248",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Herman - MN SD"
       }
@@ -9966,7 +9966,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Johnson",
+        "Name": "CHS Herman – Johnson",
         "Address": "208 Mill St",
         "City": "Johnson",
         "State": "MN",
@@ -9987,7 +9987,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Kensington",
+        "Name": "CHS Herman – Kensington",
         "Address": "11 4th St NE",
         "City": "Kensington",
         "State": "MN",
@@ -10155,7 +10155,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Starbuck",
+        "Name": "CHS Herman – Starbuck",
         "Address": "524 Pope St",
         "City": "Starbuck",
         "State": "MN",
@@ -10176,7 +10176,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Underwood",
+        "Name": "CHS Herman – Underwood",
         "Address": "29338 State Hwy 210",
         "City": "Underwood",
         "State": "MN",
@@ -10239,7 +10239,7 @@
       },
       "properties": {
         "Retailer": "CHS Herman",
-        "Name": "CHS Herman \u2013 Wilmot (SD)",
+        "Name": "CHS Herman – Wilmot (SD)",
         "Address": "13653 SD Hwy 123",
         "City": "Wilmot",
         "State": "SD",
@@ -10475,7 +10475,7 @@
         "City": "St. Hilaire",
         "State": "MN",
         "Zip": "56754",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Northern Grain - MN"
       }
@@ -10538,7 +10538,7 @@
         "City": "Ashley",
         "State": "ND",
         "Zip": "58413",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS River Plains - SD ND"
       }
@@ -10575,7 +10575,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Strasburg \u2013 Grain",
+        "Name": "Strasburg – Grain",
         "Address": "998 Main St",
         "City": "Strasburg",
         "State": "ND",
@@ -10596,7 +10596,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Ashley (Venturia) \u2013 Grain",
+        "Name": "Ashley (Venturia) – Grain",
         "Address": "Hwy 11 & 40th Ave SE",
         "City": "Venturia",
         "State": "ND",
@@ -10617,7 +10617,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Blunt \u2013 Grain",
+        "Name": "Blunt – Grain",
         "Address": "105 S Main",
         "City": "Blunt",
         "State": "SD",
@@ -10638,7 +10638,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Dupree \u2013 Grain",
+        "Name": "Dupree – Grain",
         "Address": "101 Railroad St",
         "City": "Dupree",
         "State": "SD",
@@ -10659,7 +10659,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "CHS River Plains \u2013 Eureka",
+        "Name": "CHS River Plains – Eureka",
         "Address": "11103 Walnut Rd",
         "City": "Eureka",
         "State": "SD",
@@ -10701,7 +10701,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "CHS River Plains \u2013 Fairfax",
+        "Name": "CHS River Plains – Fairfax",
         "Address": "201 Turney Ave",
         "City": "Fairfax",
         "State": "SD",
@@ -10743,7 +10743,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Fairfax \u2013 Grain",
+        "Name": "Fairfax – Grain",
         "Address": "107 Turney Ave",
         "City": "Fairfax",
         "State": "SD",
@@ -10764,7 +10764,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "CHS River Plains \u2013 Faulkton",
+        "Name": "CHS River Plains – Faulkton",
         "Address": "609 9th Ave",
         "City": "Faulkton",
         "State": "SD",
@@ -10806,7 +10806,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "CHS River Plains \u2013 Gettysburg",
+        "Name": "CHS River Plains – Gettysburg",
         "Address": "503 N Potter St",
         "City": "Gettysburg",
         "State": "SD",
@@ -10869,7 +10869,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Kadoka \u2013 Grain",
+        "Name": "Kadoka – Grain",
         "Address": "1100 S Main St",
         "City": "Kadoka",
         "State": "SD",
@@ -10890,7 +10890,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Onida \u2013 Grain",
+        "Name": "Onida – Grain",
         "Address": "305 Cedar Ave",
         "City": "Onida",
         "State": "SD",
@@ -10911,7 +10911,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Philip \u2013 Grain",
+        "Name": "Philip – Grain",
         "Address": "300 E Cherry St",
         "City": "Philip",
         "State": "SD",
@@ -10953,7 +10953,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Pierre \u2013 Grain",
+        "Name": "Pierre – Grain",
         "Address": "1919 E Sioux Ave",
         "City": "Pierre",
         "State": "SD",
@@ -10968,8 +10968,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -99.976293,
-          45.478531
+          -100.032214,
+          45.507413
         ]
       },
       "properties": {
@@ -10995,7 +10995,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Selby \u2013 Grain",
+        "Name": "Selby – Grain",
         "Address": "207 S Railway St",
         "City": "Selby",
         "State": "SD",
@@ -11021,7 +11021,7 @@
         "City": "Selby",
         "State": "SD",
         "Zip": "57472",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS River Plains - SD ND"
       }
@@ -11037,7 +11037,7 @@
       },
       "properties": {
         "Retailer": "CHS River Plains",
-        "Name": "Winner \u2013 Grain",
+        "Name": "Winner – Grain",
         "Address": "31711 Harvest Rd",
         "City": "Winner",
         "State": "SD",
@@ -11063,7 +11063,7 @@
         "City": "Rochester",
         "State": "MN",
         "Zip": "55904",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Rochester - MN"
       }
@@ -11079,7 +11079,7 @@
       },
       "properties": {
         "Retailer": "CHS Rochester",
-        "Name": "CHS Rochester \u2013 Byron Agronomy",
+        "Name": "CHS Rochester – Byron Agronomy",
         "Address": "610 County Rd 3 SW",
         "City": "Byron",
         "State": "MN",
@@ -11094,8 +11094,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -92.571712,
-          44.069017
+          -92.580856,
+          44.070842
         ]
       },
       "properties": {
@@ -11142,7 +11142,7 @@
       },
       "properties": {
         "Retailer": "CHS Rochester",
-        "Name": "CHS Rochester \u2013 Claremont Agronomy",
+        "Name": "CHS Rochester – Claremont Agronomy",
         "Address": "135 W Front St",
         "City": "Claremont",
         "State": "MN",
@@ -11184,7 +11184,7 @@
       },
       "properties": {
         "Retailer": "CHS Rochester",
-        "Name": "CHS Rochester \u2013 Grand Meadow Agronomy",
+        "Name": "CHS Rochester – Grand Meadow Agronomy",
         "Address": "806 2nd Ave NE",
         "City": "Grand Meadow",
         "State": "MN",
@@ -11205,7 +11205,7 @@
       },
       "properties": {
         "Retailer": "CHS Rochester",
-        "Name": "Grand Meadow \u2013 Agronomy",
+        "Name": "Grand Meadow – Agronomy",
         "Address": "106 County Road 8",
         "City": "Grand Meadow",
         "State": "MN",
@@ -11268,7 +11268,7 @@
       },
       "properties": {
         "Retailer": "CHS Rochester",
-        "Name": "Grand Meadow \u2013 Feed Mill",
+        "Name": "Grand Meadow – Feed Mill",
         "Address": "111 Center Ave N",
         "City": "Grand Meadow",
         "State": "MN",
@@ -11310,7 +11310,7 @@
       },
       "properties": {
         "Retailer": "CHS Rochester",
-        "Name": "CHS Rochester \u2013 Ostrander Agronomy",
+        "Name": "CHS Rochester – Ostrander Agronomy",
         "Address": "375 Highway 63 S",
         "City": "Ostrander",
         "State": "MN",
@@ -11394,7 +11394,7 @@
       },
       "properties": {
         "Retailer": "CHS Rochester",
-        "Name": "CHS Rochester \u2013 St. Charles Agronomy",
+        "Name": "CHS Rochester – St. Charles Agronomy",
         "Address": "1332 Whitewater Ave",
         "City": "St. Charles",
         "State": "MN",
@@ -11567,7 +11567,7 @@
         "City": "Dickinson",
         "State": "ND",
         "Zip": "58601",
-        "Category": "Corporate HQ, C-Store/Service/Energy",
+        "Category": "Regional HQ, C-Store/Service/Energy",
         "Suppliers": "CHS",
         "LongName": "CHS Southwest Grain - ND SD"
       }
@@ -11735,7 +11735,7 @@
         "City": "New Salem",
         "State": "ND",
         "Zip": "58563",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS Southwest Grain - ND SD"
       }
@@ -12066,7 +12066,7 @@
       },
       "properties": {
         "Retailer": "CHS West Central",
-        "Name": "Ulen \u2013 Agronomy",
+        "Name": "Ulen – Agronomy",
         "Address": "334 1st St SW",
         "City": "Ulen",
         "State": "MN",
@@ -12087,7 +12087,7 @@
       },
       "properties": {
         "Retailer": "CHS West Central",
-        "Name": "Ulen \u2013 Grain",
+        "Name": "Ulen – Grain",
         "Address": "220 1st St SE",
         "City": "Ulen",
         "State": "MN",
@@ -12113,7 +12113,7 @@
         "City": "Ulen",
         "State": "MN",
         "Zip": "56585",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "CHS",
         "LongName": "CHS West Central - MN"
       }
@@ -12344,7 +12344,7 @@
         "City": "Doon",
         "State": "IA",
         "Zip": "51235",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Cooperative Farmers Elevator - IA MN SD"
       }
@@ -12743,7 +12743,7 @@
         "City": "Woodstock",
         "State": "IL",
         "Zip": "60098",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Conserv FS - IL"
       }
@@ -12764,7 +12764,7 @@
         "City": "Hawarden",
         "State": "IA",
         "Zip": "51023",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Rosen's, Winfield, Nutrien",
         "LongName": "Countryside Ag Service"
       }
@@ -12827,7 +12827,7 @@
         "City": "Gothenburg",
         "State": "NE",
         "Zip": "69138",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Country Partners Cooperative"
       }
@@ -13152,8 +13152,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -98.252428,
-          40.784858
+          -98.2578,
+          40.79186
         ]
       },
       "properties": {
@@ -13310,7 +13310,7 @@
         "City": "Hastings",
         "State": "NE",
         "Zip": "68901",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Rosen's, Winfield, IAP",
         "LongName": "Cooperative Producers Inc - NE"
       }
@@ -13404,8 +13404,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -98.50811,
-          40.59256
+          -98.506659,
+          40.592293
         ]
       },
       "properties": {
@@ -13835,7 +13835,7 @@
         "City": "Bloomington",
         "State": "IL",
         "Zip": "61704",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Evergreen FS - IL"
       }
@@ -13887,8 +13887,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -89.324397,
-          39.984606
+          -88.981613,
+          40.14644
         ]
       },
       "properties": {
@@ -14076,20 +14076,20 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -95.601818,
-          41.851897
+          -95.602606,
+          41.851278
         ]
       },
       "properties": {
         "Retailer": "Farm Service Coop",
-        "Name": "Dunlap Corporate HQ",
+        "Name": "Dunlap Regional HQ",
         "Address": "23793 US Highway 30 W",
         "City": "Dunlap",
         "State": "IA",
         "Zip": "51529",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield, Rosen's",
-        "LongName": "Farmers Service Cooperative \u2013 IA"
+        "LongName": "Farmers Service Cooperative – IA"
       }
     },
     {
@@ -14110,7 +14110,7 @@
         "Zip": "51537",
         "Category": "Agronomy",
         "Suppliers": "Winfield, Rosen's",
-        "LongName": "Farmers Service Cooperative \u2013 IA"
+        "LongName": "Farmers Service Cooperative – IA"
       }
     },
     {
@@ -14131,7 +14131,7 @@
         "Zip": "51537",
         "Category": "Agronomy",
         "Suppliers": "Winfield, Rosen's",
-        "LongName": "Farmers Service Cooperative \u2013 IA"
+        "LongName": "Farmers Service Cooperative – IA"
       }
     },
     {
@@ -14152,7 +14152,7 @@
         "Zip": "51570",
         "Category": "Agronomy, C-Store/Service/Energy",
         "Suppliers": "Winfield, Rosen's",
-        "LongName": "Farmers Service Cooperative \u2013 IA"
+        "LongName": "Farmers Service Cooperative – IA"
       }
     },
     {
@@ -14173,7 +14173,7 @@
         "Zip": "51521",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield, Rosen's",
-        "LongName": "Farmers Service Cooperative \u2013 IA"
+        "LongName": "Farmers Service Cooperative – IA"
       }
     },
     {
@@ -14194,7 +14194,7 @@
         "Zip": "51565",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield, Rosen's",
-        "LongName": "Farmers Service Cooperative \u2013 IA"
+        "LongName": "Farmers Service Cooperative – IA"
       }
     },
     {
@@ -14215,7 +14215,7 @@
         "Zip": "51527",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield, Rosen's",
-        "LongName": "Farmers Service Cooperative \u2013 IA"
+        "LongName": "Farmers Service Cooperative – IA"
       }
     },
     {
@@ -14236,7 +14236,7 @@
         "Zip": "51558",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield, Rosen's",
-        "LongName": "Farmers Service Cooperative \u2013 IA"
+        "LongName": "Farmers Service Cooperative – IA"
       }
     },
     {
@@ -14257,7 +14257,7 @@
         "Zip": "51563",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield, Rosen's",
-        "LongName": "Farmers Service Cooperative \u2013 IA"
+        "LongName": "Farmers Service Cooperative – IA"
       }
     },
     {
@@ -14402,7 +14402,7 @@
         "City": "Sioux Center",
         "State": "IA",
         "Zip": "51250",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien, Winfield, Rosen's",
         "LongName": "Farmers Coop Society - IA SD"
       }
@@ -14488,7 +14488,7 @@
         "Zip": "57315",
         "Category": "Agronomy, Grain",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14507,9 +14507,9 @@
         "City": "Battle Creek",
         "State": "NE",
         "Zip": "68715",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14530,7 +14530,7 @@
         "Zip": "68718",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14551,7 +14551,7 @@
         "Zip": "68745",
         "Category": "C-Store/Service/Energy",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14572,7 +14572,7 @@
         "Zip": "68748",
         "Category": "Agronomy",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14593,7 +14593,7 @@
         "Zip": "68756",
         "Category": "Grain/Feed",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14614,7 +14614,7 @@
         "Zip": "68758",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14635,7 +14635,7 @@
         "Zip": "68758",
         "Category": "C-Store/Service/Energy",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14656,7 +14656,7 @@
         "Zip": "68763",
         "Category": "C-Store/Service/Energy",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14677,7 +14677,7 @@
         "Zip": "68765",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14698,7 +14698,7 @@
         "Zip": "68767",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14719,7 +14719,7 @@
         "Zip": "68769",
         "Category": "Agronomy, Grain/Feed",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14740,7 +14740,7 @@
         "Zip": "68057",
         "Category": "C-Store/Service/Energy",
         "Suppliers": "Winfield",
-        "LongName": "Farmers Pride Cooperative \u2013 NE & SD"
+        "LongName": "Farmers Pride Cooperative – NE & SD"
       }
     },
     {
@@ -14759,7 +14759,7 @@
         "City": "Keota",
         "State": "IA",
         "Zip": "52248",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien, Winfield",
         "LongName": "FCA Vision Ag - IA"
       }
@@ -15006,7 +15006,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Benkelman \u2013 C-Store/Service/Energy",
+        "Name": "Benkelman – C-Store/Service/Energy",
         "Address": "33797 Hwy 34",
         "City": "Benkelman",
         "State": "NE",
@@ -15027,7 +15027,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Benkelman \u2013 Grain Elevator",
+        "Name": "Benkelman – Grain Elevator",
         "Address": "303 W Railroad",
         "City": "Benkelman",
         "State": "NE",
@@ -15048,7 +15048,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Burns \u2013 Grain Elevator",
+        "Name": "Burns – Grain Elevator",
         "Address": "420 Coop Rd",
         "City": "Burns",
         "State": "WY",
@@ -15069,7 +15069,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Chappell \u2013 Agronomy",
+        "Name": "Chappell – Agronomy",
         "Address": "16515 County Road 14",
         "City": "Chappell",
         "State": "NE",
@@ -15090,7 +15090,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Chappell \u2013 C-Store/Service/Energy",
+        "Name": "Chappell – C-Store/Service/Energy",
         "Address": "582 2nd St",
         "City": "Chappell",
         "State": "NE",
@@ -15111,7 +15111,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Chappell \u2013 Grain Elevator, Feed",
+        "Name": "Chappell – Grain Elevator, Feed",
         "Address": "16515 County Road 14",
         "City": "Chappell",
         "State": "NE",
@@ -15132,7 +15132,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Culbertson \u2013 East Grain Elevator",
+        "Name": "Culbertson – East Grain Elevator",
         "Address": "168 Clarkston",
         "City": "Culbertson",
         "State": "NE",
@@ -15153,7 +15153,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Culbertson \u2013 Shuttle Loader",
+        "Name": "Culbertson – Shuttle Loader",
         "Address": "37252 US Hwy 34",
         "City": "Culbertson",
         "State": "NE",
@@ -15174,7 +15174,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Dalton \u2013 C-Store/Service/Energy/Cardtrol Pumps",
+        "Name": "Dalton – C-Store/Service/Energy/Cardtrol Pumps",
         "Address": "602 Broad St",
         "City": "Dalton",
         "State": "NE",
@@ -15195,7 +15195,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Dix \u2013 Grain Elevator",
+        "Name": "Dix – Grain Elevator",
         "Address": "110 Spruce St",
         "City": "Dix",
         "State": "NE",
@@ -15216,7 +15216,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Enders \u2013 Grain Elevator",
+        "Name": "Enders – Grain Elevator",
         "Address": "Pioneer and 1st Street",
         "City": "Enders",
         "State": "NE",
@@ -15237,7 +15237,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Grant \u2013 Agronomy",
+        "Name": "Grant – Agronomy",
         "Address": "32945 Nebraska 23",
         "City": "Grant",
         "State": "NE",
@@ -15258,7 +15258,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Grant \u2013 East Elevator",
+        "Name": "Grant – East Elevator",
         "Address": "75985 Rd 329",
         "City": "Grant",
         "State": "NE",
@@ -15279,8 +15279,8 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Grant \u2013 Fertilizer",
-        "Address": "32870 Rd 759 \u00be",
+        "Name": "Grant – Fertilizer",
+        "Address": "32870 Rd 759 ¾",
         "City": "Grant",
         "State": "NE",
         "Zip": "69140",
@@ -15300,7 +15300,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Imperial \u2013 Aerial",
+        "Name": "Imperial – Aerial",
         "Address": "100 Hwy 61",
         "City": "Imperial",
         "State": "NE",
@@ -15321,7 +15321,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Imperial \u2013 Agronomy / 24\u2011HR Diesel Pumps",
+        "Name": "Imperial – Agronomy / 24‑HR Diesel Pumps",
         "Address": "101 Douglas Street",
         "City": "Imperial",
         "State": "NE",
@@ -15342,12 +15342,12 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Imperial \u2013 Corporate HQ / Main Office",
+        "Name": "Imperial – Regional HQ / Main Office",
         "Address": "202 Broadway Street (PO Box 578)",
         "City": "Imperial",
         "State": "NE",
         "Zip": "69033",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Frenchman Valley Coop - NE"
       }
@@ -15363,7 +15363,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Imperial \u2013 Feed",
+        "Name": "Imperial – Feed",
         "Address": "143 Broadway",
         "City": "Imperial",
         "State": "NE",
@@ -15384,7 +15384,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Imperial \u2013 Grain Elevators",
+        "Name": "Imperial – Grain Elevators",
         "Address": "143 Broadway",
         "City": "Imperial",
         "State": "NE",
@@ -15405,7 +15405,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Imperial \u2013 Service Station",
+        "Name": "Imperial – Service Station",
         "Address": "103 W 3rd St",
         "City": "Imperial",
         "State": "NE",
@@ -15420,13 +15420,13 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -62.738087,
-          45.688293
+          -62.955632,
+          45.778118
         ]
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Imperial \u2013 T\u2011Junction",
+        "Name": "Imperial – T‑Junction",
         "Address": "Hwy 6 & 61",
         "City": "Imperial",
         "State": "NE",
@@ -15441,13 +15441,13 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -103.663039,
-          41.233349
+          -103.663333,
+          41.218923
         ]
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Kimball \u2013 Cardtrol Pumps",
+        "Name": "Kimball – Cardtrol Pumps",
         "Address": "1105 S Chestnut St",
         "City": "Kimball",
         "State": "NE",
@@ -15462,13 +15462,13 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -103.663039,
-          41.233349
+          -103.663333,
+          41.218923
         ]
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Kimball \u2013 Feed",
+        "Name": "Kimball – Feed",
         "Address": "1105 S Chestnut St",
         "City": "Kimball",
         "State": "NE",
@@ -15489,7 +15489,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Kimball \u2013 Grain Elevator",
+        "Name": "Kimball – Grain Elevator",
         "Address": "3980 W Main",
         "City": "Kimball",
         "State": "NE",
@@ -15510,7 +15510,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Lodgepole \u2013 Grain Elevator",
+        "Name": "Lodgepole – Grain Elevator",
         "Address": "607 Sheldon",
         "City": "Lodgepole",
         "State": "NE",
@@ -15531,7 +15531,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Lodgepole \u2013 Convenience Store / Cardtrol Pumps",
+        "Name": "Lodgepole – Convenience Store / Cardtrol Pumps",
         "Address": "607 Sheldon St",
         "City": "Lodgepole",
         "State": "NE",
@@ -15552,7 +15552,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "McCook \u2013 Agronomy",
+        "Name": "McCook – Agronomy",
         "Address": "203 Karrer St",
         "City": "McCook",
         "State": "NE",
@@ -15573,7 +15573,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "McCook \u2013 Convenience Store / C-Store/Service/Energy",
+        "Name": "McCook – Convenience Store / C-Store/Service/Energy",
         "Address": "206 East B St",
         "City": "McCook",
         "State": "NE",
@@ -15594,7 +15594,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "McCook \u2013 Feed",
+        "Name": "McCook – Feed",
         "Address": "301 W A St",
         "City": "McCook",
         "State": "NE",
@@ -15615,7 +15615,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "McCook \u2013 Grain Elevator",
+        "Name": "McCook – Grain Elevator",
         "Address": "102 E 3rd St",
         "City": "McCook",
         "State": "NE",
@@ -15636,7 +15636,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "McCook \u2013 Xpress 24\u2011Hr Fueling",
+        "Name": "McCook – Xpress 24‑Hr Fueling",
         "Address": "South Hwy 83",
         "City": "McCook",
         "State": "NE",
@@ -15657,7 +15657,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Oshkosh \u2013 Grain Elevator",
+        "Name": "Oshkosh – Grain Elevator",
         "Address": "205 U.S. 26",
         "City": "Oshkosh",
         "State": "NE",
@@ -15678,7 +15678,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Palisade \u2013 Grain Elevator",
+        "Name": "Palisade – Grain Elevator",
         "Address": "102 N Dean St",
         "City": "Palisade",
         "State": "NE",
@@ -15699,7 +15699,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Pine Bluffs \u2013 Agronomy",
+        "Name": "Pine Bluffs – Agronomy",
         "Address": "100 North Main",
         "City": "Pine Bluffs",
         "State": "WY",
@@ -15720,7 +15720,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Pine Bluffs \u2013 C-Store/Service/Energy/Cardtrol Pumps",
+        "Name": "Pine Bluffs – C-Store/Service/Energy/Cardtrol Pumps",
         "Address": "102 Walnut Street",
         "City": "Pine Bluffs",
         "State": "WY",
@@ -15741,7 +15741,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Pine Bluffs \u2013 Grain Elevator",
+        "Name": "Pine Bluffs – Grain Elevator",
         "Address": "605 W US Hwy 30",
         "City": "Pine Bluffs",
         "State": "WY",
@@ -15762,7 +15762,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Potter \u2013 C-Store/Service/Energy / Cardtrol Pumps",
+        "Name": "Potter – C-Store/Service/Energy / Cardtrol Pumps",
         "Address": "3040 Link 17B",
         "City": "Potter",
         "State": "NE",
@@ -15783,7 +15783,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Sidney \u2013 Agronomy",
+        "Name": "Sidney – Agronomy",
         "Address": "303 Illinois St",
         "City": "Sidney",
         "State": "NE",
@@ -15804,7 +15804,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Sidney \u2013 C-Store/Service/Energy / Cardtrol Pumps",
+        "Name": "Sidney – C-Store/Service/Energy / Cardtrol Pumps",
         "Address": "1402 Illinois St",
         "City": "Sidney",
         "State": "NE",
@@ -15825,7 +15825,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Venango \u2013 Grain Elevator",
+        "Name": "Venango – Grain Elevator",
         "Address": "104 East Hwy 23",
         "City": "Venango",
         "State": "NE",
@@ -15846,7 +15846,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Wauneta \u2013 Grain Elevator",
+        "Name": "Wauneta – Grain Elevator",
         "Address": "102 N Tecumseh St",
         "City": "Wauneta",
         "State": "NE",
@@ -15867,7 +15867,7 @@
       },
       "properties": {
         "Retailer": "Frenchman Valley Coop",
-        "Name": "Wheatland \u2013 C-Store/Service/Energy / Cardtrol Pumps",
+        "Name": "Wheatland – C-Store/Service/Energy / Cardtrol Pumps",
         "Address": "305 16th St",
         "City": "Wheatland",
         "State": "WY",
@@ -16182,7 +16182,7 @@
       },
       "properties": {
         "Retailer": "Frontier Coop",
-        "Name": "Cedar Bluffs \u2013 Agronomy",
+        "Name": "Cedar Bluffs – Agronomy",
         "Address": "1771 County Road X",
         "City": "Cedar Bluffs",
         "State": "NE",
@@ -16224,7 +16224,7 @@
       },
       "properties": {
         "Retailer": "Frontier Coop",
-        "Name": "Cedar Bluffs \u2013 Office",
+        "Name": "Cedar Bluffs – Office",
         "Address": "204 S Park St",
         "City": "Cedar Bluffs",
         "State": "NE",
@@ -16308,7 +16308,7 @@
       },
       "properties": {
         "Retailer": "Frontier Coop",
-        "Name": "Columbus \u2013 Elevator",
+        "Name": "Columbus – Elevator",
         "Address": "1854 14th Ave",
         "City": "Columbus",
         "State": "NE",
@@ -16434,7 +16434,7 @@
       },
       "properties": {
         "Retailer": "Frontier Coop",
-        "Name": "David City \u2013 Yanka",
+        "Name": "David City – Yanka",
         "Address": "3541 O Road",
         "City": "David City",
         "State": "NE",
@@ -16670,7 +16670,7 @@
         "City": "Lincoln",
         "State": "NE",
         "Zip": "68460",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Frontier Cooperative - NE"
       }
@@ -16749,7 +16749,7 @@
       },
       "properties": {
         "Retailer": "Frontier Coop",
-        "Name": "Mead \u2013 Agronomy",
+        "Name": "Mead – Agronomy",
         "Address": "1551 County Road 11",
         "City": "Mead",
         "State": "NE",
@@ -16833,7 +16833,7 @@
       },
       "properties": {
         "Retailer": "Frontier Coop",
-        "Name": "Mead \u2013 Elevator",
+        "Name": "Mead – Elevator",
         "Address": "410 E 3rd St",
         "City": "Mead",
         "State": "NE",
@@ -17016,8 +17016,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -96.83753,
-          41.33313
+          -96.804119,
+          41.29926
         ]
       },
       "properties": {
@@ -17038,7 +17038,7 @@
         "type": "Point",
         "coordinates": [
           -96.521008,
-          40.866104
+          40.866336
         ]
       },
       "properties": {
@@ -17468,7 +17468,7 @@
         "City": "Ithaca",
         "State": "MI",
         "Zip": "48847",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "GAPS FS - MI"
       }
@@ -17547,7 +17547,7 @@
       },
       "properties": {
         "Retailer": "Gateway FS",
-        "Name": "Fults \u2013 Elevator",
+        "Name": "Fults – Elevator",
         "Address": "2161 Levee Rd",
         "City": "Fults",
         "State": "IL",
@@ -17589,12 +17589,12 @@
       },
       "properties": {
         "Retailer": "Gateway FS",
-        "Name": "Gateway FS \u2013 Main Office",
+        "Name": "Gateway FS – Main Office",
         "Address": "221 E Pine St",
         "City": "Red Bud",
         "State": "IL",
         "Zip": "62278",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Gateway FS - IL"
       }
@@ -17610,7 +17610,7 @@
       },
       "properties": {
         "Retailer": "Gateway FS",
-        "Name": "Waltonville \u2013 Grain",
+        "Name": "Waltonville – Grain",
         "Address": "314 S Hirons St",
         "City": "Waltonville",
         "State": "IL",
@@ -17636,7 +17636,7 @@
         "City": "Clarion",
         "State": "IA",
         "Zip": "50525",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Gold-Eagle Cooperative - IA"
       }
@@ -17862,7 +17862,7 @@
       },
       "properties": {
         "Retailer": "GRAINCO FS",
-        "Name": "GRAINCO FS \u2013 Lostant Agronomy",
+        "Name": "GRAINCO FS – Lostant Agronomy",
         "Address": "W 3rd St & S 8th St",
         "City": "Lostant",
         "State": "IL",
@@ -17925,7 +17925,7 @@
       },
       "properties": {
         "Retailer": "GRAINCO FS",
-        "Name": "GRAINCO FS \u2013 Mendota Agronomy",
+        "Name": "GRAINCO FS – Mendota Agronomy",
         "Address": "1901 13th Ave",
         "City": "Mendota",
         "State": "IL",
@@ -17988,7 +17988,7 @@
       },
       "properties": {
         "Retailer": "GRAINCO FS",
-        "Name": "GRAINCO FS \u2013 Morris Agronomy",
+        "Name": "GRAINCO FS – Morris Agronomy",
         "Address": "11230 N State Route 47",
         "City": "Morris",
         "State": "IL",
@@ -18045,13 +18045,13 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.482298,
-          41.500548
+          -88.45157,
+          41.524012
         ]
       },
       "properties": {
         "Retailer": "GRAINCO FS",
-        "Name": "GRAINCO FS \u2013 Newark Agronomy",
+        "Name": "GRAINCO FS – Newark Agronomy",
         "Address": "10200 Lisbon Rd",
         "City": "Newark",
         "State": "IL",
@@ -18119,7 +18119,7 @@
         "City": "Ottawa",
         "State": "IL",
         "Zip": "61350",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "GRAINCO FS - IL"
       }
@@ -18245,7 +18245,7 @@
         "City": "Clive",
         "State": "IA",
         "Zip": "50325",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Heartland Co-op - IA NE TX"
       }
@@ -18885,8 +18885,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -92.048239,
-          41.789362
+          -92.04756,
+          41.790532
         ]
       },
       "properties": {
@@ -18969,8 +18969,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -95.88365,
-          41.56386
+          -95.879478,
+          41.560811
         ]
       },
       "properties": {
@@ -20072,7 +20072,7 @@
         "City": "West Des Moines",
         "State": "IA",
         "Zip": "50266",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Helena",
         "LongName": "Helena Agri-Enterprises - IA"
       }
@@ -20534,7 +20534,7 @@
         "City": "Huntington",
         "State": "IN",
         "Zip": "46750",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Helena",
         "LongName": "Helena Agri-Enterprises - IN"
       }
@@ -20744,7 +20744,7 @@
         "City": "Saginaw",
         "State": "MI",
         "Zip": "48609",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Helena",
         "LongName": "Helena Agri-Enterprises - MI"
       }
@@ -20975,7 +20975,7 @@
         "City": "West Fargo",
         "State": "ND",
         "Zip": "58078",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Helena",
         "LongName": "Helena Agri-Enterprises - ND MN"
       }
@@ -21059,7 +21059,7 @@
         "City": "Omaha",
         "State": "NE",
         "Zip": "68138",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Helena",
         "LongName": "Helena Agri-Enterprises - NE"
       }
@@ -21122,7 +21122,7 @@
         "City": "Bowling Green",
         "State": "OH",
         "Zip": "43402",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Helena",
         "LongName": "Helena Agri-Enterprises - OH"
       }
@@ -21227,7 +21227,7 @@
         "City": "Alexandria",
         "State": "SD",
         "Zip": "57311",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Helena",
         "LongName": "Helena Agri-Enterprises - SD"
       }
@@ -21405,13 +21405,13 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.031823,
-          40.741477
+          -87.977937,
+          40.770845
         ]
       },
       "properties": {
         "Retailer": "Heritage FS",
-        "Name": "Heritage FS \u2013 Gilman Agronomy (IL)",
+        "Name": "Heritage FS – Gilman Agronomy (IL)",
         "Address": "1643 N US Hwy 45",
         "City": "Gilman",
         "State": "IL",
@@ -21437,7 +21437,7 @@
         "City": "Gilman",
         "State": "IL",
         "Zip": "60938",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Heritage FS - IN IL"
       }
@@ -21495,7 +21495,7 @@
       },
       "properties": {
         "Retailer": "Heritage FS",
-        "Name": "Heritage FS \u2013 Goodland",
+        "Name": "Heritage FS – Goodland",
         "Address": "1665 S State Road 55",
         "City": "Goodland",
         "State": "IN",
@@ -21537,7 +21537,7 @@
       },
       "properties": {
         "Retailer": "Heritage FS",
-        "Name": "Heritage FS \u2013 Morocco",
+        "Name": "Heritage FS – Morocco",
         "Address": "5202 S Old US 41",
         "City": "Morocco",
         "State": "IN",
@@ -21600,7 +21600,7 @@
       },
       "properties": {
         "Retailer": "Heritage FS",
-        "Name": "Heritage FS \u2013 Rensselaer",
+        "Name": "Heritage FS – Rensselaer",
         "Address": "911 N Cullen St",
         "City": "Rensselaer",
         "State": "IN",
@@ -21831,12 +21831,12 @@
       },
       "properties": {
         "Retailer": "Hi-Line Coop",
-        "Name": "Elsie Corporate HQ",
+        "Name": "Elsie Regional HQ",
         "Address": "203 S Perkins Ave",
         "City": "Elsie",
         "State": "NE",
         "Zip": "69134",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield, Nutrien, Rosen's",
         "LongName": "Hi-Line Cooperative - NE"
       }
@@ -21857,7 +21857,7 @@
         "City": "Tekamah",
         "State": "NE",
         "Zip": "68061",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "",
         "LongName": "HiWay 75 Ag, LLC"
       }
@@ -21878,7 +21878,7 @@
         "City": "Hull",
         "State": "IA",
         "Zip": "51239",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield, Nutrien",
         "LongName": "Hull Cooperative - IA"
       }
@@ -22130,7 +22130,7 @@
         "City": "Urbana",
         "State": "IL",
         "Zip": "61802",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Illini FS - IL"
       }
@@ -22298,7 +22298,7 @@
         "City": "Monticello",
         "State": "IA",
         "Zip": "52310",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Innovative Ag Services - IA"
       }
@@ -22466,7 +22466,7 @@
         "City": "Crawfordsville",
         "State": "IN",
         "Zip": "47933",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Keystone Cooperative - IN MI"
       }
@@ -23001,8 +23001,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -93.603312,
-          41.58422
+          -93.626349,
+          41.579901
         ]
       },
       "properties": {
@@ -23894,7 +23894,7 @@
         "City": "Findlay",
         "State": "OH",
         "Zip": "45840",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Legacy Farmers Cooperative - OH"
       }
@@ -24009,8 +24009,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -96.22117,
-          41.76085
+          -96.221037,
+          41.785901
         ]
       },
       "properties": {
@@ -24020,7 +24020,7 @@
         "City": "Tekamah",
         "State": "NE",
         "Zip": "68061",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "",
         "LongName": "Midwest Service Company - NE"
       }
@@ -24062,7 +24062,7 @@
         "City": "Carlinville",
         "State": "IL",
         "Zip": "62626",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "M&M Service Company FS - IL"
       }
@@ -24188,7 +24188,7 @@
         "City": "Fort Dodge",
         "State": "IA",
         "Zip": "50501",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "NEW Cooperative - IA"
       }
@@ -24624,7 +24624,7 @@
       },
       "properties": {
         "Retailer": "New Century FS",
-        "Name": "New Century FS \u2013 Whitten (Conrad)",
+        "Name": "New Century FS – Whitten (Conrad)",
         "Address": "14314 310th St",
         "City": "Conrad",
         "State": "IA",
@@ -24687,7 +24687,7 @@
       },
       "properties": {
         "Retailer": "New Century FS",
-        "Name": "New Century FS \u2013 Baxter (Newton)",
+        "Name": "New Century FS – Baxter (Newton)",
         "Address": "5616 IA-14",
         "City": "Newton",
         "State": "IA",
@@ -24813,12 +24813,12 @@
       },
       "properties": {
         "Retailer": "New Century FS",
-        "Name": "New Century FS \u2013 Royal Office",
+        "Name": "New Century FS – Royal Office",
         "Address": "4385 190th Ave",
         "City": "Royal",
         "State": "IA",
         "Zip": "51357",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "New Century FS - IA"
       }
@@ -25154,7 +25154,7 @@
         "City": "Urbandale",
         "State": "IA",
         "Zip": "50322",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - IA"
       }
@@ -25175,7 +25175,7 @@
         "City": "Wall Lake",
         "State": "IA",
         "Zip": "51466",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - IA"
       }
@@ -25889,7 +25889,7 @@
         "City": "Dyersville",
         "State": "IA",
         "Zip": "52040",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - IA"
       }
@@ -26162,7 +26162,7 @@
         "City": "Sioux City",
         "State": "IA",
         "Zip": "51106",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - IA"
       }
@@ -26603,7 +26603,7 @@
         "City": "Galesburg",
         "State": "IL",
         "Zip": "61401",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - IL"
       }
@@ -27296,7 +27296,7 @@
         "City": "Macomb",
         "State": "IL",
         "Zip": "61455",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - IL"
       }
@@ -27590,7 +27590,7 @@
         "City": "Neoga",
         "State": "IL",
         "Zip": "62447",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - IL"
       }
@@ -27611,7 +27611,7 @@
         "City": "Neoga",
         "State": "IL",
         "Zip": "62447",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - IL"
       }
@@ -27958,7 +27958,7 @@
         "type": "Point",
         "coordinates": [
           -88.915824,
-          39.638156
+          39.638155
         ]
       },
       "properties": {
@@ -28724,7 +28724,7 @@
         "City": "Kasota",
         "State": "MN",
         "Zip": "56050",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - MN"
       }
@@ -28766,7 +28766,7 @@
         "City": "Fairmont",
         "State": "MN",
         "Zip": "56031",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - MN"
       }
@@ -28976,7 +28976,7 @@
         "City": "Clarks Grove",
         "State": "MN",
         "Zip": "56016",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - MN"
       }
@@ -29123,7 +29123,7 @@
         "City": "Sauk Centre",
         "State": "MN",
         "Zip": "56378",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - MN"
       }
@@ -29501,7 +29501,7 @@
         "City": "Fairbury",
         "State": "NE",
         "Zip": "68352",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - NE"
       }
@@ -29564,7 +29564,7 @@
         "City": "Fremont",
         "State": "NE",
         "Zip": "68025",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - NE"
       }
@@ -29585,7 +29585,7 @@
         "City": "Fremont",
         "State": "NE",
         "Zip": "68025",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - NE"
       }
@@ -29753,7 +29753,7 @@
         "City": "Imperial",
         "State": "NE",
         "Zip": "69033",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - NE"
       }
@@ -29774,7 +29774,7 @@
         "City": "Imperial",
         "State": "NE",
         "Zip": "69033",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - NE"
       }
@@ -30110,7 +30110,7 @@
         "City": "Brookings",
         "State": "SD",
         "Zip": "57006",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - SD"
       }
@@ -30131,7 +30131,7 @@
         "City": "Brookings",
         "State": "SD",
         "Zip": "57006",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Nutrien",
         "LongName": "Nutrien Ag Solutions - SD"
       }
@@ -30467,7 +30467,7 @@
         "City": "Jacksonville",
         "State": "IL",
         "Zip": "62650",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Prairieland FS - IL"
       }
@@ -30540,8 +30540,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -91.198942,
-          40.022797
+          -91.211731,
+          40.018621
         ]
       },
       "properties": {
@@ -30761,7 +30761,7 @@
         "City": "Rolfe",
         "State": "IA",
         "Zip": "50581",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": ""
       }
@@ -31008,7 +31008,7 @@
       },
       "properties": {
         "Retailer": "RedStar",
-        "Name": "Columbus \u2013 Distribution Center",
+        "Name": "Columbus – Distribution Center",
         "Address": "4930 Howard Blvd",
         "City": "Columbus",
         "State": "NE",
@@ -31029,12 +31029,12 @@
       },
       "properties": {
         "Retailer": "RedStar",
-        "Name": "Leigh \u2013 Main Office",
+        "Name": "Leigh – Main Office",
         "Address": "48303 115 Ave",
         "City": "Leigh",
         "State": "NE",
         "Zip": "68643",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "IAP",
         "LongName": "RedStar Fertilizer - NE MN"
       }
@@ -31071,7 +31071,7 @@
       },
       "properties": {
         "Retailer": "South Central FS",
-        "Name": "South Central FS \u2013 Altamont",
+        "Name": "South Central FS – Altamont",
         "Address": "7471 N 300th St",
         "City": "Altamont",
         "State": "IL",
@@ -31134,7 +31134,7 @@
       },
       "properties": {
         "Retailer": "South Central FS",
-        "Name": "South Central FS \u2013 Effingham (Willow St)",
+        "Name": "South Central FS – Effingham (Willow St)",
         "Address": "410 S Willow St",
         "City": "Effingham",
         "State": "IL",
@@ -31160,7 +31160,7 @@
         "City": "Effingham",
         "State": "IL",
         "Zip": "62401",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "South Central FS - IL"
       }
@@ -31176,7 +31176,7 @@
       },
       "properties": {
         "Retailer": "South Central FS",
-        "Name": "South Central FS \u2013 Flora",
+        "Name": "South Central FS – Flora",
         "Address": "404 W North Ave",
         "City": "Flora",
         "State": "IL",
@@ -31239,7 +31239,7 @@
       },
       "properties": {
         "Retailer": "South Central FS",
-        "Name": "South Central FS \u2013 St. Peter",
+        "Name": "South Central FS – St. Peter",
         "Address": "510 E Railroad St",
         "City": "St. Peter",
         "State": "IL",
@@ -31538,7 +31538,7 @@
         "City": "South Charleston",
         "State": "OH",
         "Zip": "45368",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Sunrise Cooperative - OH"
       }
@@ -31685,7 +31685,7 @@
         "City": "Dyersville",
         "State": "IA",
         "Zip": "52040",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Three Rivers FS - IA"
       }
@@ -31722,7 +31722,7 @@
       },
       "properties": {
         "Retailer": "Three Rivers FS",
-        "Name": "FAST STOP \u2013 Dyersville",
+        "Name": "FAST STOP – Dyersville",
         "Address": "32199 Olde Castle Road",
         "City": "Dyersville",
         "State": "IA",
@@ -31779,8 +31779,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -91.251704,
-          42.347143
+          -91.273206,
+          42.385937
         ]
       },
       "properties": {
@@ -31848,7 +31848,7 @@
       },
       "properties": {
         "Retailer": "Three Rivers FS",
-        "Name": "FAST STOP \u2013 Manchester",
+        "Name": "FAST STOP – Manchester",
         "Address": "1000 South 5th Street",
         "City": "Manchester",
         "State": "IA",
@@ -31890,7 +31890,7 @@
       },
       "properties": {
         "Retailer": "Three Rivers FS",
-        "Name": "FAST STOP \u2013 Ryan",
+        "Name": "FAST STOP – Ryan",
         "Address": "101 Adam Street",
         "City": "Ryan",
         "State": "IA",
@@ -31932,7 +31932,7 @@
       },
       "properties": {
         "Retailer": "Three Rivers FS",
-        "Name": "FAST STOP \u2013 Elkader",
+        "Name": "FAST STOP – Elkader",
         "Address": "24544 IA-13",
         "City": "Elkader",
         "State": "IA",
@@ -32094,8 +32094,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.287276,
-          39.980783
+          -88.258,
+          39.981499
         ]
       },
       "properties": {
@@ -32105,7 +32105,7 @@
         "City": "Tolono",
         "State": "IL",
         "Zip": "61880",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "United Prairie LLC - IL"
       }
@@ -32136,8 +32136,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -96.515221,
-          47.299875
+          -96.49685,
+          47.29665
         ]
       },
       "properties": {
@@ -32336,7 +32336,7 @@
         "City": "Reynolds",
         "State": "ND",
         "Zip": "58275",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Winfield",
         "LongName": "Valley United Coop - ND MN"
       }
@@ -32441,7 +32441,7 @@
         "City": "Grayville",
         "State": "IL",
         "Zip": "62844",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "Wabash Valley FS - IL IN"
       }
@@ -32499,7 +32499,7 @@
       },
       "properties": {
         "Retailer": "Wabash Valley FS",
-        "Name": "Francisco \u2013 Grain",
+        "Name": "Francisco – Grain",
         "Address": "200 N 3rd St",
         "City": "Francisco",
         "State": "IN",
@@ -32583,7 +32583,7 @@
       },
       "properties": {
         "Retailer": "West Central FS",
-        "Name": "West Central FS \u2013 Bushnell",
+        "Name": "West Central FS – Bushnell",
         "Address": "19311 IL Hwy 9 & 41",
         "City": "Bushnell",
         "State": "IL",
@@ -32604,7 +32604,7 @@
       },
       "properties": {
         "Retailer": "West Central FS",
-        "Name": "West Central FS \u2013 Carthage",
+        "Name": "West Central FS – Carthage",
         "Address": "1790 E US Hwy 136",
         "City": "Carthage",
         "State": "IL",
@@ -32672,7 +32672,7 @@
         "City": "Macomb",
         "State": "IL",
         "Zip": "61455",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "West Central FS - IL IA"
       }
@@ -32730,7 +32730,7 @@
       },
       "properties": {
         "Retailer": "West Central FS",
-        "Name": "West Central FS \u2013 Monmouth",
+        "Name": "West Central FS – Monmouth",
         "Address": "903 S Sunny Ln",
         "City": "Monmouth",
         "State": "IL",
@@ -32850,18 +32850,18 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -90.280998,
-          41.024877
+          -90.279784,
+          41.026049
         ]
       },
       "properties": {
         "Retailer": "West Central FS",
-        "Name": "West Central FS \u2013 Wataga",
+        "Name": "West Central FS – Wataga",
         "Address": "686 Depot St",
         "City": "Wataga",
         "State": "IL",
         "Zip": "61488",
-        "Category": "Corporate HQ",
+        "Category": "Regional HQ",
         "Suppliers": "Growmark",
         "LongName": "West Central FS - IL IA"
       }
@@ -32892,8 +32892,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -90.014051,
-          41.003887
+          -90.014212,
+          40.920376
         ]
       },
       "properties": {
