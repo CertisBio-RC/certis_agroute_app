@@ -41,3 +41,12 @@ __archive/
 
 # Ignore Gold Baseline backup folders
 backup/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Editor/script backups
+*.bak
+*.bak*
+
