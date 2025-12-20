@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
 import CertisMap, { Stop, RetailerSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
@@ -30,48 +29,8 @@ function splitCategories(raw: any) {
     .filter(Boolean);
 }
 
-type CollapsibleSectionProps = {
-  title: string;
-  defaultOpen?: boolean;
-  rightSlot?: React.ReactNode;
-  children: React.ReactNode;
-};
-
-function CollapsibleSection({ title, defaultOpen = true, rightSlot, children }: CollapsibleSectionProps) {
-  const [open, setOpen] = useState<boolean>(defaultOpen);
-
-  const headerTextClass =
-    "font-extrabold tracking-wide text-sm md:text-[13px] " +
-    "text-black dark:text-yellow-400";
-
-  const borderClass = "border border-black/10 dark:border-white/15";
-  const bgClass = "bg-white/70 dark:bg-black/20 backdrop-blur-md";
-  const panelShadow = "shadow-[0_18px_36px_rgba(0,0,0,0.25)]";
-
-  return (
-    <section className={`rounded-2xl ${borderClass} ${bgClass} ${panelShadow}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl"
-        aria-expanded={open}
-      >
-        <div className="flex items-center gap-2">
-          <span className={headerTextClass}>{title}</span>
-          <span className="text-xs text-black/50 dark:text-white/50">{open ? "▾" : "▸"}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {rightSlot}
-          <span className="text-[11px] px-2 py-1 rounded-lg border border-black/10 dark:border-white/15 text-black/60 dark:text-white/60">
-            {open ? "Collapse" : "Expand"}
-          </span>
-        </div>
-      </button>
-
-      {open && <div className="px-4 pb-4">{children}</div>}
-    </section>
-  );
+function sectionKey(title: string) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
 export default function Page() {
@@ -104,12 +63,18 @@ export default function Page() {
   const [supplierSearch, setSupplierSearch] = useState("");
   const [stopSearch, setStopSearch] = useState("");
 
-  // Collapsible subsections (Filters)
-  const [filtersOpen, setFiltersOpen] = useState(true);
-  const [stateOpen, setStateOpen] = useState(true);
-  const [retailerOpen, setRetailerOpen] = useState(true);
-  const [categoryOpen, setCategoryOpen] = useState(false);
-  const [supplierOpen, setSupplierOpen] = useState(false);
+  // Expand/collapse sections
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
+    [sectionKey("Home ZIP")]: false,
+    [sectionKey("Find a Stop")]: false,
+    [sectionKey("Filters")]: false,
+    [sectionKey("State")]: false,
+    [sectionKey("Retailer")]: false,
+    [sectionKey("Category")]: false,
+    [sectionKey("Supplier")]: false,
+    [sectionKey("Trip Builder")]: false,
+    [sectionKey("Retailer Summary (Trip Stops)")]: false,
+  });
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
 
@@ -196,6 +161,10 @@ export default function Page() {
     setHomeZip("");
     setHomeCoords(null);
     setHomeStatus("");
+  };
+
+  const toggleSection = (key: string) => {
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   // Filtered option lists (sidebar search)
@@ -333,10 +302,8 @@ export default function Page() {
 
   // Retailer summary based on TRIP STOPS
   const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
-    const acc: Record<
-      string,
-      { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }
-    > = {};
+    const acc: Record<string, { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }> =
+      {};
 
     for (const st of tripStops) {
       const retailer = (st.retailer || "").trim() || "Unknown Retailer";
@@ -361,52 +328,101 @@ export default function Page() {
       .sort((a, b) => b.count - a.count);
   }, [tripStops]);
 
-  // Updated tile styles (clear borders + yellow headings)
-  const panelClass =
-    "rounded-2xl border border-black/10 dark:border-white/15 bg-white/60 dark:bg-black/20 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.25)]";
-  const innerTileClass =
-    "rounded-xl border border-black/10 dark:border-white/15 bg-white/70 dark:bg-black/25 backdrop-blur-sm p-3 shadow-[0_10px_18px_rgba(0,0,0,0.25)]";
-  const sidebarListClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-black/10 dark:border-white/15 bg-white/60 dark:bg-black/20 backdrop-blur-sm p-2";
+  // ============================================================
+  // ✅ VISUAL SYSTEM (Fixes: background + tile outlines)
+  // ============================================================
 
-  const tileTitleClass = "text-sm font-extrabold leading-tight text-black dark:text-yellow-400";
-  const subTextClass = "text-xs text-black/60 dark:text-white/70";
+  // Strong, non-transparent dark background (fixes “wrong background” feel)
+  const appBg =
+    "bg-[#05070f] " +
+    "bg-[radial-gradient(1200px_700px_at_15%_0%,rgba(250,204,21,0.10),transparent_55%),radial-gradient(900px_600px_at_90%_25%,rgba(59,130,246,0.08),transparent_55%),radial-gradient(700px_500px_at_45%_110%,rgba(16,185,129,0.06),transparent_55%)]";
+
+  // Definite borders + subtle glow (what you’ve asked for 100 times)
+  const panelClass =
+    "rounded-2xl border border-yellow-400/20 ring-1 ring-white/10 bg-black/40 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
+
+  const innerTileClass =
+    "rounded-xl border border-yellow-400/18 ring-1 ring-white/10 bg-black/35 backdrop-blur-sm p-3 shadow-[0_12px_24px_rgba(0,0,0,0.45)]";
+
+  const listClass =
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-yellow-400/18 ring-1 ring-white/10 bg-black/30 backdrop-blur-sm p-2";
+
+  const stopListClass =
+    "max-h-64 overflow-y-auto space-y-2 rounded-xl border border-yellow-400/18 ring-1 ring-white/10 bg-black/30 backdrop-blur-sm p-2";
+
+  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-400";
+  const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-400";
+  const subTextClass = "text-xs text-white/70";
 
   const clearBtnClass =
-    "text-xs px-2 py-1 rounded-lg border border-black/10 dark:border-white/15 hover:border-black/20 dark:hover:border-white/30 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
+    "text-xs px-2 py-1 rounded-lg border border-yellow-400/20 hover:border-yellow-400/35 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
+
   const smallInputClass =
-    "w-full rounded-xl bg-white/70 dark:bg-black/20 border border-black/10 dark:border-white/15 px-3 py-2 text-sm text-black dark:text-white outline-none focus:border-black/20 dark:focus:border-white/30";
+    "w-full rounded-xl bg-black/35 border border-yellow-400/18 ring-1 ring-white/10 px-3 py-2 text-sm outline-none focus:border-yellow-400/35 focus:ring-yellow-400/15";
 
-  const miniSectionHeader =
-    "flex items-center justify-between rounded-xl border border-black/10 dark:border-white/15 bg-white/60 dark:bg-black/15 px-3 py-2";
+  const sectionShellClass =
+    "rounded-2xl border border-yellow-400/15 ring-1 ring-white/10 bg-black/25 backdrop-blur-sm px-3 py-3";
 
-  const miniSectionTitle = "text-sm font-extrabold text-black dark:text-yellow-400";
+  const sectionHeaderRowClass = "flex items-center justify-between gap-2";
+
+  const collapseBtnClass =
+    "text-xs px-3 py-1.5 rounded-xl border border-yellow-400/20 bg-black/20 hover:bg-white/10 hover:border-yellow-400/35";
+
+  const caretClass = "text-yellow-400/80 text-xs";
+
+  // Helper: section header with collapse
+  const SectionHeader = ({
+    title,
+    right,
+    k,
+  }: {
+    title: string;
+    right?: React.ReactNode;
+    k: string;
+  }) => {
+    const isCollapsed = !!collapsed[k];
+    return (
+      <div className={sectionHeaderRowClass}>
+        <button
+          type="button"
+          onClick={() => toggleSection(k)}
+          className="flex items-center gap-2"
+          title={isCollapsed ? "Expand" : "Collapse"}
+        >
+          <span className={sectionTitleClass}>{title}</span>
+          <span className={caretClass}>{isCollapsed ? "▼" : "▲"}</span>
+        </button>
+        <div className="flex items-center gap-2">
+          {right}
+          <button type="button" onClick={() => toggleSection(k)} className={collapseBtnClass}>
+            {isCollapsed ? "Expand" : "Collapse"}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen w-full text-black dark:text-white flex flex-col bg-[#f4f4f5] dark:bg-[#070a12]">
+    <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
       {/* HEADER */}
-      <header className="w-full border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/10 backdrop-blur-md flex-shrink-0">
+      <header className="w-full border-b border-yellow-400/15 bg-black/35 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Image
+            <img
               src={`${basePath}/icons/certis-logo.png`}
               alt="Certis Biologicals"
-              width={220}
-              height={72}
-              className="h-16 sm:h-18 w-auto drop-shadow-[0_8px_16px_rgba(0,0,0,0.35)] select-none"
+              className="h-14 sm:h-16 w-auto drop-shadow-[0_10px_18px_rgba(0,0,0,0.65)]"
               draggable={false}
-              priority
             />
           </div>
 
-          <div className="flex flex-col items-end gap-1 ml-auto">
-            <div className="text-yellow-500 dark:text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
+          <div className="flex items-center gap-4 ml-auto">
+            <div className="text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
               CERTIS AgRoute Database
             </div>
-
-            <div className="text-xs text-black/60 dark:text-white/60 whitespace-nowrap">
+            <div className="text-xs text-white/60 whitespace-nowrap">
               Token:{" "}
-              <span className={token ? "text-green-600 dark:text-green-400 font-semibold" : "text-red-600 dark:text-red-400 font-semibold"}>
+              <span className={token ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
                 {token ? "OK" : "MISSING"}
               </span>
             </div>
@@ -419,165 +435,143 @@ export default function Page() {
         <div className="h-full min-h-0 flex flex-col md:grid md:grid-cols-[380px_1fr] gap-3">
           {/* SIDEBAR */}
           <aside className={`${panelClass} sidebar min-h-0 md:h-full`}>
-            <div className="overflow-y-auto px-4 py-4 space-y-4">
+            <div className="overflow-y-auto px-4 py-3 space-y-4">
               {/* HOME ZIP */}
-              <CollapsibleSection title="Home ZIP" defaultOpen>
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <input
-                      value={homeZip}
-                      onChange={(e) => setHomeZip(e.target.value)}
-                      placeholder="e.g., 50010"
-                      className={smallInputClass}
-                    />
-                    <button
-                      onClick={setHomeFromZip}
-                      className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#facc15] text-black hover:bg-[#facc15]/90 disabled:opacity-50"
-                      disabled={!homeZip.trim() || !token}
-                      title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
-                    >
-                      Set
-                    </button>
-                    <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
-                      Clear
-                    </button>
+              <div className={sectionShellClass}>
+                <SectionHeader title="Home ZIP" k={sectionKey("Home ZIP")} />
+                {!collapsed[sectionKey("Home ZIP")] && (
+                  <div className="space-y-2 mt-3">
+                    <div className="flex gap-2">
+                      <input
+                        value={homeZip}
+                        onChange={(e) => setHomeZip(e.target.value)}
+                        placeholder="e.g., 50010"
+                        className={smallInputClass}
+                      />
+                      <button
+                        onClick={setHomeFromZip}
+                        className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#facc15] text-black hover:bg-[#facc15]/90 disabled:opacity-60"
+                        disabled={!homeZip.trim() || !token}
+                        title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
+                      >
+                        Set
+                      </button>
+                      <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
+                        Clear
+                      </button>
+                    </div>
+
+                    {homeStatus && <div className="text-xs text-yellow-400 font-semibold">{homeStatus}</div>}
+
+                    <div className="text-xs text-white/60">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
                   </div>
-
-                  {homeStatus && <div className="text-xs text-yellow-600 dark:text-yellow-400 font-semibold">{homeStatus}</div>}
-
-                  <div className={subTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
-                </div>
-              </CollapsibleSection>
+                )}
+              </div>
 
               {/* STOP SEARCH */}
-              <CollapsibleSection
-                title="Find a Stop"
-                defaultOpen
-                rightSlot={<div className="text-xs text-black/50 dark:text-white/50">Loaded: {allStops.length}</div>}
-              >
-                <div className="space-y-2">
-                  <input
-                    value={stopSearch}
-                    onChange={(e) => setStopSearch(e.target.value)}
-                    placeholder="Search by retailer, city, state, name, contact…"
-                    className={smallInputClass}
-                  />
-                  <div className={subTextClass}>Quick-add without hunting on the map.</div>
+              <div className={sectionShellClass}>
+                <SectionHeader
+                  title="Find a Stop"
+                  k={sectionKey("Find a Stop")}
+                  right={<div className="text-[11px] text-white/55 whitespace-nowrap">Loaded: {allStops.length}</div>}
+                />
+                {!collapsed[sectionKey("Find a Stop")] && (
+                  <div className="space-y-2 mt-3">
+                    <input
+                      value={stopSearch}
+                      onChange={(e) => setStopSearch(e.target.value)}
+                      placeholder="Search by retailer, city, state, name, contact…"
+                      className={smallInputClass}
+                    />
+                    <div className="text-xs text-white/60">Quick-add a stop without hunting on the map.</div>
 
-                  <div className="max-h-64 overflow-y-auto space-y-2 rounded-xl border border-black/10 dark:border-white/15 bg-white/60 dark:bg-black/20 backdrop-blur-sm p-2">
-                    {stopResults.map((st) => {
-                      const inTrip = tripStops.some((x) => x.id === st.id);
-                      return (
-                        <div key={st.id} className={innerTileClass}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className={tileTitleClass}>{st.label}</div>
-                              <div className={subTextClass}>
-                                {(st.city || "") + (st.city ? ", " : "")}
-                                {st.state || ""}
-                                {st.zip ? ` ${st.zip}` : ""}
-                                {st.kind ? ` • ${st.kind}` : ""}
+                    <div className={stopListClass}>
+                      {stopResults.map((st) => {
+                        const inTrip = tripStops.some((x) => x.id === st.id);
+                        return (
+                          <div key={st.id} className={innerTileClass}>
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className={tileTitleClass}>{st.label}</div>
+                                <div className={subTextClass}>
+                                  {(st.city || "") + (st.city ? ", " : "")}
+                                  {st.state || ""}
+                                  {st.zip ? ` ${st.zip}` : ""}
+                                  {st.kind ? ` • ${st.kind}` : ""}
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                                  Zoom
+                                </button>
+                                <button
+                                  onClick={() => addStopToTrip(st)}
+                                  className="text-xs px-2 py-1 rounded-lg bg-[#facc15] text-black font-extrabold hover:bg-[#facc15]/90 disabled:opacity-50"
+                                  disabled={inTrip}
+                                >
+                                  {inTrip ? "Added" : "Add"}
+                                </button>
                               </div>
                             </div>
-                            <div className="flex gap-2">
-                              <button onClick={() => zoomStop(st)} className={clearBtnClass}>
-                                Zoom
-                              </button>
-                              <button
-                                onClick={() => addStopToTrip(st)}
-                                className="text-xs px-2 py-1 rounded-lg bg-[#facc15] text-black font-extrabold hover:bg-[#facc15]/90 disabled:opacity-50"
-                                disabled={inTrip}
-                              >
-                                {inTrip ? "Added" : "Add"}
-                              </button>
-                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                    {stopResults.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">No matches.</div>}
+                        );
+                      })}
+                      {stopResults.length === 0 && <div className="text-xs text-white/60">No matches.</div>}
+                    </div>
                   </div>
-                </div>
-              </CollapsibleSection>
+                )}
+              </div>
 
-              {/* FILTERS (master collapsible + nested collapsibles) */}
-              <section className={`${panelClass} p-0`}>
-                <div className="px-4 py-3 flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFiltersOpen((v) => !v)}
-                    className="flex items-center gap-2"
-                    aria-expanded={filtersOpen}
-                  >
-                    <div className="font-extrabold tracking-wide text-sm text-black dark:text-yellow-400">Filters</div>
-                    <div className="text-xs text-black/50 dark:text-white/50">{filtersOpen ? "▾" : "▸"}</div>
-                  </button>
-
-                  <div className="flex items-center gap-2">
+              {/* FILTERS */}
+              <div className={sectionShellClass}>
+                <SectionHeader
+                  title="Filters"
+                  k={sectionKey("Filters")}
+                  right={
                     <button onClick={clearAllFilters} className={clearBtnClass} disabled={!hasAnyFilters}>
                       Clear All
                     </button>
-                  </div>
-                </div>
-
-                {filtersOpen && (
-                  <div className="px-4 pb-4 space-y-3">
+                  }
+                />
+                {!collapsed[sectionKey("Filters")] && (
+                  <div className="space-y-4 mt-3">
                     {/* State */}
                     <div className="space-y-2">
-                      <div className={miniSectionHeader}>
+                      <div className="flex items-center justify-between">
+                        <div className={sectionTitleClass}>State</div>
                         <button
-                          type="button"
-                          onClick={() => setStateOpen((v) => !v)}
-                          className="flex items-center gap-2"
-                          aria-expanded={stateOpen}
+                          onClick={() => setSelectedStates([])}
+                          className={clearBtnClass}
+                          disabled={selectedStates.length === 0}
                         >
-                          <div className={miniSectionTitle}>State</div>
-                          <div className="text-xs text-black/50 dark:text-white/50">{stateOpen ? "▾" : "▸"}</div>
-                        </button>
-
-                        <button onClick={() => setSelectedStates([])} className={clearBtnClass} disabled={selectedStates.length === 0}>
                           Clear
                         </button>
                       </div>
-
-                      {stateOpen && (
-                        <>
-                          <input
-                            value={stateSearch}
-                            onChange={(e) => setStateSearch(e.target.value)}
-                            placeholder="Search states…"
-                            className={smallInputClass}
-                          />
-                          <div className={sidebarListClass}>
-                            {visibleStates.map((st) => (
-                              <label key={st} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedStates.includes(st)}
-                                  onChange={() => toggle(st, selectedStates, setSelectedStates)}
-                                />
-                                <span>{st}</span>
-                              </label>
-                            ))}
-                            {visibleStates.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">Loading…</div>}
-                          </div>
-                        </>
-                      )}
+                      <input
+                        value={stateSearch}
+                        onChange={(e) => setStateSearch(e.target.value)}
+                        placeholder="Search states…"
+                        className={smallInputClass}
+                      />
+                      <div className={listClass}>
+                        {visibleStates.map((st) => (
+                          <label key={st} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={selectedStates.includes(st)}
+                              onChange={() => toggle(st, selectedStates, setSelectedStates)}
+                            />
+                            <span>{st}</span>
+                          </label>
+                        ))}
+                        {visibleStates.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
+                      </div>
                     </div>
 
                     {/* Retailer */}
                     <div className="space-y-2">
-                      <div className={miniSectionHeader}>
-                        <button
-                          type="button"
-                          onClick={() => setRetailerOpen((v) => !v)}
-                          className="flex items-center gap-2"
-                          aria-expanded={retailerOpen}
-                        >
-                          <div className={miniSectionTitle}>Retailer</div>
-                          <div className="text-xs text-black/50 dark:text-white/50">{retailerOpen ? "▾" : "▸"}</div>
-                        </button>
-
+                      <div className="flex items-center justify-between">
+                        <div className={sectionTitleClass}>Retailer</div>
                         <button
                           onClick={() => setSelectedRetailers([])}
                           className={clearBtnClass}
@@ -586,45 +580,31 @@ export default function Page() {
                           Clear
                         </button>
                       </div>
-
-                      {retailerOpen && (
-                        <>
-                          <input
-                            value={retailerSearch}
-                            onChange={(e) => setRetailerSearch(e.target.value)}
-                            placeholder="Search retailers…"
-                            className={smallInputClass}
-                          />
-                          <div className={sidebarListClass}>
-                            {visibleRetailers.map((r) => (
-                              <label key={r} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedRetailers.includes(r)}
-                                  onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)}
-                                />
-                                <span>{r}</span>
-                              </label>
-                            ))}
-                            {visibleRetailers.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">Loading…</div>}
-                          </div>
-                        </>
-                      )}
+                      <input
+                        value={retailerSearch}
+                        onChange={(e) => setRetailerSearch(e.target.value)}
+                        placeholder="Search retailers…"
+                        className={smallInputClass}
+                      />
+                      <div className={listClass}>
+                        {visibleRetailers.map((r) => (
+                          <label key={r} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={selectedRetailers.includes(r)}
+                              onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)}
+                            />
+                            <span>{r}</span>
+                          </label>
+                        ))}
+                        {visibleRetailers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
+                      </div>
                     </div>
 
                     {/* Category */}
                     <div className="space-y-2">
-                      <div className={miniSectionHeader}>
-                        <button
-                          type="button"
-                          onClick={() => setCategoryOpen((v) => !v)}
-                          className="flex items-center gap-2"
-                          aria-expanded={categoryOpen}
-                        >
-                          <div className={miniSectionTitle}>Category</div>
-                          <div className="text-xs text-black/50 dark:text-white/50">{categoryOpen ? "▾" : "▸"}</div>
-                        </button>
-
+                      <div className="flex items-center justify-between">
+                        <div className={sectionTitleClass}>Category</div>
                         <button
                           onClick={() => setSelectedCategories([])}
                           className={clearBtnClass}
@@ -633,45 +613,31 @@ export default function Page() {
                           Clear
                         </button>
                       </div>
-
-                      {categoryOpen && (
-                        <>
-                          <input
-                            value={categorySearch}
-                            onChange={(e) => setCategorySearch(e.target.value)}
-                            placeholder="Search categories…"
-                            className={smallInputClass}
-                          />
-                          <div className={sidebarListClass}>
-                            {visibleCategories.map((c) => (
-                              <label key={c} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedCategories.includes(c)}
-                                  onChange={() => toggle(c, selectedCategories, setSelectedCategories)}
-                                />
-                                <span>{c}</span>
-                              </label>
-                            ))}
-                            {visibleCategories.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">Loading…</div>}
-                          </div>
-                        </>
-                      )}
+                      <input
+                        value={categorySearch}
+                        onChange={(e) => setCategorySearch(e.target.value)}
+                        placeholder="Search categories…"
+                        className={smallInputClass}
+                      />
+                      <div className={listClass}>
+                        {visibleCategories.map((c) => (
+                          <label key={c} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={selectedCategories.includes(c)}
+                              onChange={() => toggle(c, selectedCategories, setSelectedCategories)}
+                            />
+                            <span>{c}</span>
+                          </label>
+                        ))}
+                        {visibleCategories.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
+                      </div>
                     </div>
 
                     {/* Supplier */}
                     <div className="space-y-2">
-                      <div className={miniSectionHeader}>
-                        <button
-                          type="button"
-                          onClick={() => setSupplierOpen((v) => !v)}
-                          className="flex items-center gap-2"
-                          aria-expanded={supplierOpen}
-                        >
-                          <div className={miniSectionTitle}>Supplier</div>
-                          <div className="text-xs text-black/50 dark:text-white/50">{supplierOpen ? "▾" : "▸"}</div>
-                        </button>
-
+                      <div className="flex items-center justify-between">
+                        <div className={sectionTitleClass}>Supplier</div>
                         <button
                           onClick={() => setSelectedSuppliers([])}
                           className={clearBtnClass}
@@ -680,134 +646,133 @@ export default function Page() {
                           Clear
                         </button>
                       </div>
-
-                      {supplierOpen && (
-                        <>
-                          <input
-                            value={supplierSearch}
-                            onChange={(e) => setSupplierSearch(e.target.value)}
-                            placeholder="Search suppliers…"
-                            className={smallInputClass}
-                          />
-                          <div className={sidebarListClass}>
-                            {visibleSuppliers.map((sp) => (
-                              <label key={sp} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedSuppliers.includes(sp)}
-                                  onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)}
-                                />
-                                <span>{sp}</span>
-                              </label>
-                            ))}
-                            {visibleSuppliers.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">Loading…</div>}
-                          </div>
-                        </>
-                      )}
+                      <input
+                        value={supplierSearch}
+                        onChange={(e) => setSupplierSearch(e.target.value)}
+                        placeholder="Search suppliers…"
+                        className={smallInputClass}
+                      />
+                      <div className={listClass}>
+                        {visibleSuppliers.map((sp) => (
+                          <label key={sp} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={selectedSuppliers.includes(sp)}
+                              onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)}
+                            />
+                            <span>{sp}</span>
+                          </label>
+                        ))}
+                        {visibleSuppliers.length === 0 && <div className="text-xs text-white/60">Loading…</div>}
+                      </div>
                     </div>
                   </div>
                 )}
-              </section>
+              </div>
 
               {/* TRIP BUILDER */}
-              <CollapsibleSection
-                title="Trip Builder"
-                defaultOpen
-                rightSlot={
-                  <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0}>
-                    Clear Trip
-                  </button>
-                }
-              >
-                <div className="space-y-2">
-                  {tripStops.map((st, idx) => (
-                    <div key={st.id} className={innerTileClass}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className={`${tileTitleClass} !text-sm`}>
-                            {idx + 1}. {st.label}
+              <div className={sectionShellClass}>
+                <SectionHeader
+                  title="Trip Builder"
+                  k={sectionKey("Trip Builder")}
+                  right={
+                    <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0}>
+                      Clear Trip
+                    </button>
+                  }
+                />
+                {!collapsed[sectionKey("Trip Builder")] && (
+                  <div className="space-y-2 mt-3">
+                    {tripStops.map((st, idx) => (
+                      <div key={st.id} className={innerTileClass}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className={`${tileTitleClass} !text-sm`}>
+                              {idx + 1}. {st.label}
+                            </div>
+                            <div className={subTextClass}>
+                              {(st.city || "") + (st.city ? ", " : "")}
+                              {st.state || ""}
+                              {st.zip ? ` ${st.zip}` : ""}
+                              {st.kind ? ` • ${st.kind}` : ""}
+                            </div>
                           </div>
-                          <div className={subTextClass}>
-                            {(st.city || "") + (st.city ? ", " : "")}
-                            {st.state || ""}
-                            {st.zip ? ` ${st.zip}` : ""}
-                            {st.kind ? ` • ${st.kind}` : ""}
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <div className="flex gap-2 justify-end">
-                            <button onClick={() => zoomStop(st)} className={clearBtnClass}>
-                              Zoom
-                            </button>
-                            <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
-                              Remove
-                            </button>
-                          </div>
-                          <div className="flex gap-2 justify-end">
-                            <button
-                              onClick={() => moveStop(idx, -1)}
-                              className={clearBtnClass}
-                              disabled={idx === 0}
-                              title="Move up"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              onClick={() => moveStop(idx, 1)}
-                              className={clearBtnClass}
-                              disabled={idx === tripStops.length - 1}
-                              title="Move down"
-                            >
-                              ↓
-                            </button>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                                Zoom
+                              </button>
+                              <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
+                                Remove
+                              </button>
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                onClick={() => moveStop(idx, -1)}
+                                className={clearBtnClass}
+                                disabled={idx === 0}
+                                title="Move up"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                onClick={() => moveStop(idx, 1)}
+                                className={clearBtnClass}
+                                disabled={idx === tripStops.length - 1}
+                                title="Move down"
+                              >
+                                ↓
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
 
-                  {tripStops.length === 0 && (
-                    <div className="text-xs text-black/50 dark:text-white/60">
-                      Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
-                    </div>
-                  )}
-                </div>
-              </CollapsibleSection>
+                    {tripStops.length === 0 && (
+                      <div className="text-xs text-white/60">
+                        Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* SUMMARY */}
-              <CollapsibleSection title="Retailer Summary (Trip Stops)" defaultOpen={false}>
-                <div className="space-y-2">
-                  {tripRetailerSummary.slice(0, 60).map((row) => (
-                    <div key={row.retailer} className={innerTileClass}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className={tileTitleClass}>{row.retailer}</div>
-                        <div className="text-xs text-black/60 dark:text-white/70 whitespace-nowrap">{row.count} stops</div>
+              <div className={sectionShellClass}>
+                <SectionHeader title="Retailer Summary (Trip Stops)" k={sectionKey("Retailer Summary (Trip Stops)")} />
+                {!collapsed[sectionKey("Retailer Summary (Trip Stops)")] && (
+                  <div className="space-y-2 mt-3">
+                    {tripRetailerSummary.slice(0, 60).map((row) => (
+                      <div key={row.retailer} className={innerTileClass}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className={tileTitleClass}>{row.retailer}</div>
+                          <div className="text-xs text-white/70 whitespace-nowrap">{row.count} stops</div>
+                        </div>
+                        <div className="text-xs text-white/70 mt-1 space-y-1">
+                          <div>
+                            <span className="font-extrabold text-white/80">States:</span> {row.states.join(", ") || "—"}
+                          </div>
+                          <div>
+                            <span className="font-extrabold text-white/80">Categories:</span>{" "}
+                            {row.categories.join(", ") || "—"}
+                          </div>
+                          <div>
+                            <span className="font-extrabold text-white/80">Suppliers:</span>{" "}
+                            {row.suppliers.join(", ") || "—"}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-xs text-black/60 dark:text-white/70 mt-1 space-y-1">
-                        <div>
-                          <span className="font-extrabold text-black/70 dark:text-white/80">States:</span> {row.states.join(", ") || "—"}
-                        </div>
-                        <div>
-                          <span className="font-extrabold text-black/70 dark:text-white/80">Categories:</span>{" "}
-                          {row.categories.join(", ") || "—"}
-                        </div>
-                        <div>
-                          <span className="font-extrabold text-black/70 dark:text-white/80">Suppliers:</span>{" "}
-                          {row.suppliers.join(", ") || "—"}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {tripRetailerSummary.length === 0 && <div className="text-xs text-black/50 dark:text-white/60">No trip stops yet.</div>}
-                </div>
-              </CollapsibleSection>
+                    ))}
+                    {tripRetailerSummary.length === 0 && <div className="text-xs text-white/60">No trip stops yet.</div>}
+                  </div>
+                )}
+              </div>
 
               {/* Diagnostics */}
-              <CollapsibleSection title="Diagnostics" defaultOpen={false}>
-                <div className="text-[11px] text-black/60 dark:text-white/50">
-                  Loaded: {allStops.length} stops • Trip: {tripStops.length}
-                </div>
-              </CollapsibleSection>
+              <div className="text-[11px] text-white/55">
+                Loaded: {allStops.length} stops • Trip: {tripStops.length}
+              </div>
             </div>
           </aside>
 
