@@ -16,6 +16,8 @@
 //   • ✅ Debounce: map.resize() coalesced (prevents resize thrash)
 //   • ✅ NEW: Kingpin popup supports MULTIPLE kingpins at the same location
 //   • ✅ NEW: Kingpin stops use TRUE coords for routing; OFFSET coords only for display
+//   • ✅ FIX: Prevents initial “flyTo” on mount when zoomToStop is pre-populated
+//   • ✅ FIX: Locks default viewport + bounds so app doesn’t open in Canada
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -87,8 +89,17 @@ type Props = {
 };
 
 const STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
+
+// ✅ Default view: Upper Midwest / IA-centered
 const DEFAULT_CENTER: [number, number] = [-93.5, 41.5];
 const DEFAULT_ZOOM = 5;
+
+// ✅ Hard clamp so we can’t “boot” way north
+// (covers Midwest + surrounding; tweak if you want wider)
+const DEFAULT_MAX_BOUNDS: mapboxgl.LngLatBoundsLike = [
+  [-105.5, 36.0], // SW
+  [-81.0, 49.5], // NE
+];
 
 const SRC_RETAILERS = "retailers";
 const SRC_KINGPINS = "kingpins";
@@ -196,7 +207,9 @@ function kingpinEntryFromFeature(f: Feature): KingpinEntry | null {
   const tLat = Number(p.__trueLat);
 
   const trueCoords: [number, number] =
-    Number.isFinite(tLng) && Number.isFinite(tLat) ? [tLng, tLat] : [mapCoords[0] - KINGPIN_OFFSET_LNG, mapCoords[1]];
+    Number.isFinite(tLng) && Number.isFinite(tLat)
+      ? [tLng, tLat]
+      : [mapCoords[0] - KINGPIN_OFFSET_LNG, mapCoords[1]];
 
   return { p, trueCoords, mapCoords };
 }
@@ -235,6 +248,9 @@ export default function CertisMap(props: Props) {
   const resizeDebounceRef = useRef<number | null>(null);
   const resizeRafRef = useRef<number | null>(null);
 
+  // ✅ Prevent initial flyTo if zoomToStop is pre-populated from page state
+  const prevZoomStopIdRef = useRef<string | null>(null);
+
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
     return bp || "/certis_agroute_app";
@@ -249,6 +265,12 @@ export default function CertisMap(props: Props) {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
   }, [token]);
 
+  // ✅ Initialize previous zoomToStop id ONCE so first render doesn't auto-fly
+  useEffect(() => {
+    prevZoomStopIdRef.current = zoomToStop?.id ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // INIT MAP (once)
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -258,6 +280,7 @@ export default function CertisMap(props: Props) {
       style: STYLE_URL,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
+      maxBounds: DEFAULT_MAX_BOUNDS, // ✅ lock bounds
       projection: { name: "mercator" },
     });
 
@@ -408,6 +431,13 @@ export default function CertisMap(props: Props) {
       map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
       map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
+
+      // ✅ Final “authoritative” viewport clamp after everything is loaded
+      // (prevents any weird initial jump if something else tried to move the camera)
+      try {
+        map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+        map.setMaxBounds(DEFAULT_MAX_BOUNDS);
+      } catch {}
 
       requestAnimationFrame(() => {
         try {
@@ -630,9 +660,16 @@ export default function CertisMap(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeCoords, basePath]);
 
+  // ✅ Only fly when zoomToStop CHANGES (ignore any pre-filled initial value)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !zoomToStop) return;
+
+    const incomingId = zoomToStop.id ?? null;
+    if (incomingId && incomingId === prevZoomStopIdRef.current) return;
+
+    prevZoomStopIdRef.current = incomingId;
+
     const ctr = zoomToStop.mapCoords ?? zoomToStop.coords;
     map.flyTo({ center: ctr, zoom: 12.5, essential: true });
   }, [zoomToStop]);
@@ -882,9 +919,6 @@ export default function CertisMap(props: Props) {
     const addBtnId = `${popupId}-add`;
     const detailsId = `${popupId}-details`;
 
-    const suppliersText0 = s(entries[0].p.Suppliers) || "Not listed";
-    const suppliersTitle0 = escapeHtml(suppliersText0);
-
     const retailerHeader = escapeHtml(options[0].retailer || retailer0 || "Unknown Retailer");
 
     const popupHtml = `
@@ -916,7 +950,10 @@ export default function CertisMap(props: Props) {
       </div>
     `;
 
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(clickedMapCoords).setHTML(popupHtml).addTo(map);
+    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false })
+      .setLngLat(clickedMapCoords)
+      .setHTML(popupHtml)
+      .addTo(map);
 
     function renderDetails(idx: number) {
       const ent = entries[idx] ?? entries[0];
@@ -941,7 +978,9 @@ export default function CertisMap(props: Props) {
         <div style="margin-bottom:6px;"><span style="font-weight:800;color:#facc15;">Category:</span> ${category}</div>
         <div style="margin-bottom:8px;display:flex;gap:6px;align-items:baseline;">
           <span style="font-weight:800;">Suppliers:</span>
-          <span title="${suppliersTitle}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;display:inline-block;">${escapeHtml(suppliersText)}</span>
+          <span title="${suppliersTitle}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;display:inline-block;">${escapeHtml(
+            s(suppliersText)
+          )}</span>
         </div>
         ${contactName ? `<div style="font-weight:900;margin-bottom:2px;">${contactName}</div>` : ""}
         ${contactTitle ? `<div style="margin-bottom:4px;">${contactTitle}</div>` : ""}

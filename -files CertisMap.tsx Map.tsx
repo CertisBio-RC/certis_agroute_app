@@ -1,0 +1,12 @@
+[35mBACKUPS/2025-12-18_K11-GOLD_PRE-LAYOUT/components/CertisMap.tsx[m[36m:[m[32m185[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_BACKUP_BEFORE_POPUPS.tsx[m[36m:[m[32m109[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_BEFORE_FINAL_POPUP_FIX.tsx[m[36m:[m[32m109[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_BEFORE_POPUPS.tsx[m[36m:[m[32m109[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_K10.tsx[m[36m:[m[32m114[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_K4.tsx[m[36m:[m[32m112[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_K5.tsx[m[36m:[m[32m114[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_K6.tsx[m[36m:[m[32m114[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_K7.tsx[m[36m:[m[32m115[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_K8.tsx[m[36m:[m[32m115[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mBACKUPS/CertisMap_K9.tsx[m[36m:[m[32m114[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
+[35mcomponents/CertisMap.tsx[m[36m:[m[32m256[m[36m:[m    const map = [1;31mnew mapboxgl.Map[m({
