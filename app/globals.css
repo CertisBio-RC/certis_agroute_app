@@ -65,6 +65,15 @@ body {
   overflow: hidden;
 }
 
+/* ✅ CRITICAL: Prevent sidebar overlay from stealing map pointer events
+   This clamps sidebar width in a flex-row layout and forces map pane to
+   behave as the flexible remainder. */
+.sidebar {
+  flex: 0 0 420px;
+  width: 420px;
+  max-width: 420px;
+}
+
 /* Protect logo from shrinking */
 .logo {
   flex-shrink: 0;
@@ -93,6 +102,22 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* ✅ CRITICAL: Make map pane consume remaining width and prevent flex overflow overlap */
+.map-container {
+  flex: 1 1 auto;
+  min-width: 0; /* IMPORTANT: prevents flex overflow/overlap in row layouts */
+  position: relative;
+  overflow: hidden;
+}
+
+/* Belt + suspenders: ensure Mapbox canvas is eligible to receive pointer events */
+.map-container canvas,
+.map-container .mapboxgl-canvas,
+.map-container .mapboxgl-canvas-container,
+.map-container .mapboxgl-map {
+  pointer-events: auto;
 }
 
 /* Footer fixed cleanly */
@@ -206,6 +231,11 @@ body {
     height: auto;
     max-height: none;
     overflow: visible;
+
+    /* On mobile we do NOT want a fixed 420px clamp */
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
   }
 
   .map-container {
