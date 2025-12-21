@@ -18,6 +18,10 @@
 //   • ✅ NEW: Kingpin stops use TRUE coords for routing; OFFSET coords only for display
 //   • ✅ FIX: Prevents initial “flyTo” on mount when zoomToStop is pre-populated
 //   • ✅ FIX: Locks default viewport + bounds so app doesn’t open in Canada
+//
+//   🔒 NEW HARDENING (Dec 2025):
+//   • ✅ Force-enable map interactions (drag/scroll/touch/etc) after init + after load
+//     (prevents “stuck map” / wheel zoom dead / pan disabled behavior)
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -214,6 +218,40 @@ function kingpinEntryFromFeature(f: Feature): KingpinEntry | null {
   return { p, trueCoords, mapCoords };
 }
 
+/**
+ * ✅ HARDENING: Ensure the map is always interactive.
+ * This prevents the “stuck map / can’t pan / wheel zoom dead” behavior.
+ */
+function enableMapInteractions(map: mapboxgl.Map) {
+  try {
+    map.scrollZoom.enable();
+  } catch {}
+  try {
+    map.dragPan.enable();
+  } catch {}
+  try {
+    map.boxZoom.enable();
+  } catch {}
+  try {
+    map.doubleClickZoom.enable();
+  } catch {}
+  try {
+    map.dragRotate.enable();
+  } catch {}
+  try {
+    map.keyboard.enable();
+  } catch {}
+  try {
+    map.touchZoomRotate.enable();
+  } catch {}
+
+  // Defensive: ensure the canvas can receive pointer events
+  try {
+    const c = map.getCanvas();
+    c.style.pointerEvents = "auto";
+  } catch {}
+}
+
 export default function CertisMap(props: Props) {
   const {
     selectedStates,
@@ -282,9 +320,14 @@ export default function CertisMap(props: Props) {
       zoom: DEFAULT_ZOOM,
       maxBounds: DEFAULT_MAX_BOUNDS, // ✅ lock bounds
       projection: { name: "mercator" },
+      interactive: true, // ✅ explicit
     });
 
     mapRef.current = map;
+
+    // ✅ HARDENING: enable interactions immediately
+    enableMapInteractions(map);
+
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
     // ResizeObserver (debounced)
@@ -312,6 +355,9 @@ export default function CertisMap(props: Props) {
     } catch {}
 
     map.on("load", async () => {
+      // ✅ HARDENING: enable interactions again after style load
+      enableMapInteractions(map);
+
       if (!map.getSource(SRC_RETAILERS)) {
         map.addSource(SRC_RETAILERS, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
@@ -433,11 +479,13 @@ export default function CertisMap(props: Props) {
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
 
       // ✅ Final “authoritative” viewport clamp after everything is loaded
-      // (prevents any weird initial jump if something else tried to move the camera)
       try {
         map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
         map.setMaxBounds(DEFAULT_MAX_BOUNDS);
       } catch {}
+
+      // ✅ HARDENING: enable interactions AFTER the final camera clamp too
+      enableMapInteractions(map);
 
       requestAnimationFrame(() => {
         try {
@@ -672,6 +720,9 @@ export default function CertisMap(props: Props) {
 
     const ctr = zoomToStop.mapCoords ?? zoomToStop.coords;
     map.flyTo({ center: ctr, zoom: 12.5, essential: true });
+
+    // ✅ HARDENING: if something has disabled interactions, re-enable after fly
+    enableMapInteractions(map);
   }, [zoomToStop]);
 
   function buildRouteCoords(): [number, number][] {
@@ -846,7 +897,6 @@ export default function CertisMap(props: Props) {
     const suppliers = s(p.Suppliers) || "Not listed";
 
     const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
-    const contactTitle = s(p.ContactTitle || p.Title || p["Contact Title"]);
     const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
     const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
     const email = s(p.Email) || "TBD";
@@ -911,7 +961,7 @@ export default function CertisMap(props: Props) {
       const title = s(pr.ContactTitle || pr.Title || pr["Contact Title"]);
       const r = s(pr.Retailer) || retailer0 || "Retailer";
       const line = title ? `${contact} — ${title}` : `${contact}`;
-      return { idx, contact, title, retailer: r, line };
+      return { idx, retailer: r, line };
     });
 
     const popupId = `kp-popup-${Date.now()}`;
@@ -930,9 +980,7 @@ export default function CertisMap(props: Props) {
             ? `<div style="margin-bottom:8px;">
                  <div style="font-weight:700;margin-bottom:4px;color:#facc15;">Kingpins at this location (${options.length}):</div>
                  <select id="${selectId}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(250,204,21,0.55);background:#111827;color:#fff;">
-                   ${options
-                     .map((o) => `<option value="${o.idx}">${escapeHtml(o.line)}</option>`)
-                     .join("")}
+                   ${options.map((o) => `<option value="${o.idx}">${escapeHtml(o.line)}</option>`).join("")}
                  </select>
                </div>`
             : ""
