@@ -1,24 +1,18 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE — GOLD (Interaction + Viewport Fix / No “stuck map”)
+// 💠 CERTIS AGROUTE — GOLD (Interaction-safe + Build-safe + Home-aware routing)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
-//   • Corporate HQ filtered ONLY by State (Bailey HQ rule)
+//   • Corporate HQ filtered ONLY by State (HQ rule)
 //   • Kingpins always visible overlay (not filtered)
-//   • Applies ~100m offset to Kingpins (lng + 0.0013) like K10 (DISPLAY ONLY)
-//   • Kingpin icon size is ZOOM-SCALED (prevents giant stars)
+//   • Kingpin offset is DISPLAY ONLY; TRUE coords used for routing
 //   • Trip route: Mapbox Directions (driving) + straight-line fallback
-//   • ✅ FIX: Route honors Home ZIP and works with 1 stop (Home + stop)
-//   • ✅ FIX: Route rebuilds on homeCoords change; aborts in-flight calls (loop guard)
-//   • ✅ FIX: Map RESIZES on container changes (prevents “black half-page”)
-//   • ✅ UI: Suppliers line stays on ONE LINE in all popups (ellipsis + tooltip)
-//   • ✅ Debounce: map.resize() coalesced (prevents resize thrash)
-//   • ✅ NEW: Kingpin popup supports MULTIPLE kingpins at the same location
-//   • ✅ NEW: Kingpin stops use TRUE coords for routing; OFFSET coords only for display
-//   • ✅ FIX: Prevents initial “flyTo” on mount when zoomToStop is pre-populated
-//   • ✅ FIX: Viewport is set ONCE (fitBounds to Midwest) and never re-locks user panning/zooming
-//   • ✅ FIX: Explicitly enables Mapbox interactions (drag + wheel zoom)
+//
+// ✅ FIX (CRITICAL): Map pan/zoom/scroll fully functional
+//   - No forced post-load jumpTo/setMaxBounds clamp that can “pin” the camera
+//   - Explicitly re-enables Mapbox interactions after load
+//   - Midwest initial view applied ONCE (guarded)
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -47,7 +41,7 @@ export type Stop = {
   // TRUE coords for routing + canonical identity
   coords: [number, number]; // [lng, lat]
 
-  // Optional display coords (used for flyTo / marker alignment). For retailers, same as coords.
+  // Optional display coords (used for flyTo / marker alignment)
   mapCoords?: [number, number];
 };
 
@@ -91,14 +85,14 @@ type Props = {
 
 const STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
 
-// ✅ Reasonable default view (Upper Midwest-ish)
+// ✅ Upper Midwest / IA-centered default
 const DEFAULT_CENTER: [number, number] = [-93.5, 41.5];
 const DEFAULT_ZOOM = 5;
 
-// ✅ Midwest-ish bounds used for ONE-TIME fit on initial load (NOT a clamp)
+// ✅ Midwest-ish bounds used ONLY for initial fit (NOT a hard clamp)
 const MIDWEST_BOUNDS: mapboxgl.LngLatBoundsLike = [
   [-105.5, 36.0], // SW
-  [-81.0, 49.5],  // NE
+  [-81.0, 49.5], // NE
 ];
 
 const SRC_RETAILERS = "retailers";
@@ -202,7 +196,6 @@ function kingpinEntryFromFeature(f: Feature): KingpinEntry | null {
   const mapCoords = f.geometry?.coordinates;
   if (!mapCoords) return null;
 
-  // True coords are stored during loadData
   const tLng = Number(p.__trueLng);
   const tLat = Number(p.__trueLat);
 
@@ -212,6 +205,18 @@ function kingpinEntryFromFeature(f: Feature): KingpinEntry | null {
       : [mapCoords[0] - KINGPIN_OFFSET_LNG, mapCoords[1]];
 
   return { p, trueCoords, mapCoords };
+}
+
+function enableAllInteractions(map: mapboxgl.Map) {
+  // These SHOULD be enabled by default, but we force-enable to kill “stuck map” regressions
+  try {
+    map.dragPan.enable();
+    map.scrollZoom.enable();
+    map.boxZoom.enable();
+    map.doubleClickZoom.enable();
+    map.keyboard.enable();
+    map.touchZoomRotate.enable();
+  } catch {}
 }
 
 export default function CertisMap(props: Props) {
@@ -235,7 +240,7 @@ export default function CertisMap(props: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   const retailersRef = useRef<FeatureCollection | null>(null);
-  const kingpinsRef = useRef<FeatureCollection | null>(null); // OFFSET features, but each has __trueLng/__trueLat
+  const kingpinsRef = useRef<FeatureCollection | null>(null); // OFFSET features w/ __trueLng/__trueLat
 
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
@@ -247,11 +252,11 @@ export default function CertisMap(props: Props) {
   const resizeDebounceRef = useRef<number | null>(null);
   const resizeRafRef = useRef<number | null>(null);
 
-  // ✅ Prevent initial flyTo if zoomToStop is pre-populated from page state
+  // ✅ prevent initial flyTo if zoomToStop is pre-populated
   const prevZoomStopIdRef = useRef<string | null>(null);
 
-  // ✅ Viewport should be set ONCE (no re-locking)
-  const didSetInitialViewportRef = useRef<boolean>(false);
+  // ✅ ensure initial view is applied ONCE
+  const didSetInitialViewRef = useRef<boolean>(false);
 
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
@@ -267,7 +272,7 @@ export default function CertisMap(props: Props) {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
   }, [token]);
 
-  // ✅ Initialize previous zoomToStop id ONCE so first render doesn't auto-fly
+  // Initialize previous zoomToStop id ONCE so first render doesn't auto-fly
   useEffect(() => {
     prevZoomStopIdRef.current = zoomToStop?.id ?? null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -282,26 +287,11 @@ export default function CertisMap(props: Props) {
       style: STYLE_URL,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
-      projection: { name: "mercator" }, // Bailey Rule
-      // NOTE: We intentionally do NOT set maxBounds here.
-      // maxBounds can make the map feel “locked” if anything else misbehaves.
+      projection: { name: "mercator" },
+      interactive: true,
     });
 
-    // ✅ Explicitly enable interactions (don’t rely on defaults)
-    try {
-      map.scrollZoom.enable();
-      map.dragPan.enable();
-      map.boxZoom.enable();
-      map.doubleClickZoom.enable();
-      map.keyboard.enable();
-      map.touchZoomRotate.enable();
-      // Rotation can be disorienting; keep it off unless you want it.
-      map.dragRotate.disable();
-      map.touchZoomRotate.disableRotation();
-    } catch {}
-
     mapRef.current = map;
-
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
     // ResizeObserver (debounced)
@@ -322,21 +312,33 @@ export default function CertisMap(props: Props) {
               mm.resize();
             } catch {}
           });
-        }, 60);
+        }, 80);
       });
 
       resizeObsRef.current.observe(containerRef.current);
     } catch {}
 
-    map.on("load", async () => {
+    const onLoad = async () => {
+      // ✅ force interactions ON after style load
+      enableAllInteractions(map);
+
       if (!map.getSource(SRC_RETAILERS)) {
-        map.addSource(SRC_RETAILERS, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addSource(SRC_RETAILERS, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
       }
       if (!map.getSource(SRC_KINGPINS)) {
-        map.addSource(SRC_KINGPINS, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addSource(SRC_KINGPINS, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
       }
       if (!map.getSource(SRC_ROUTE)) {
-        map.addSource(SRC_ROUTE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addSource(SRC_ROUTE, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
       }
 
       if (!map.getLayer(LYR_RETAILERS)) {
@@ -437,11 +439,16 @@ export default function CertisMap(props: Props) {
       updateHomeMarker();
       await updateRoute(true);
 
-      // ✅ Set initial viewport ONCE (prevents Canada), but do NOT lock user movement.
-      if (!didSetInitialViewportRef.current) {
-        didSetInitialViewportRef.current = true;
+      // ✅ apply initial Midwest view ONCE after data exists
+      if (!didSetInitialViewRef.current) {
+        didSetInitialViewRef.current = true;
+
         try {
-          map.fitBounds(MIDWEST_BOUNDS, { padding: 40, duration: 0 });
+          // Use fitBounds (gentle) so you don’t boot to Canada, but don’t hard-clamp movement.
+          map.fitBounds(MIDWEST_BOUNDS, {
+            padding: 40,
+            duration: 0,
+          });
         } catch {
           try {
             map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
@@ -449,28 +456,37 @@ export default function CertisMap(props: Props) {
         }
       }
 
-      const setPointer = () => (map.getCanvas().style.cursor = "pointer");
-      const clearPointer = () => (map.getCanvas().style.cursor = "");
-
-      [LYR_RETAILERS, LYR_HQ, LYR_KINGPINS].forEach((lyr) => {
-        map.on("mouseenter", lyr, setPointer);
-        map.on("mouseleave", lyr, clearPointer);
-      });
-
-      map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
-      map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
-      map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
-
+      // Ensure map is properly sized
       requestAnimationFrame(() => {
         try {
           map.resize();
         } catch {}
       });
 
-      console.info("[CertisMap] Loaded.");
-    });
+      const setPointer = () => (map.getCanvas().style.cursor = "pointer");
+      const clearPointer = () => (map.getCanvas().style.cursor = "");
+
+      // pointer cursor
+      [LYR_RETAILERS, LYR_HQ, LYR_KINGPINS].forEach((lyr) => {
+        map.on("mouseenter", lyr, setPointer);
+        map.on("mouseleave", lyr, clearPointer);
+      });
+
+      // clicks
+      map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
+      map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
+      map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
+
+      console.info("[CertisMap] Loaded + interactions enabled.");
+    };
+
+    map.on("load", onLoad);
 
     return () => {
+      try {
+        map.off("load", onLoad);
+      } catch {}
+
       try {
         directionsAbortRef.current?.abort();
       } catch {}
@@ -552,8 +568,7 @@ export default function CertisMap(props: Props) {
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
-      const label =
-        kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
+      const label = kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -568,7 +583,7 @@ export default function CertisMap(props: Props) {
         category,
         suppliers: s(p.Suppliers),
         coords, // TRUE
-        mapCoords: coords, // same for retailers
+        mapCoords: coords,
       });
     }
 
@@ -579,7 +594,6 @@ export default function CertisMap(props: Props) {
 
       const p = entry.p;
       const retailer = s(p.Retailer);
-
       const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
       const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
 
@@ -598,8 +612,8 @@ export default function CertisMap(props: Props) {
         email: s(p.Email) || "TBD",
         phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
         phoneCell: s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD",
-        coords: entry.trueCoords,     // ✅ TRUE coords for routing
-        mapCoords: entry.mapCoords,   // ✅ OFFSET coords for flyTo
+        coords: entry.trueCoords, // TRUE for routing
+        mapCoords: entry.mapCoords, // OFFSET for flyTo
       });
     }
 
@@ -640,8 +654,10 @@ export default function CertisMap(props: Props) {
     hqFilter.push([">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0]);
     if (selectedStates.length) hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
 
-    map.setFilter(LYR_RETAILERS, retailerFilter as any);
-    map.setFilter(LYR_HQ, hqFilter as any);
+    try {
+      map.setFilter(LYR_RETAILERS, retailerFilter as any);
+      map.setFilter(LYR_HQ, hqFilter as any);
+    } catch {}
   }
 
   useEffect(() => {
@@ -682,7 +698,7 @@ export default function CertisMap(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeCoords, basePath]);
 
-  // ✅ Only fly when zoomToStop CHANGES (ignore any pre-filled initial value)
+  // Only fly when zoomToStop CHANGES (ignore any pre-filled initial value)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !zoomToStop) return;
@@ -693,13 +709,16 @@ export default function CertisMap(props: Props) {
     prevZoomStopIdRef.current = incomingId;
 
     const ctr = zoomToStop.mapCoords ?? zoomToStop.coords;
-    map.flyTo({ center: ctr, zoom: 12.5, essential: true });
+    try {
+      enableAllInteractions(map);
+      map.flyTo({ center: ctr, zoom: 12.5, essential: true });
+    } catch {}
   }, [zoomToStop]);
 
   function buildRouteCoords(): [number, number][] {
     const pts: [number, number][] = [];
     if (homeCoords) pts.push(homeCoords);
-    for (const st of tripStops || []) pts.push(st.coords); // ✅ TRUE coords only
+    for (const st of tripStops || []) pts.push(st.coords); // TRUE coords only
     return pts;
   }
 
@@ -736,9 +755,6 @@ export default function CertisMap(props: Props) {
         `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsStr}` +
         `?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(token)}`;
 
-      const src2 = mapRef.current?.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
-      if (!src2) return;
-
       try {
         const resp = await fetch(url, { signal: controller.signal });
         if (!resp.ok) throw new Error(`Directions HTTP ${resp.status} ${resp.statusText}`);
@@ -747,14 +763,14 @@ export default function CertisMap(props: Props) {
         const geom = json?.routes?.[0]?.geometry;
         if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
 
-        src2.setData({
+        src.setData({
           type: "FeatureCollection",
           features: [{ type: "Feature", geometry: geom, properties: {} }],
         } as any);
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
-        src2.setData({
+        src.setData({
           type: "FeatureCollection",
           features: [
             {
@@ -833,7 +849,7 @@ export default function CertisMap(props: Props) {
 
     setTimeout(() => {
       const btn = document.getElementById("add-stop-btn");
-      if (btn) btn.onclick = () => onAddStop(stop);
+      if (btn) (btn as HTMLButtonElement).onclick = () => onAddStop(stop);
     }, 0);
   }
 
@@ -869,7 +885,6 @@ export default function CertisMap(props: Props) {
     const suppliers = s(p.Suppliers) || "Not listed";
 
     const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
-    const contactTitle = s(p.ContactTitle || p.Title || p["Contact Title"]);
     const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
     const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
     const email = s(p.Email) || "TBD";
@@ -891,8 +906,8 @@ export default function CertisMap(props: Props) {
       phoneOffice: office,
       phoneCell: cell,
       email,
-      coords: entry.trueCoords, // ✅ true
-      mapCoords: entry.mapCoords, // ✅ offset display
+      coords: entry.trueCoords,
+      mapCoords: entry.mapCoords,
     };
   }
 
