@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE — GOLD (K10-informed + Build-safe + Home-aware routing fix)
+// 💠 CERTIS AGROUTE — GOLD (Interaction + Viewport Fix / No “stuck map”)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Corporate HQ filtered ONLY by State (Bailey HQ rule)
@@ -17,11 +17,8 @@
 //   • ✅ NEW: Kingpin popup supports MULTIPLE kingpins at the same location
 //   • ✅ NEW: Kingpin stops use TRUE coords for routing; OFFSET coords only for display
 //   • ✅ FIX: Prevents initial “flyTo” on mount when zoomToStop is pre-populated
-//   • ✅ FIX: Locks default viewport + bounds so app doesn’t open in Canada
-//
-//   🔒 NEW HARDENING (Dec 2025):
-//   • ✅ Force-enable map interactions (drag/scroll/touch/etc) after init + after load
-//     (prevents “stuck map” / wheel zoom dead / pan disabled behavior)
+//   • ✅ FIX: Viewport is set ONCE (fitBounds to Midwest) and never re-locks user panning/zooming
+//   • ✅ FIX: Explicitly enables Mapbox interactions (drag + wheel zoom)
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -94,15 +91,14 @@ type Props = {
 
 const STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
 
-// ✅ Default view: Upper Midwest / IA-centered
+// ✅ Reasonable default view (Upper Midwest-ish)
 const DEFAULT_CENTER: [number, number] = [-93.5, 41.5];
 const DEFAULT_ZOOM = 5;
 
-// ✅ Hard clamp so we can’t “boot” way north
-// (covers Midwest + surrounding; tweak if you want wider)
-const DEFAULT_MAX_BOUNDS: mapboxgl.LngLatBoundsLike = [
+// ✅ Midwest-ish bounds used for ONE-TIME fit on initial load (NOT a clamp)
+const MIDWEST_BOUNDS: mapboxgl.LngLatBoundsLike = [
   [-105.5, 36.0], // SW
-  [-81.0, 49.5], // NE
+  [-81.0, 49.5],  // NE
 ];
 
 const SRC_RETAILERS = "retailers";
@@ -218,40 +214,6 @@ function kingpinEntryFromFeature(f: Feature): KingpinEntry | null {
   return { p, trueCoords, mapCoords };
 }
 
-/**
- * ✅ HARDENING: Ensure the map is always interactive.
- * This prevents the “stuck map / can’t pan / wheel zoom dead” behavior.
- */
-function enableMapInteractions(map: mapboxgl.Map) {
-  try {
-    map.scrollZoom.enable();
-  } catch {}
-  try {
-    map.dragPan.enable();
-  } catch {}
-  try {
-    map.boxZoom.enable();
-  } catch {}
-  try {
-    map.doubleClickZoom.enable();
-  } catch {}
-  try {
-    map.dragRotate.enable();
-  } catch {}
-  try {
-    map.keyboard.enable();
-  } catch {}
-  try {
-    map.touchZoomRotate.enable();
-  } catch {}
-
-  // Defensive: ensure the canvas can receive pointer events
-  try {
-    const c = map.getCanvas();
-    c.style.pointerEvents = "auto";
-  } catch {}
-}
-
 export default function CertisMap(props: Props) {
   const {
     selectedStates,
@@ -282,12 +244,14 @@ export default function CertisMap(props: Props) {
   const lastRouteKeyRef = useRef<string>("");
 
   const resizeObsRef = useRef<ResizeObserver | null>(null);
-
   const resizeDebounceRef = useRef<number | null>(null);
   const resizeRafRef = useRef<number | null>(null);
 
   // ✅ Prevent initial flyTo if zoomToStop is pre-populated from page state
   const prevZoomStopIdRef = useRef<string | null>(null);
+
+  // ✅ Viewport should be set ONCE (no re-locking)
+  const didSetInitialViewportRef = useRef<boolean>(false);
 
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
@@ -318,15 +282,25 @@ export default function CertisMap(props: Props) {
       style: STYLE_URL,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
-      maxBounds: DEFAULT_MAX_BOUNDS, // ✅ lock bounds
-      projection: { name: "mercator" },
-      interactive: true, // ✅ explicit
+      projection: { name: "mercator" }, // Bailey Rule
+      // NOTE: We intentionally do NOT set maxBounds here.
+      // maxBounds can make the map feel “locked” if anything else misbehaves.
     });
 
-    mapRef.current = map;
+    // ✅ Explicitly enable interactions (don’t rely on defaults)
+    try {
+      map.scrollZoom.enable();
+      map.dragPan.enable();
+      map.boxZoom.enable();
+      map.doubleClickZoom.enable();
+      map.keyboard.enable();
+      map.touchZoomRotate.enable();
+      // Rotation can be disorienting; keep it off unless you want it.
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+    } catch {}
 
-    // ✅ HARDENING: enable interactions immediately
-    enableMapInteractions(map);
+    mapRef.current = map;
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
@@ -355,9 +329,6 @@ export default function CertisMap(props: Props) {
     } catch {}
 
     map.on("load", async () => {
-      // ✅ HARDENING: enable interactions again after style load
-      enableMapInteractions(map);
-
       if (!map.getSource(SRC_RETAILERS)) {
         map.addSource(SRC_RETAILERS, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
@@ -466,6 +437,18 @@ export default function CertisMap(props: Props) {
       updateHomeMarker();
       await updateRoute(true);
 
+      // ✅ Set initial viewport ONCE (prevents Canada), but do NOT lock user movement.
+      if (!didSetInitialViewportRef.current) {
+        didSetInitialViewportRef.current = true;
+        try {
+          map.fitBounds(MIDWEST_BOUNDS, { padding: 40, duration: 0 });
+        } catch {
+          try {
+            map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+          } catch {}
+        }
+      }
+
       const setPointer = () => (map.getCanvas().style.cursor = "pointer");
       const clearPointer = () => (map.getCanvas().style.cursor = "");
 
@@ -477,15 +460,6 @@ export default function CertisMap(props: Props) {
       map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
       map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
-
-      // ✅ Final “authoritative” viewport clamp after everything is loaded
-      try {
-        map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
-        map.setMaxBounds(DEFAULT_MAX_BOUNDS);
-      } catch {}
-
-      // ✅ HARDENING: enable interactions AFTER the final camera clamp too
-      enableMapInteractions(map);
 
       requestAnimationFrame(() => {
         try {
@@ -578,7 +552,8 @@ export default function CertisMap(props: Props) {
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
-      const label = kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
+      const label =
+        kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -605,7 +580,6 @@ export default function CertisMap(props: Props) {
       const p = entry.p;
       const retailer = s(p.Retailer);
 
-      // Prefer ContactName (your geojson confirms ContactName is populated)
       const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
       const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
 
@@ -624,8 +598,8 @@ export default function CertisMap(props: Props) {
         email: s(p.Email) || "TBD",
         phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
         phoneCell: s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD",
-        coords: entry.trueCoords, // ✅ TRUE coords for routing
-        mapCoords: entry.mapCoords, // ✅ OFFSET coords for flyTo
+        coords: entry.trueCoords,     // ✅ TRUE coords for routing
+        mapCoords: entry.mapCoords,   // ✅ OFFSET coords for flyTo
       });
     }
 
@@ -720,9 +694,6 @@ export default function CertisMap(props: Props) {
 
     const ctr = zoomToStop.mapCoords ?? zoomToStop.coords;
     map.flyTo({ center: ctr, zoom: 12.5, essential: true });
-
-    // ✅ HARDENING: if something has disabled interactions, re-enable after fly
-    enableMapInteractions(map);
   }, [zoomToStop]);
 
   function buildRouteCoords(): [number, number][] {
@@ -765,6 +736,9 @@ export default function CertisMap(props: Props) {
         `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsStr}` +
         `?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(token)}`;
 
+      const src2 = mapRef.current?.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
+      if (!src2) return;
+
       try {
         const resp = await fetch(url, { signal: controller.signal });
         if (!resp.ok) throw new Error(`Directions HTTP ${resp.status} ${resp.statusText}`);
@@ -773,14 +747,14 @@ export default function CertisMap(props: Props) {
         const geom = json?.routes?.[0]?.geometry;
         if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
 
-        src.setData({
+        src2.setData({
           type: "FeatureCollection",
           features: [{ type: "Feature", geometry: geom, properties: {} }],
         } as any);
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
-        src.setData({
+        src2.setData({
           type: "FeatureCollection",
           features: [
             {
@@ -867,7 +841,6 @@ export default function CertisMap(props: Props) {
     const kp = kingpinsRef.current;
     if (!kp?.features?.length) return [];
 
-    // Group by closeness to the clicked (OFFSET) coords
     const matches: KingpinEntry[] = [];
     for (const f of kp.features) {
       const entry = kingpinEntryFromFeature(f);
@@ -876,7 +849,6 @@ export default function CertisMap(props: Props) {
       if (d <= KINGPIN_GROUP_TOLERANCE_M) matches.push(entry);
     }
 
-    // Deterministic sort: retailer then contact
     matches.sort((a, b) => {
       const ar = s(a.p.Retailer).localeCompare(s(b.p.Retailer));
       if (ar !== 0) return ar;
@@ -897,6 +869,7 @@ export default function CertisMap(props: Props) {
     const suppliers = s(p.Suppliers) || "Not listed";
 
     const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
+    const contactTitle = s(p.ContactTitle || p.Title || p["Contact Title"]);
     const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
     const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
     const email = s(p.Email) || "TBD";
@@ -938,7 +911,6 @@ export default function CertisMap(props: Props) {
 
     const matches = getKingpinsNearClickedPoint(clickedMapCoords);
 
-    // If for some reason we don’t find more, fall back to the clicked one only
     const entries: KingpinEntry[] =
       matches.length > 0
         ? matches
@@ -954,14 +926,13 @@ export default function CertisMap(props: Props) {
 
     if (!entries.length) return;
 
-    // Build options
     const options = entries.map((ent, idx) => {
       const pr = ent.p ?? {};
       const contact = s(pr.ContactName || pr.Name || pr.Contact || pr["Contact Name"]) || `Kingpin #${idx + 1}`;
       const title = s(pr.ContactTitle || pr.Title || pr["Contact Title"]);
       const r = s(pr.Retailer) || retailer0 || "Retailer";
       const line = title ? `${contact} — ${title}` : `${contact}`;
-      return { idx, retailer: r, line };
+      return { idx, contact, title, retailer: r, line };
     });
 
     const popupId = `kp-popup-${Date.now()}`;
