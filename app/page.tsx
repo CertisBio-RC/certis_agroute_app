@@ -37,17 +37,25 @@ function sectionKey(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
-function toTokens(q: string) {
-  return q
+function normalizeText(v: any) {
+  return String(v ?? "")
     .toLowerCase()
-    .trim()
-    .split(/\s+/g)
-    .map((t) => t.trim())
-    .filter(Boolean);
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function digitsOnly(v: string) {
-  return (v || "").replace(/[^0-9]/g, "");
+function phoneDigits(v: any) {
+  return String(v ?? "").replace(/[^0-9]/g, "");
+}
+
+function tokenizeQuery(q: string) {
+  return q
+    .toLowerCase()
+    .split(/\s+/g)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    // ignore ultra-short tokens that create noise
+    .filter((t) => t.length >= 2);
 }
 
 export default function Page() {
@@ -206,18 +214,18 @@ export default function Page() {
     return q ? suppliers.filter((x) => includesLoose(x, q)) : suppliers;
   }, [suppliers, supplierSearch]);
 
-  // Stop search results (STRICT)
+  // Stop search results (STRICT token match)
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
     if (!qRaw) return allStops.slice(0, 30);
 
-    const qLower = qRaw.toLowerCase();
-    const qTokens = toTokens(qRaw);
-    const digitsQ = digitsOnly(qRaw);
+    const qLower = qRaw.toLowerCase().trim();
+    const qTokens = tokenizeQuery(qLower);
+    const digitsQ = phoneDigits(qLower);
 
-    // searchable blob (token must exist somewhere)
-    const makeBlob = (st: Stop) =>
-      [
+    const buildHaystack = (st: Stop) => {
+      // EVERYTHING we allow to be searchable
+      const parts = [
         st.label,
         st.retailer,
         st.name,
@@ -228,92 +236,87 @@ export default function Page() {
         st.email,
         st.phoneOffice,
         st.phoneCell,
-      ]
-        .filter(Boolean)
-        .map((x) => String(x).toLowerCase())
-        .join("  ");
-
-    const scoreStr = (value: string | undefined, weight: number) => {
-      const v = (value || "").toLowerCase().trim();
-      if (!v) return 0;
-
-      let s0 = 0;
-
-      // exact / starts / contains phrase
-      if (v === qLower) s0 += 80 * weight;
-      if (v.startsWith(qLower)) s0 += 38 * weight;
-      if (v.includes(qLower)) s0 += 18 * weight;
-
-      // token hits (each token adds signal)
-      if (qTokens.length >= 1) {
-        const hits = qTokens.filter((t) => t && v.includes(t)).length;
-        if (hits > 0) s0 += hits * 10 * weight;
-        if (qTokens.length >= 2 && hits === qTokens.length) s0 += 30 * weight;
-      }
-
-      return s0;
+        st.suppliers,
+        st.category,
+      ];
+      return normalizeText(parts.filter(Boolean).join(" "));
     };
 
-    const scorePhone = (value: string | undefined, weight: number) => {
-      if (digitsQ.length < 3) return 0;
-      const digitsV = digitsOnly(String(value || ""));
-      if (!digitsV) return 0;
+    const scoreStop = (st: Stop) => {
+      const hay = buildHaystack(st);
 
-      let s0 = 0;
-      if (digitsV === digitsQ) s0 += 80 * weight;
-      if (digitsV.startsWith(digitsQ)) s0 += 46 * weight;
-      if (digitsV.includes(digitsQ)) s0 += 26 * weight;
-      return s0;
+      // STRICT: all tokens must match somewhere for multi-token queries
+      if (qTokens.length >= 2) {
+        const allPresent = qTokens.every((t) => hay.includes(t));
+        if (!allPresent) return 0;
+      } else {
+        // single token: must match token OR phone digits (if provided)
+        const tokenOk = qTokens.length === 1 ? hay.includes(qTokens[0]) : hay.includes(qLower);
+        const phoneOk = digitsQ.length >= 3 ? phoneDigits(st.phoneOffice).includes(digitsQ) || phoneDigits(st.phoneCell).includes(digitsQ) : false;
+        if (!tokenOk && !phoneOk) return 0;
+      }
+
+      // Ranking AFTER passing strict match
+      let score = 0;
+
+      const label = normalizeText(st.label);
+      const name = normalizeText(st.name);
+      const retailer = normalizeText(st.retailer);
+      const city = normalizeText(st.city);
+      const state = normalizeText(st.state);
+      const zip = normalizeText(st.zip);
+      const email = normalizeText(st.email);
+      const addr = normalizeText(st.address);
+
+      // Exact-ish boosts
+      if (name && name === qLower) score += 180;
+      if (label && label === qLower) score += 160;
+
+      // Starts-with boosts
+      if (name && name.startsWith(qLower)) score += 110;
+      if (label && label.startsWith(qLower)) score += 90;
+
+      // Token boosts (multi-token)
+      if (qTokens.length >= 2) {
+        for (const t of qTokens) {
+          if (name && name.includes(t)) score += 45;
+          if (label && label.includes(t)) score += 35;
+          if (retailer && retailer.includes(t)) score += 18;
+        }
+      } else {
+        // single token boosts
+        const t = qTokens.length === 1 ? qTokens[0] : qLower;
+        if (name && name.includes(t)) score += 55;
+        if (label && label.includes(t)) score += 40;
+        if (retailer && retailer.includes(t)) score += 22;
+      }
+
+      // Location boosts
+      if (city && city.includes(qLower)) score += 10;
+      if (state && state.includes(qLower)) score += 10;
+      if (zip && zip.includes(qLower)) score += 20;
+      if (addr && addr.includes(qLower)) score += 8;
+      if (email && email.includes(qLower)) score += 25;
+
+      // Phone boosts
+      if (digitsQ.length >= 3) {
+        const dOffice = phoneDigits(st.phoneOffice);
+        const dCell = phoneDigits(st.phoneCell);
+        if (dOffice === digitsQ || dCell === digitsQ) score += 120;
+        else if (dOffice.startsWith(digitsQ) || dCell.startsWith(digitsQ)) score += 70;
+        else if (dOffice.includes(digitsQ) || dCell.includes(digitsQ)) score += 40;
+      }
+
+      // Trip penalty (deprioritize stops already in trip)
+      const inTrip = tripStops.some((x) => x.id === st.id);
+      if (inTrip) score -= 8;
+
+      return score;
     };
 
     const scored = allStops
-      .map((st) => {
-        const blob = makeBlob(st);
-
-        // ✅ HARD GATE: all tokens must appear somewhere for multi-word searches
-        if (qTokens.length >= 2) {
-          const ok = qTokens.every((t) => t && blob.includes(t));
-          if (!ok) return null;
-        } else {
-          // single token search must appear somewhere
-          const t0 = qTokens[0] || qLower;
-          if (t0 && !blob.includes(t0)) return null;
-        }
-
-        const labelScore = scoreStr(st.label, 5);
-        const retailerScore = scoreStr(st.retailer || "", 4);
-        const nameScore = scoreStr(st.name || "", 4);
-        const cityScore = scoreStr(st.city || "", 2);
-        const stateScore = scoreStr(st.state || "", 2);
-        const zipScore = scoreStr(st.zip || "", 3);
-        const addressScore = scoreStr(st.address || "", 2);
-
-        const emailScore = scoreStr(st.email || "", 3);
-        const officeScore = scorePhone(st.phoneOffice || "", 3);
-        const cellScore = scorePhone(st.phoneCell || "", 3);
-
-        const total =
-          labelScore +
-          retailerScore +
-          nameScore +
-          cityScore +
-          stateScore +
-          zipScore +
-          addressScore +
-          emailScore +
-          officeScore +
-          cellScore;
-
-        // ✅ minimum threshold to prevent junk
-        const MIN_SCORE = qTokens.length >= 2 ? 70 : 40;
-        if (total < MIN_SCORE) return null;
-
-        const inTrip = tripStops.some((x) => x.id === st.id);
-        const tripPenalty = inTrip ? -5 : 0;
-
-        return { st, score: total + tripPenalty };
-      })
-      .filter(Boolean) as { st: Stop; score: number }[];
+      .map((st) => ({ st, score: scoreStop(st) }))
+      .filter((x) => x.score > 0);
 
     scored.sort((a, b) => b.score - a.score);
     return scored.map((x) => x.st).slice(0, 50);
@@ -348,7 +351,7 @@ export default function Page() {
   }, [tripStops]);
 
   // ============================================================
-  // ✅ VISUAL SYSTEM
+  // ✅ VISUAL SYSTEM (Fixes: background + tile outlines)
   // ============================================================
 
   const appBg =
@@ -499,7 +502,9 @@ export default function Page() {
                       placeholder="Search by retailer, city, state, name, contact…"
                       className={smallInputClass}
                     />
-                    <div className="text-xs text-white/60">Quick-add a stop without hunting on the map.</div>
+                    <div className="text-xs text-white/60">
+                      Strict search: multi-word queries must match all words (e.g., “James Klein”).
+                    </div>
 
                     <div className={stopListClass}>
                       {stopResults.map((st) => {
@@ -785,6 +790,7 @@ export default function Page() {
                 )}
               </div>
 
+              {/* Diagnostics */}
               <div className="text-[11px] text-white/55">
                 Loaded: {allStops.length} stops • Trip: {tripStops.length}
               </div>
