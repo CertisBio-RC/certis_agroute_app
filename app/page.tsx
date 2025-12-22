@@ -33,6 +33,37 @@ function sectionKey(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
+// ✅ Search helpers (fixes multi-token false positives like "Dan" matching "Brandon")
+function normalizeSearchText(raw: any) {
+  return String(raw ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+function tokenizeQuery(raw: string) {
+  return normalizeSearchText(raw)
+    .split(" ")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+function matchTokenInHaystack(token: string, hayNorm: string, hayWords: string[]) {
+  if (!token) return false;
+
+  // Word-boundary exact
+  if (hayWords.includes(token)) return true;
+
+  // Prefix-of-word match for "karr" -> "karr..." (useful for partials, avoids substring noise)
+  for (const w of hayWords) {
+    if (w.startsWith(token)) return true;
+  }
+
+  // Fallback contains only for longer tokens (still normalized)
+  if (token.length >= 4 && hayNorm.includes(token)) return true;
+
+  return false;
+}
+
 export default function Page() {
   // Options loaded from map
   const [states, setStates] = useState<string[]>([]);
@@ -194,9 +225,11 @@ export default function Page() {
     const qRaw = stopSearch.trim();
     if (!qRaw) return allStops.slice(0, 30);
 
-    const qLower = qRaw.toLowerCase();
+    const qTokens = tokenizeQuery(qRaw);
 
-    if (qRaw.length < 3) {
+    // Super short query: fast contains (unchanged behavior, just normalized)
+    if (qTokens.join(" ").length < 3) {
+      const qLower = qTokens.join(" ");
       const quick = allStops.filter((st) => {
         const fields = [
           st.label,
@@ -219,29 +252,29 @@ export default function Page() {
       return quick.slice(0, 50);
     }
 
-    const qTokens = qLower
-      .split(/\s+/g)
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const qLowerNorm = normalizeSearchText(qRaw);
 
-    const toWords = (v: string) => v.split(/[^a-z0-9]+/g).filter(Boolean);
+    const toWords = (v: string) => normalizeSearchText(v).split(" ").filter(Boolean);
 
     const scoreField = (value: string | undefined, weight: number) => {
-      const v = (value || "").toLowerCase().trim();
-      if (!v) return 0;
+      const vNorm = normalizeSearchText(value || "");
+      if (!vNorm) return 0;
 
+      const words = vNorm.split(" ").filter(Boolean);
       let s0 = 0;
 
-      if (v === qLower) s0 += 50 * weight;
-      if (v.startsWith(qLower)) s0 += 28 * weight;
+      if (vNorm === qLowerNorm) s0 += 50 * weight;
+      if (vNorm.startsWith(qLowerNorm)) s0 += 28 * weight;
+      if (words.includes(qLowerNorm)) s0 += 20 * weight;
+      if (qLowerNorm.length >= 4 && vNorm.includes(qLowerNorm)) s0 += 10 * weight;
 
-      const words = toWords(v);
-      if (words.includes(qLower)) s0 += 20 * weight;
-
-      if (v.includes(qLower)) s0 += 10 * weight;
-
+      // ✅ For multi-token: give points only for token matches, but we will FILTER candidates unless ALL tokens match (below)
       if (qTokens.length >= 2) {
-        const hits = qTokens.filter((t) => t && v.includes(t)).length;
+        let hits = 0;
+        for (const t of qTokens) {
+          if (!t) continue;
+          if (matchTokenInHaystack(t, vNorm, words)) hits += 1;
+        }
         if (hits > 0) s0 += hits * 6 * weight;
         if (hits === qTokens.length) s0 += 22 * weight;
       }
@@ -250,7 +283,7 @@ export default function Page() {
     };
 
     const scorePhone = (value: string | undefined, weight: number) => {
-      const digitsQ = qLower.replace(/[^0-9]/g, "");
+      const digitsQ = qLowerNorm.replace(/[^0-9]/g, "");
       if (digitsQ.length < 3) return 0;
       const digitsV = String(value || "").replace(/[^0-9]/g, "");
       if (!digitsV) return 0;
@@ -261,8 +294,41 @@ export default function Page() {
       return 0;
     };
 
+    const buildHaystack = (st: Stop) => {
+      const rawFields = [
+        st.label,
+        st.retailer,
+        st.name,
+        st.city,
+        st.state,
+        st.zip,
+        st.address,
+        st.email,
+        st.phoneOffice,
+        st.phoneCell,
+      ].filter(Boolean);
+
+      const hayNorm = normalizeSearchText(rawFields.join(" "));
+      const hayWords = hayNorm.split(" ").filter(Boolean);
+      return { hayNorm, hayWords };
+    };
+
     const scored = allStops
       .map((st) => {
+        const { hayNorm, hayWords } = buildHaystack(st);
+
+        // ✅ CRITICAL FIX:
+        // For multi-token queries (e.g., "Dan Karr"), we REQUIRE all tokens to match somewhere
+        // using word-boundary / prefix-of-word logic (prevents "Dan" in "Brandon" noise).
+        if (qTokens.length >= 2) {
+          const allMatch = qTokens.every((t) => matchTokenInHaystack(t, hayNorm, hayWords));
+          if (!allMatch) return null;
+        } else {
+          // Single token: require some reasonable match in the combined haystack
+          const t0 = qTokens[0] || "";
+          if (t0 && !matchTokenInHaystack(t0, hayNorm, hayWords)) return null;
+        }
+
         const labelScore = scoreField(st.label, 4);
         const retailerScore = scoreField(st.retailer || "", 3);
         const nameScore = scoreField(st.name || "", 3);
