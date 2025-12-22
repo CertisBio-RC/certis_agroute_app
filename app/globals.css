@@ -220,6 +220,28 @@ body {
   line-height: 1.4;
 }
 
+/* =========================================================
+   CERTIS AGROUTE — Popup close button (bigger X)
+   ========================================================= */
+
+.mapboxgl-popup-close-button {
+  font-size: 22px; /* bigger X */
+  line-height: 22px;
+  width: 34px; /* bigger hit area */
+  height: 34px;
+  padding: 0;
+  top: 6px;
+  right: 6px;
+  color: #facc15; /* matches your yellow */
+  font-weight: 800;
+  border-radius: 8px;
+}
+
+.mapboxgl-popup-close-button:hover {
+  background: rgba(250, 204, 21, 0.15);
+  color: #fde68a;
+}
+
 /* ====================================================================== */
 /* MOBILE OPTIMIZATION */
 /* ====================================================================== */
