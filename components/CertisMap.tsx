@@ -9,10 +9,10 @@
 //   • Kingpin offset is DISPLAY ONLY; TRUE coords used for routing
 //   • Trip route: Mapbox Directions (driving) + straight-line fallback
 //
-// ✅ FIX (CRITICAL): Map pan/zoom/scroll fully functional
-//   - No forced post-load jumpTo/setMaxBounds clamp that can “pin” the camera
-//   - Explicitly re-enables Mapbox interactions after load
-//   - Midwest initial view applied ONCE (guarded)
+// ✅ FIX (CRITICAL): Prevent “Hudson Bay boot”
+//   - NO initial fitBounds()
+//   - Apply explicit Midwest jumpTo() ONCE after load
+//   - Hard-skip invalid coords (lng/lat swap or garbage points)
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -85,15 +85,9 @@ type Props = {
 
 const STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
 
-// ✅ Upper Midwest / IA-centered default
+// ✅ Upper Midwest / IA-centered default (Bailey)
 const DEFAULT_CENTER: [number, number] = [-93.5, 41.5];
 const DEFAULT_ZOOM = 5;
-
-// ✅ Midwest-ish bounds used ONLY for initial fit (NOT a hard clamp)
-const MIDWEST_BOUNDS: mapboxgl.LngLatBoundsLike = [
-  [-105.5, 36.0], // SW
-  [-81.0, 49.5], // NE
-];
 
 const SRC_RETAILERS = "retailers";
 const SRC_KINGPINS = "kingpins";
@@ -168,6 +162,16 @@ function distanceMeters(a: [number, number], b: [number, number]) {
   return R * c;
 }
 
+function isValidLngLat(coords: any): coords is [number, number] {
+  if (!Array.isArray(coords) || coords.length !== 2) return false;
+  const lng = Number(coords[0]);
+  const lat = Number(coords[1]);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return false;
+  if (lng < -180 || lng > 180) return false;
+  if (lat < -90 || lat > 90) return false;
+  return true;
+}
+
 function getRetailerNameForId(p: Record<string, any>) {
   return s(p.Retailer);
 }
@@ -194,21 +198,22 @@ type KingpinEntry = {
 function kingpinEntryFromFeature(f: Feature): KingpinEntry | null {
   const p = f.properties ?? {};
   const mapCoords = f.geometry?.coordinates;
-  if (!mapCoords) return null;
+  if (!isValidLngLat(mapCoords)) return null;
 
   const tLng = Number(p.__trueLng);
   const tLat = Number(p.__trueLat);
 
   const trueCoords: [number, number] =
-    Number.isFinite(tLng) && Number.isFinite(tLat)
+    Number.isFinite(tLng) && Number.isFinite(tLat) && tLng >= -180 && tLng <= 180 && tLat >= -90 && tLat <= 90
       ? [tLng, tLat]
       : [mapCoords[0] - KINGPIN_OFFSET_LNG, mapCoords[1]];
+
+  if (!isValidLngLat(trueCoords)) return null;
 
   return { p, trueCoords, mapCoords };
 }
 
 function enableAllInteractions(map: mapboxgl.Map) {
-  // These SHOULD be enabled by default, but we force-enable to kill “stuck map” regressions
   try {
     map.dragPan.enable();
     map.scrollZoom.enable();
@@ -255,7 +260,7 @@ export default function CertisMap(props: Props) {
   // ✅ prevent initial flyTo if zoomToStop is pre-populated
   const prevZoomStopIdRef = useRef<string | null>(null);
 
-  // ✅ ensure initial view is applied ONCE
+  // ✅ ensure initial view is applied ONCE (explicit jumpTo, not fitBounds)
   const didSetInitialViewRef = useRef<boolean>(false);
 
   const basePath = useMemo(() => {
@@ -319,9 +324,9 @@ export default function CertisMap(props: Props) {
     } catch {}
 
     const onLoad = async () => {
-      // ✅ force interactions ON after style load
       enableAllInteractions(map);
 
+      // Sources
       if (!map.getSource(SRC_RETAILERS)) {
         map.addSource(SRC_RETAILERS, {
           type: "geojson",
@@ -341,6 +346,7 @@ export default function CertisMap(props: Props) {
         });
       }
 
+      // Retailers
       if (!map.getLayer(LYR_RETAILERS)) {
         map.addLayer({
           id: LYR_RETAILERS,
@@ -375,6 +381,7 @@ export default function CertisMap(props: Props) {
         });
       }
 
+      // Corporate HQ layer
       if (!map.getLayer(LYR_HQ)) {
         map.addLayer({
           id: LYR_HQ,
@@ -434,29 +441,20 @@ export default function CertisMap(props: Props) {
         });
       }
 
+      // Load + apply
       await loadData();
       applyFilters();
       updateHomeMarker();
       await updateRoute(true);
 
-      // ✅ apply initial Midwest view ONCE after data exists
+      // ✅ Explicit Midwest view ONCE (NO fitBounds)
       if (!didSetInitialViewRef.current) {
         didSetInitialViewRef.current = true;
-
         try {
-          // Use fitBounds (gentle) so you don’t boot to Canada, but don’t hard-clamp movement.
-          map.fitBounds(MIDWEST_BOUNDS, {
-            padding: 40,
-            duration: 0,
-          });
-        } catch {
-          try {
-            map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
-          } catch {}
-        }
+          map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+        } catch {}
       }
 
-      // Ensure map is properly sized
       requestAnimationFrame(() => {
         try {
           map.resize();
@@ -466,18 +464,16 @@ export default function CertisMap(props: Props) {
       const setPointer = () => (map.getCanvas().style.cursor = "pointer");
       const clearPointer = () => (map.getCanvas().style.cursor = "");
 
-      // pointer cursor
       [LYR_RETAILERS, LYR_HQ, LYR_KINGPINS].forEach((lyr) => {
         map.on("mouseenter", lyr, setPointer);
         map.on("mouseleave", lyr, clearPointer);
       });
 
-      // clicks
       map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
       map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
 
-      console.info("[CertisMap] Loaded + interactions enabled.");
+      console.info("[CertisMap] Loaded. Initial view set to Midwest. Interactions enabled.");
     };
 
     map.on("load", onLoad);
@@ -528,25 +524,47 @@ export default function CertisMap(props: Props) {
 
     const [r1, r2] = await Promise.all([fetch(retailersUrl), fetch(kingpinsUrl)]);
 
-    const retailersData = (await r1.json()) as FeatureCollection;
-    const kingpinData = (await r2.json()) as FeatureCollection;
+    if (!r1.ok) throw new Error(`Retailers fetch failed: ${r1.status} ${r1.statusText}`);
+    if (!r2.ok) throw new Error(`Kingpins fetch failed: ${r2.status} ${r2.statusText}`);
 
-    // Build OFFSET kingpin features for map display, but preserve TRUE coords in properties
-    const offsetKingpins: FeatureCollection = {
-      ...kingpinData,
-      features: (kingpinData.features ?? []).map((f: any) => {
-        const [lng, lat] = (f.geometry?.coordinates ?? [0, 0]) as [number, number];
-        const trueLng = lng;
-        const trueLat = lat;
+    const retailersDataRaw = (await r1.json()) as FeatureCollection;
+    const kingpinDataRaw = (await r2.json()) as FeatureCollection;
 
-        const nextProps = { ...(f.properties ?? {}), __trueLng: trueLng, __trueLat: trueLat };
-
-        return {
-          ...f,
-          properties: nextProps,
-          geometry: { ...f.geometry, coordinates: [lng + KINGPIN_OFFSET_LNG, lat] }, // DISPLAY ONLY
-        };
+    // ✅ sanitize retailer features (skip invalid coords)
+    const retailersData: FeatureCollection = {
+      type: "FeatureCollection",
+      features: (retailersDataRaw.features ?? []).filter((f: any) => {
+        const coords = f?.geometry?.coordinates;
+        const ok = isValidLngLat(coords);
+        if (!ok) console.warn("[CertisMap] Skipping retailer feature with invalid coords:", coords, f?.properties);
+        return ok;
       }),
+    };
+
+    // ✅ Build OFFSET kingpin features for map display, preserve TRUE coords in props
+    const offsetKingpins: FeatureCollection = {
+      type: "FeatureCollection",
+      features: (kingpinDataRaw.features ?? [])
+        .map((f: any) => {
+          const coords = f?.geometry?.coordinates;
+          if (!isValidLngLat(coords)) {
+            console.warn("[CertisMap] Skipping kingpin feature with invalid coords:", coords, f?.properties);
+            return null;
+          }
+
+          const [lng, lat] = coords as [number, number];
+          const trueLng = lng;
+          const trueLat = lat;
+
+          const nextProps = { ...(f.properties ?? {}), __trueLng: trueLng, __trueLat: trueLat };
+
+          return {
+            ...f,
+            properties: nextProps,
+            geometry: { ...f.geometry, coordinates: [lng + KINGPIN_OFFSET_LNG, lat] }, // DISPLAY ONLY
+          } as Feature;
+        })
+        .filter(Boolean) as Feature[],
     };
 
     retailersRef.current = retailersData;
@@ -561,14 +579,17 @@ export default function CertisMap(props: Props) {
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
       const coords = f.geometry?.coordinates;
-      if (!coords) continue;
+      if (!isValidLngLat(coords)) continue;
 
       const category = s(p.Category);
       const kind: StopKind = isCorporateHQ(category) ? "hq" : "retailer";
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
-      const label = kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
+      const label =
+        kind === "hq"
+          ? `${retailer || "Corporate HQ"} — Corporate HQ`
+          : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -620,8 +641,13 @@ export default function CertisMap(props: Props) {
     onAllStopsLoaded(allStops);
 
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-    onRetailersLoaded(uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean)));
+
+    onRetailersLoaded(
+      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
+    );
+
     onCategoriesLoaded(uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category))));
+
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
 
@@ -709,6 +735,8 @@ export default function CertisMap(props: Props) {
     prevZoomStopIdRef.current = incomingId;
 
     const ctr = zoomToStop.mapCoords ?? zoomToStop.coords;
+    if (!isValidLngLat(ctr)) return;
+
     try {
       enableAllInteractions(map);
       map.flyTo({ center: ctr, zoom: 12.5, essential: true });
@@ -717,8 +745,10 @@ export default function CertisMap(props: Props) {
 
   function buildRouteCoords(): [number, number][] {
     const pts: [number, number][] = [];
-    if (homeCoords) pts.push(homeCoords);
-    for (const st of tripStops || []) pts.push(st.coords); // TRUE coords only
+    if (homeCoords && isValidLngLat(homeCoords)) pts.push(homeCoords);
+    for (const st of tripStops || []) {
+      if (isValidLngLat(st.coords)) pts.push(st.coords); // TRUE coords only
+    }
     return pts;
   }
 
@@ -799,6 +829,7 @@ export default function CertisMap(props: Props) {
     const f = features[0];
     const p = f.properties ?? {};
     const coords = (f.geometry?.coordinates ?? []) as [number, number];
+    if (!isValidLngLat(coords)) return;
 
     const retailer = s(p.Retailer);
     const name = s(p.Name);
@@ -921,6 +952,7 @@ export default function CertisMap(props: Props) {
     const f = features[0];
     const p0 = f.properties ?? {};
     const clickedMapCoords = (f.geometry?.coordinates ?? []) as [number, number];
+    if (!isValidLngLat(clickedMapCoords)) return;
 
     const retailer0 = s(p0.Retailer);
 
@@ -999,7 +1031,7 @@ export default function CertisMap(props: Props) {
       const zip = escapeHtml(s(p.Zip));
       const category = escapeHtml(s(p.Category) || "Kingpin");
       const suppliersText = s(p.Suppliers) || "Not listed";
-      const suppliersTitle = escapeHtml(suppliersText);
+      const suppliersTitle = escapeHtml(s(suppliersText));
 
       const contactName = escapeHtml(s(p.ContactName || p.Name || p.Contact || p["Contact Name"]));
       const contactTitle = escapeHtml(s(p.ContactTitle || p.Title || p["Contact Title"]));

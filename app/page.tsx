@@ -1,17 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import CertisMap, { Stop, RetailerSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
   return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
+
 function normUpper(v: string) {
   return (v || "").trim().toUpperCase();
 }
+
 function includesLoose(hay: string, needle: string) {
   return hay.toLowerCase().includes(needle.toLowerCase());
 }
+
 function splitMulti(raw: any) {
   const str = String(raw ?? "").trim();
   if (!str) return [];
@@ -20,6 +23,7 @@ function splitMulti(raw: any) {
     .map((x) => x.trim())
     .filter(Boolean);
 }
+
 function splitCategories(raw: any) {
   const str = String(raw ?? "").trim();
   if (!str) return [];
@@ -33,35 +37,17 @@ function sectionKey(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
-// ✅ Search helpers (fixes multi-token false positives like "Dan" matching "Brandon")
-function normalizeSearchText(raw: any) {
-  return String(raw ?? "")
+function toTokens(q: string) {
+  return q
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
     .trim()
-    .replace(/\s+/g, " ");
-}
-function tokenizeQuery(raw: string) {
-  return normalizeSearchText(raw)
-    .split(" ")
+    .split(/\s+/g)
     .map((t) => t.trim())
     .filter(Boolean);
 }
-function matchTokenInHaystack(token: string, hayNorm: string, hayWords: string[]) {
-  if (!token) return false;
 
-  // Word-boundary exact
-  if (hayWords.includes(token)) return true;
-
-  // Prefix-of-word match for "karr" -> "karr..." (useful for partials, avoids substring noise)
-  for (const w of hayWords) {
-    if (w.startsWith(token)) return true;
-  }
-
-  // Fallback contains only for longer tokens (still normalized)
-  if (token.length >= 4 && hayNorm.includes(token)) return true;
-
-  return false;
+function digitsOnly(v: string) {
+  return (v || "").replace(/[^0-9]/g, "");
 }
 
 export default function Page() {
@@ -220,82 +206,18 @@ export default function Page() {
     return q ? suppliers.filter((x) => includesLoose(x, q)) : suppliers;
   }, [suppliers, supplierSearch]);
 
-  // Stop search results
+  // Stop search results (STRICT)
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
     if (!qRaw) return allStops.slice(0, 30);
 
-    const qTokens = tokenizeQuery(qRaw);
+    const qLower = qRaw.toLowerCase();
+    const qTokens = toTokens(qRaw);
+    const digitsQ = digitsOnly(qRaw);
 
-    // Super short query: fast contains (unchanged behavior, just normalized)
-    if (qTokens.join(" ").length < 3) {
-      const qLower = qTokens.join(" ");
-      const quick = allStops.filter((st) => {
-        const fields = [
-          st.label,
-          st.retailer,
-          st.name,
-          st.city,
-          st.state,
-          st.zip,
-          st.address,
-          st.email,
-          st.phoneOffice,
-          st.phoneCell,
-        ]
-          .filter(Boolean)
-          .map((x) => String(x).toLowerCase());
-
-        return fields.some((f) => f.includes(qLower));
-      });
-
-      return quick.slice(0, 50);
-    }
-
-    const qLowerNorm = normalizeSearchText(qRaw);
-
-    const toWords = (v: string) => normalizeSearchText(v).split(" ").filter(Boolean);
-
-    const scoreField = (value: string | undefined, weight: number) => {
-      const vNorm = normalizeSearchText(value || "");
-      if (!vNorm) return 0;
-
-      const words = vNorm.split(" ").filter(Boolean);
-      let s0 = 0;
-
-      if (vNorm === qLowerNorm) s0 += 50 * weight;
-      if (vNorm.startsWith(qLowerNorm)) s0 += 28 * weight;
-      if (words.includes(qLowerNorm)) s0 += 20 * weight;
-      if (qLowerNorm.length >= 4 && vNorm.includes(qLowerNorm)) s0 += 10 * weight;
-
-      // ✅ For multi-token: give points only for token matches, but we will FILTER candidates unless ALL tokens match (below)
-      if (qTokens.length >= 2) {
-        let hits = 0;
-        for (const t of qTokens) {
-          if (!t) continue;
-          if (matchTokenInHaystack(t, vNorm, words)) hits += 1;
-        }
-        if (hits > 0) s0 += hits * 6 * weight;
-        if (hits === qTokens.length) s0 += 22 * weight;
-      }
-
-      return s0;
-    };
-
-    const scorePhone = (value: string | undefined, weight: number) => {
-      const digitsQ = qLowerNorm.replace(/[^0-9]/g, "");
-      if (digitsQ.length < 3) return 0;
-      const digitsV = String(value || "").replace(/[^0-9]/g, "");
-      if (!digitsV) return 0;
-
-      if (digitsV === digitsQ) return 40 * weight;
-      if (digitsV.startsWith(digitsQ)) return 26 * weight;
-      if (digitsV.includes(digitsQ)) return 14 * weight;
-      return 0;
-    };
-
-    const buildHaystack = (st: Stop) => {
-      const rawFields = [
+    // searchable blob (token must exist somewhere)
+    const makeBlob = (st: Stop) =>
+      [
         st.label,
         st.retailer,
         st.name,
@@ -306,38 +228,67 @@ export default function Page() {
         st.email,
         st.phoneOffice,
         st.phoneCell,
-      ].filter(Boolean);
+      ]
+        .filter(Boolean)
+        .map((x) => String(x).toLowerCase())
+        .join("  ");
 
-      const hayNorm = normalizeSearchText(rawFields.join(" "));
-      const hayWords = hayNorm.split(" ").filter(Boolean);
-      return { hayNorm, hayWords };
+    const scoreStr = (value: string | undefined, weight: number) => {
+      const v = (value || "").toLowerCase().trim();
+      if (!v) return 0;
+
+      let s0 = 0;
+
+      // exact / starts / contains phrase
+      if (v === qLower) s0 += 80 * weight;
+      if (v.startsWith(qLower)) s0 += 38 * weight;
+      if (v.includes(qLower)) s0 += 18 * weight;
+
+      // token hits (each token adds signal)
+      if (qTokens.length >= 1) {
+        const hits = qTokens.filter((t) => t && v.includes(t)).length;
+        if (hits > 0) s0 += hits * 10 * weight;
+        if (qTokens.length >= 2 && hits === qTokens.length) s0 += 30 * weight;
+      }
+
+      return s0;
+    };
+
+    const scorePhone = (value: string | undefined, weight: number) => {
+      if (digitsQ.length < 3) return 0;
+      const digitsV = digitsOnly(String(value || ""));
+      if (!digitsV) return 0;
+
+      let s0 = 0;
+      if (digitsV === digitsQ) s0 += 80 * weight;
+      if (digitsV.startsWith(digitsQ)) s0 += 46 * weight;
+      if (digitsV.includes(digitsQ)) s0 += 26 * weight;
+      return s0;
     };
 
     const scored = allStops
       .map((st) => {
-        const { hayNorm, hayWords } = buildHaystack(st);
+        const blob = makeBlob(st);
 
-        // ✅ CRITICAL FIX:
-        // For multi-token queries (e.g., "Dan Karr"), we REQUIRE all tokens to match somewhere
-        // using word-boundary / prefix-of-word logic (prevents "Dan" in "Brandon" noise).
+        // ✅ HARD GATE: all tokens must appear somewhere for multi-word searches
         if (qTokens.length >= 2) {
-          const allMatch = qTokens.every((t) => matchTokenInHaystack(t, hayNorm, hayWords));
-          if (!allMatch) return null;
+          const ok = qTokens.every((t) => t && blob.includes(t));
+          if (!ok) return null;
         } else {
-          // Single token: require some reasonable match in the combined haystack
-          const t0 = qTokens[0] || "";
-          if (t0 && !matchTokenInHaystack(t0, hayNorm, hayWords)) return null;
+          // single token search must appear somewhere
+          const t0 = qTokens[0] || qLower;
+          if (t0 && !blob.includes(t0)) return null;
         }
 
-        const labelScore = scoreField(st.label, 4);
-        const retailerScore = scoreField(st.retailer || "", 3);
-        const nameScore = scoreField(st.name || "", 3);
-        const cityScore = scoreField(st.city || "", 2);
-        const stateScore = scoreField(st.state || "", 2);
-        const zipScore = scoreField(st.zip || "", 3);
-        const addressScore = scoreField(st.address || "", 1);
+        const labelScore = scoreStr(st.label, 5);
+        const retailerScore = scoreStr(st.retailer || "", 4);
+        const nameScore = scoreStr(st.name || "", 4);
+        const cityScore = scoreStr(st.city || "", 2);
+        const stateScore = scoreStr(st.state || "", 2);
+        const zipScore = scoreStr(st.zip || "", 3);
+        const addressScore = scoreStr(st.address || "", 2);
 
-        const emailScore = scoreField(st.email || "", 3);
+        const emailScore = scoreStr(st.email || "", 3);
         const officeScore = scorePhone(st.phoneOffice || "", 3);
         const cellScore = scorePhone(st.phoneCell || "", 3);
 
@@ -353,10 +304,12 @@ export default function Page() {
           officeScore +
           cellScore;
 
-        if (total <= 0) return null;
+        // ✅ minimum threshold to prevent junk
+        const MIN_SCORE = qTokens.length >= 2 ? 70 : 40;
+        if (total < MIN_SCORE) return null;
 
         const inTrip = tripStops.some((x) => x.id === st.id);
-        const tripPenalty = inTrip ? -2 : 0;
+        const tripPenalty = inTrip ? -5 : 0;
 
         return { st, score: total + tripPenalty };
       })
@@ -395,15 +348,13 @@ export default function Page() {
   }, [tripStops]);
 
   // ============================================================
-  // ✅ VISUAL SYSTEM (Fixes: background + tile outlines)
+  // ✅ VISUAL SYSTEM
   // ============================================================
 
-  // Strong, non-transparent dark background (fixes “wrong background” feel)
   const appBg =
     "bg-[#05070f] " +
     "bg-[radial-gradient(1200px_700px_at_15%_0%,rgba(250,204,21,0.10),transparent_55%),radial-gradient(900px_600px_at_90%_25%,rgba(59,130,246,0.08),transparent_55%),radial-gradient(700px_500px_at_45%_110%,rgba(16,185,129,0.06),transparent_55%)]";
 
-  // Definite borders + subtle glow (what you’ve asked for 100 times)
   const panelClass =
     "rounded-2xl border border-yellow-400/20 ring-1 ring-white/10 bg-black/40 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
 
@@ -436,7 +387,6 @@ export default function Page() {
 
   const caretClass = "text-yellow-400/80 text-xs";
 
-  // Helper: section header with collapse
   const SectionHeader = ({
     title,
     right,
@@ -835,7 +785,6 @@ export default function Page() {
                 )}
               </div>
 
-              {/* Diagnostics */}
               <div className="text-[11px] text-white/55">
                 Loaded: {allStops.length} stops • Trip: {tripStops.length}
               </div>
