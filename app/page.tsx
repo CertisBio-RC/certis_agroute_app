@@ -84,17 +84,21 @@ export default function Page() {
   const [supplierSearch, setSupplierSearch] = useState("");
   const [stopSearch, setStopSearch] = useState("");
 
-  // Expand/collapse sections
+  // ============================================================
+  // ✅ DEFAULT COLLAPSE BEHAVIOR (REQUESTED)
+  //   - Find a Stop: OPEN
+  //   - Everything else: COLLAPSED
+  // ============================================================
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
-    [sectionKey("Home ZIP")]: false,
-    [sectionKey("Find a Stop")]: false,
-    [sectionKey("Filters")]: false,
-    [sectionKey("State")]: false,
-    [sectionKey("Retailer")]: false,
-    [sectionKey("Category")]: false,
-    [sectionKey("Supplier")]: false,
-    [sectionKey("Trip Builder")]: false,
-    [sectionKey("Retailer Summary (Trip Stops)")]: false,
+    [sectionKey("Home ZIP")]: true,
+    [sectionKey("Find a Stop")]: false, // keep search open
+    [sectionKey("Filters")]: true,
+    [sectionKey("State")]: true,
+    [sectionKey("Retailer")]: true,
+    [sectionKey("Category")]: true,
+    [sectionKey("Supplier")]: true,
+    [sectionKey("Trip Builder")]: true,
+    [sectionKey("Retailer Summary (Trip Stops)")]: true,
   });
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
@@ -212,9 +216,6 @@ export default function Page() {
 
   // ============================================================
   // ✅ STOP SEARCH (FIXED)
-  //   - Hard "candidate gate": if tokens are NOT present, score = 0 and we exclude.
-  //   - Multi-word queries prioritize PERSON fields (name/email) first.
-  //   - Eliminates the “Agtegra always shows up” leak.
   // ============================================================
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
@@ -230,7 +231,6 @@ export default function Page() {
     const personMode = tokens.length >= 2 && qDigits.length === 0;
 
     const buildSearchBlob = (st: Stop) => {
-      // Broad searchable blob (for single-token/general searches)
       const fields = [
         st.label,
         st.retailer,
@@ -250,7 +250,6 @@ export default function Page() {
     };
 
     const buildPersonBlob = (st: Stop) => {
-      // STRICT person blob: only name + email (and label as a fallback if label includes the person)
       const fields = [st.name, st.email, st.label].filter(Boolean).map((x) => String(x));
       return fields.join(" ").toLowerCase();
     };
@@ -287,24 +286,14 @@ export default function Page() {
 
     const scored = allStops
       .map((st) => {
-        // -----------------------------
-        // ✅ HARD CANDIDATE GATE
-        // -----------------------------
         const blob = buildSearchBlob(st);
-        if (!allTokensPresent(blob, tokens) && qDigits.length === 0) {
-          // If the query isn't numeric and tokens are not all present anywhere in blob, exclude.
-          return null;
-        }
+        if (!allTokensPresent(blob, tokens) && qDigits.length === 0) return null;
 
-        // For person-mode, require tokens present in person fields (name/email/label)
         if (personMode) {
           const pblob = buildPersonBlob(st);
           if (!allTokensPresent(pblob, tokens)) return null;
         }
 
-        // -----------------------------
-        // ✅ SCORING
-        // -----------------------------
         const labelScore = scoreField(st.label, 4);
         const retailerScore = personMode ? 0 : scoreField(st.retailer || "", 3);
         const nameScore = scoreField(st.name || "", 4);
@@ -329,7 +318,6 @@ export default function Page() {
           officeScore +
           cellScore;
 
-        // Prefer Kingpins for person-mode
         if (personMode && st.kind === "kingpin") total += 18;
 
         if (total <= 0) return null;

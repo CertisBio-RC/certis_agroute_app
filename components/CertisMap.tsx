@@ -1,19 +1,22 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE — GOLD (Interaction-safe + Build-safe + Home-aware routing)
+// 💠 CERTIS AGROUTE — GOLD (K10-informed + Build-safe + Home-aware routing fix)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
-//   • Corporate/Regional HQ filtered ONLY by State (HQ rule)
+//   • Corporate HQ filtered ONLY by State (Bailey HQ rule)
 //   • Kingpins always visible overlay (not filtered)
-//   • Kingpin offset is DISPLAY ONLY; TRUE coords used for routing
+//   • Applies ~100m offset to Kingpins (lng + 0.0013) like K10
+//   • Kingpin icon size is ZOOM-SCALED (prevents giant stars)
 //   • Trip route: Mapbox Directions (driving) + straight-line fallback
-//
-// ✅ FIX (CRITICAL): Deterministic initial view (no Canada)
-//   - No fitBounds based on data; we jumpTo IA-centered default ONCE after data load.
-// ✅ FIX (CRITICAL): Map pan/zoom/scroll fully functional
-//   - No post-load clamp that can “pin” camera
-//   - Explicitly re-enables Mapbox interactions after load
+//   • ✅ FIX: Route honors Home ZIP and works with 1 stop (Home + stop)
+//   • ✅ FIX: Route rebuilds on homeCoords change; aborts in-flight calls (loop guard)
+//   • ✅ FIX: Map RESIZES on container changes (prevents “black half-page”)
+//   • ✅ FIX (Problem A): Deterministic Midwest start + validated, one-time fitBounds
+//       - Always start Midwest-reasonable (no “Canada problem”)
+//       - Only fitBounds after data is loaded AND using validated points
+//       - Never fit on Kingpins/HQ outliers; rejects invalid coords / extreme points
+//       - Uses didInitialView ref to avoid camera jitter loops
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -39,11 +42,7 @@ export type Stop = {
   phoneOffice?: string;
   phoneCell?: string;
 
-  // TRUE coords for routing + canonical identity
   coords: [number, number]; // [lng, lat]
-
-  // Optional display coords (used for flyTo / marker alignment)
-  mapCoords?: [number, number];
 };
 
 export type RetailerSummaryRow = {
@@ -86,9 +85,16 @@ type Props = {
 
 const STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
 
-// ✅ Upper Midwest / IA-centered default
+// Midwest default: central IA/IL-ish
 const DEFAULT_CENTER: [number, number] = [-93.5, 41.5];
 const DEFAULT_ZOOM = 5;
+
+// A broad-but-safe Midwest-ish bounds to prevent “Canada problem”
+// (used as fallback if data is weird or not ready)
+const MIDWEST_FALLBACK_BOUNDS: mapboxgl.LngLatBoundsLike = [
+  [-104.5, 35.5], // SW
+  [-80.0, 49.5], // NE
+];
 
 const SRC_RETAILERS = "retailers";
 const SRC_KINGPINS = "kingpins";
@@ -102,9 +108,7 @@ const LYR_ROUTE = "trip-route";
 const KINGPIN_ICON_ID = "kingpin-icon";
 const KINGPIN_OFFSET_LNG = 0.0013;
 
-// How close (meters) counts as “same location” for grouping multiple kingpins
-const KINGPIN_GROUP_TOLERANCE_M = 60;
-
+// ---------- helpers ----------
 function s(v: any) {
   return String(v ?? "").trim();
 }
@@ -133,88 +137,47 @@ function splitCategories(raw: any) {
 
 function isCorporateHQ(category: string) {
   const c = category.toLowerCase();
-  // Match common variants (Corporate HQ / Regional HQ / Headquarters)
-  const hasHq = c.includes("hq") || c.includes("headquarter");
-  const hasCorporate = c.includes("corporate");
-  const hasRegional = c.includes("regional") || c.includes("region");
-  return hasHq && (hasCorporate || hasRegional);
-}
-
-function escapeHtml(v: string) {
-  return String(v ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function toRad(deg: number) {
-  return (deg * Math.PI) / 180;
-}
-
-function distanceMeters(a: [number, number], b: [number, number]) {
-  // Haversine
-  const R = 6371000;
-  const lat1 = toRad(a[1]);
-  const lat2 = toRad(b[1]);
-  const dLat = toRad(b[1] - a[1]);
-  const dLng = toRad(b[0] - a[0]);
-  const x =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-  return R * c;
-}
-
-function getRetailerNameForId(p: Record<string, any>) {
-  return s(p.Retailer);
-}
-
-function getStopNameForId(kind: StopKind, p: Record<string, any>) {
-  if (kind === "kingpin") return s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
-  return s(p.Name);
+  return c.includes("corporate") && c.includes("hq");
 }
 
 function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>) {
-  const retailer = getRetailerNameForId(p);
-  const name = getStopNameForId(kind, p);
+  const retailer = s(p.Retailer);
+  const name = s(p.Name);
   const st = s(p.State);
   const zip = s(p.Zip);
   return `${kind}:${retailer}|${name}|${st}|${zip}|${coords[0].toFixed(6)},${coords[1].toFixed(6)}`;
 }
 
-type KingpinEntry = {
-  p: Record<string, any>;
-  trueCoords: [number, number];
-  mapCoords: [number, number];
-};
-
-function kingpinEntryFromFeature(f: Feature): KingpinEntry | null {
-  const p = f.properties ?? {};
-  const mapCoords = f.geometry?.coordinates;
-  if (!mapCoords) return null;
-
-  const tLng = Number(p.__trueLng);
-  const tLat = Number(p.__trueLat);
-
-  const trueCoords: [number, number] =
-    Number.isFinite(tLng) && Number.isFinite(tLat)
-      ? [tLng, tLat]
-      : [mapCoords[0] - KINGPIN_OFFSET_LNG, mapCoords[1]];
-
-  return { p, trueCoords, mapCoords };
+function isFiniteNumber(n: any) {
+  return typeof n === "number" && Number.isFinite(n);
 }
 
-function enableAllInteractions(map: mapboxgl.Map) {
-  try {
-    map.dragPan.enable();
-    map.scrollZoom.enable();
-    map.boxZoom.enable();
-    map.doubleClickZoom.enable();
-    map.keyboard.enable();
-    map.touchZoomRotate.enable();
-  } catch {}
+function isValidLngLat(coords: any): coords is [number, number] {
+  if (!Array.isArray(coords) || coords.length !== 2) return false;
+  const [lng, lat] = coords;
+  if (!isFiniteNumber(lng) || !isFiniteNumber(lat)) return false;
+  if (lng < -180 || lng > 180) return false;
+  if (lat < -90 || lat > 90) return false;
+  // reject common garbage
+  if (Math.abs(lng) < 0.00001 && Math.abs(lat) < 0.00001) return false;
+  return true;
+}
+
+// A “Midwest plausible” gate to prevent outliers from dragging fitBounds.
+// (still wide enough for your territory)
+function isMidwestPlausible(coords: [number, number]) {
+  const [lng, lat] = coords;
+  return lng >= -106 && lng <= -74 && lat >= 33 && lat <= 50.5;
+}
+
+function percentile(sorted: number[], p: number) {
+  if (!sorted.length) return NaN;
+  const idx = (sorted.length - 1) * p;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  const w = idx - lo;
+  return sorted[lo] * (1 - w) + sorted[hi] * w;
 }
 
 export default function CertisMap(props: Props) {
@@ -238,7 +201,7 @@ export default function CertisMap(props: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   const retailersRef = useRef<FeatureCollection | null>(null);
-  const kingpinsRef = useRef<FeatureCollection | null>(null); // OFFSET features w/ __trueLng/__trueLat
+  const kingpinsRef = useRef<FeatureCollection | null>(null);
 
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
@@ -247,14 +210,11 @@ export default function CertisMap(props: Props) {
   const lastRouteKeyRef = useRef<string>("");
 
   const resizeObsRef = useRef<ResizeObserver | null>(null);
-  const resizeDebounceRef = useRef<number | null>(null);
-  const resizeRafRef = useRef<number | null>(null);
 
-  // ✅ prevent initial flyTo if zoomToStop is pre-populated
-  const prevZoomStopIdRef = useRef<string | null>(null);
-
-  // ✅ ensure initial view is applied ONCE
-  const didSetInitialViewRef = useRef<boolean>(false);
+  // Problem A guards
+  const dataLoadedRef = useRef<boolean>(false);
+  const didInitialViewRef = useRef<boolean>(false);
+  const lastHomeKeyForViewRef = useRef<string>("");
 
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
@@ -270,12 +230,6 @@ export default function CertisMap(props: Props) {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
   }, [token]);
 
-  // Initialize previous zoomToStop id ONCE so first render doesn't auto-fly
-  useEffect(() => {
-    prevZoomStopIdRef.current = zoomToStop?.id ?? null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // INIT MAP (once)
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -286,56 +240,40 @@ export default function CertisMap(props: Props) {
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       projection: { name: "mercator" },
-      interactive: true,
     });
 
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
-    // ResizeObserver (debounced)
+    // ✅ ResizeObserver: keeps the map canvas synced with layout changes
     try {
       resizeObsRef.current = new ResizeObserver(() => {
         const m = mapRef.current;
         if (!m) return;
-
-        if (resizeDebounceRef.current) window.clearTimeout(resizeDebounceRef.current);
-
-        resizeDebounceRef.current = window.setTimeout(() => {
-          const mm = mapRef.current;
-          if (!mm) return;
-
-          if (resizeRafRef.current) cancelAnimationFrame(resizeRafRef.current);
-          resizeRafRef.current = requestAnimationFrame(() => {
-            try {
-              mm.resize();
-            } catch {}
-          });
-        }, 80);
+        requestAnimationFrame(() => {
+          try {
+            m.resize();
+          } catch {}
+        });
       });
-
       resizeObsRef.current.observe(containerRef.current);
     } catch {}
 
-    const onLoad = async () => {
-      enableAllInteractions(map);
+    map.on("load", async () => {
+      // Always start in a deterministic Midwest-friendly view.
+      // This prevents any “north drift” before data is loaded.
+      try {
+        map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+      } catch {}
 
       if (!map.getSource(SRC_RETAILERS)) {
-        map.addSource(SRC_RETAILERS, {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-        });
+        map.addSource(SRC_RETAILERS, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
       if (!map.getSource(SRC_KINGPINS)) {
-        map.addSource(SRC_KINGPINS, {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-        });
+        map.addSource(SRC_KINGPINS, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
       if (!map.getSource(SRC_ROUTE)) {
-        map.addSource(SRC_ROUTE, {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-        });
+        map.addSource(SRC_ROUTE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
 
       if (!map.getLayer(LYR_RETAILERS)) {
@@ -373,24 +311,16 @@ export default function CertisMap(props: Props) {
       }
 
       if (!map.getLayer(LYR_HQ)) {
-        // “Regional HQ” markers (same layer id; your UI can call them Regional HQ)
         map.addLayer({
           id: LYR_HQ,
           type: "circle",
           source: SRC_RETAILERS,
-          filter: [
-            "any",
-            [">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0],
-            [">=", ["index-of", "regional", ["downcase", ["get", "Category"]]], 0],
-            [">=", ["index-of", "headquarter", ["downcase", ["get", "Category"]]], 0],
-            [">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0],
-          ],
+          filter: [">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0],
           paint: {
-            // ✅ smaller, less obnoxious
-            "circle-radius": 6,
+            "circle-radius": 7,
             "circle-color": "#ff0000",
             "circle-stroke-color": "#facc15",
-            "circle-stroke-width": 1.5,
+            "circle-stroke-width": 2,
           },
         });
       }
@@ -412,7 +342,6 @@ export default function CertisMap(props: Props) {
       }
 
       if (!map.getLayer(LYR_KINGPINS)) {
-        // ✅ reduce icon-size ~8% (your “27→25” vibe)
         map.addLayer({
           id: LYR_KINGPINS,
           type: "symbol",
@@ -424,15 +353,15 @@ export default function CertisMap(props: Props) {
               ["linear"],
               ["zoom"],
               3,
-              0.014,
+              0.015,
               5,
-              0.023,
+              0.025,
               7,
-              0.032,
+              0.035,
               9,
-              0.041,
+              0.045,
               12,
-              0.051,
+              0.055,
             ],
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
@@ -457,21 +386,11 @@ export default function CertisMap(props: Props) {
       await loadData();
       applyFilters();
       updateHomeMarker();
+
+      // ✅ Problem A: deterministically set initial view once data is ready
+      ensureInitialView("load");
+
       await updateRoute(true);
-
-      // ✅ Deterministic initial view (NO bounds, NO data-driven camera)
-      if (!didSetInitialViewRef.current) {
-        didSetInitialViewRef.current = true;
-        try {
-          map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
-        } catch {}
-      }
-
-      requestAnimationFrame(() => {
-        try {
-          map.resize();
-        } catch {}
-      });
 
       const setPointer = () => (map.getCanvas().style.cursor = "pointer");
       const clearPointer = () => (map.getCanvas().style.cursor = "");
@@ -485,16 +404,17 @@ export default function CertisMap(props: Props) {
       map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
 
-      console.info("[CertisMap] Loaded + interactions enabled.");
-    };
+      // ✅ one more resize after everything is mounted
+      requestAnimationFrame(() => {
+        try {
+          map.resize();
+        } catch {}
+      });
 
-    map.on("load", onLoad);
+      console.info("[CertisMap] Loaded.");
+    });
 
     return () => {
-      try {
-        map.off("load", onLoad);
-      } catch {}
-
       try {
         directionsAbortRef.current?.abort();
       } catch {}
@@ -503,15 +423,6 @@ export default function CertisMap(props: Props) {
       if (routeDebounceRef.current) {
         window.clearTimeout(routeDebounceRef.current);
         routeDebounceRef.current = null;
-      }
-
-      if (resizeDebounceRef.current) {
-        window.clearTimeout(resizeDebounceRef.current);
-        resizeDebounceRef.current = null;
-      }
-      if (resizeRafRef.current) {
-        cancelAnimationFrame(resizeRafRef.current);
-        resizeRafRef.current = null;
       }
 
       try {
@@ -531,114 +442,115 @@ export default function CertisMap(props: Props) {
     const map = mapRef.current;
     if (!map) return;
 
-    const retailersUrl = `${basePath}/data/retailers.geojson`;
-    const kingpinsUrl = `${basePath}/data/kingpin.geojson`;
+    try {
+      dataLoadedRef.current = false;
 
-    const [r1, r2] = await Promise.all([fetch(retailersUrl), fetch(kingpinsUrl)]);
+      const retailersUrl = `${basePath}/data/retailers.geojson`;
+      const kingpinsUrl = `${basePath}/data/kingpin.geojson`;
 
-    const retailersData = (await r1.json()) as FeatureCollection;
-    const kingpinData = (await r2.json()) as FeatureCollection;
+      const [r1, r2] = await Promise.all([fetch(retailersUrl), fetch(kingpinsUrl)]);
+      if (!r1.ok) throw new Error(`Retailers fetch failed: HTTP ${r1.status} ${r1.statusText}`);
+      if (!r2.ok) throw new Error(`Kingpins fetch failed: HTTP ${r2.status} ${r2.statusText}`);
 
-    // Build OFFSET kingpin features for map display, but preserve TRUE coords in properties
-    const offsetKingpins: FeatureCollection = {
-      ...kingpinData,
-      features: (kingpinData.features ?? []).map((f: any) => {
-        const [lng, lat] = (f.geometry?.coordinates ?? [0, 0]) as [number, number];
-        const trueLng = lng;
-        const trueLat = lat;
+      const retailersData = (await r1.json()) as FeatureCollection;
+      const kingpinData = (await r2.json()) as FeatureCollection;
 
-        const nextProps = { ...(f.properties ?? {}), __trueLng: trueLng, __trueLat: trueLat };
+      const offsetKingpins: FeatureCollection = {
+        ...kingpinData,
+        features: (kingpinData.features ?? []).map((f: any) => {
+          const coords = f.geometry?.coordinates;
+          const [lng, lat] = Array.isArray(coords) ? coords : [0, 0];
+          return {
+            ...f,
+            geometry: { ...f.geometry, coordinates: [lng + KINGPIN_OFFSET_LNG, lat] },
+          };
+        }),
+      };
 
-        return {
-          ...f,
-          properties: nextProps,
-          geometry: { ...f.geometry, coordinates: [lng + KINGPIN_OFFSET_LNG, lat] }, // DISPLAY ONLY
-        };
-      }),
-    };
+      retailersRef.current = retailersData;
+      kingpinsRef.current = offsetKingpins;
 
-    retailersRef.current = retailersData;
-    kingpinsRef.current = offsetKingpins;
+      (map.getSource(SRC_RETAILERS) as mapboxgl.GeoJSONSource).setData(retailersData as any);
+      (map.getSource(SRC_KINGPINS) as mapboxgl.GeoJSONSource).setData(offsetKingpins as any);
 
-    (map.getSource(SRC_RETAILERS) as mapboxgl.GeoJSONSource).setData(retailersData as any);
-    (map.getSource(SRC_KINGPINS) as mapboxgl.GeoJSONSource).setData(offsetKingpins as any);
+      const allStops: Stop[] = [];
 
-    const allStops: Stop[] = [];
+      for (const f of retailersData.features ?? []) {
+        const p = f.properties ?? {};
+        const coords = f.geometry?.coordinates;
+        if (!isValidLngLat(coords)) continue;
 
-    // Retailers/HQ
-    for (const f of retailersData.features ?? []) {
-      const p = f.properties ?? {};
-      const coords = f.geometry?.coordinates;
-      if (!coords) continue;
+        const category = s(p.Category);
+        const kind: StopKind = isCorporateHQ(category) ? "hq" : "retailer";
 
-      const category = s(p.Category);
-      const kind: StopKind = isCorporateHQ(category) ? "hq" : "retailer";
+        const retailer = s(p.Retailer);
+        const name = s(p.Name);
+        const label =
+          kind === "hq"
+            ? `${retailer || "Corporate HQ"} — Corporate HQ`
+            : `${retailer || "Retailer"} — ${name || "Site"}`;
 
-      const retailer = s(p.Retailer);
-      const name = s(p.Name);
+        allStops.push({
+          id: makeId(kind, coords, p),
+          kind,
+          label,
+          retailer,
+          name,
+          address: s(p.Address),
+          city: s(p.City),
+          state: s(p.State),
+          zip: s(p.Zip),
+          category,
+          suppliers: s(p.Suppliers),
+          coords,
+        });
+      }
 
-      const label =
-        kind === "hq"
-          ? `${retailer || "Regional HQ"} — Regional HQ`
-          : `${retailer || "Retailer"} — ${name || "Site"}`;
+      for (const f of offsetKingpins.features ?? []) {
+        const p = f.properties ?? {};
+        const coords = f.geometry?.coordinates;
+        if (!isValidLngLat(coords)) continue;
 
-      allStops.push({
-        id: makeId(kind, coords, p),
-        kind,
-        label,
-        retailer,
-        name,
-        address: s(p.Address),
-        city: s(p.City),
-        state: s(p.State),
-        zip: s(p.Zip),
-        category,
-        suppliers: s(p.Suppliers),
-        coords, // TRUE
-        mapCoords: coords,
-      });
+        const retailer = s(p.Retailer);
+        const contactName = s(p.Name || p.Contact || p.ContactName || p["Contact Name"]);
+        const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
+
+        allStops.push({
+          id: makeId("kingpin", coords, p),
+          kind: "kingpin",
+          label,
+          retailer,
+          name: contactName || "Kingpin",
+          address: s(p.Address),
+          city: s(p.City),
+          state: s(p.State),
+          zip: s(p.Zip),
+          category: s(p.Category) || "Kingpin",
+          suppliers: s(p.Suppliers),
+          email: s(p.Email) || "TBD",
+          phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
+          phoneCell: s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD",
+          coords,
+        });
+      }
+
+      onAllStopsLoaded(allStops);
+
+      onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
+      onRetailersLoaded(
+        uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
+      );
+      onCategoriesLoaded(
+        uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category)))
+      );
+      onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
+
+      dataLoadedRef.current = true;
+    } catch (e) {
+      console.warn("[CertisMap] loadData failed:", e);
+      // Safety: still mark as “loaded” so we can fall back to Midwest bounds
+      dataLoadedRef.current = true;
     }
-
-    // Kingpins
-    for (const f of offsetKingpins.features ?? []) {
-      const entry = kingpinEntryFromFeature(f);
-      if (!entry) continue;
-
-      const p = entry.p;
-      const retailer = s(p.Retailer);
-      const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
-      const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
-
-      allStops.push({
-        id: makeId("kingpin", entry.trueCoords, p),
-        kind: "kingpin",
-        label,
-        retailer,
-        name: contactName || "Kingpin",
-        address: s(p.Address),
-        city: s(p.City),
-        state: s(p.State),
-        zip: s(p.Zip),
-        category: s(p.Category) || "Kingpin",
-        suppliers: s(p.Suppliers),
-        email: s(p.Email) || "TBD",
-        phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
-        phoneCell: s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD",
-        coords: entry.trueCoords, // TRUE for routing
-        mapCoords: entry.mapCoords, // OFFSET for flyTo (centers the marker)
-      });
-    }
-
-    onAllStopsLoaded(allStops);
-
-    onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-    onRetailersLoaded(
-      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
-    );
-    onCategoriesLoaded(
-      uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category)))
-    );
-    onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
 
   function applyFilters() {
@@ -667,23 +579,17 @@ export default function CertisMap(props: Props) {
     }
 
     const hqFilter: any[] = ["all"];
-    hqFilter.push([
-      "any",
-      [">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0],
-      [">=", ["index-of", "regional", ["downcase", ["get", "Category"]]], 0],
-      [">=", ["index-of", "headquarter", ["downcase", ["get", "Category"]]], 0],
-      [">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0],
-    ]);
+    hqFilter.push([">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0]);
     if (selectedStates.length) hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
 
-    try {
-      map.setFilter(LYR_RETAILERS, retailerFilter as any);
-      map.setFilter(LYR_HQ, hqFilter as any);
-    } catch {}
+    map.setFilter(LYR_RETAILERS, retailerFilter as any);
+    map.setFilter(LYR_HQ, hqFilter as any);
   }
 
   useEffect(() => {
     applyFilters();
+    // filters changing should NOT re-fit the entire map (avoids jitter/loops).
+    // If you later want “Fit to filtered retailers” as an explicit button, we’ll add it deliberately.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
 
@@ -701,9 +607,8 @@ export default function CertisMap(props: Props) {
 
     if (!homeMarkerRef.current) {
       const el = document.createElement("div");
-      // ✅ smaller (28 → 25)
-      el.style.width = "25px";
-      el.style.height = "25px";
+      el.style.width = "28px";
+      el.style.height = "28px";
       el.style.backgroundImage = `url(${iconUrl})`;
       el.style.backgroundSize = "contain";
       el.style.backgroundRepeat = "no-repeat";
@@ -715,33 +620,121 @@ export default function CertisMap(props: Props) {
     }
   }
 
+  // ✅ Problem A: Initial view logic
+  function ensureInitialView(reason: "load" | "homeChange") {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // If Home exists, we give Home priority (but only once per home value).
+    if (homeCoords && isValidLngLat(homeCoords)) {
+      const homeKey = `${homeCoords[0].toFixed(6)},${homeCoords[1].toFixed(6)}`;
+      if (lastHomeKeyForViewRef.current !== homeKey) {
+        lastHomeKeyForViewRef.current = homeKey;
+        didInitialViewRef.current = true;
+
+        try {
+          map.flyTo({ center: homeCoords, zoom: 7.75, essential: true });
+        } catch {}
+        return;
+      }
+      // if home hasn’t changed, do nothing (no jitter)
+      return;
+    }
+
+    // If we already set an initial view (and no home), don’t keep fitting.
+    if (didInitialViewRef.current) return;
+
+    // Wait for data load to complete (but fall back safely if needed).
+    if (!dataLoadedRef.current) {
+      try {
+        map.fitBounds(MIDWEST_FALLBACK_BOUNDS, { padding: 40, maxZoom: 5.75, duration: 0 });
+      } catch {}
+      return;
+    }
+
+    const bounds = computeValidatedRetailerBounds();
+    didInitialViewRef.current = true;
+
+    try {
+      if (bounds) {
+        map.fitBounds(bounds, { padding: 40, maxZoom: 6.25, duration: 0 });
+      } else {
+        map.fitBounds(MIDWEST_FALLBACK_BOUNDS, { padding: 40, maxZoom: 5.75, duration: 0 });
+      }
+    } catch {
+      try {
+        map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+      } catch {}
+    }
+  }
+
+  // Uses ONLY retailers (including HQ points in retailers.geojson, but rejects corporate HQ by category)
+  // and rejects invalid/outlier points so fitBounds cannot drift north.
+  function computeValidatedRetailerBounds(): mapboxgl.LngLatBoundsLike | null {
+    const retailersData = retailersRef.current;
+    if (!retailersData?.features?.length) return null;
+
+    // 1) collect plausible retailer coords (non-corporate)
+    const pts: [number, number][] = [];
+    for (const f of retailersData.features) {
+      const p = f.properties ?? {};
+      const coords = f.geometry?.coordinates;
+
+      if (!isValidLngLat(coords)) continue;
+
+      const category = s(p.Category);
+      // exclude HQ from bounds fit (HQ rule + reduces outliers)
+      if (isCorporateHQ(category)) continue;
+
+      if (!isMidwestPlausible(coords)) continue;
+      pts.push(coords);
+    }
+
+    if (pts.length < 5) return null;
+
+    // 2) robustly trim extremes using percentiles (prevents 1 bad point from dragging bounds)
+    const lngs = pts.map((c) => c[0]).sort((a, b) => a - b);
+    const lats = pts.map((c) => c[1]).sort((a, b) => a - b);
+
+    const lngLo = percentile(lngs, 0.02);
+    const lngHi = percentile(lngs, 0.98);
+    const latLo = percentile(lats, 0.02);
+    const latHi = percentile(lats, 0.98);
+
+    if (!Number.isFinite(lngLo) || !Number.isFinite(lngHi) || !Number.isFinite(latLo) || !Number.isFinite(latHi)) {
+      return null;
+    }
+
+    // 3) sanity: ensure bounds are not absurdly wide/tall; otherwise fall back
+    const width = Math.abs(lngHi - lngLo);
+    const height = Math.abs(latHi - latLo);
+
+    if (width > 50 || height > 25) return null;
+
+    return [
+      [lngLo, latLo],
+      [lngHi, latHi],
+    ];
+  }
+
   useEffect(() => {
     updateHomeMarker();
+    // If home changes, we allow a single, intentional camera move to Home
+    ensureInitialView("homeChange");
     updateRoute();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeCoords, basePath]);
 
-  // Only fly when zoomToStop CHANGES (ignore any pre-filled initial value)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !zoomToStop) return;
-
-    const incomingId = zoomToStop.id ?? null;
-    if (incomingId && incomingId === prevZoomStopIdRef.current) return;
-
-    prevZoomStopIdRef.current = incomingId;
-
-    const ctr = zoomToStop.mapCoords ?? zoomToStop.coords;
-    try {
-      enableAllInteractions(map);
-      map.flyTo({ center: ctr, zoom: 12.0, essential: true });
-    } catch {}
+    map.flyTo({ center: zoomToStop.coords, zoom: 12.5, essential: true });
   }, [zoomToStop]);
 
   function buildRouteCoords(): [number, number][] {
     const pts: [number, number][] = [];
     if (homeCoords) pts.push(homeCoords);
-    for (const st of tripStops || []) pts.push(st.coords); // TRUE coords only
+    for (const st of tripStops || []) pts.push(st.coords);
     return pts;
   }
 
@@ -836,7 +829,7 @@ export default function CertisMap(props: Props) {
     const stop: Stop = {
       id: makeId(kind, coords, p),
       kind,
-      label: kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`,
+      label: kind === "hq" ? `${retailer || "Corporate HQ"} — Corporate HQ` : `${retailer || "Retailer"} — ${name || "Site"}`,
       retailer,
       name,
       address,
@@ -846,22 +839,15 @@ export default function CertisMap(props: Props) {
       category,
       suppliers,
       coords,
-      mapCoords: coords,
     };
-
-    const suppliersText = suppliers || "Not listed";
-    const suppliersTitle = escapeHtml(suppliersText);
 
     const popupHtml = `
       <div style="font-size:13px;min-width:300px;max-width:320px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
-        <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#facc15;">${escapeHtml(retailer || "Unknown Retailer")}</div>
-        ${name ? `<div style="font-style:italic;margin-bottom:4px;">${escapeHtml(name)}</div>` : ""}
-        <div style="margin-bottom:4px;">${escapeHtml(address)}<br/>${escapeHtml(city)}, ${escapeHtml(state)} ${escapeHtml(zip)}</div>
-        ${category ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${escapeHtml(category)}</div>` : ""}
-        <div style="margin-bottom:8px;display:flex;gap:6px;align-items:baseline;">
-          <span style="font-weight:700;">Suppliers:</span>
-          <span title="${suppliersTitle}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;display:inline-block;">${escapeHtml(suppliersText)}</span>
-        </div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#facc15;">${retailer || "Unknown Retailer"}</div>
+        ${name ? `<div style="font-style:italic;margin-bottom:4px;">${name}</div>` : ""}
+        <div style="margin-bottom:4px;">${address}<br/>${city}, ${state} ${zip}</div>
+        ${category ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${category}</div>` : ""}
+        <div style="margin-bottom:8px;"><span style="font-weight:700;">Suppliers:</span><br/>${suppliers || "Not listed"}</div>
         <button id="add-stop-btn" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
           ➕ Add to Trip
         </button>
@@ -872,66 +858,8 @@ export default function CertisMap(props: Props) {
 
     setTimeout(() => {
       const btn = document.getElementById("add-stop-btn");
-      if (btn) (btn as HTMLButtonElement).onclick = () => onAddStop(stop);
+      if (btn) btn.onclick = () => onAddStop(stop);
     }, 0);
-  }
-
-  function getKingpinsNearClickedPoint(clickedMapCoords: [number, number]) {
-    const kp = kingpinsRef.current;
-    if (!kp?.features?.length) return [];
-
-    const matches: KingpinEntry[] = [];
-    for (const f of kp.features) {
-      const entry = kingpinEntryFromFeature(f);
-      if (!entry) continue;
-      const d = distanceMeters(clickedMapCoords, entry.mapCoords);
-      if (d <= KINGPIN_GROUP_TOLERANCE_M) matches.push(entry);
-    }
-
-    matches.sort((a, b) => {
-      const ar = s(a.p.Retailer).localeCompare(s(b.p.Retailer));
-      if (ar !== 0) return ar;
-      return s(a.p.ContactName || a.p.Name).localeCompare(s(b.p.ContactName || b.p.Name));
-    });
-
-    return matches;
-  }
-
-  function stopFromKingpinEntry(entry: KingpinEntry, fallbackRetailer?: string): Stop {
-    const p = entry.p;
-    const retailer = s(p.Retailer) || s(fallbackRetailer);
-    const address = s(p.Address);
-    const city = s(p.City);
-    const state = s(p.State);
-    const zip = s(p.Zip);
-    const category = s(p.Category) || "Kingpin";
-    const suppliers = s(p.Suppliers) || "Not listed";
-
-    const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
-    const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
-    const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
-    const email = s(p.Email) || "TBD";
-
-    const label = contactName ? `${contactName} — ${retailer || "Kingpin"}` : `${retailer || "Kingpin"}`;
-
-    return {
-      id: makeId("kingpin", entry.trueCoords, p),
-      kind: "kingpin",
-      label,
-      retailer,
-      name: contactName || "Kingpin",
-      address,
-      city,
-      state,
-      zip,
-      category,
-      suppliers,
-      phoneOffice: office,
-      phoneCell: cell,
-      email,
-      coords: entry.trueCoords,
-      mapCoords: entry.mapCoords,
-    };
   }
 
   function handleKingpinClick(e: mapboxgl.MapMouseEvent) {
@@ -942,142 +870,62 @@ export default function CertisMap(props: Props) {
     if (!features.length) return;
 
     const f = features[0];
-    const p0 = f.properties ?? {};
-    const clickedMapCoords = (f.geometry?.coordinates ?? []) as [number, number];
+    const p = f.properties ?? {};
+    const coords = (f.geometry?.coordinates ?? []) as [number, number];
 
-    const retailer0 = s(p0.Retailer);
+    const retailer = s(p.Retailer);
+    const address = s(p.Address);
+    const city = s(p.City);
+    const state = s(p.State);
+    const zip = s(p.Zip);
+    const category = s(p.Category);
+    const suppliers = s(p.Suppliers) || "Not listed";
 
-    const matches = getKingpinsNearClickedPoint(clickedMapCoords);
+    const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
+    const contactTitle = s(p.ContactTitle || p.Title || p["Contact Title"]);
+    const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
+    const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
+    const email = s(p.Email) || "TBD";
 
-    const entries: KingpinEntry[] =
-      matches.length > 0
-        ? matches
-        : (() => {
-            const single: Feature = {
-              type: "Feature",
-              geometry: { type: "Point", coordinates: clickedMapCoords },
-              properties: p0,
-            };
-            const ent = kingpinEntryFromFeature(single);
-            return ent ? [ent] : [];
-          })();
-
-    if (!entries.length) return;
-
-    const options = entries.map((ent, idx) => {
-      const pr = ent.p ?? {};
-      const contact = s(pr.ContactName || pr.Name || pr.Contact || pr["Contact Name"]) || `Kingpin #${idx + 1}`;
-      const title = s(pr.ContactTitle || pr.Title || pr["Contact Title"]);
-      const r = s(pr.Retailer) || retailer0 || "Retailer";
-      const line = title ? `${contact} — ${title}` : `${contact}`;
-      return { idx, contact, title, retailer: r, line };
-    });
-
-    const popupId = `kp-popup-${Date.now()}`;
-    const selectId = `${popupId}-select`;
-    const addBtnId = `${popupId}-add`;
-    const detailsId = `${popupId}-details`;
-
-    const retailerHeader = escapeHtml(options[0].retailer || retailer0 || "Unknown Retailer");
+    const stop: Stop = {
+      id: makeId("kingpin", coords, p),
+      kind: "kingpin",
+      label: contactName ? `${contactName} — ${retailer || "Kingpin"}` : `${retailer || "Kingpin"}`,
+      retailer,
+      name: contactName || "Kingpin",
+      address,
+      city,
+      state,
+      zip,
+      category: category || "Kingpin",
+      suppliers,
+      phoneOffice: office,
+      phoneCell: cell,
+      email,
+      coords,
+    };
 
     const popupHtml = `
-      <div id="${popupId}" style="font-size:13px;min-width:320px;max-width:360px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
-        <div style="font-size:16px;font-weight:800;margin-bottom:6px;color:#facc15;">${retailerHeader}</div>
-
-        ${
-          options.length > 1
-            ? `<div style="margin-bottom:8px;">
-                 <div style="font-weight:700;margin-bottom:4px;color:#facc15;">Kingpins at this location (${options.length}):</div>
-                 <select id="${selectId}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(250,204,21,0.55);background:#111827;color:#fff;">
-                   ${options.map((o) => `<option value="${o.idx}">${escapeHtml(o.line)}</option>`).join("")}
-                 </select>
-               </div>`
-            : ""
-        }
-
-        <div id="${detailsId}"></div>
-
-        <button id="${addBtnId}" style="padding:8px 10px;border:none;background:#facc15;border-radius:6px;font-weight:800;font-size:13px;color:#111827;cursor:pointer;width:100%;margin-top:8px;">
+      <div style="font-size:13px;min-width:300px;max-width:320px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">${retailer || "Unknown Retailer"}</div>
+        <div style="margin-bottom:4px;">${address}<br/>${city}, ${state} ${zip}</div>
+        ${category ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${category}</div>` : ""}
+        <div style="margin-bottom:8px;"><span style="font-weight:700;">Suppliers:</span><br/>${suppliers}</div>
+        ${contactName ? `<div style="font-weight:700;margin-bottom:2px;">${contactName}</div>` : ""}
+        ${contactTitle ? `<div style="margin-bottom:4px;">${contactTitle}</div>` : ""}
+        <div style="margin-bottom:4px;">Office: ${office} • Cell: ${cell}</div>
+        <div style="margin-bottom:8px;">Email: ${email}</div>
+        <button id="add-kingpin-btn" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
           ➕ Add to Trip
         </button>
-
-        <div style="margin-top:8px;opacity:0.85;font-size:11px;">
-          Note: Multiple Kingpins can share one address — use the selector above.
-        </div>
       </div>
     `;
 
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false })
-      .setLngLat(clickedMapCoords)
-      .setHTML(popupHtml)
-      .addTo(map);
-
-    function renderDetails(idx: number) {
-      const ent = entries[idx] ?? entries[0];
-      const p = ent.p ?? {};
-
-      const address = escapeHtml(s(p.Address));
-      const city = escapeHtml(s(p.City));
-      const state = escapeHtml(s(p.State));
-      const zip = escapeHtml(s(p.Zip));
-      const category = escapeHtml(s(p.Category) || "Kingpin");
-      const suppliersText = s(p.Suppliers) || "Not listed";
-      const suppliersTitle = escapeHtml(suppliersText);
-
-      const contactName = escapeHtml(s(p.ContactName || p.Name || p.Contact || p["Contact Name"]));
-      const contactTitle = escapeHtml(s(p.ContactTitle || p.Title || p["Contact Title"]));
-      const office = escapeHtml(s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD");
-      const cell = escapeHtml(s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD");
-      const email = escapeHtml(s(p.Email) || "TBD");
-
-      const html = `
-        <div style="margin-bottom:6px;">${address}<br/>${city}, ${state} ${zip}</div>
-        <div style="margin-bottom:6px;"><span style="font-weight:800;color:#facc15;">Category:</span> ${category}</div>
-        <div style="margin-bottom:8px;display:flex;gap:6px;align-items:baseline;">
-          <span style="font-weight:800;">Suppliers:</span>
-          <span title="${suppliersTitle}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;display:inline-block;">${escapeHtml(
-            s(suppliersText)
-          )}</span>
-        </div>
-        ${contactName ? `<div style="font-weight:900;margin-bottom:2px;">${contactName}</div>` : ""}
-        ${contactTitle ? `<div style="margin-bottom:4px;">${contactTitle}</div>` : ""}
-        <div style="margin-bottom:4px;">Office: ${office} • Cell: ${cell}</div>
-        <div style="margin-bottom:0px;">Email: ${email}</div>
-      `;
-
-      const host = document.getElementById(detailsId);
-      if (host) host.innerHTML = html;
-    }
-
-    function getSelectedIndex() {
-      const sel = document.getElementById(selectId) as HTMLSelectElement | null;
-      const v = sel ? Number(sel.value) : 0;
-      return Number.isFinite(v) ? v : 0;
-    }
+    new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
 
     setTimeout(() => {
-      renderDetails(0);
-
-      const sel = document.getElementById(selectId) as HTMLSelectElement | null;
-      if (sel) {
-        sel.onchange = () => {
-          const idx = getSelectedIndex();
-          renderDetails(idx);
-        };
-      }
-
-      const btn = document.getElementById(addBtnId) as HTMLButtonElement | null;
-      if (btn) {
-        btn.onclick = () => {
-          const idx = getSelectedIndex();
-          const ent = entries[idx] ?? entries[0];
-          const stop = stopFromKingpinEntry(ent, retailer0);
-          onAddStop(stop);
-          try {
-            popup.remove();
-          } catch {}
-        };
-      }
+      const btn = document.getElementById("add-kingpin-btn");
+      if (btn) btn.onclick = () => onAddStop(stop);
     }, 0);
   }
 
