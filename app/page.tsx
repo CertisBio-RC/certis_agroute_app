@@ -33,17 +33,25 @@ function sectionKey(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
-function toWords(v: string) {
-  return (v || "").split(/[^a-z0-9]+/g).filter(Boolean);
+function safeLower(v: any) {
+  return String(v ?? "").toLowerCase();
 }
 
-function cleanTokens(q: string) {
+function digitsOnly(v: string) {
+  return v.replace(/[^0-9]/g, "");
+}
+
+function tokenizeQuery(q: string) {
   return q
-    .toLowerCase()
     .trim()
+    .toLowerCase()
     .split(/\s+/g)
     .map((t) => t.trim())
     .filter(Boolean);
+}
+
+function allTokensPresent(haystackLower: string, tokens: string[]) {
+  return tokens.every((t) => haystackLower.includes(t));
 }
 
 export default function Page() {
@@ -202,16 +210,27 @@ export default function Page() {
     return q ? suppliers.filter((x) => includesLoose(x, q)) : suppliers;
   }, [suppliers, supplierSearch]);
 
-  // ✅ Stop search results (STRICT multi-word behavior)
+  // ============================================================
+  // ✅ STOP SEARCH (FIXED)
+  //   - Hard "candidate gate": if tokens are NOT present, score = 0 and we exclude.
+  //   - Multi-word queries prioritize PERSON fields (name/email) first.
+  //   - Eliminates the “Agtegra always shows up” leak.
+  // ============================================================
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
     if (!qRaw) return allStops.slice(0, 30);
 
-    const qLower = qRaw.toLowerCase();
-    const qTokens = cleanTokens(qRaw);
-    const isMultiWord = qTokens.length >= 2;
+    const tokens = tokenizeQuery(qRaw);
+    if (!tokens.length) return allStops.slice(0, 30);
 
-    const getBlob = (st: Stop) => {
+    const qLower = qRaw.toLowerCase();
+    const qDigits = digitsOnly(qLower);
+
+    // "Person mode" when query looks like a name: 2+ tokens and not a numeric search
+    const personMode = tokens.length >= 2 && qDigits.length === 0;
+
+    const buildSearchBlob = (st: Stop) => {
+      // Broad searchable blob (for single-token/general searches)
       const fields = [
         st.label,
         st.retailer,
@@ -226,76 +245,79 @@ export default function Page() {
         st.kind,
       ]
         .filter(Boolean)
-        .map((x) => String(x).toLowerCase());
-      return fields.join(" | ");
+        .map((x) => String(x));
+      return fields.join(" ").toLowerCase();
     };
 
-    // If query is very short, do a small quick filter only
-    if (qRaw.length < 3) {
-      const quick = allStops.filter((st) => getBlob(st).includes(qLower));
-      return quick.slice(0, 50);
-    }
-
-    // ✅ STRICT: multi-word queries must match ALL tokens in the stop blob
-    const candidates = isMultiWord
-      ? allStops.filter((st) => {
-          const blob = getBlob(st);
-          return qTokens.every((t) => blob.includes(t));
-        })
-      : allStops;
+    const buildPersonBlob = (st: Stop) => {
+      // STRICT person blob: only name + email (and label as a fallback if label includes the person)
+      const fields = [st.name, st.email, st.label].filter(Boolean).map((x) => String(x));
+      return fields.join(" ").toLowerCase();
+    };
 
     const scoreField = (value: string | undefined, weight: number) => {
-      const v = (value || "").toLowerCase().trim();
+      const v = safeLower(value).trim();
       if (!v) return 0;
 
       let s0 = 0;
 
-      // exact / prefix / contains on full query
-      if (v === qLower) s0 += 60 * weight;
-      if (v.startsWith(qLower)) s0 += 34 * weight;
-      if (v.includes(qLower)) s0 += 12 * weight;
+      if (v === qLower) s0 += 50 * weight;
+      if (v.startsWith(qLower)) s0 += 28 * weight;
+      if (v.includes(qLower)) s0 += 10 * weight;
 
-      // word-level hits
-      const words = toWords(v);
-      if (words.includes(qLower)) s0 += 24 * weight;
-
-      // token hits (only boosts; strict filtering already handled separately)
-      if (qTokens.length >= 2) {
-        const hits = qTokens.filter((t) => t && v.includes(t)).length;
-        if (hits > 0) s0 += hits * 7 * weight;
-        if (hits === qTokens.length) s0 += 30 * weight;
+      if (tokens.length >= 2) {
+        const hits = tokens.filter((t) => t && v.includes(t)).length;
+        if (hits > 0) s0 += hits * 6 * weight;
+        if (hits === tokens.length) s0 += 22 * weight;
       }
 
       return s0;
     };
 
     const scorePhone = (value: string | undefined, weight: number) => {
-      const digitsQ = qLower.replace(/[^0-9]/g, "");
-      if (digitsQ.length < 3) return 0;
-      const digitsV = String(value || "").replace(/[^0-9]/g, "");
+      if (qDigits.length < 3) return 0;
+      const digitsV = digitsOnly(String(value || ""));
       if (!digitsV) return 0;
 
-      if (digitsV === digitsQ) return 40 * weight;
-      if (digitsV.startsWith(digitsQ)) return 26 * weight;
-      if (digitsV.includes(digitsQ)) return 14 * weight;
+      if (digitsV === qDigits) return 40 * weight;
+      if (digitsV.startsWith(qDigits)) return 26 * weight;
+      if (digitsV.includes(qDigits)) return 14 * weight;
       return 0;
     };
 
-    const scored = candidates
+    const scored = allStops
       .map((st) => {
-        const labelScore = scoreField(st.label, 5);
-        const retailerScore = scoreField(st.retailer || "", 4);
-        const nameScore = scoreField(st.name || "", 4);
-        const cityScore = scoreField(st.city || "", 2);
-        const stateScore = scoreField(st.state || "", 2);
-        const zipScore = scoreField(st.zip || "", 3);
-        const addressScore = scoreField(st.address || "", 1);
+        // -----------------------------
+        // ✅ HARD CANDIDATE GATE
+        // -----------------------------
+        const blob = buildSearchBlob(st);
+        if (!allTokensPresent(blob, tokens) && qDigits.length === 0) {
+          // If the query isn't numeric and tokens are not all present anywhere in blob, exclude.
+          return null;
+        }
 
-        const emailScore = scoreField(st.email || "", 3);
+        // For person-mode, require tokens present in person fields (name/email/label)
+        if (personMode) {
+          const pblob = buildPersonBlob(st);
+          if (!allTokensPresent(pblob, tokens)) return null;
+        }
+
+        // -----------------------------
+        // ✅ SCORING
+        // -----------------------------
+        const labelScore = scoreField(st.label, 4);
+        const retailerScore = personMode ? 0 : scoreField(st.retailer || "", 3);
+        const nameScore = scoreField(st.name || "", 4);
+        const cityScore = personMode ? 0 : scoreField(st.city || "", 2);
+        const stateScore = personMode ? 0 : scoreField(st.state || "", 2);
+        const zipScore = personMode ? 0 : scoreField(st.zip || "", 3);
+        const addressScore = personMode ? 0 : scoreField(st.address || "", 1);
+
+        const emailScore = scoreField(st.email || "", 4);
         const officeScore = scorePhone(st.phoneOffice || "", 3);
         const cellScore = scorePhone(st.phoneCell || "", 3);
 
-        const total =
+        let total =
           labelScore +
           retailerScore +
           nameScore +
@@ -306,6 +328,9 @@ export default function Page() {
           emailScore +
           officeScore +
           cellScore;
+
+        // Prefer Kingpins for person-mode
+        if (personMode && st.kind === "kingpin") total += 18;
 
         if (total <= 0) return null;
 
@@ -419,6 +444,11 @@ export default function Page() {
     );
   };
 
+  const strictHint =
+    stopSearch.trim().split(/\s+/g).filter(Boolean).length >= 2
+      ? `Strict person search: multi-word queries must match name/email (e.g., "James Klein").`
+      : `Search tip: multi-word queries act like a strict name search (e.g., "James Klein").`;
+
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
       {/* HEADER */}
@@ -500,9 +530,7 @@ export default function Page() {
                       placeholder="Search by retailer, city, state, name, contact…"
                       className={smallInputClass}
                     />
-                    <div className="text-xs text-white/60">
-                      Strict search: multi-word queries must match all words (e.g., “James Klein”).
-                    </div>
+                    <div className="text-xs text-white/60">{strictHint}</div>
 
                     <div className={stopListClass}>
                       {stopResults.map((st) => {

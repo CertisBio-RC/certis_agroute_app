@@ -4,18 +4,16 @@
 // 💠 CERTIS AGROUTE — GOLD (Interaction-safe + Build-safe + Home-aware routing)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
-//   • HQ filtered ONLY by State (HQ rule)
+//   • Corporate/Regional HQ filtered ONLY by State (HQ rule)
 //   • Kingpins always visible overlay (not filtered)
 //   • Kingpin offset is DISPLAY ONLY; TRUE coords used for routing
 //   • Trip route: Mapbox Directions (driving) + straight-line fallback
 //
-// ✅ FIXES IN THIS VERSION
-//   1) HQ markers restored even if Category now says "Regional HQ"
-//      - Detects (Corporate HQ OR Regional HQ)
-//      - Labels display as "Regional HQ"
-//   2) Initial view won't drift into Canada
-//      - Tightened Midwest bounds (tops out below Canada)
-//   3) Kingpin offset reduced slightly (less “zoom near but not on” feel)
+// ✅ FIX (CRITICAL): Deterministic initial view (no Canada)
+//   - No fitBounds based on data; we jumpTo IA-centered default ONCE after data load.
+// ✅ FIX (CRITICAL): Map pan/zoom/scroll fully functional
+//   - No post-load clamp that can “pin” camera
+//   - Explicitly re-enables Mapbox interactions after load
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -92,12 +90,6 @@ const STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
 const DEFAULT_CENTER: [number, number] = [-93.5, 41.5];
 const DEFAULT_ZOOM = 5;
 
-// ✅ Midwest bounds (tightened north edge to avoid “Canada feel”)
-const MIDWEST_BOUNDS: mapboxgl.LngLatBoundsLike = [
-  [-105.5, 35.5], // SW
-  [-81.0, 47.8], // NE  (below Canada line)
-];
-
 const SRC_RETAILERS = "retailers";
 const SRC_KINGPINS = "kingpins";
 const SRC_ROUTE = "trip-route-src";
@@ -108,10 +100,7 @@ const LYR_KINGPINS = "kingpin-symbol";
 const LYR_ROUTE = "trip-route";
 
 const KINGPIN_ICON_ID = "kingpin-icon";
-
-// ✅ Reduced slightly so “Zoom” lands closer to the star
-// (display-only; routing still uses TRUE coords)
-const KINGPIN_OFFSET_LNG = 0.00065;
+const KINGPIN_OFFSET_LNG = 0.0013;
 
 // How close (meters) counts as “same location” for grouping multiple kingpins
 const KINGPIN_GROUP_TOLERANCE_M = 60;
@@ -142,26 +131,14 @@ function splitCategories(raw: any) {
     .filter(Boolean);
 }
 
-// ✅ Corporate HQ OR Regional HQ
-function isHQ(category: string) {
-  const c = (category || "").toLowerCase();
-  const hasHQ = c.includes("hq");
-  const isCorp = c.includes("corporate");
-  const isRegional = c.includes("regional");
-  return hasHQ && (isCorp || isRegional);
+function isCorporateHQ(category: string) {
+  const c = category.toLowerCase();
+  // Match common variants (Corporate HQ / Regional HQ / Headquarters)
+  const hasHq = c.includes("hq") || c.includes("headquarter");
+  const hasCorporate = c.includes("corporate");
+  const hasRegional = c.includes("regional") || c.includes("region");
+  return hasHq && (hasCorporate || hasRegional);
 }
-
-// Mapbox expression for HQ filter
-const EXPR_CAT = ["downcase", ["get", "Category"]] as any;
-const EXPR_IS_HQ = [
-  "all",
-  [">=", ["index-of", "hq", EXPR_CAT], 0],
-  [
-    "any",
-    [">=", ["index-of", "corporate", EXPR_CAT], 0],
-    [">=", ["index-of", "regional", EXPR_CAT], 0],
-  ],
-] as any;
 
 function escapeHtml(v: string) {
   return String(v ?? "")
@@ -273,7 +250,10 @@ export default function CertisMap(props: Props) {
   const resizeDebounceRef = useRef<number | null>(null);
   const resizeRafRef = useRef<number | null>(null);
 
+  // ✅ prevent initial flyTo if zoomToStop is pre-populated
   const prevZoomStopIdRef = useRef<string | null>(null);
+
+  // ✅ ensure initial view is applied ONCE
   const didSetInitialViewRef = useRef<boolean>(false);
 
   const basePath = useMemo(() => {
@@ -369,18 +349,22 @@ export default function CertisMap(props: Props) {
             "circle-stroke-color": "#111827",
             "circle-color": [
               "case",
-              [">=", ["index-of", "agronomy", EXPR_CAT], 0],
+              [
+                "all",
+                ["==", ["index-of", "corporate", ["downcase", ["get", "Category"]]], -1],
+                [">=", ["index-of", "agronomy", ["downcase", ["get", "Category"]]], 0],
+              ],
               "#22c55e",
-              [">=", ["index-of", "grain", EXPR_CAT], 0],
+              [">=", ["index-of", "grain", ["downcase", ["get", "Category"]]], 0],
               "#f97316",
               [
                 "any",
-                [">=", ["index-of", "c-store", EXPR_CAT], 0],
-                [">=", ["index-of", "service", EXPR_CAT], 0],
-                [">=", ["index-of", "energy", EXPR_CAT], 0],
+                [">=", ["index-of", "c-store", ["downcase", ["get", "Category"]]], 0],
+                [">=", ["index-of", "service", ["downcase", ["get", "Category"]]], 0],
+                [">=", ["index-of", "energy", ["downcase", ["get", "Category"]]], 0],
               ],
               "#0ea5e9",
-              [">=", ["index-of", "distribution", EXPR_CAT], 0],
+              [">=", ["index-of", "distribution", ["downcase", ["get", "Category"]]], 0],
               "#a855f7",
               "#f9fafb",
             ],
@@ -388,18 +372,25 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // ✅ HQ layer restored (Corporate HQ OR Regional HQ)
       if (!map.getLayer(LYR_HQ)) {
+        // “Regional HQ” markers (same layer id; your UI can call them Regional HQ)
         map.addLayer({
           id: LYR_HQ,
           type: "circle",
           source: SRC_RETAILERS,
-          filter: EXPR_IS_HQ,
+          filter: [
+            "any",
+            [">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0],
+            [">=", ["index-of", "regional", ["downcase", ["get", "Category"]]], 0],
+            [">=", ["index-of", "headquarter", ["downcase", ["get", "Category"]]], 0],
+            [">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0],
+          ],
           paint: {
-            "circle-radius": 7,
+            // ✅ smaller, less obnoxious
+            "circle-radius": 6,
             "circle-color": "#ff0000",
             "circle-stroke-color": "#facc15",
-            "circle-stroke-width": 2,
+            "circle-stroke-width": 1.5,
           },
         });
       }
@@ -421,13 +412,28 @@ export default function CertisMap(props: Props) {
       }
 
       if (!map.getLayer(LYR_KINGPINS)) {
+        // ✅ reduce icon-size ~8% (your “27→25” vibe)
         map.addLayer({
           id: LYR_KINGPINS,
           type: "symbol",
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.015, 5, 0.025, 7, 0.035, 9, 0.045, 12, 0.055],
+            "icon-size": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              3,
+              0.014,
+              5,
+              0.023,
+              7,
+              0.032,
+              9,
+              0.041,
+              12,
+              0.051,
+            ],
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -453,20 +459,12 @@ export default function CertisMap(props: Props) {
       updateHomeMarker();
       await updateRoute(true);
 
-      // ✅ apply initial Midwest view ONCE after data exists
+      // ✅ Deterministic initial view (NO bounds, NO data-driven camera)
       if (!didSetInitialViewRef.current) {
         didSetInitialViewRef.current = true;
-
-        // If you already have a home set, do NOT override their context.
-        if (!homeCoords) {
-          try {
-            map.fitBounds(MIDWEST_BOUNDS, { padding: 40, duration: 0 });
-          } catch {
-            try {
-              map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
-            } catch {}
-          }
-        }
+        try {
+          map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+        } catch {}
       }
 
       requestAnimationFrame(() => {
@@ -574,12 +572,11 @@ export default function CertisMap(props: Props) {
       if (!coords) continue;
 
       const category = s(p.Category);
-      const kind: StopKind = isHQ(category) ? "hq" : "retailer";
+      const kind: StopKind = isCorporateHQ(category) ? "hq" : "retailer";
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
 
-      // ✅ Label HQ as "Regional HQ" (requested)
       const label =
         kind === "hq"
           ? `${retailer || "Regional HQ"} — Regional HQ`
@@ -628,7 +625,7 @@ export default function CertisMap(props: Props) {
         phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
         phoneCell: s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD",
         coords: entry.trueCoords, // TRUE for routing
-        mapCoords: entry.mapCoords, // OFFSET for flyTo (so star is centered)
+        mapCoords: entry.mapCoords, // OFFSET for flyTo (centers the marker)
       });
     }
 
@@ -649,9 +646,8 @@ export default function CertisMap(props: Props) {
     const retailersData = retailersRef.current;
     if (!map || !retailersData) return;
 
-    // Retailers = NOT HQ + filters
     const retailerFilter: any[] = ["all"];
-    retailerFilter.push(["!", EXPR_IS_HQ]);
+    retailerFilter.push(["==", ["index-of", "corporate", ["downcase", ["get", "Category"]]], -1]);
 
     if (selectedStates.length) retailerFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
     if (selectedRetailers.length) retailerFilter.push(["in", ["get", "Retailer"], ["literal", selectedRetailers]]);
@@ -659,7 +655,7 @@ export default function CertisMap(props: Props) {
     if (selectedCategories.length) {
       retailerFilter.push([
         "any",
-        ...selectedCategories.map((c) => [">=", ["index-of", c.toLowerCase(), EXPR_CAT], 0]),
+        ...selectedCategories.map((c) => [">=", ["index-of", c.toLowerCase(), ["downcase", ["get", "Category"]]], 0]),
       ]);
     }
 
@@ -670,9 +666,14 @@ export default function CertisMap(props: Props) {
       ]);
     }
 
-    // HQ = HQ only + State-only rule
     const hqFilter: any[] = ["all"];
-    hqFilter.push(EXPR_IS_HQ);
+    hqFilter.push([
+      "any",
+      [">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0],
+      [">=", ["index-of", "regional", ["downcase", ["get", "Category"]]], 0],
+      [">=", ["index-of", "headquarter", ["downcase", ["get", "Category"]]], 0],
+      [">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0],
+    ]);
     if (selectedStates.length) hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
 
     try {
@@ -700,8 +701,9 @@ export default function CertisMap(props: Props) {
 
     if (!homeMarkerRef.current) {
       const el = document.createElement("div");
-      el.style.width = "28px";
-      el.style.height = "28px";
+      // ✅ smaller (28 → 25)
+      el.style.width = "25px";
+      el.style.height = "25px";
       el.style.backgroundImage = `url(${iconUrl})`;
       el.style.backgroundSize = "contain";
       el.style.backgroundRepeat = "no-repeat";
@@ -729,13 +731,10 @@ export default function CertisMap(props: Props) {
 
     prevZoomStopIdRef.current = incomingId;
 
-    // For kingpins, use mapCoords (offset) so the marker is centered.
-    // For others, mapCoords === coords.
     const ctr = zoomToStop.mapCoords ?? zoomToStop.coords;
-
     try {
       enableAllInteractions(map);
-      map.flyTo({ center: ctr, zoom: 12.5, essential: true });
+      map.flyTo({ center: ctr, zoom: 12.0, essential: true });
     } catch {}
   }, [zoomToStop]);
 
@@ -833,8 +832,7 @@ export default function CertisMap(props: Props) {
     const category = s(p.Category);
     const suppliers = s(p.Suppliers);
 
-    const kind: StopKind = isHQ(category) ? "hq" : "retailer";
-
+    const kind: StopKind = isCorporateHQ(category) ? "hq" : "retailer";
     const stop: Stop = {
       id: makeId(kind, coords, p),
       kind,
@@ -856,16 +854,10 @@ export default function CertisMap(props: Props) {
 
     const popupHtml = `
       <div style="font-size:13px;min-width:300px;max-width:320px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
-        <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#facc15;">${escapeHtml(retailer || (kind === "hq" ? "Regional HQ" : "Unknown Retailer"))}</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#facc15;">${escapeHtml(retailer || "Unknown Retailer")}</div>
         ${name ? `<div style="font-style:italic;margin-bottom:4px;">${escapeHtml(name)}</div>` : ""}
         <div style="margin-bottom:4px;">${escapeHtml(address)}<br/>${escapeHtml(city)}, ${escapeHtml(state)} ${escapeHtml(zip)}</div>
-        ${
-          kind === "hq"
-            ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> Regional HQ</div>`
-            : category
-            ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${escapeHtml(category)}</div>`
-            : ""
-        }
+        ${category ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${escapeHtml(category)}</div>` : ""}
         <div style="margin-bottom:8px;display:flex;gap:6px;align-items:baseline;">
           <span style="font-weight:700;">Suppliers:</span>
           <span title="${suppliersTitle}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;display:inline-block;">${escapeHtml(suppliersText)}</span>
@@ -1030,7 +1022,7 @@ export default function CertisMap(props: Props) {
       const zip = escapeHtml(s(p.Zip));
       const category = escapeHtml(s(p.Category) || "Kingpin");
       const suppliersText = s(p.Suppliers) || "Not listed";
-      const suppliersTitle = escapeHtml(s(suppliersText));
+      const suppliersTitle = escapeHtml(suppliersText);
 
       const contactName = escapeHtml(s(p.ContactName || p.Name || p.Contact || p["Contact Name"]));
       const contactTitle = escapeHtml(s(p.ContactTitle || p.Title || p["Contact Title"]));
