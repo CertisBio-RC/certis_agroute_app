@@ -1,113 +1,215 @@
-﻿# ================================================================
-#  CERTIS AGROUTE — RETAILER GEOCODER (FINAL)
-#  • Reads:   data/retailers.xlsx
-#  • Saves:   data/retailers_latlong.xlsx
-#  • GeoJSON: public/data/retailers.geojson
-#  • Token:   data/token.json only (NOT env vars)
-# ================================================================
+﻿import os
+import sys
+import time
+import urllib.parse
+from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 import requests
-import json
-import time
-import os
+
+# =============================================================================
+# CERTIS AGROUTE DATABASE
+# Geocode retailers.xlsx -> retailers_latlong.xlsx
+#
+# Header-safe:
+# - Accepts LongName OR "Long Name"
+# - Outputs LongName (canonical) in the lat/long file
+#
+# Writes:
+# - data/retailers_latlong.xlsx
+# =============================================================================
 
 INPUT_FILE = os.path.join("data", "retailers.xlsx")
 OUTPUT_FILE = os.path.join("data", "retailers_latlong.xlsx")
-GEOJSON_FILE = os.path.join("public", "data", "retailers.geojson")
-TOKEN_FILE = os.path.join("data", "token.json")
 
-# --------------------------------------------------
-# Load Mapbox Token
-# --------------------------------------------------
-def load_token():
-    if not os.path.exists(TOKEN_FILE):
-        raise FileNotFoundError("ERROR: token.json not found in /data.")
-    with open(TOKEN_FILE, "r", encoding="utf-8-sig") as f:
-        return json.load(f)["MAPBOX_TOKEN"]
+GEOCODE_URL = "https://api.mapbox.com/geocoding/v5/mapbox.places/{query}.json"
 
-# --------------------------------------------------
-# Geocode using Mapbox Search API v6
-# --------------------------------------------------
-def geocode(address, token):
-    url = f"https://api.mapbox.com/search/geocode/v6/forward?q={address}&access_token={token}"
+# Canonical columns we will produce
+CANON_COLS = [
+    "LongName",
+    "Retailer",
+    "Name",
+    "Address",
+    "City",
+    "State",
+    "Zip",
+    "Category",
+    "Suppliers",
+    "Latitude",
+    "Longitude",
+]
 
+REQUIRED_MIN = ["Retailer", "Name", "Address", "City", "State", "Zip"]
+
+# Rate limiting (Mapbox is fast, but be polite)
+SLEEP_SECONDS = 0.05
+
+
+def get_token() -> str:
+    tok = os.environ.get("MAPBOX_TOKEN") or os.environ.get("NEXT_PUBLIC_MAPBOX_TOKEN")
+    if not tok:
+        raise RuntimeError(
+            "Missing MAPBOX token. Set MAPBOX_TOKEN or NEXT_PUBLIC_MAPBOX_TOKEN in your environment."
+        )
+    return tok
+
+
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalize column names and map Long Name -> LongName if needed.
+    Keeps all columns, just renames known variants.
+    """
+    rename_map: Dict[str, str] = {}
+    for c in df.columns:
+        c_str = str(c).strip()
+        if c_str.lower() == "long name":
+            rename_map[c] = "LongName"
+        elif c_str.lower() == "longname":
+            rename_map[c] = "LongName"
+        else:
+            # Keep exact trimmed header (helps with weird trailing spaces)
+            rename_map[c] = c_str
+
+    df = df.rename(columns=rename_map)
+
+    # If both LongName and "Long Name" existed, ensure LongName wins
+    # (after rename, duplicates may appear)
+    if df.columns.duplicated().any():
+        # collapse duplicates by taking first non-null per row
+        out: Dict[str, pd.Series] = {}
+        for col in df.columns:
+            if col not in out:
+                out[col] = df[col]
+            else:
+                out[col] = out[col].where(~out[col].isna(), df[col])
+        df = pd.DataFrame(out)
+
+    return df
+
+
+def require_columns(df: pd.DataFrame, cols: list) -> None:
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise RuntimeError(f"Missing required columns in {INPUT_FILE}: {', '.join(missing)}")
+
+
+def safe_str(v: Any) -> str:
+    if v is None:
+        return ""
     try:
-        r = requests.get(url, timeout=10).json()
-        coords = r["features"][0]["geometry"]["coordinates"]
-        return coords[0], coords[1]   # (lng, lat)
+        if pd.isna(v):
+            return ""
     except Exception:
-        return None, None
+        pass
+    return str(v).strip()
 
-# --------------------------------------------------
-# Build GeoJSON Feature
-# --------------------------------------------------
-def make_feature(row):
-    return {
-        "type": "Feature",
-        "geometry": {
-            "type": "Point",
-            "coordinates": [row["Longitude"], row["Latitude"]],
-        },
-        "properties": {
-            "LongName": row["Long Name"],
-            "Retailer": row["Retailer"],
-            "Name": row["Name"],
-            "Address": row["Address"],
-            "City": row["City"],
-            "State": row["State"],
-            "Zip": str(row["Zip"]),
-            "Category": row["Category"],
-            "Suppliers": row["Suppliers"],
-        },
-    }
 
-# --------------------------------------------------
-# Main
-# --------------------------------------------------
-def main():
-    print("\n===========================================")
-    print("  CERTIS — RETAILER GEOCODING STARTING")
-    print("===========================================\n")
+def build_query(row: pd.Series) -> str:
+    addr = safe_str(row.get("Address"))
+    city = safe_str(row.get("City"))
+    state = safe_str(row.get("State"))
+    z = safe_str(row.get("Zip"))
 
-    token = load_token()
+    parts = [p for p in [addr, city, state, z] if p]
+    return ", ".join(parts)
+
+
+def geocode_one(token: str, query: str) -> Optional[Tuple[float, float]]:
+    if not query:
+        return None
+
+    url = GEOCODE_URL.format(query=urllib.parse.quote(query))
+    try:
+        r = requests.get(url, params={"access_token": token, "limit": 1}, timeout=20)
+    except Exception:
+        return None
+
+    if r.status_code != 200:
+        return None
+
+    data = r.json()
+    feats = data.get("features") or []
+    if not feats:
+        return None
+
+    center = feats[0].get("center")
+    if not center or len(center) != 2:
+        return None
+
+    lng, lat = center[0], center[1]
+    return float(lat), float(lng)
+
+
+def main() -> None:
+    token = get_token()
+
+    if not os.path.exists(INPUT_FILE):
+        raise FileNotFoundError(f"Missing file: {INPUT_FILE}")
 
     df = pd.read_excel(INPUT_FILE)
+    df = normalize_columns(df)
 
-    longitudes = []
-    latitudes = []
+    require_columns(df, REQUIRED_MIN)
 
-    for idx, row in df.iterrows():
-        address = f"{row['Address']}, {row['City']}, {row['State']} {row['Zip']}"
-        print(f"→ Geocoding {row['Retailer']} — {address}")
+    # Ensure canonical optional fields exist
+    for c in ["LongName", "Category", "Suppliers"]:
+        if c not in df.columns:
+            df[c] = pd.NA
 
-        lng, lat = geocode(address, token)
-        longitudes.append(lng)
-        latitudes.append(lat)
+    # Preserve existing coords if they exist
+    if "Latitude" not in df.columns:
+        df["Latitude"] = pd.NA
+    if "Longitude" not in df.columns:
+        df["Longitude"] = pd.NA
 
-        time.sleep(0.15)  # prevent API throttling
+    updated = 0
+    failures = 0
 
-    df["Longitude"] = longitudes
-    df["Latitude"] = latitudes
+    for i, row in df.iterrows():
+        # skip if already has coords
+        lat = row.get("Latitude")
+        lng = row.get("Longitude")
+        if pd.notna(lat) and pd.notna(lng):
+            continue
 
+        query = build_query(row)
+        retailer = safe_str(row.get("Retailer"))
+        name = safe_str(row.get("Name"))
+
+        if query:
+            print(f"→ Geocoding {retailer} — {query}")
+        else:
+            failures += 1
+            continue
+
+        result = geocode_one(token, query)
+        time.sleep(SLEEP_SECONDS)
+
+        if result is None:
+            failures += 1
+            continue
+
+        lat2, lng2 = result
+        df.at[i, "Latitude"] = lat2
+        df.at[i, "Longitude"] = lng2
+        updated += 1
+
+    # Reorder into canonical output (keep only these)
+    for c in CANON_COLS:
+        if c not in df.columns:
+            df[c] = pd.NA
+    df = df[CANON_COLS].copy()
+
+    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
     df.to_excel(OUTPUT_FILE, index=False)
+
     print(f"\n📘 Saved Excel → {OUTPUT_FILE}")
-
-    # Build GeoJSON
-    features = []
-    for _, row in df.iterrows():
-        if row["Longitude"] and row["Latitude"]:
-            features.append(make_feature(row))
-
-    geojson = {"type": "FeatureCollection", "features": features}
-
-    os.makedirs(os.path.dirname(GEOJSON_FILE), exist_ok=True)
-    with open(GEOJSON_FILE, "w", encoding="utf-8") as f:
-        json.dump(geojson, f, indent=2)
-
-    print(f"📍 Saved GeoJSON → {GEOJSON_FILE}")
-    print("\n✅ Retailer Geocoding Complete\n")
+    print(f"✅ Retailer Geocoding Complete (updated={updated}, failures={failures})")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"[FAIL] {e}")
+        sys.exit(1)

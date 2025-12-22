@@ -166,8 +166,11 @@ def is_blank_category(v) -> bool:
     s = str(v).strip()
     if s == "":
         return True
-    if re.match(r"^(?i)(nan|null|none)$", s):
+
+    # ✅ FIX: inline (?i) must be at the start OR use flags=
+    if re.match(r"^(nan|null|none)$", s, flags=re.IGNORECASE):
         return True
+
     return False
 
 
