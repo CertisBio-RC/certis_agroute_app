@@ -27,21 +27,19 @@ body {
   /* Brand / highlight */
   --accent-yellow: #facc15;
 
+  /* ✅ Lighter “glass” tiles (Problem: sidebar too dark) */
+  --tile-bg: rgba(255, 255, 255, 0.075);
+  --tile-bg-hover: rgba(255, 255, 255, 0.10);
+
+  /* ✅ Stronger borders (Problem: borders too thin / not popping) */
+  --tile-border: rgba(250, 204, 21, 0.34);
+  --tile-border-strong: rgba(250, 204, 21, 0.52);
+
+  --tile-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
+  --tile-shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.52);
+
   /* Body text */
   --text-main: #eaeef6;
-
-  /* Sidebar "not black" base */
-  --sidebar-bg: rgba(3, 8, 18, 0.72); /* deep navy */
-  --sidebar-bg-2: rgba(7, 18, 34, 0.62); /* slightly lighter navy */
-  --sidebar-border: rgba(250, 204, 21, 0.16);
-
-  /* Tile styling */
-  --tile-bg: rgba(255, 255, 255, 0.045);
-  --tile-bg-hover: rgba(255, 255, 255, 0.065);
-  --tile-border: rgba(250, 204, 21, 0.22);
-  --tile-border-strong: rgba(250, 204, 21, 0.32);
-  --tile-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
-  --tile-shadow-hover: 0 12px 30px rgba(0, 0, 0, 0.46);
 }
 
 /* ✅ Keep the midnight-blue body gradient backdrop */
@@ -65,22 +63,21 @@ body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-
-  /* ✅ FIX: sidebar is no longer flat black */
-  background:
-    radial-gradient(900px 520px at 18% 0%, rgba(250, 204, 21, 0.08), rgba(0, 0, 0, 0) 55%),
-    radial-gradient(1000px 650px at 90% 10%, rgba(30, 64, 175, 0.14), rgba(0, 0, 0, 0) 60%),
-    linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg-2) 55%, rgba(2, 6, 14, 0.76) 100%) !important;
-
-  border-right: 1px solid var(--sidebar-border);
-  backdrop-filter: blur(10px);
 }
 
-/* ✅ CRITICAL: lock sidebar width in desktop flex-row layout */
+/* ✅ Sidebar width clamp */
 .sidebar {
   flex: 0 0 420px;
   width: 420px;
   max-width: 420px;
+}
+
+/* ✅ NEW: Lighten the *panel region* behind tiles (subtle, not black slab) */
+.sidebar {
+  background:
+    radial-gradient(700px 520px at 25% 20%, rgba(250, 204, 21, 0.08), rgba(0, 0, 0, 0) 60%),
+    radial-gradient(900px 600px at 60% 80%, rgba(59, 130, 246, 0.08), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0));
 }
 
 /* Protect logo from shrinking */
@@ -113,7 +110,7 @@ body {
   flex-direction: column;
 }
 
-/* ✅ CRITICAL: map pane consumes remaining width and prevents flex overlap */
+/* ✅ CRITICAL: Make map pane consume remaining width and prevent flex overflow overlap */
 .map-container {
   flex: 1 1 auto;
   min-width: 0;
@@ -151,7 +148,7 @@ body {
   color: var(--accent-yellow);
 }
 
-/* Style semantic tile wrappers (don’t target Tailwind utilities) */
+/* ✅ IMPORTANT: only target semantic wrappers — NOT Tailwind utilities */
 .sidebar .tile,
 .sidebar .panel,
 .sidebar .card,
@@ -159,13 +156,12 @@ body {
 .sidebar .filter-tile,
 .sidebar .trip-tile {
   background: var(--tile-bg);
-  border: 1px solid var(--tile-border);
+  border: 2px solid var(--tile-border); /* ✅ thicker borders */
   box-shadow: var(--tile-shadow);
-  backdrop-filter: blur(6px);
-  border-radius: 14px;
+  backdrop-filter: blur(8px);
 }
 
-/* Hover/active pop (subtle) */
+/* Hover/active pop */
 .sidebar .tile:hover,
 .sidebar .panel:hover,
 .sidebar .card:hover,
@@ -177,15 +173,25 @@ body {
   box-shadow: var(--tile-shadow-hover);
 }
 
-/* Make "Clear" / small actions readable but not competing with headings */
+/* Keep the tiles feeling consistent */
+.sidebar .tile,
+.sidebar .panel,
+.sidebar .card,
+.sidebar .tile-card,
+.sidebar .filter-tile,
+.sidebar .trip-tile {
+  border-radius: 14px;
+}
+
+/* Make "Clear" / small side actions readable but not competing with headings */
 .sidebar .clear,
 .sidebar button.clear,
 .sidebar .muted {
-  color: rgba(234, 238, 246, 0.75);
+  color: rgba(234, 238, 246, 0.78);
 }
 
 /* ====================================================================== */
-/* MAPBOX POPUP — BASE STYLING */
+/* MAPBOX POPUP — K5 GOLD */
 /* ====================================================================== */
 
 .mapboxgl-popup {
@@ -194,20 +200,20 @@ body {
 
 .mapboxgl-popup-content {
   min-width: 380px;
-  max-width: 400px;
+  max-width: 420px;
 
   background: #1e1e1e;
   color: #fff;
   font-size: 14px;
-  border-radius: 6px;
+  border-radius: 10px;
   padding: 12px 14px;
   line-height: 1.5;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.55);
 }
 
 .mapboxgl-popup-content h3 {
   margin: 0 0 6px;
-  font-weight: bold;
+  font-weight: 800;
   font-size: 15px;
   color: #ffd700;
 }
@@ -217,10 +223,7 @@ body {
   line-height: 1.4;
 }
 
-/* =========================================================
-   CERTIS AGROUTE — Popup close button (bigger X)
-   ========================================================= */
-
+/* ✅ Bigger popup close “X” */
 .mapboxgl-popup-close-button {
   font-size: 22px;
   line-height: 22px;
@@ -228,13 +231,13 @@ body {
   height: 34px;
   padding: 0;
   color: #facc15;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .mapboxgl-popup-close-button:hover {
   background: rgba(250, 204, 21, 0.15);
   color: #fde68a;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 /* ====================================================================== */
