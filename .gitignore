@@ -50,3 +50,8 @@ __pycache__/
 *.bak
 *.bak*
 
+
+# --- accidental terminal/paste artifacts (do not commit) ---
+ersjbaileycertis_agroute_app
+x).Length
+
