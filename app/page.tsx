@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState, ReactNode } from "react";
-import Image from "next/image";
-import CertisMap, { Stop, RetailerSummaryRow } from "../components/CertisMap";
+import { useMemo, useState } from "react";
+import CertisMap, { Stop } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
   return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -55,6 +54,72 @@ function allTokensPresent(haystackLower: string, tokens: string[]) {
   return tokens.every((t) => haystackLower.includes(t));
 }
 
+type RetailerSummaryRow = {
+  retailer: string;
+  tripStops: number;
+  totalLocations: number;
+  agronomyLocations: number;
+  suppliers: string[];
+  categoryBreakdown: string[]; // e.g. "Agronomy (42)"
+  states: string[];
+};
+
+type RetailerTotals = {
+  totalLocations: number;
+  agronomyLocations: number;
+  suppliers: Set<string>;
+  states: Set<string>;
+  categoryCounts: Record<string, number>;
+};
+
+function normalizeCategoryLabel(raw: string) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  // keep original casing if already nice; otherwise title-ish
+  // (we mostly want stable keys; display formatting happens later)
+  return s;
+}
+
+function isAgronomyCategory(cat: string) {
+  const c = cat.toLowerCase();
+  // Agronomy locations should not be HQ-only
+  if (!c) return false;
+  if (c.includes("hq")) return false;
+  return c.includes("agronomy");
+}
+
+function formatCategoryCounts(counts: Record<string, number>) {
+  const entries = Object.entries(counts).filter(([, n]) => n > 0);
+
+  // Prefer a stable order for common categories, then alphabetic
+  const preferred = [
+    "Agronomy",
+    "Grain",
+    "Distribution",
+    "Energy",
+    "Service",
+    "C-Store",
+    "Corporate HQ",
+    "Regional HQ",
+    "HQ",
+    "Kingpin",
+  ].map((x) => x.toLowerCase());
+
+  entries.sort((a, b) => {
+    const ak = a[0].toLowerCase();
+    const bk = b[0].toLowerCase();
+    const ai = preferred.indexOf(ak);
+    const bi = preferred.indexOf(bk);
+
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return ak.localeCompare(bk);
+  });
+
+  return entries.map(([k, n]) => `${k} (${n})`);
+}
+
 export default function Page() {
   // Options loaded from map
   const [states, setStates] = useState<string[]>([]);
@@ -87,7 +152,7 @@ export default function Page() {
 
   // ============================================================
   // ✅ DEFAULT COLLAPSE BEHAVIOR (REQUESTED)
-  //   - ALL tiles COLLAPSED by default
+  //   - ALL sections collapsed by default
   // ============================================================
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     [sectionKey("Home ZIP")]: true,
@@ -333,76 +398,136 @@ export default function Page() {
     return scored.map((x) => x.st).slice(0, 50);
   }, [allStops, stopSearch, tripStops]);
 
-  // Retailer summary based on TRIP STOPS
+  // ============================================================
+  // ✅ MASTER RETAILER TOTALS (FULL FOOTPRINT)
+  //   We index ALL retailer/hq locations (exclude kingpin contacts)
+  // ============================================================
+  const retailerTotalsIndex = useMemo(() => {
+    const acc: Record<string, RetailerTotals> = {};
+
+    for (const st of allStops) {
+      if (!st) continue;
+      if (st.kind === "kingpin") continue; // kingpins are contacts, not locations
+
+      const retailer = (st.retailer || "").trim() || "Unknown Retailer";
+      if (!acc[retailer]) {
+        acc[retailer] = {
+          totalLocations: 0,
+          agronomyLocations: 0,
+          suppliers: new Set<string>(),
+          states: new Set<string>(),
+          categoryCounts: {},
+        };
+      }
+
+      acc[retailer].totalLocations += 1;
+
+      if (st.state) acc[retailer].states.add(st.state);
+
+      splitMulti(st.suppliers).forEach((x) => acc[retailer].suppliers.add(x));
+
+      const cats = splitCategories(st.category);
+      if (cats.length === 0) {
+        // If category missing, still count as "Uncategorized"
+        const k = "Uncategorized";
+        acc[retailer].categoryCounts[k] = (acc[retailer].categoryCounts[k] || 0) + 1;
+      } else {
+        for (const c0 of cats) {
+          const c = normalizeCategoryLabel(c0);
+          if (!c) continue;
+          acc[retailer].categoryCounts[c] = (acc[retailer].categoryCounts[c] || 0) + 1;
+          if (isAgronomyCategory(c)) acc[retailer].agronomyLocations += 1;
+        }
+      }
+    }
+
+    return acc;
+  }, [allStops]);
+
+  // ============================================================
+  // ✅ RETAILER SUMMARY (TRIP-FOCUSED, BUT USING FULL TOTALS)
+  //   For each retailer in your trip, show:
+  //   - Trip stops count
+  //   - Total locations across database
+  //   - Agronomy locations count
+  //   - Category breakdown counts
+  // ============================================================
   const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
-    const acc: Record<string, { count: number; suppliers: Set<string>; categories: Set<string>; states: Set<string> }> =
-      {};
+    const tripCounts: Record<string, number> = {};
 
     for (const st of tripStops) {
       const retailer = (st.retailer || "").trim() || "Unknown Retailer";
-      if (!acc[retailer]) {
-        acc[retailer] = { count: 0, suppliers: new Set(), categories: new Set(), states: new Set() };
-      }
-      acc[retailer].count += 1;
-
-      splitMulti(st.suppliers).forEach((x) => acc[retailer].suppliers.add(x));
-      splitCategories(st.category).forEach((x) => acc[retailer].categories.add(x));
-      if (st.state) acc[retailer].states.add(st.state);
+      tripCounts[retailer] = (tripCounts[retailer] || 0) + 1;
     }
 
-    return Object.entries(acc)
-      .map(([retailer, v]) => ({
+    const rows: RetailerSummaryRow[] = Object.entries(tripCounts).map(([retailer, tripCount]) => {
+      const totals = retailerTotalsIndex[retailer];
+
+      const totalLocations = totals?.totalLocations ?? 0;
+      const agronomyLocations = totals?.agronomyLocations ?? 0;
+      const suppliers = totals ? Array.from(totals.suppliers).sort() : [];
+      const states = totals ? Array.from(totals.states).sort() : [];
+
+      const categoryBreakdown = totals ? formatCategoryCounts(totals.categoryCounts) : [];
+
+      return {
         retailer,
-        count: v.count,
-        suppliers: Array.from(v.suppliers).sort(),
-        categories: Array.from(v.categories).sort(),
-        states: Array.from(v.states).sort(),
-      }))
-      .sort((a, b) => b.count - a.count);
-  }, [tripStops]);
+        tripStops: tripCount,
+        totalLocations,
+        agronomyLocations,
+        suppliers,
+        categoryBreakdown,
+        states,
+      };
+    });
+
+    rows.sort((a, b) => {
+      if (b.tripStops !== a.tripStops) return b.tripStops - a.tripStops;
+      return a.retailer.localeCompare(b.retailer);
+    });
+
+    return rows;
+  }, [tripStops, retailerTotalsIndex]);
 
   // ============================================================
-  // ✅ VISUAL SYSTEM  (LIGHTER LEFT PANEL + POPPIER BORDERS)
+  // ✅ VISUAL SYSTEM (cool blue/gray — no muddy yellow cast)
   // ============================================================
 
   const appBg =
-    "bg-[#05070f] " +
-    "bg-[radial-gradient(1200px_700px_at_15%_0%,rgba(250,204,21,0.10),transparent_55%),radial-gradient(900px_600px_at_90%_25%,rgba(59,130,246,0.08),transparent_55%),radial-gradient(700px_500px_at_45%_110%,rgba(16,185,129,0.06),transparent_55%)]";
+    "bg-[#070b14] " +
+    "bg-[radial-gradient(1100px_650px_at_12%_0%,rgba(59,130,246,0.16),transparent_58%)," +
+    "radial-gradient(900px_600px_at_92%_22%,rgba(148,163,184,0.12),transparent_58%)," +
+    "radial-gradient(800px_520px_at_40%_115%,rgba(34,197,94,0.06),transparent_60%)]";
 
-  // ✅ lighter than before + thicker border
   const panelClass =
-    "rounded-2xl border-2 border-yellow-400/30 ring-1 ring-white/12 bg-white/7 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
+    "rounded-2xl border border-slate-200/20 ring-1 ring-white/10 bg-slate-900/35 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
 
-  // ✅ lighter inner tiles + thicker borders
   const innerTileClass =
-    "rounded-xl border-2 border-yellow-400/22 ring-1 ring-white/12 bg-white/8 backdrop-blur-sm p-3 shadow-[0_12px_24px_rgba(0,0,0,0.40)]";
+    "rounded-xl border border-slate-200/25 ring-1 ring-white/10 bg-slate-900/25 backdrop-blur-sm p-3 shadow-[0_12px_24px_rgba(0,0,0,0.40)]";
 
-  // ✅ list containers lighter + thicker borders
   const listClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border-2 border-yellow-400/22 ring-1 ring-white/12 bg-white/6 backdrop-blur-sm p-2";
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-slate-200/25 ring-1 ring-white/10 bg-slate-900/20 backdrop-blur-sm p-2";
 
   const stopListClass =
-    "max-h-64 overflow-y-auto space-y-2 rounded-xl border-2 border-yellow-400/22 ring-1 ring-white/12 bg-white/6 backdrop-blur-sm p-2";
+    "max-h-64 overflow-y-auto space-y-2 rounded-xl border border-slate-200/25 ring-1 ring-white/10 bg-slate-900/20 backdrop-blur-sm p-2";
 
   const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-400";
   const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-400";
   const subTextClass = "text-xs text-white/70";
 
   const clearBtnClass =
-    "text-xs px-2 py-1 rounded-lg border-2 border-yellow-400/22 hover:border-yellow-400/40 hover:bg-white/12 disabled:opacity-40 disabled:cursor-not-allowed";
+    "text-xs px-2 py-1 rounded-lg border border-slate-200/25 hover:border-slate-200/45 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
 
-  // ✅ input lighter
   const smallInputClass =
-    "w-full rounded-xl bg-white/7 border-2 border-yellow-400/22 ring-1 ring-white/12 px-3 py-2 text-sm outline-none focus:border-yellow-400/45 focus:ring-yellow-400/15";
+    "w-full rounded-xl bg-slate-900/25 border border-slate-200/25 ring-1 ring-white/10 px-3 py-2 text-sm outline-none focus:border-slate-200/45 focus:ring-slate-200/20";
 
-  // ✅ section shell lighter
   const sectionShellClass =
-    "rounded-2xl border-2 border-yellow-400/20 ring-1 ring-white/12 bg-white/5 backdrop-blur-sm px-3 py-3";
+    "rounded-2xl border border-slate-200/25 ring-1 ring-white/10 bg-slate-900/20 backdrop-blur-sm px-3 py-3";
 
   const sectionHeaderRowClass = "flex items-center justify-between gap-2";
 
   const collapseBtnClass =
-    "text-xs px-3 py-1.5 rounded-xl border-2 border-yellow-400/22 bg-black/15 hover:bg-white/12 hover:border-yellow-400/40";
+    "text-xs px-3 py-1.5 rounded-xl border border-slate-200/25 bg-slate-900/15 hover:bg-white/10 hover:border-slate-200/45";
 
   const caretClass = "text-yellow-400/80 text-xs";
 
@@ -412,7 +537,7 @@ export default function Page() {
     k,
   }: {
     title: string;
-    right?: ReactNode;
+    right?: React.ReactNode;
     k: string;
   }) => {
     const isCollapsed = !!collapsed[k];
@@ -445,16 +570,12 @@ export default function Page() {
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
       {/* HEADER */}
-      <header className="w-full border-b-2 border-yellow-400/18 bg-black/30 backdrop-blur-md flex-shrink-0">
+      <header className="w-full border-b border-slate-200/15 bg-slate-950/30 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Image
+            <img
               src={`${basePath}/icons/certis-logo.png`}
               alt="Certis Biologicals"
-              width={320}
-              height={80}
-              priority
-              unoptimized
               className="h-14 sm:h-16 w-auto drop-shadow-[0_10px_18px_rgba(0,0,0,0.65)]"
               draggable={false}
             />
@@ -787,19 +908,26 @@ export default function Page() {
                 <SectionHeader title="Retailer Summary (Trip Stops)" k={sectionKey("Retailer Summary (Trip Stops)")} />
                 {!collapsed[sectionKey("Retailer Summary (Trip Stops)")] && (
                   <div className="space-y-2 mt-3">
-                    {tripRetailerSummary.slice(0, 60).map((row) => (
+                    {tripRetailerSummary.slice(0, 80).map((row) => (
                       <div key={row.retailer} className={innerTileClass}>
                         <div className="flex items-center justify-between gap-2">
                           <div className={tileTitleClass}>{row.retailer}</div>
-                          <div className="text-xs text-white/70 whitespace-nowrap">{row.count} stops</div>
+                          <div className="text-xs text-white/70 whitespace-nowrap">
+                            Trip: {row.tripStops} • Total: {row.totalLocations}
+                          </div>
                         </div>
-                        <div className="text-xs text-white/70 mt-1 space-y-1">
+
+                        <div className="text-xs text-white/70 mt-2 space-y-1">
+                          <div>
+                            <span className="font-extrabold text-white/80">Agronomy locations:</span>{" "}
+                            {row.agronomyLocations}
+                          </div>
                           <div>
                             <span className="font-extrabold text-white/80">States:</span> {row.states.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white/80">Categories:</span>{" "}
-                            {row.categories.join(", ") || "—"}
+                            <span className="font-extrabold text-white/80">Category breakdown:</span>{" "}
+                            {row.categoryBreakdown.join(", ") || "—"}
                           </div>
                           <div>
                             <span className="font-extrabold text-white/80">Suppliers:</span>{" "}
