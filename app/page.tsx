@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import CertisMap, { Stop, RetailerNetworkSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
@@ -123,7 +123,7 @@ export default function Page() {
   const [categories, setCategories] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
 
-  // ✅ NEW: true network summary from retailers.geojson (computed inside CertisMap)
+  // ✅ TRUE network summary from retailers.geojson (computed inside CertisMap)
   const [retailerNetworkSummary, setRetailerNetworkSummary] = useState<RetailerNetworkSummaryRow[]>([]);
   const [networkRetailerSearch, setNetworkRetailerSearch] = useState<string>("");
 
@@ -151,8 +151,7 @@ export default function Page() {
   const [stopSearch, setStopSearch] = useState("");
 
   // ============================================================
-  // ✅ DEFAULT COLLAPSE BEHAVIOR (REQUESTED)
-  //   - ALL sections collapsed by default
+  // ✅ DEFAULT COLLAPSE BEHAVIOR
   // ============================================================
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     [sectionKey("Home ZIP")]: true,
@@ -175,7 +174,10 @@ export default function Page() {
   }, []);
 
   const hasAnyFilters =
-    selectedStates.length || selectedRetailers.length || selectedCategories.length || selectedSuppliers.length;
+    selectedStates.length ||
+    selectedRetailers.length ||
+    selectedCategories.length ||
+    selectedSuppliers.length;
 
   const clearAllFilters = () => {
     setSelectedStates([]);
@@ -278,7 +280,7 @@ export default function Page() {
   }, [suppliers, supplierSearch]);
 
   // ============================================================
-  // ✅ STOP SEARCH (FIXED)
+  // ✅ STOP SEARCH (STRICT person mode)
   // ============================================================
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
@@ -290,7 +292,6 @@ export default function Page() {
     const qLower = qRaw.toLowerCase();
     const qDigits = digitsOnly(qLower);
 
-    // "Person mode" when query looks like a name: 2+ tokens and not a numeric search
     const personMode = tokens.length >= 2 && qDigits.length === 0;
 
     const buildSearchBlob = (st: Stop) => {
@@ -398,14 +399,13 @@ export default function Page() {
 
   // ============================================================
   // ✅ MASTER RETAILER TOTALS (FULL FOOTPRINT)
-  //   We index ALL retailer/hq locations (exclude kingpin contacts)
   // ============================================================
   const retailerTotalsIndex = useMemo(() => {
     const acc: Record<string, RetailerTotals> = {};
 
     for (const st of allStops) {
       if (!st) continue;
-      if (st.kind === "kingpin") continue; // kingpins are contacts, not locations
+      if (st.kind === "kingpin") continue;
 
       const retailer = (st.retailer || "").trim() || "Unknown Retailer";
       if (!acc[retailer]) {
@@ -419,7 +419,6 @@ export default function Page() {
       }
 
       acc[retailer].totalLocations += 1;
-
       if (st.state) acc[retailer].states.add(st.state);
 
       splitMulti(st.suppliers).forEach((x) => acc[retailer].suppliers.add(x));
@@ -483,7 +482,6 @@ export default function Page() {
 
   // ============================================================
   // ✅ TRUE RETAILER NETWORK SUMMARY (ALL LOCATIONS)
-  //   from CertisMap via onRetailerNetworkSummaryLoaded
   // ============================================================
   const visibleNetworkRows = useMemo(() => {
     const q = networkRetailerSearch.trim().toLowerCase();
@@ -495,59 +493,67 @@ export default function Page() {
   }, [retailerNetworkSummary, networkRetailerSearch]);
 
   // ============================================================
-  // ✅ VISUAL SYSTEM — YMS BLUE GLASS
-  //   Blue glass panels, yellow titles, tan subtitles, white body
+  // ✅ YMS BLUE-GLASS VISUAL SYSTEM (no olive cast)
+  //   - Blue glass panels / tiles
+  //   - Yellow titles
+  //   - Tan subtitles
+  //   - White body text
   // ============================================================
 
+  // Background: deep navy + blue/cyan glow (NO green)
   const appBg =
-    "bg-[#050913] " +
-    "bg-[radial-gradient(900px_520px_at_18%_8%,rgba(56,189,248,0.18),transparent_60%)," +
-    "radial-gradient(820px_520px_at_85%_18%,rgba(59,130,246,0.16),transparent_62%)," +
-    "radial-gradient(900px_620px_at_40%_120%,rgba(14,165,233,0.08),transparent_62%)]";
+    "bg-[#050914] " +
+    "bg-[radial-gradient(1100px_650px_at_10%_0%,rgba(37,99,235,0.28),transparent_60%)," +
+    "radial-gradient(900px_600px_at_95%_18%,rgba(14,165,233,0.20),transparent_60%)," +
+    "radial-gradient(900px_620px_at_40%_120%,rgba(99,102,241,0.18),transparent_62%)]";
 
+  // Main panel glass
   const panelClass =
-    "rounded-2xl border border-sky-200/15 ring-1 ring-sky-200/10 " +
-    "bg-slate-950/55 backdrop-blur-xl shadow-[0_24px_60px_rgba(0,0,0,0.65)]";
+    "rounded-2xl border border-cyan-200/15 ring-1 ring-white/10 " +
+    "bg-[#071025]/45 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.60)]";
 
+  // Section shell inside sidebar: slightly lighter blue glass
   const sectionShellClass =
-    "rounded-2xl border border-sky-200/14 ring-1 ring-sky-200/10 " +
-    "bg-slate-950/40 backdrop-blur-xl px-3 py-3";
+    "rounded-2xl border border-cyan-200/18 ring-1 ring-white/10 " +
+    "bg-[linear-gradient(180deg,rgba(11,28,64,0.35),rgba(7,16,37,0.30))] backdrop-blur-md px-3 py-3";
 
+  // Tile glass (the “YMS tile” look)
   const innerTileClass =
-    "rounded-xl border border-sky-200/14 ring-1 ring-sky-200/10 " +
-    "bg-slate-950/35 backdrop-blur-lg p-3 shadow-[0_14px_28px_rgba(0,0,0,0.55)]";
+    "rounded-xl border border-cyan-200/18 ring-1 ring-white/10 " +
+    "bg-[linear-gradient(180deg,rgba(18,53,120,0.32),rgba(7,16,37,0.26))] " +
+    "backdrop-blur-md p-3 shadow-[0_14px_28px_rgba(0,0,0,0.55)]";
 
   const listClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl " +
-    "border border-sky-200/14 ring-1 ring-sky-200/10 bg-slate-950/30 backdrop-blur-lg p-2";
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-cyan-200/18 ring-1 ring-white/10 " +
+    "bg-[linear-gradient(180deg,rgba(12,30,70,0.25),rgba(7,16,37,0.22))] backdrop-blur-md p-2";
 
   const stopListClass =
-    "max-h-64 overflow-y-auto space-y-2 rounded-xl " +
-    "border border-sky-200/14 ring-1 ring-sky-200/10 bg-slate-950/30 backdrop-blur-lg p-2";
+    "max-h-64 overflow-y-auto space-y-2 rounded-xl border border-cyan-200/18 ring-1 ring-white/10 " +
+    "bg-[linear-gradient(180deg,rgba(12,30,70,0.25),rgba(7,16,37,0.22))] backdrop-blur-md p-2";
 
-  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-400";
-  const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-400";
+  // Titles: YMS yellow
+  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-[#facc15]";
+  const tileTitleClass = "text-sm font-extrabold leading-tight text-[#facc15]";
 
-  // ✅ Tan subtitles (YMS vibe)
-  const subTextClass = "text-xs text-[#d6b56c]/85";
+  // Subtitles: TAN (requested)
+  const subTextClass = "text-xs text-[#d6c2a0]/85";
 
-  // ✅ White body text otherwise
+  // Buttons / inputs: blue glass + clean borders (no muddy slate)
   const clearBtnClass =
-    "text-xs px-2 py-1 rounded-lg border border-sky-200/15 hover:border-sky-200/30 hover:bg-white/10 " +
+    "text-xs px-2 py-1 rounded-lg border border-cyan-200/18 bg-white/0 hover:border-cyan-200/35 hover:bg-white/10 " +
     "disabled:opacity-40 disabled:cursor-not-allowed";
 
   const smallInputClass =
-    "w-full rounded-xl bg-slate-950/35 border border-sky-200/15 ring-1 ring-sky-200/10 " +
-    "px-3 py-2 text-sm text-white/90 placeholder:text-white/40 outline-none " +
-    "focus:border-sky-200/30 focus:ring-sky-200/20";
+    "w-full rounded-xl bg-[#06102a]/45 border border-cyan-200/18 ring-1 ring-white/10 " +
+    "px-3 py-2 text-sm outline-none focus:border-cyan-200/35 focus:ring-cyan-200/10";
 
   const sectionHeaderRowClass = "flex items-center justify-between gap-2";
 
   const collapseBtnClass =
-    "text-xs px-3 py-1.5 rounded-xl border border-sky-200/15 bg-slate-950/25 " +
-    "hover:bg-white/10 hover:border-sky-200/30";
+    "text-xs px-3 py-1.5 rounded-xl border border-cyan-200/18 bg-[#06102a]/35 " +
+    "hover:bg-white/10 hover:border-cyan-200/35";
 
-  const caretClass = "text-yellow-400/80 text-xs";
+  const caretClass = "text-[#facc15]/80 text-xs";
 
   const SectionHeader = ({
     title,
@@ -588,7 +594,7 @@ export default function Page() {
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
       {/* HEADER */}
-      <header className="w-full border-b border-sky-200/10 bg-slate-950/45 backdrop-blur-xl flex-shrink-0">
+      <header className="w-full border-b border-cyan-200/10 bg-[#050914]/35 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img
@@ -600,10 +606,10 @@ export default function Page() {
           </div>
 
           <div className="flex items-center gap-4 ml-auto">
-            <div className="text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
+            <div className="text-[#facc15] font-extrabold tracking-wide text-lg sm:text-xl text-right">
               CERTIS AgRoute Database
             </div>
-            <div className="text-xs text-white/70 whitespace-nowrap">
+            <div className="text-xs text-white/60 whitespace-nowrap">
               Token:{" "}
               <span className={token ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
                 {token ? "OK" : "MISSING"}
@@ -644,9 +650,9 @@ export default function Page() {
                       </button>
                     </div>
 
-                    {homeStatus && <div className="text-xs text-yellow-400 font-semibold">{homeStatus}</div>}
+                    {homeStatus && <div className="text-xs text-[#facc15] font-semibold">{homeStatus}</div>}
 
-                    <div className="text-xs text-white/70">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
+                    <div className="text-xs text-white/65">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
                   </div>
                 )}
               </div>
@@ -656,7 +662,7 @@ export default function Page() {
                 <SectionHeader
                   title="Find a Stop"
                   k={sectionKey("Find a Stop")}
-                  right={<div className="text-[11px] text-white/70 whitespace-nowrap">Loaded: {allStops.length}</div>}
+                  right={<div className="text-[11px] text-white/55 whitespace-nowrap">Loaded: {allStops.length}</div>}
                 />
                 {!collapsed[sectionKey("Find a Stop")] && (
                   <div className="space-y-2 mt-3">
@@ -666,7 +672,7 @@ export default function Page() {
                       placeholder="Search by retailer, city, state, name, contact…"
                       className={smallInputClass}
                     />
-                    <div className="text-xs text-white/70">{strictHint}</div>
+                    <div className="text-xs text-white/65">{strictHint}</div>
 
                     <div className={stopListClass}>
                       {stopResults.map((st) => {
@@ -699,7 +705,7 @@ export default function Page() {
                           </div>
                         );
                       })}
-                      {stopResults.length === 0 && <div className="text-xs text-white/70">No matches.</div>}
+                      {stopResults.length === 0 && <div className="text-xs text-white/65">No matches.</div>}
                     </div>
                   </div>
                 )}
@@ -747,7 +753,7 @@ export default function Page() {
                             <span>{st}</span>
                           </label>
                         ))}
-                        {visibleStates.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                        {visibleStates.length === 0 && <div className="text-xs text-white/65">Loading…</div>}
                       </div>
                     </div>
 
@@ -780,7 +786,7 @@ export default function Page() {
                             <span>{r}</span>
                           </label>
                         ))}
-                        {visibleRetailers.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                        {visibleRetailers.length === 0 && <div className="text-xs text-white/65">Loading…</div>}
                       </div>
                     </div>
 
@@ -813,7 +819,7 @@ export default function Page() {
                             <span>{c}</span>
                           </label>
                         ))}
-                        {visibleCategories.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                        {visibleCategories.length === 0 && <div className="text-xs text-white/65">Loading…</div>}
                       </div>
                     </div>
 
@@ -846,7 +852,7 @@ export default function Page() {
                             <span>{sp}</span>
                           </label>
                         ))}
-                        {visibleSuppliers.length === 0 && <div className="text-xs text-white/70">Loading…</div>}
+                        {visibleSuppliers.length === 0 && <div className="text-xs text-white/65">Loading…</div>}
                       </div>
                     </div>
                   </div>
@@ -913,7 +919,7 @@ export default function Page() {
                     ))}
 
                     {tripStops.length === 0 && (
-                      <div className="text-xs text-white/70">
+                      <div className="text-xs text-white/65">
                         Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
                       </div>
                     )}
@@ -930,42 +936,44 @@ export default function Page() {
                       <div key={row.retailer} className={innerTileClass}>
                         <div className="flex items-center justify-between gap-2">
                           <div className={tileTitleClass}>{row.retailer}</div>
-                          <div className="text-xs text-white/80 whitespace-nowrap">
+                          <div className="text-xs text-white/75 whitespace-nowrap">
                             Trip: {row.tripStops} • Total: {row.totalLocations}
                           </div>
                         </div>
 
                         <div className="text-xs text-white/80 mt-2 space-y-1">
                           <div>
-                            <span className="font-extrabold text-white/90">Agronomy locations:</span>{" "}
+                            <span className="font-extrabold text-[#facc15]">Agronomy locations:</span>{" "}
                             {row.agronomyLocations}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white/90">States:</span> {row.states.join(", ") || "—"}
+                            <span className="font-extrabold text-[#facc15]">States:</span> {row.states.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white/90">Category breakdown:</span>{" "}
+                            <span className="font-extrabold text-[#facc15]">Category breakdown:</span>{" "}
                             {row.categoryBreakdown.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white/90">Suppliers:</span>{" "}
+                            <span className="font-extrabold text-[#facc15]">Suppliers:</span>{" "}
                             {row.suppliers.join(", ") || "—"}
                           </div>
                         </div>
                       </div>
                     ))}
-                    {tripRetailerSummary.length === 0 && <div className="text-xs text-white/70">No trip stops yet.</div>}
+                    {tripRetailerSummary.length === 0 && <div className="text-xs text-white/65">No trip stops yet.</div>}
                   </div>
                 )}
               </div>
 
-              {/* ✅ NEW: NETWORK SUMMARY */}
+              {/* NETWORK SUMMARY */}
               <div className={sectionShellClass}>
                 <SectionHeader
                   title="Retailer Network Summary (All Locations)"
                   k={sectionKey("Retailer Network Summary (All Locations)")}
                   right={
-                    <div className="text-[11px] text-white/70 whitespace-nowrap">Rows: {retailerNetworkSummary.length}</div>
+                    <div className="text-[11px] text-white/55 whitespace-nowrap">
+                      Rows: {retailerNetworkSummary.length}
+                    </div>
                   }
                 />
                 {!collapsed[sectionKey("Retailer Network Summary (All Locations)")] && (
@@ -978,8 +986,8 @@ export default function Page() {
                     />
 
                     <div className="text-xs text-white/70">
-                      This section is computed from <span className="text-white/90 font-semibold">retailers.geojson</span>{" "}
-                      (true location footprint). It is not limited to trip stops.
+                      Computed from <span className="text-white/90 font-semibold">retailers.geojson</span> (true
+                      footprint). Not limited to trip stops.
                     </div>
 
                     <div className="space-y-2">
@@ -987,17 +995,17 @@ export default function Page() {
                         <div key={r.retailer} className={innerTileClass}>
                           <div className="flex items-center justify-between gap-2">
                             <div className={tileTitleClass}>{r.retailer}</div>
-                            <div className="text-xs text-white/80 whitespace-nowrap">
+                            <div className="text-xs text-white/75 whitespace-nowrap">
                               Total: {r.totalLocations} • Agronomy: {r.agronomyLocations}
                             </div>
                           </div>
 
                           <div className="text-xs text-white/80 mt-2 space-y-1">
                             <div>
-                              <span className="font-extrabold text-white/90">States:</span> {r.states.join(", ") || "—"}
+                              <span className="font-extrabold text-[#facc15]">States:</span> {r.states.join(", ") || "—"}
                             </div>
                             <div>
-                              <span className="font-extrabold text-white/90">Category breakdown:</span>{" "}
+                              <span className="font-extrabold text-[#facc15]">Category breakdown:</span>{" "}
                               {r.categoryCounts?.length
                                 ? r.categoryCounts.map((c) => `${c.category} (${c.count})`).join(", ")
                                 : "—"}
@@ -1007,10 +1015,10 @@ export default function Page() {
                       ))}
 
                       {retailerNetworkSummary.length === 0 && (
-                        <div className="text-xs text-white/70">Network summary not loaded yet.</div>
+                        <div className="text-xs text-white/65">Network summary not loaded yet.</div>
                       )}
                       {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && (
-                        <div className="text-xs text-white/70">No retailer matches that search.</div>
+                        <div className="text-xs text-white/65">No retailer matches that search.</div>
                       )}
                     </div>
                   </div>
@@ -1018,7 +1026,7 @@ export default function Page() {
               </div>
 
               {/* Diagnostics */}
-              <div className="text-[11px] text-white/70">
+              <div className="text-[11px] text-white/55">
                 Loaded: {allStops.length} stops • Trip: {tripStops.length}
               </div>
             </div>
