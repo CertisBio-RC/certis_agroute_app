@@ -28,15 +28,19 @@ function splitCategories(raw: any) {
     .map((x) => x.trim())
     .filter(Boolean);
 }
+
 function sectionKey(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
+
 function safeLower(v: any) {
   return String(v ?? "").toLowerCase();
 }
+
 function digitsOnly(v: string) {
   return v.replace(/[^0-9]/g, "");
 }
+
 function tokenizeQuery(q: string) {
   return q
     .trim()
@@ -45,6 +49,7 @@ function tokenizeQuery(q: string) {
     .map((t) => t.trim())
     .filter(Boolean);
 }
+
 function allTokensPresent(haystackLower: string, tokens: string[]) {
   return tokens.every((t) => haystackLower.includes(t));
 }
@@ -55,7 +60,7 @@ type RetailerSummaryRow = {
   totalLocations: number;
   agronomyLocations: number;
   suppliers: string[];
-  categoryBreakdown: string[];
+  categoryBreakdown: string[]; // e.g. "Agronomy (42)"
   states: string[];
 };
 
@@ -72,12 +77,14 @@ function normalizeCategoryLabel(raw: string) {
   if (!s) return "";
   return s;
 }
+
 function isAgronomyCategory(cat: string) {
   const c = cat.toLowerCase();
   if (!c) return false;
   if (c.includes("hq")) return false;
   return c.includes("agronomy");
 }
+
 function formatCategoryCounts(counts: Record<string, number>) {
   const entries = Object.entries(counts).filter(([, n]) => n > 0);
 
@@ -109,48 +116,43 @@ function formatCategoryCounts(counts: Record<string, number>) {
   return entries.map(([k, n]) => `${k} (${n})`);
 }
 
-const UI_THEME_STAMP = "BLUE GLASS v2";
-
-function CaretIcon({ open }: { open: boolean }) {
-  return (
-    <span aria-hidden className={`inline-flex items-center justify-center transition-transform duration-150 ${open ? "rotate-180" : "rotate-0"}`}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </span>
-  );
-}
-
 export default function Page() {
+  // Options loaded from map
   const [states, setStates] = useState<string[]>([]);
   const [retailers, setRetailers] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
 
+  // ✅ Network summary from retailers.geojson (computed inside CertisMap)
   const [retailerNetworkSummary, setRetailerNetworkSummary] = useState<RetailerNetworkSummaryRow[]>([]);
   const [networkRetailerSearch, setNetworkRetailerSearch] = useState<string>("");
 
+  // Selection state
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
 
+  // Home ZIP
   const [homeZip, setHomeZip] = useState<string>("");
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
   const [homeStatus, setHomeStatus] = useState<string>("");
 
+  // Stops + Trip
   const [allStops, setAllStops] = useState<Stop[]>([]);
   const [tripStops, setTripStops] = useState<Stop[]>([]);
   const [zoomToStop, setZoomToStop] = useState<Stop | null>(null);
 
+  // Local sidebar search fields
   const [stateSearch, setStateSearch] = useState("");
   const [retailerSearch, setRetailerSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
   const [stopSearch, setStopSearch] = useState("");
 
-  const [mobileView, setMobileView] = useState<"sidebar" | "map">("sidebar");
-
+  // ============================================================
+  // ✅ DEFAULT COLLAPSE BEHAVIOR
+  // ============================================================
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     [sectionKey("Home ZIP")]: true,
     [sectionKey("Find a Stop")]: true,
@@ -165,13 +167,17 @@ export default function Page() {
   });
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
+
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
     return bp || "/certis_agroute_app";
   }, []);
 
   const hasAnyFilters =
-    selectedStates.length || selectedRetailers.length || selectedCategories.length || selectedSuppliers.length;
+    selectedStates.length ||
+    selectedRetailers.length ||
+    selectedCategories.length ||
+    selectedSuppliers.length;
 
   const clearAllFilters = () => {
     setSelectedStates([]);
@@ -251,6 +257,7 @@ export default function Page() {
     setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // Filtered option lists (sidebar search)
   const visibleStates = useMemo(() => {
     const list = states.map(normUpper);
     const q = stateSearch.trim();
@@ -272,6 +279,9 @@ export default function Page() {
     return q ? suppliers.filter((x) => includesLoose(x, q)) : suppliers;
   }, [suppliers, supplierSearch]);
 
+  // ============================================================
+  // ✅ STOP SEARCH
+  // ============================================================
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
     if (!qRaw) return allStops.slice(0, 30);
@@ -313,6 +323,7 @@ export default function Page() {
       if (!v) return 0;
 
       let s0 = 0;
+
       if (v === qLower) s0 += 50 * weight;
       if (v.startsWith(qLower)) s0 += 28 * weight;
       if (v.includes(qLower)) s0 += 10 * weight;
@@ -322,6 +333,7 @@ export default function Page() {
         if (hits > 0) s0 += hits * 6 * weight;
         if (hits === tokens.length) s0 += 22 * weight;
       }
+
       return s0;
     };
 
@@ -371,6 +383,7 @@ export default function Page() {
           cellScore;
 
         if (personMode && st.kind === "kingpin") total += 18;
+
         if (total <= 0) return null;
 
         const inTrip = tripStops.some((x) => x.id === st.id);
@@ -384,6 +397,9 @@ export default function Page() {
     return scored.map((x) => x.st).slice(0, 50);
   }, [allStops, stopSearch, tripStops]);
 
+  // ============================================================
+  // ✅ MASTER RETAILER TOTALS (FULL FOOTPRINT)
+  // ============================================================
   const retailerTotalsIndex = useMemo(() => {
     const acc: Record<string, RetailerTotals> = {};
 
@@ -405,6 +421,7 @@ export default function Page() {
       acc[retailer].totalLocations += 1;
 
       if (st.state) acc[retailer].states.add(st.state);
+
       splitMulti(st.suppliers).forEach((x) => acc[retailer].suppliers.add(x));
 
       const cats = splitCategories(st.category);
@@ -424,8 +441,12 @@ export default function Page() {
     return acc;
   }, [allStops]);
 
+  // ============================================================
+  // ✅ RETAILER SUMMARY (TRIP-FOCUSED, BUT USING FULL TOTALS)
+  // ============================================================
   const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
     const tripCounts: Record<string, number> = {};
+
     for (const st of tripStops) {
       const retailer = (st.retailer || "").trim() || "Unknown Retailer";
       tripCounts[retailer] = (tripCounts[retailer] || 0) + 1;
@@ -433,10 +454,12 @@ export default function Page() {
 
     const rows: RetailerSummaryRow[] = Object.entries(tripCounts).map(([retailer, tripCount]) => {
       const totals = retailerTotalsIndex[retailer];
+
       const totalLocations = totals?.totalLocations ?? 0;
       const agronomyLocations = totals?.agronomyLocations ?? 0;
       const suppliers = totals ? Array.from(totals.suppliers).sort() : [];
       const states = totals ? Array.from(totals.states).sort() : [];
+
       const categoryBreakdown = totals ? formatCategoryCounts(totals.categoryCounts) : [];
 
       return {
@@ -458,68 +481,119 @@ export default function Page() {
     return rows;
   }, [tripStops, retailerTotalsIndex]);
 
+  // ============================================================
+  // ✅ TRUE RETAILER NETWORK SUMMARY (ALL LOCATIONS)
+  // ============================================================
   const visibleNetworkRows = useMemo(() => {
     const q = networkRetailerSearch.trim().toLowerCase();
     if (!q) return retailerNetworkSummary.slice(0, 120);
-    return retailerNetworkSummary.filter((r) => (r.retailer || "").toLowerCase().includes(q)).slice(0, 120);
+
+    return retailerNetworkSummary
+      .filter((r) => (r.retailer || "").toLowerCase().includes(q))
+      .slice(0, 120);
   }, [retailerNetworkSummary, networkRetailerSearch]);
 
-  // ===========================
-  // ✅ BLUE GLASS v2 (muted)
-  // ===========================
+  // ============================================================
+  // ✅ VISUAL SYSTEM
+  //   Focus: LEFT PANEL ONLY = YMS blue-glass tiles.
+  // ============================================================
+
   const appBg =
-    "bg-[#060b18] " +
-    "bg-[radial-gradient(1100px_700px_at_12%_0%,rgba(35,110,255,0.18),transparent_62%)," +
-    "radial-gradient(900px_650px_at_92%_18%,rgba(90,80,255,0.10),transparent_60%)," +
-    "radial-gradient(850px_600px_at_45%_120%,rgba(0,180,255,0.06),transparent_62%)]";
+    "bg-[#050914] " +
+    "bg-[radial-gradient(1200px_720px_at_10%_0%,rgba(37,99,235,0.12),transparent_60%)," +
+    "radial-gradient(900px_600px_at_88%_18%,rgba(14,165,233,0.10),transparent_60%)," +
+    "radial-gradient(900px_600px_at_40%_120%,rgba(34,197,94,0.05),transparent_60%)]";
 
-  const panelClass =
-    "rounded-2xl border border-white/10 ring-1 ring-white/5 " +
-    "bg-[rgba(7,12,22,0.70)] backdrop-blur-md shadow-[0_22px_55px_rgba(0,0,0,0.70)]";
+  // Map container stays neutral dark-glass
+  const mapPanelClass =
+    "rounded-2xl border border-slate-200/15 ring-1 ring-white/10 bg-slate-950/20 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
 
-  const innerTileClass =
-    "rounded-xl border border-white/10 ring-1 ring-white/5 " +
-    "bg-[linear-gradient(180deg,rgba(18,40,92,0.55),rgba(10,18,34,0.60))] backdrop-blur-sm p-3 " +
-    "shadow-[0_12px_26px_rgba(0,0,0,0.55)]";
-
-  const listClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-white/10 ring-1 ring-white/5 " +
-    "bg-[rgba(10,16,28,0.45)] backdrop-blur-sm p-2";
-
-  const stopListClass =
-    "max-h-64 overflow-y-auto space-y-2 rounded-xl border border-white/10 ring-1 ring-white/5 " +
-    "bg-[rgba(10,16,28,0.45)] backdrop-blur-sm p-2";
-
-  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-400";
-  const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-400";
-  const subTextClass = "text-xs text-[#d2b48c]";
-
-  const clearBtnClass =
-    "text-xs px-2 py-1 rounded-lg border border-white/15 hover:border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
-
-  const smallInputClass =
-    "w-full rounded-xl bg-[rgba(255,255,255,0.06)] border border-white/15 ring-1 ring-white/5 " +
-    "px-3 py-2 text-sm outline-none focus:border-white/30 focus:ring-white/10 text-white placeholder:text-white/55";
+  // Sidebar gets aggressive YMS blue-glass (obvious change)
+  const sidebarPanelClass =
+    "rounded-2xl border border-cyan-200/25 ring-1 ring-cyan-200/20 " +
+    "bg-[linear-gradient(180deg,rgba(10,35,90,0.72),rgba(6,12,28,0.72))] " +
+    "backdrop-blur-md shadow-[0_26px_60px_rgba(0,0,0,0.65)]";
 
   const sectionShellClass =
-    "rounded-2xl border border-white/10 ring-1 ring-white/5 bg-[rgba(10,16,28,0.40)] backdrop-blur-sm px-3 py-3";
+    "rounded-2xl border border-cyan-200/20 ring-1 ring-blue-300/15 " +
+    "bg-[linear-gradient(180deg,rgba(12,45,120,0.28),rgba(4,10,24,0.22))] " +
+    "backdrop-blur-sm px-3 py-3";
+
+  const innerTileClass =
+    "rounded-xl border border-cyan-200/18 ring-1 ring-blue-200/10 " +
+    "bg-[linear-gradient(180deg,rgba(20,90,220,0.16),rgba(8,20,45,0.12))] " +
+    "backdrop-blur-sm p-3 shadow-[0_14px_30px_rgba(0,0,0,0.45)]";
+
+  const listClass =
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-cyan-200/18 ring-1 ring-blue-200/10 " +
+    "bg-[linear-gradient(180deg,rgba(10,35,90,0.18),rgba(6,12,28,0.16))] " +
+    "backdrop-blur-sm p-2";
+
+  const stopListClass =
+    "max-h-64 overflow-y-auto space-y-2 rounded-xl border border-cyan-200/18 ring-1 ring-blue-200/10 " +
+    "bg-[linear-gradient(180deg,rgba(10,35,90,0.18),rgba(6,12,28,0.16))] " +
+    "backdrop-blur-sm p-2";
+
+  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-300";
+  const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-300";
+  const tanSubTextClass = "text-xs text-[#d7c3a1]"; // tan subtitles
+  const subTextClass = "text-xs text-white/75";
+
+  const clearBtnClass =
+    "text-xs px-2 py-1 rounded-lg border border-cyan-200/20 " +
+    "hover:border-cyan-200/40 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
+
+  const smallInputClass =
+    "w-full rounded-xl bg-[#061126]/55 border border-cyan-200/20 ring-1 ring-blue-200/10 " +
+    "px-3 py-2 text-sm outline-none focus:border-cyan-200/45 focus:ring-cyan-200/20";
 
   const sectionHeaderRowClass = "flex items-center justify-between gap-2";
 
   const collapseBtnClass =
-    "text-xs px-3 py-1.5 rounded-xl border border-white/15 bg-[rgba(255,255,255,0.05)] hover:bg-white/10 hover:border-white/30";
+    "text-xs px-3 py-1.5 rounded-xl border border-cyan-200/20 bg-[#061126]/45 " +
+    "hover:bg-white/10 hover:border-cyan-200/40";
 
-  const caretClass = "text-yellow-400/90 text-xs";
+  // SVG caret so it never “disappears”
+  const Caret = ({ up }: { up: boolean }) => (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="inline-block"
+      style={{ transform: up ? "rotate(180deg)" : "rotate(0deg)" }}
+    >
+      <path
+        d="M6 9l6 6 6-6"
+        fill="none"
+        stroke="rgba(253,224,71,0.95)"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 
-  const SectionHeader = ({ title, right, k }: { title: string; right?: React.ReactNode; k: string }) => {
+  const SectionHeader = ({
+    title,
+    right,
+    k,
+  }: {
+    title: string;
+    right?: React.ReactNode;
+    k: string;
+  }) => {
     const isCollapsed = !!collapsed[k];
     return (
       <div className={sectionHeaderRowClass}>
-        <button type="button" onClick={() => toggleSection(k)} className="flex items-center gap-2" title={isCollapsed ? "Expand" : "Collapse"}>
+        <button
+          type="button"
+          onClick={() => toggleSection(k)}
+          className="flex items-center gap-2"
+          title={isCollapsed ? "Expand" : "Collapse"}
+        >
           <span className={sectionTitleClass}>{title}</span>
-          <span className={caretClass}>
-            <CaretIcon open={!isCollapsed} />
-          </span>
+          <span className="opacity-90">{isCollapsed ? <Caret up={false} /> : <Caret up={true} />}</span>
         </button>
         <div className="flex items-center gap-2">
           {right}
@@ -538,13 +612,14 @@ export default function Page() {
 
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
-      <header className="w-full border-b border-white/10 bg-[rgba(7,12,22,0.72)] backdrop-blur-md flex-shrink-0">
+      {/* HEADER */}
+      <header className="w-full border-b border-slate-200/15 bg-slate-950/30 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img
               src={`${basePath}/icons/certis-logo.png`}
               alt="Certis Biologicals"
-              className="h-14 sm:h-16 w-auto drop-shadow-[0_10px_18px_rgba(0,0,0,0.70)]"
+              className="h-14 sm:h-16 w-auto drop-shadow-[0_10px_18px_rgba(0,0,0,0.65)]"
               draggable={false}
             />
           </div>
@@ -552,55 +627,41 @@ export default function Page() {
           <div className="flex items-center gap-4 ml-auto">
             <div className="text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
               CERTIS AgRoute Database
-              <div className="text-[11px] font-semibold text-[#d2b48c] tracking-normal">THEME: {UI_THEME_STAMP}</div>
             </div>
-
-            <div className="text-xs text-white/70 whitespace-nowrap">
+            <div className="text-xs text-white/60 whitespace-nowrap">
+              THEME: <span className="text-white/70">BLUE GLASS v2</span>
+            </div>
+            <div className="text-xs text-white/60 whitespace-nowrap">
               Token:{" "}
-              <span className={token ? "text-green-300 font-semibold" : "text-red-300 font-semibold"}>
+              <span className={token ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
                 {token ? "OK" : "MISSING"}
               </span>
             </div>
           </div>
         </div>
-
-        <div className="px-4 pb-3 md:hidden">
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={`flex-1 rounded-xl px-3 py-2 text-sm font-extrabold border ${
-                mobileView === "sidebar" ? "bg-yellow-400 text-black border-yellow-300" : "bg-[rgba(255,255,255,0.06)] text-white border-white/15"
-              }`}
-              onClick={() => setMobileView("sidebar")}
-            >
-              Sidebar
-            </button>
-            <button
-              type="button"
-              className={`flex-1 rounded-xl px-3 py-2 text-sm font-extrabold border ${
-                mobileView === "map" ? "bg-yellow-400 text-black border-yellow-300" : "bg-[rgba(255,255,255,0.06)] text-white border-white/15"
-              }`}
-              onClick={() => setMobileView("map")}
-            >
-              Map
-            </button>
-          </div>
-        </div>
       </header>
 
+      {/* BODY */}
       <div className="flex-1 min-h-0 p-3">
         <div className="h-full min-h-0 flex flex-col md:grid md:grid-cols-[380px_1fr] gap-3">
-          <aside className={`${panelClass} sidebar min-h-0 md:h-full ${mobileView === "map" ? "hidden md:block" : ""}`}>
+          {/* SIDEBAR */}
+          <aside className={`${sidebarPanelClass} sidebar min-h-0 md:h-full`}>
             <div className="overflow-y-auto px-4 py-3 space-y-4">
+              {/* HOME ZIP */}
               <div className={sectionShellClass}>
                 <SectionHeader title="Home ZIP" k={sectionKey("Home ZIP")} />
                 {!collapsed[sectionKey("Home ZIP")] && (
                   <div className="space-y-2 mt-3">
                     <div className="flex gap-2">
-                      <input value={homeZip} onChange={(e) => setHomeZip(e.target.value)} placeholder="e.g., 50010" className={smallInputClass} />
+                      <input
+                        value={homeZip}
+                        onChange={(e) => setHomeZip(e.target.value)}
+                        placeholder="e.g., 50010"
+                        className={smallInputClass}
+                      />
                       <button
                         onClick={setHomeFromZip}
-                        className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#facc15] text-black hover:bg-[#facc15]/90 disabled:opacity-60"
+                        className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#fde047] text-black hover:bg-[#fde047]/90 disabled:opacity-60"
                         disabled={!homeZip.trim() || !token}
                         title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
                       >
@@ -611,17 +672,19 @@ export default function Page() {
                       </button>
                     </div>
 
-                    {homeStatus && <div className="text-xs text-yellow-400 font-semibold">{homeStatus}</div>}
-                    <div className="text-xs text-white/80">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
+                    {homeStatus && <div className="text-xs text-yellow-300 font-semibold">{homeStatus}</div>}
+
+                    <div className={tanSubTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
                   </div>
                 )}
               </div>
 
+              {/* STOP SEARCH */}
               <div className={sectionShellClass}>
                 <SectionHeader
                   title="Find a Stop"
                   k={sectionKey("Find a Stop")}
-                  right={<div className="text-[11px] text-white/75 whitespace-nowrap">Loaded: {allStops.length}</div>}
+                  right={<div className="text-[11px] text-white/65 whitespace-nowrap">Loaded: {allStops.length}</div>}
                 />
                 {!collapsed[sectionKey("Find a Stop")] && (
                   <div className="space-y-2 mt-3">
@@ -631,7 +694,7 @@ export default function Page() {
                       placeholder="Search by retailer, city, state, name, contact…"
                       className={smallInputClass}
                     />
-                    <div className="text-xs text-white/80">{strictHint}</div>
+                    <div className={tanSubTextClass}>{strictHint}</div>
 
                     <div className={stopListClass}>
                       {stopResults.map((st) => {
@@ -641,7 +704,7 @@ export default function Page() {
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <div className={tileTitleClass}>{st.label}</div>
-                                <div className={subTextClass}>
+                                <div className={tanSubTextClass}>
                                   {(st.city || "") + (st.city ? ", " : "")}
                                   {st.state || ""}
                                   {st.zip ? ` ${st.zip}` : ""}
@@ -654,7 +717,7 @@ export default function Page() {
                                 </button>
                                 <button
                                   onClick={() => addStopToTrip(st)}
-                                  className="text-xs px-2 py-1 rounded-lg bg-[#facc15] text-black font-extrabold hover:bg-[#facc15]/90 disabled:opacity-50"
+                                  className="text-xs px-2 py-1 rounded-lg bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90 disabled:opacity-50"
                                   disabled={inTrip}
                                 >
                                   {inTrip ? "Added" : "Add"}
@@ -664,12 +727,13 @@ export default function Page() {
                           </div>
                         );
                       })}
-                      {stopResults.length === 0 && <div className="text-xs text-white/80">No matches.</div>}
+                      {stopResults.length === 0 && <div className={subTextClass}>No matches.</div>}
                     </div>
                   </div>
                 )}
               </div>
 
+              {/* FILTERS */}
               <div className={sectionShellClass}>
                 <SectionHeader
                   title="Filters"
@@ -682,85 +746,142 @@ export default function Page() {
                 />
                 {!collapsed[sectionKey("Filters")] && (
                   <div className="space-y-4 mt-3">
+                    {/* State */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className={sectionTitleClass}>State</div>
-                        <button onClick={() => setSelectedStates([])} className={clearBtnClass} disabled={selectedStates.length === 0}>
+                        <button
+                          onClick={() => setSelectedStates([])}
+                          className={clearBtnClass}
+                          disabled={selectedStates.length === 0}
+                        >
                           Clear
                         </button>
                       </div>
-                      <input value={stateSearch} onChange={(e) => setStateSearch(e.target.value)} placeholder="Search states…" className={smallInputClass} />
+                      <input
+                        value={stateSearch}
+                        onChange={(e) => setStateSearch(e.target.value)}
+                        placeholder="Search states…"
+                        className={smallInputClass}
+                      />
                       <div className={listClass}>
                         {visibleStates.map((st) => (
                           <label key={st} className="flex items-center gap-2 text-sm">
-                            <input type="checkbox" checked={selectedStates.includes(st)} onChange={() => toggle(st, selectedStates, setSelectedStates)} />
+                            <input
+                              type="checkbox"
+                              checked={selectedStates.includes(st)}
+                              onChange={() => toggle(st, selectedStates, setSelectedStates)}
+                            />
                             <span>{st}</span>
                           </label>
                         ))}
-                        {visibleStates.length === 0 && <div className="text-xs text-white/80">Loading…</div>}
+                        {visibleStates.length === 0 && <div className={subTextClass}>Loading…</div>}
                       </div>
                     </div>
 
+                    {/* Retailer */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className={sectionTitleClass}>Retailer</div>
-                        <button onClick={() => setSelectedRetailers([])} className={clearBtnClass} disabled={selectedRetailers.length === 0}>
+                        <button
+                          onClick={() => setSelectedRetailers([])}
+                          className={clearBtnClass}
+                          disabled={selectedRetailers.length === 0}
+                        >
                           Clear
                         </button>
                       </div>
-                      <input value={retailerSearch} onChange={(e) => setRetailerSearch(e.target.value)} placeholder="Search retailers…" className={smallInputClass} />
+                      <input
+                        value={retailerSearch}
+                        onChange={(e) => setRetailerSearch(e.target.value)}
+                        placeholder="Search retailers…"
+                        className={smallInputClass}
+                      />
                       <div className={listClass}>
                         {visibleRetailers.map((r) => (
                           <label key={r} className="flex items-center gap-2 text-sm">
-                            <input type="checkbox" checked={selectedRetailers.includes(r)} onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)} />
+                            <input
+                              type="checkbox"
+                              checked={selectedRetailers.includes(r)}
+                              onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)}
+                            />
                             <span>{r}</span>
                           </label>
                         ))}
-                        {visibleRetailers.length === 0 && <div className="text-xs text-white/80">Loading…</div>}
+                        {visibleRetailers.length === 0 && <div className={subTextClass}>Loading…</div>}
                       </div>
                     </div>
 
+                    {/* Category */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className={sectionTitleClass}>Category</div>
-                        <button onClick={() => setSelectedCategories([])} className={clearBtnClass} disabled={selectedCategories.length === 0}>
+                        <button
+                          onClick={() => setSelectedCategories([])}
+                          className={clearBtnClass}
+                          disabled={selectedCategories.length === 0}
+                        >
                           Clear
                         </button>
                       </div>
-                      <input value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} placeholder="Search categories…" className={smallInputClass} />
+                      <input
+                        value={categorySearch}
+                        onChange={(e) => setCategorySearch(e.target.value)}
+                        placeholder="Search categories…"
+                        className={smallInputClass}
+                      />
                       <div className={listClass}>
                         {visibleCategories.map((c) => (
                           <label key={c} className="flex items-center gap-2 text-sm">
-                            <input type="checkbox" checked={selectedCategories.includes(c)} onChange={() => toggle(c, selectedCategories, setSelectedCategories)} />
+                            <input
+                              type="checkbox"
+                              checked={selectedCategories.includes(c)}
+                              onChange={() => toggle(c, selectedCategories, setSelectedCategories)}
+                            />
                             <span>{c}</span>
                           </label>
                         ))}
-                        {visibleCategories.length === 0 && <div className="text-xs text-white/80">Loading…</div>}
+                        {visibleCategories.length === 0 && <div className={subTextClass}>Loading…</div>}
                       </div>
                     </div>
 
+                    {/* Supplier */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className={sectionTitleClass}>Supplier</div>
-                        <button onClick={() => setSelectedSuppliers([])} className={clearBtnClass} disabled={selectedSuppliers.length === 0}>
+                        <button
+                          onClick={() => setSelectedSuppliers([])}
+                          className={clearBtnClass}
+                          disabled={selectedSuppliers.length === 0}
+                        >
                           Clear
                         </button>
                       </div>
-                      <input value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} placeholder="Search suppliers…" className={smallInputClass} />
+                      <input
+                        value={supplierSearch}
+                        onChange={(e) => setSupplierSearch(e.target.value)}
+                        placeholder="Search suppliers…"
+                        className={smallInputClass}
+                      />
                       <div className={listClass}>
                         {visibleSuppliers.map((sp) => (
                           <label key={sp} className="flex items-center gap-2 text-sm">
-                            <input type="checkbox" checked={selectedSuppliers.includes(sp)} onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)} />
+                            <input
+                              type="checkbox"
+                              checked={selectedSuppliers.includes(sp)}
+                              onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)}
+                            />
                             <span>{sp}</span>
                           </label>
                         ))}
-                        {visibleSuppliers.length === 0 && <div className="text-xs text-white/80">Loading…</div>}
+                        {visibleSuppliers.length === 0 && <div className={subTextClass}>Loading…</div>}
                       </div>
                     </div>
                   </div>
                 )}
               </div>
 
+              {/* TRIP BUILDER */}
               <div className={sectionShellClass}>
                 <SectionHeader
                   title="Trip Builder"
@@ -780,7 +901,7 @@ export default function Page() {
                             <div className={`${tileTitleClass} !text-sm`}>
                               {idx + 1}. {st.label}
                             </div>
-                            <div className={subTextClass}>
+                            <div className={tanSubTextClass}>
                               {(st.city || "") + (st.city ? ", " : "")}
                               {st.state || ""}
                               {st.zip ? ` ${st.zip}` : ""}
@@ -797,10 +918,20 @@ export default function Page() {
                               </button>
                             </div>
                             <div className="flex gap-2 justify-end">
-                              <button onClick={() => moveStop(idx, -1)} className={clearBtnClass} disabled={idx === 0} title="Move up">
+                              <button
+                                onClick={() => moveStop(idx, -1)}
+                                className={clearBtnClass}
+                                disabled={idx === 0}
+                                title="Move up"
+                              >
                                 ↑
                               </button>
-                              <button onClick={() => moveStop(idx, 1)} className={clearBtnClass} disabled={idx === tripStops.length - 1} title="Move down">
+                              <button
+                                onClick={() => moveStop(idx, 1)}
+                                className={clearBtnClass}
+                                disabled={idx === tripStops.length - 1}
+                                title="Move down"
+                              >
                                 ↓
                               </button>
                             </div>
@@ -808,11 +939,17 @@ export default function Page() {
                         </div>
                       </div>
                     ))}
-                    {tripStops.length === 0 && <div className="text-xs text-white/85">Add stops from map popups (“Add to Trip”) or from “Find a Stop”.</div>}
+
+                    {tripStops.length === 0 && (
+                      <div className={tanSubTextClass}>
+                        Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
+              {/* SUMMARY */}
               <div className={sectionShellClass}>
                 <SectionHeader title="Retailer Summary (Trip Stops)" k={sectionKey("Retailer Summary (Trip Stops)")} />
                 {!collapsed[sectionKey("Retailer Summary (Trip Stops)")] && (
@@ -821,42 +958,54 @@ export default function Page() {
                       <div key={row.retailer} className={innerTileClass}>
                         <div className="flex items-center justify-between gap-2">
                           <div className={tileTitleClass}>{row.retailer}</div>
-                          <div className="text-xs text-white/85 whitespace-nowrap">
+                          <div className="text-xs text-white/75 whitespace-nowrap">
                             Trip: {row.tripStops} • Total: {row.totalLocations}
                           </div>
                         </div>
-                        <div className="text-xs text-white/90 mt-2 space-y-1">
+
+                        <div className="text-xs text-white/80 mt-2 space-y-1">
                           <div>
-                            <span className="font-extrabold text-white">Agronomy locations:</span> {row.agronomyLocations}
+                            <span className="font-extrabold text-white/90">Agronomy locations:</span>{" "}
+                            {row.agronomyLocations}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white">States:</span> {row.states.join(", ") || "—"}
+                            <span className="font-extrabold text-white/90">States:</span> {row.states.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white">Category breakdown:</span> {row.categoryBreakdown.join(", ") || "—"}
+                            <span className="font-extrabold text-white/90">Category breakdown:</span>{" "}
+                            {row.categoryBreakdown.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white">Suppliers:</span> {row.suppliers.join(", ") || "—"}
+                            <span className="font-extrabold text-white/90">Suppliers:</span>{" "}
+                            {row.suppliers.join(", ") || "—"}
                           </div>
                         </div>
                       </div>
                     ))}
-                    {tripRetailerSummary.length === 0 && <div className="text-xs text-white/85">No trip stops yet.</div>}
+                    {tripRetailerSummary.length === 0 && <div className={subTextClass}>No trip stops yet.</div>}
                   </div>
                 )}
               </div>
 
+              {/* NETWORK SUMMARY */}
               <div className={sectionShellClass}>
                 <SectionHeader
                   title="Retailer Network Summary (All Locations)"
                   k={sectionKey("Retailer Network Summary (All Locations)")}
-                  right={<div className="text-[11px] text-white/75 whitespace-nowrap">Rows: {retailerNetworkSummary.length}</div>}
+                  right={<div className="text-[11px] text-white/65 whitespace-nowrap">Rows: {retailerNetworkSummary.length}</div>}
                 />
                 {!collapsed[sectionKey("Retailer Network Summary (All Locations)")] && (
                   <div className="space-y-2 mt-3">
-                    <input value={networkRetailerSearch} onChange={(e) => setNetworkRetailerSearch(e.target.value)} placeholder="Search retailer name (network)…" className={smallInputClass} />
-                    <div className="text-xs text-white/85">
-                      Computed from <span className="text-white font-semibold">retailers.geojson</span> (true footprint).
+                    <input
+                      value={networkRetailerSearch}
+                      onChange={(e) => setNetworkRetailerSearch(e.target.value)}
+                      placeholder="Search retailer name (network)…"
+                      className={smallInputClass}
+                    />
+
+                    <div className={tanSubTextClass}>
+                      Computed from <span className="text-white/90 font-semibold">retailers.geojson</span> (true
+                      location footprint).
                     </div>
 
                     <div className="space-y-2">
@@ -864,36 +1013,45 @@ export default function Page() {
                         <div key={r.retailer} className={innerTileClass}>
                           <div className="flex items-center justify-between gap-2">
                             <div className={tileTitleClass}>{r.retailer}</div>
-                            <div className="text-xs text-white/85 whitespace-nowrap">
+                            <div className="text-xs text-white/75 whitespace-nowrap">
                               Total: {r.totalLocations} • Agronomy: {r.agronomyLocations}
                             </div>
                           </div>
-                          <div className="text-xs text-white/90 mt-2 space-y-1">
+
+                          <div className="text-xs text-white/80 mt-2 space-y-1">
                             <div>
-                              <span className="font-extrabold text-white">States:</span> {r.states.join(", ") || "—"}
+                              <span className="font-extrabold text-white/90">States:</span> {r.states.join(", ") || "—"}
                             </div>
                             <div>
-                              <span className="font-extrabold text-white">Category breakdown:</span>{" "}
-                              {r.categoryCounts?.length ? r.categoryCounts.map((c) => `${c.category} (${c.count})`).join(", ") : "—"}
+                              <span className="font-extrabold text-white/90">Category breakdown:</span>{" "}
+                              {r.categoryCounts?.length
+                                ? r.categoryCounts.map((c) => `${c.category} (${c.count})`).join(", ")
+                                : "—"}
                             </div>
                           </div>
                         </div>
                       ))}
 
-                      {retailerNetworkSummary.length === 0 && <div className="text-xs text-white/85">Network summary not loaded yet.</div>}
-                      {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && <div className="text-xs text-white/85">No retailer matches that search.</div>}
+                      {retailerNetworkSummary.length === 0 && (
+                        <div className={subTextClass}>Network summary not loaded yet.</div>
+                      )}
+                      {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && (
+                        <div className={subTextClass}>No retailer matches that search.</div>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="text-[11px] text-white/75">
+              {/* Diagnostics */}
+              <div className="text-[11px] text-white/65">
                 Loaded: {allStops.length} stops • Trip: {tripStops.length}
               </div>
             </div>
           </aside>
 
-          <main className={`${panelClass} overflow-hidden map-container min-h-[60vh] md:min-h-0 md:h-full ${mobileView === "sidebar" ? "hidden md:block" : ""}`}>
+          {/* MAP */}
+          <main className={`${mapPanelClass} overflow-hidden map-container min-h-[50vh] md:min-h-0 md:h-full`}>
             <CertisMap
               selectedStates={selectedStates.map(normUpper)}
               selectedRetailers={selectedRetailers}
