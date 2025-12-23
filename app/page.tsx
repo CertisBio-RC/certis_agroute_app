@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, ReactNode } from "react";
+import Image from "next/image";
 import CertisMap, { Stop, RetailerSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
@@ -86,12 +87,11 @@ export default function Page() {
 
   // ============================================================
   // ✅ DEFAULT COLLAPSE BEHAVIOR (REQUESTED)
-  //   - Find a Stop: OPEN
-  //   - Everything else: COLLAPSED
+  //   - ALL tiles COLLAPSED by default
   // ============================================================
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     [sectionKey("Home ZIP")]: true,
-    [sectionKey("Find a Stop")]: false, // keep search open
+    [sectionKey("Find a Stop")]: true,
     [sectionKey("Filters")]: true,
     [sectionKey("State")]: true,
     [sectionKey("Retailer")]: true,
@@ -362,42 +362,47 @@ export default function Page() {
   }, [tripStops]);
 
   // ============================================================
-  // ✅ VISUAL SYSTEM
+  // ✅ VISUAL SYSTEM  (LIGHTER LEFT PANEL + POPPIER BORDERS)
   // ============================================================
 
   const appBg =
     "bg-[#05070f] " +
     "bg-[radial-gradient(1200px_700px_at_15%_0%,rgba(250,204,21,0.10),transparent_55%),radial-gradient(900px_600px_at_90%_25%,rgba(59,130,246,0.08),transparent_55%),radial-gradient(700px_500px_at_45%_110%,rgba(16,185,129,0.06),transparent_55%)]";
 
+  // ✅ lighter than before + thicker border
   const panelClass =
-    "rounded-2xl border border-yellow-400/20 ring-1 ring-white/10 bg-black/40 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
+    "rounded-2xl border-2 border-yellow-400/30 ring-1 ring-white/12 bg-white/7 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
 
+  // ✅ lighter inner tiles + thicker borders
   const innerTileClass =
-    "rounded-xl border border-yellow-400/18 ring-1 ring-white/10 bg-black/35 backdrop-blur-sm p-3 shadow-[0_12px_24px_rgba(0,0,0,0.45)]";
+    "rounded-xl border-2 border-yellow-400/22 ring-1 ring-white/12 bg-white/8 backdrop-blur-sm p-3 shadow-[0_12px_24px_rgba(0,0,0,0.40)]";
 
+  // ✅ list containers lighter + thicker borders
   const listClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-yellow-400/18 ring-1 ring-white/10 bg-black/30 backdrop-blur-sm p-2";
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border-2 border-yellow-400/22 ring-1 ring-white/12 bg-white/6 backdrop-blur-sm p-2";
 
   const stopListClass =
-    "max-h-64 overflow-y-auto space-y-2 rounded-xl border border-yellow-400/18 ring-1 ring-white/10 bg-black/30 backdrop-blur-sm p-2";
+    "max-h-64 overflow-y-auto space-y-2 rounded-xl border-2 border-yellow-400/22 ring-1 ring-white/12 bg-white/6 backdrop-blur-sm p-2";
 
   const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-400";
   const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-400";
   const subTextClass = "text-xs text-white/70";
 
   const clearBtnClass =
-    "text-xs px-2 py-1 rounded-lg border border-yellow-400/20 hover:border-yellow-400/35 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
+    "text-xs px-2 py-1 rounded-lg border-2 border-yellow-400/22 hover:border-yellow-400/40 hover:bg-white/12 disabled:opacity-40 disabled:cursor-not-allowed";
 
+  // ✅ input lighter
   const smallInputClass =
-    "w-full rounded-xl bg-black/35 border border-yellow-400/18 ring-1 ring-white/10 px-3 py-2 text-sm outline-none focus:border-yellow-400/35 focus:ring-yellow-400/15";
+    "w-full rounded-xl bg-white/7 border-2 border-yellow-400/22 ring-1 ring-white/12 px-3 py-2 text-sm outline-none focus:border-yellow-400/45 focus:ring-yellow-400/15";
 
+  // ✅ section shell lighter
   const sectionShellClass =
-    "rounded-2xl border border-yellow-400/15 ring-1 ring-white/10 bg-black/25 backdrop-blur-sm px-3 py-3";
+    "rounded-2xl border-2 border-yellow-400/20 ring-1 ring-white/12 bg-white/5 backdrop-blur-sm px-3 py-3";
 
   const sectionHeaderRowClass = "flex items-center justify-between gap-2";
 
   const collapseBtnClass =
-    "text-xs px-3 py-1.5 rounded-xl border border-yellow-400/20 bg-black/20 hover:bg-white/10 hover:border-yellow-400/35";
+    "text-xs px-3 py-1.5 rounded-xl border-2 border-yellow-400/22 bg-black/15 hover:bg-white/12 hover:border-yellow-400/40";
 
   const caretClass = "text-yellow-400/80 text-xs";
 
@@ -407,7 +412,7 @@ export default function Page() {
     k,
   }: {
     title: string;
-    right?: React.ReactNode;
+    right?: ReactNode;
     k: string;
   }) => {
     const isCollapsed = !!collapsed[k];
@@ -440,12 +445,16 @@ export default function Page() {
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
       {/* HEADER */}
-      <header className="w-full border-b border-yellow-400/15 bg-black/35 backdrop-blur-md flex-shrink-0">
+      <header className="w-full border-b-2 border-yellow-400/18 bg-black/30 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img
+            <Image
               src={`${basePath}/icons/certis-logo.png`}
               alt="Certis Biologicals"
+              width={320}
+              height={80}
+              priority
+              unoptimized
               className="h-14 sm:h-16 w-auto drop-shadow-[0_10px_18px_rgba(0,0,0,0.65)]"
               draggable={false}
             />

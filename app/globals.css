@@ -27,22 +27,26 @@ body {
   /* Brand / highlight */
   --accent-yellow: #facc15;
 
-  /* ✅ Lighter “glass” tiles (Problem: sidebar too dark) */
-  --tile-bg: rgba(255, 255, 255, 0.075);
-  --tile-bg-hover: rgba(255, 255, 255, 0.10);
+  /* ✅ Sidebar backdrop (lighter than before) */
+  --sidebar-bg: rgba(255, 255, 255, 0.06);
+  --sidebar-bg-2: rgba(255, 255, 255, 0.035);
 
-  /* ✅ Stronger borders (Problem: borders too thin / not popping) */
+  /* ✅ Tile styling — LIGHTER + POPPIER */
+  --tile-bg: rgba(255, 255, 255, 0.10);
+  --tile-bg-hover: rgba(255, 255, 255, 0.14);
+
+  /* ✅ Borders stronger + thicker */
   --tile-border: rgba(250, 204, 21, 0.34);
   --tile-border-strong: rgba(250, 204, 21, 0.52);
 
-  --tile-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
-  --tile-shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.52);
+  --tile-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
+  --tile-shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.44);
 
   /* Body text */
   --text-main: #eaeef6;
 }
 
-/* ✅ Keep the midnight-blue body gradient backdrop */
+/* Keep the midnight-blue body gradient backdrop */
 body {
   color: var(--text-main);
   background:
@@ -63,21 +67,17 @@ body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-}
 
-/* ✅ Sidebar width clamp */
-.sidebar {
+  /* ✅ fixed clamp (desktop) */
   flex: 0 0 420px;
   width: 420px;
   max-width: 420px;
-}
 
-/* ✅ NEW: Lighten the *panel region* behind tiles (subtle, not black slab) */
-.sidebar {
+  /* ✅ Lighter sidebar backdrop (removes “flat black” look) */
   background:
-    radial-gradient(700px 520px at 25% 20%, rgba(250, 204, 21, 0.08), rgba(0, 0, 0, 0) 60%),
-    radial-gradient(900px 600px at 60% 80%, rgba(59, 130, 246, 0.08), rgba(0, 0, 0, 0) 60%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0));
+    radial-gradient(900px 600px at 30% 0%, rgba(250, 204, 21, 0.14), rgba(0, 0, 0, 0) 55%),
+    linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg-2) 100%);
+  backdrop-filter: blur(10px);
 }
 
 /* Protect logo from shrinking */
@@ -108,17 +108,15 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
 
-/* ✅ CRITICAL: Make map pane consume remaining width and prevent flex overflow overlap */
-.map-container {
+  /* ✅ flexible remainder in flex row */
   flex: 1 1 auto;
   min-width: 0;
   position: relative;
   overflow: hidden;
 }
 
-/* Ensure Mapbox canvas receives pointer events */
+/* ensure Mapbox canvas is eligible to receive pointer events */
 .map-container canvas,
 .map-container .mapboxgl-canvas,
 .map-container .mapboxgl-canvas-container,
@@ -148,7 +146,7 @@ body {
   color: var(--accent-yellow);
 }
 
-/* ✅ IMPORTANT: only target semantic wrappers — NOT Tailwind utilities */
+/* Style semantic tile wrappers only */
 .sidebar .tile,
 .sidebar .panel,
 .sidebar .card,
@@ -156,9 +154,10 @@ body {
 .sidebar .filter-tile,
 .sidebar .trip-tile {
   background: var(--tile-bg);
-  border: 2px solid var(--tile-border); /* ✅ thicker borders */
+  border: 2px solid var(--tile-border); /* ✅ thicker */
   box-shadow: var(--tile-shadow);
   backdrop-filter: blur(8px);
+  border-radius: 14px;
 }
 
 /* Hover/active pop */
@@ -173,25 +172,15 @@ body {
   box-shadow: var(--tile-shadow-hover);
 }
 
-/* Keep the tiles feeling consistent */
-.sidebar .tile,
-.sidebar .panel,
-.sidebar .card,
-.sidebar .tile-card,
-.sidebar .filter-tile,
-.sidebar .trip-tile {
-  border-radius: 14px;
-}
-
 /* Make "Clear" / small side actions readable but not competing with headings */
 .sidebar .clear,
 .sidebar button.clear,
 .sidebar .muted {
-  color: rgba(234, 238, 246, 0.78);
+  color: rgba(234, 238, 246, 0.8);
 }
 
 /* ====================================================================== */
-/* MAPBOX POPUP — K5 GOLD */
+/* MAPBOX POPUP — POPUP THEME */
 /* ====================================================================== */
 
 .mapboxgl-popup {
@@ -208,7 +197,7 @@ body {
   border-radius: 10px;
   padding: 12px 14px;
   line-height: 1.5;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.55);
 }
 
 .mapboxgl-popup-content h3 {
@@ -223,7 +212,7 @@ body {
   line-height: 1.4;
 }
 
-/* ✅ Bigger popup close “X” */
+/* ✅ Bigger close X */
 .mapboxgl-popup-close-button {
   font-size: 22px;
   line-height: 22px;
@@ -235,9 +224,9 @@ body {
 }
 
 .mapboxgl-popup-close-button:hover {
-  background: rgba(250, 204, 21, 0.15);
+  background: rgba(250, 204, 21, 0.18);
   color: #fde68a;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 /* ====================================================================== */
@@ -282,7 +271,7 @@ body {
 }
 
 /* ====================================================================== */
-/* LEGEND — K5 GOLD */
+/* LEGEND */
 /* ====================================================================== */
 
 .legend-kingpin {
@@ -326,7 +315,7 @@ body {
 }
 
 /* ====================================================================== */
-/* HOME MARKER (Blue House) */
+/* HOME MARKER */
 /* ====================================================================== */
 
 .home-marker {
