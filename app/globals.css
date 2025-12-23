@@ -27,6 +27,14 @@ body {
   /* Brand / highlight */
   --accent-yellow: #facc15;
 
+  /* Body text */
+  --text-main: #eaeef6;
+
+  /* Sidebar "not black" base */
+  --sidebar-bg: rgba(3, 8, 18, 0.72); /* deep navy */
+  --sidebar-bg-2: rgba(7, 18, 34, 0.62); /* slightly lighter navy */
+  --sidebar-border: rgba(250, 204, 21, 0.16);
+
   /* Tile styling */
   --tile-bg: rgba(255, 255, 255, 0.045);
   --tile-bg-hover: rgba(255, 255, 255, 0.065);
@@ -34,15 +42,9 @@ body {
   --tile-border-strong: rgba(250, 204, 21, 0.32);
   --tile-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
   --tile-shadow-hover: 0 12px 30px rgba(0, 0, 0, 0.46);
-
-  /* Body text */
-  --text-main: #eaeef6;
 }
 
-/* ✅ Keep the midnight-blue body gradient.
-   IMPORTANT: The app wrapper (page.tsx) is still free to use bg-[#05070f]
-   + its own radial glow. This body background should be a “backdrop”, not
-   something that overrides your panel/tile Tailwind classes. */
+/* ✅ Keep the midnight-blue body gradient backdrop */
 body {
   color: var(--text-main);
   background:
@@ -63,11 +65,18 @@ body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+
+  /* ✅ FIX: sidebar is no longer flat black */
+  background:
+    radial-gradient(900px 520px at 18% 0%, rgba(250, 204, 21, 0.08), rgba(0, 0, 0, 0) 55%),
+    radial-gradient(1000px 650px at 90% 10%, rgba(30, 64, 175, 0.14), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg-2) 55%, rgba(2, 6, 14, 0.76) 100%) !important;
+
+  border-right: 1px solid var(--sidebar-border);
+  backdrop-filter: blur(10px);
 }
 
-/* ✅ CRITICAL: Prevent sidebar overlay from stealing map pointer events
-   This clamps sidebar width in a flex-row layout and forces map pane to
-   behave as the flexible remainder. */
+/* ✅ CRITICAL: lock sidebar width in desktop flex-row layout */
 .sidebar {
   flex: 0 0 420px;
   width: 420px;
@@ -104,15 +113,15 @@ body {
   flex-direction: column;
 }
 
-/* ✅ CRITICAL: Make map pane consume remaining width and prevent flex overflow overlap */
+/* ✅ CRITICAL: map pane consumes remaining width and prevents flex overlap */
 .map-container {
   flex: 1 1 auto;
-  min-width: 0; /* IMPORTANT: prevents flex overflow/overlap in row layouts */
+  min-width: 0;
   position: relative;
   overflow: hidden;
 }
 
-/* Belt + suspenders: ensure Mapbox canvas is eligible to receive pointer events */
+/* Ensure Mapbox canvas receives pointer events */
 .map-container canvas,
 .map-container .mapboxgl-canvas,
 .map-container .mapboxgl-canvas-container,
@@ -142,10 +151,7 @@ body {
   color: var(--accent-yellow);
 }
 
-/* ✅ IMPORTANT FIX:
-   Do NOT target Tailwind utility classes like .rounded-xl / .rounded-2xl.
-   That was overriding your page.tsx Tailwind borders/backgrounds.
-   Only style your “semantic” tile wrappers. */
+/* Style semantic tile wrappers (don’t target Tailwind utilities) */
 .sidebar .tile,
 .sidebar .panel,
 .sidebar .card,
@@ -156,6 +162,7 @@ body {
   border: 1px solid var(--tile-border);
   box-shadow: var(--tile-shadow);
   backdrop-filter: blur(6px);
+  border-radius: 14px;
 }
 
 /* Hover/active pop (subtle) */
@@ -170,17 +177,7 @@ body {
   box-shadow: var(--tile-shadow-hover);
 }
 
-/* Keep the tiles feeling consistent */
-.sidebar .tile,
-.sidebar .panel,
-.sidebar .card,
-.sidebar .tile-card,
-.sidebar .filter-tile,
-.sidebar .trip-tile {
-  border-radius: 14px;
-}
-
-/* Make "Clear" / small side actions readable but not competing with headings */
+/* Make "Clear" / small actions readable but not competing with headings */
 .sidebar .clear,
 .sidebar button.clear,
 .sidebar .muted {
@@ -188,7 +185,7 @@ body {
 }
 
 /* ====================================================================== */
-/* MAPBOX POPUP — K5 GOLD */
+/* MAPBOX POPUP — BASE STYLING */
 /* ====================================================================== */
 
 .mapboxgl-popup {
@@ -225,21 +222,19 @@ body {
    ========================================================= */
 
 .mapboxgl-popup-close-button {
-  font-size: 22px; /* bigger X */
+  font-size: 22px;
   line-height: 22px;
-  width: 34px; /* bigger hit area */
+  width: 34px;
   height: 34px;
   padding: 0;
-  top: 6px;
-  right: 6px;
-  color: #facc15; /* matches your yellow */
+  color: #facc15;
   font-weight: 800;
-  border-radius: 8px;
 }
 
 .mapboxgl-popup-close-button:hover {
   background: rgba(250, 204, 21, 0.15);
   color: #fde68a;
+  border-radius: 8px;
 }
 
 /* ====================================================================== */
@@ -247,14 +242,12 @@ body {
 /* ====================================================================== */
 
 @media (max-width: 768px) {
-  /* ✅ Do NOT hide sidebar on mobile — it breaks the app */
   .sidebar {
     display: flex;
     height: auto;
     max-height: none;
     overflow: visible;
 
-    /* On mobile we do NOT want a fixed 420px clamp */
     flex: 1 1 auto;
     width: 100%;
     max-width: none;
