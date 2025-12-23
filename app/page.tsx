@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import CertisMap, { Stop, RetailerNetworkSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
@@ -116,6 +116,31 @@ function formatCategoryCounts(counts: Record<string, number>) {
   return entries.map(([k, n]) => `${k} (${n})`);
 }
 
+function Chevron({ open }: { open: boolean }) {
+  // Reliable caret across platforms (no unicode glyph dependency)
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      className="opacity-90"
+      aria-hidden="true"
+    >
+      {open ? (
+        <path
+          fill="currentColor"
+          d="M7.41 14.59 12 10l4.59 4.59L18 13.17l-6-6-6 6z"
+        />
+      ) : (
+        <path
+          fill="currentColor"
+          d="M7.41 8.41 12 13l4.59-4.59L18 9.83l-6 6-6-6z"
+        />
+      )}
+    </svg>
+  );
+}
+
 export default function Page() {
   // Options loaded from map
   const [states, setStates] = useState<string[]>([]);
@@ -123,7 +148,7 @@ export default function Page() {
   const [categories, setCategories] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
 
-  // ✅ TRUE network summary from retailers.geojson (computed inside CertisMap)
+  // ✅ True network summary from retailers.geojson (computed inside CertisMap)
   const [retailerNetworkSummary, setRetailerNetworkSummary] = useState<RetailerNetworkSummaryRow[]>([]);
   const [networkRetailerSearch, setNetworkRetailerSearch] = useState<string>("");
 
@@ -149,6 +174,9 @@ export default function Page() {
   const [categorySearch, setCategorySearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
   const [stopSearch, setStopSearch] = useState("");
+
+  // ✅ Mobile: switch between Panels and Map
+  const [mobileView, setMobileView] = useState<"panels" | "map">("panels");
 
   // ============================================================
   // ✅ DEFAULT COLLAPSE BEHAVIOR
@@ -280,7 +308,7 @@ export default function Page() {
   }, [suppliers, supplierSearch]);
 
   // ============================================================
-  // ✅ STOP SEARCH (STRICT person mode)
+  // ✅ STOP SEARCH
   // ============================================================
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
@@ -383,7 +411,6 @@ export default function Page() {
           cellScore;
 
         if (personMode && st.kind === "kingpin") total += 18;
-
         if (total <= 0) return null;
 
         const inTrip = tripStops.some((x) => x.id === st.id);
@@ -456,8 +483,8 @@ export default function Page() {
 
       const totalLocations = totals?.totalLocations ?? 0;
       const agronomyLocations = totals?.agronomyLocations ?? 0;
-      const suppliers = totals ? Array.from(totals.suppliers).sort() : [];
-      const states = totals ? Array.from(totals.states).sort() : [];
+      const suppliersArr = totals ? Array.from(totals.suppliers).sort() : [];
+      const statesArr = totals ? Array.from(totals.states).sort() : [];
 
       const categoryBreakdown = totals ? formatCategoryCounts(totals.categoryCounts) : [];
 
@@ -466,9 +493,9 @@ export default function Page() {
         tripStops: tripCount,
         totalLocations,
         agronomyLocations,
-        suppliers,
+        suppliers: suppliersArr,
         categoryBreakdown,
-        states,
+        states: statesArr,
       };
     });
 
@@ -493,67 +520,64 @@ export default function Page() {
   }, [retailerNetworkSummary, networkRetailerSearch]);
 
   // ============================================================
-  // ✅ YMS BLUE-GLASS VISUAL SYSTEM (no olive cast)
-  //   - Blue glass panels / tiles
+  // ✅ YMS BLUE GLASS VISUAL SYSTEM
+  //   - Blue glass tiles
   //   - Yellow titles
   //   - Tan subtitles
   //   - White body text
   // ============================================================
 
-  // Background: deep navy + blue/cyan glow (NO green)
   const appBg =
-    "bg-[#050914] " +
-    "bg-[radial-gradient(1100px_650px_at_10%_0%,rgba(37,99,235,0.28),transparent_60%)," +
-    "radial-gradient(900px_600px_at_95%_18%,rgba(14,165,233,0.20),transparent_60%)," +
-    "radial-gradient(900px_620px_at_40%_120%,rgba(99,102,241,0.18),transparent_62%)]";
+    "bg-[#050814] " +
+    "bg-[radial-gradient(1200px_700px_at_12%_0%,rgba(37,99,235,0.22),transparent_60%)," +
+    "radial-gradient(900px_650px_at_92%_18%,rgba(14,165,233,0.14),transparent_60%)," +
+    "radial-gradient(800px_540px_at_45%_110%,rgba(59,130,246,0.10),transparent_62%)]";
 
-  // Main panel glass
+  // Deeper blue glass (no olive)
   const panelClass =
-    "rounded-2xl border border-cyan-200/15 ring-1 ring-white/10 " +
-    "bg-[#071025]/45 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.60)]";
+    "rounded-2xl border border-blue-200/15 ring-1 ring-white/10 " +
+    "bg-[#071a33]/40 backdrop-blur-md " +
+    "shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
 
-  // Section shell inside sidebar: slightly lighter blue glass
-  const sectionShellClass =
-    "rounded-2xl border border-cyan-200/18 ring-1 ring-white/10 " +
-    "bg-[linear-gradient(180deg,rgba(11,28,64,0.35),rgba(7,16,37,0.30))] backdrop-blur-md px-3 py-3";
-
-  // Tile glass (the “YMS tile” look)
   const innerTileClass =
-    "rounded-xl border border-cyan-200/18 ring-1 ring-white/10 " +
-    "bg-[linear-gradient(180deg,rgba(18,53,120,0.32),rgba(7,16,37,0.26))] " +
-    "backdrop-blur-md p-3 shadow-[0_14px_28px_rgba(0,0,0,0.55)]";
+    "rounded-xl border border-blue-200/18 ring-1 ring-white/10 " +
+    "bg-[#0b2a52]/22 backdrop-blur-sm p-3 " +
+    "shadow-[0_12px_24px_rgba(0,0,0,0.40)]";
 
   const listClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-cyan-200/18 ring-1 ring-white/10 " +
-    "bg-[linear-gradient(180deg,rgba(12,30,70,0.25),rgba(7,16,37,0.22))] backdrop-blur-md p-2";
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl " +
+    "border border-blue-200/18 ring-1 ring-white/10 " +
+    "bg-[#0b2a52]/18 backdrop-blur-sm p-2";
 
   const stopListClass =
-    "max-h-64 overflow-y-auto space-y-2 rounded-xl border border-cyan-200/18 ring-1 ring-white/10 " +
-    "bg-[linear-gradient(180deg,rgba(12,30,70,0.25),rgba(7,16,37,0.22))] backdrop-blur-md p-2";
+    "max-h-64 overflow-y-auto space-y-2 rounded-xl " +
+    "border border-blue-200/18 ring-1 ring-white/10 " +
+    "bg-[#0b2a52]/18 backdrop-blur-sm p-2";
 
-  // Titles: YMS yellow
-  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-[#facc15]";
-  const tileTitleClass = "text-sm font-extrabold leading-tight text-[#facc15]";
+  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-400";
+  const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-400";
 
-  // Subtitles: TAN (requested)
-  const subTextClass = "text-xs text-[#d6c2a0]/85";
+  // ✅ Tan subtitles (YMS style)
+  const subTextClass = "text-xs text-[#d6c3a3]/85";
 
-  // Buttons / inputs: blue glass + clean borders (no muddy slate)
+  const bodyTextClass = "text-xs text-white/75";
+
   const clearBtnClass =
-    "text-xs px-2 py-1 rounded-lg border border-cyan-200/18 bg-white/0 hover:border-cyan-200/35 hover:bg-white/10 " +
-    "disabled:opacity-40 disabled:cursor-not-allowed";
+    "text-xs px-2 py-1 rounded-lg border border-blue-200/18 hover:border-blue-200/35 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
 
   const smallInputClass =
-    "w-full rounded-xl bg-[#06102a]/45 border border-cyan-200/18 ring-1 ring-white/10 " +
-    "px-3 py-2 text-sm outline-none focus:border-cyan-200/35 focus:ring-cyan-200/10";
+    "w-full rounded-xl bg-[#0b2a52]/18 border border-blue-200/18 ring-1 ring-white/10 " +
+    "px-3 py-2 text-sm outline-none focus:border-blue-200/35 focus:ring-blue-200/10";
+
+  const sectionShellClass =
+    "rounded-2xl border border-blue-200/18 ring-1 ring-white/10 bg-[#0b2a52]/14 backdrop-blur-sm px-3 py-3";
 
   const sectionHeaderRowClass = "flex items-center justify-between gap-2";
 
   const collapseBtnClass =
-    "text-xs px-3 py-1.5 rounded-xl border border-cyan-200/18 bg-[#06102a]/35 " +
-    "hover:bg-white/10 hover:border-cyan-200/35";
+    "text-xs px-3 py-1.5 rounded-xl border border-blue-200/18 bg-[#0b2a52]/12 hover:bg-white/10 hover:border-blue-200/35";
 
-  const caretClass = "text-[#facc15]/80 text-xs";
+  const caretClass = "text-yellow-400/90";
 
   const SectionHeader = ({
     title,
@@ -561,7 +585,7 @@ export default function Page() {
     k,
   }: {
     title: string;
-    right?: React.ReactNode;
+    right?: ReactNode;
     k: string;
   }) => {
     const isCollapsed = !!collapsed[k];
@@ -574,7 +598,9 @@ export default function Page() {
           title={isCollapsed ? "Expand" : "Collapse"}
         >
           <span className={sectionTitleClass}>{title}</span>
-          <span className={caretClass}>{isCollapsed ? "▼" : "▲"}</span>
+          <span className={caretClass}>
+            <Chevron open={!isCollapsed} />
+          </span>
         </button>
         <div className="flex items-center gap-2">
           {right}
@@ -594,7 +620,7 @@ export default function Page() {
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
       {/* HEADER */}
-      <header className="w-full border-b border-cyan-200/10 bg-[#050914]/35 backdrop-blur-md flex-shrink-0">
+      <header className="w-full border-b border-blue-200/10 bg-[#041022]/40 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img
@@ -606,7 +632,7 @@ export default function Page() {
           </div>
 
           <div className="flex items-center gap-4 ml-auto">
-            <div className="text-[#facc15] font-extrabold tracking-wide text-lg sm:text-xl text-right">
+            <div className="text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
               CERTIS AgRoute Database
             </div>
             <div className="text-xs text-white/60 whitespace-nowrap">
@@ -619,11 +645,43 @@ export default function Page() {
         </div>
       </header>
 
+      {/* MOBILE VIEW TOGGLE */}
+      <div className="md:hidden px-3 pt-3">
+        <div className={`${panelClass} p-2 flex items-center justify-between gap-2`}>
+          <button
+            type="button"
+            onClick={() => setMobileView("panels")}
+            className={`flex-1 rounded-xl px-3 py-2 text-sm font-extrabold border ${
+              mobileView === "panels"
+                ? "bg-[#facc15] text-black border-[#facc15]"
+                : "bg-[#0b2a52]/14 text-white border-blue-200/18 hover:bg-white/10"
+            }`}
+          >
+            Panels
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileView("map")}
+            className={`flex-1 rounded-xl px-3 py-2 text-sm font-extrabold border ${
+              mobileView === "map"
+                ? "bg-[#facc15] text-black border-[#facc15]"
+                : "bg-[#0b2a52]/14 text-white border-blue-200/18 hover:bg-white/10"
+            }`}
+          >
+            Map
+          </button>
+        </div>
+      </div>
+
       {/* BODY */}
       <div className="flex-1 min-h-0 p-3">
         <div className="h-full min-h-0 flex flex-col md:grid md:grid-cols-[380px_1fr] gap-3">
           {/* SIDEBAR */}
-          <aside className={`${panelClass} sidebar min-h-0 md:h-full`}>
+          <aside
+            className={`${panelClass} sidebar min-h-0 md:h-full ${
+              mobileView === "map" ? "hidden md:block" : ""
+            }`}
+          >
             <div className="overflow-y-auto px-4 py-3 space-y-4">
               {/* HOME ZIP */}
               <div className={sectionShellClass}>
@@ -650,9 +708,9 @@ export default function Page() {
                       </button>
                     </div>
 
-                    {homeStatus && <div className="text-xs text-[#facc15] font-semibold">{homeStatus}</div>}
+                    {homeStatus && <div className="text-xs text-yellow-400 font-semibold">{homeStatus}</div>}
 
-                    <div className="text-xs text-white/65">Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
+                    <div className={bodyTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
                   </div>
                 )}
               </div>
@@ -662,7 +720,7 @@ export default function Page() {
                 <SectionHeader
                   title="Find a Stop"
                   k={sectionKey("Find a Stop")}
-                  right={<div className="text-[11px] text-white/55 whitespace-nowrap">Loaded: {allStops.length}</div>}
+                  right={<div className="text-[11px] text-white/60 whitespace-nowrap">Loaded: {allStops.length}</div>}
                 />
                 {!collapsed[sectionKey("Find a Stop")] && (
                   <div className="space-y-2 mt-3">
@@ -672,7 +730,7 @@ export default function Page() {
                       placeholder="Search by retailer, city, state, name, contact…"
                       className={smallInputClass}
                     />
-                    <div className="text-xs text-white/65">{strictHint}</div>
+                    <div className={bodyTextClass}>{strictHint}</div>
 
                     <div className={stopListClass}>
                       {stopResults.map((st) => {
@@ -705,7 +763,7 @@ export default function Page() {
                           </div>
                         );
                       })}
-                      {stopResults.length === 0 && <div className="text-xs text-white/65">No matches.</div>}
+                      {stopResults.length === 0 && <div className={bodyTextClass}>No matches.</div>}
                     </div>
                   </div>
                 )}
@@ -744,7 +802,7 @@ export default function Page() {
                       />
                       <div className={listClass}>
                         {visibleStates.map((st) => (
-                          <label key={st} className="flex items-center gap-2 text-sm text-white/90">
+                          <label key={st} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={selectedStates.includes(st)}
@@ -753,7 +811,7 @@ export default function Page() {
                             <span>{st}</span>
                           </label>
                         ))}
-                        {visibleStates.length === 0 && <div className="text-xs text-white/65">Loading…</div>}
+                        {visibleStates.length === 0 && <div className={bodyTextClass}>Loading…</div>}
                       </div>
                     </div>
 
@@ -777,7 +835,7 @@ export default function Page() {
                       />
                       <div className={listClass}>
                         {visibleRetailers.map((r) => (
-                          <label key={r} className="flex items-center gap-2 text-sm text-white/90">
+                          <label key={r} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={selectedRetailers.includes(r)}
@@ -786,7 +844,7 @@ export default function Page() {
                             <span>{r}</span>
                           </label>
                         ))}
-                        {visibleRetailers.length === 0 && <div className="text-xs text-white/65">Loading…</div>}
+                        {visibleRetailers.length === 0 && <div className={bodyTextClass}>Loading…</div>}
                       </div>
                     </div>
 
@@ -810,7 +868,7 @@ export default function Page() {
                       />
                       <div className={listClass}>
                         {visibleCategories.map((c) => (
-                          <label key={c} className="flex items-center gap-2 text-sm text-white/90">
+                          <label key={c} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={selectedCategories.includes(c)}
@@ -819,7 +877,7 @@ export default function Page() {
                             <span>{c}</span>
                           </label>
                         ))}
-                        {visibleCategories.length === 0 && <div className="text-xs text-white/65">Loading…</div>}
+                        {visibleCategories.length === 0 && <div className={bodyTextClass}>Loading…</div>}
                       </div>
                     </div>
 
@@ -843,7 +901,7 @@ export default function Page() {
                       />
                       <div className={listClass}>
                         {visibleSuppliers.map((sp) => (
-                          <label key={sp} className="flex items-center gap-2 text-sm text-white/90">
+                          <label key={sp} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={selectedSuppliers.includes(sp)}
@@ -852,7 +910,7 @@ export default function Page() {
                             <span>{sp}</span>
                           </label>
                         ))}
-                        {visibleSuppliers.length === 0 && <div className="text-xs text-white/65">Loading…</div>}
+                        {visibleSuppliers.length === 0 && <div className={bodyTextClass}>Loading…</div>}
                       </div>
                     </div>
                   </div>
@@ -919,7 +977,7 @@ export default function Page() {
                     ))}
 
                     {tripStops.length === 0 && (
-                      <div className="text-xs text-white/65">
+                      <div className={bodyTextClass}>
                         Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
                       </div>
                     )}
@@ -936,31 +994,31 @@ export default function Page() {
                       <div key={row.retailer} className={innerTileClass}>
                         <div className="flex items-center justify-between gap-2">
                           <div className={tileTitleClass}>{row.retailer}</div>
-                          <div className="text-xs text-white/75 whitespace-nowrap">
+                          <div className="text-xs text-white/70 whitespace-nowrap">
                             Trip: {row.tripStops} • Total: {row.totalLocations}
                           </div>
                         </div>
 
-                        <div className="text-xs text-white/80 mt-2 space-y-1">
+                        <div className="text-xs text-white/75 mt-2 space-y-1">
                           <div>
-                            <span className="font-extrabold text-[#facc15]">Agronomy locations:</span>{" "}
+                            <span className="font-extrabold text-white/85">Agronomy locations:</span>{" "}
                             {row.agronomyLocations}
                           </div>
                           <div>
-                            <span className="font-extrabold text-[#facc15]">States:</span> {row.states.join(", ") || "—"}
+                            <span className="font-extrabold text-white/85">States:</span> {row.states.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-[#facc15]">Category breakdown:</span>{" "}
+                            <span className="font-extrabold text-white/85">Category breakdown:</span>{" "}
                             {row.categoryBreakdown.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-[#facc15]">Suppliers:</span>{" "}
+                            <span className="font-extrabold text-white/85">Suppliers:</span>{" "}
                             {row.suppliers.join(", ") || "—"}
                           </div>
                         </div>
                       </div>
                     ))}
-                    {tripRetailerSummary.length === 0 && <div className="text-xs text-white/65">No trip stops yet.</div>}
+                    {tripRetailerSummary.length === 0 && <div className={bodyTextClass}>No trip stops yet.</div>}
                   </div>
                 )}
               </div>
@@ -971,9 +1029,7 @@ export default function Page() {
                   title="Retailer Network Summary (All Locations)"
                   k={sectionKey("Retailer Network Summary (All Locations)")}
                   right={
-                    <div className="text-[11px] text-white/55 whitespace-nowrap">
-                      Rows: {retailerNetworkSummary.length}
-                    </div>
+                    <div className="text-[11px] text-white/60 whitespace-nowrap">Rows: {retailerNetworkSummary.length}</div>
                   }
                 />
                 {!collapsed[sectionKey("Retailer Network Summary (All Locations)")] && (
@@ -985,9 +1041,8 @@ export default function Page() {
                       className={smallInputClass}
                     />
 
-                    <div className="text-xs text-white/70">
-                      Computed from <span className="text-white/90 font-semibold">retailers.geojson</span> (true
-                      footprint). Not limited to trip stops.
+                    <div className={bodyTextClass}>
+                      Computed from <span className="text-white/85 font-semibold">retailers.geojson</span> (true footprint).
                     </div>
 
                     <div className="space-y-2">
@@ -995,17 +1050,17 @@ export default function Page() {
                         <div key={r.retailer} className={innerTileClass}>
                           <div className="flex items-center justify-between gap-2">
                             <div className={tileTitleClass}>{r.retailer}</div>
-                            <div className="text-xs text-white/75 whitespace-nowrap">
+                            <div className="text-xs text-white/70 whitespace-nowrap">
                               Total: {r.totalLocations} • Agronomy: {r.agronomyLocations}
                             </div>
                           </div>
 
-                          <div className="text-xs text-white/80 mt-2 space-y-1">
+                          <div className="text-xs text-white/75 mt-2 space-y-1">
                             <div>
-                              <span className="font-extrabold text-[#facc15]">States:</span> {r.states.join(", ") || "—"}
+                              <span className="font-extrabold text-white/85">States:</span> {r.states.join(", ") || "—"}
                             </div>
                             <div>
-                              <span className="font-extrabold text-[#facc15]">Category breakdown:</span>{" "}
+                              <span className="font-extrabold text-white/85">Category breakdown:</span>{" "}
                               {r.categoryCounts?.length
                                 ? r.categoryCounts.map((c) => `${c.category} (${c.count})`).join(", ")
                                 : "—"}
@@ -1014,11 +1069,9 @@ export default function Page() {
                         </div>
                       ))}
 
-                      {retailerNetworkSummary.length === 0 && (
-                        <div className="text-xs text-white/65">Network summary not loaded yet.</div>
-                      )}
+                      {retailerNetworkSummary.length === 0 && <div className={bodyTextClass}>Network summary not loaded yet.</div>}
                       {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && (
-                        <div className="text-xs text-white/65">No retailer matches that search.</div>
+                        <div className={bodyTextClass}>No retailer matches that search.</div>
                       )}
                     </div>
                   </div>
@@ -1026,14 +1079,18 @@ export default function Page() {
               </div>
 
               {/* Diagnostics */}
-              <div className="text-[11px] text-white/55">
+              <div className="text-[11px] text-white/60">
                 Loaded: {allStops.length} stops • Trip: {tripStops.length}
               </div>
             </div>
           </aside>
 
           {/* MAP */}
-          <main className={`${panelClass} overflow-hidden map-container min-h-[50vh] md:min-h-0 md:h-full`}>
+          <main
+            className={`${panelClass} overflow-hidden map-container min-h-[60vh] md:min-h-0 md:h-full ${
+              mobileView === "panels" ? "hidden md:block" : ""
+            }`}
+          >
             <CertisMap
               selectedStates={selectedStates.map(normUpper)}
               selectedRetailers={selectedRetailers}
