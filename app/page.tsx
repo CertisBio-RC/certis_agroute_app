@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import CertisMap, { Stop } from "../components/CertisMap";
+import CertisMap, { Stop, RetailerNetworkSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
   return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -127,6 +127,10 @@ export default function Page() {
   const [categories, setCategories] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
 
+  // ✅ NEW: true network summary from retailers.geojson (computed inside CertisMap)
+  const [retailerNetworkSummary, setRetailerNetworkSummary] = useState<RetailerNetworkSummaryRow[]>([]);
+  const [networkRetailerSearch, setNetworkRetailerSearch] = useState<string>("");
+
   // Selection state
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
@@ -164,6 +168,7 @@ export default function Page() {
     [sectionKey("Supplier")]: true,
     [sectionKey("Trip Builder")]: true,
     [sectionKey("Retailer Summary (Trip Stops)")]: true,
+    [sectionKey("Retailer Network Summary (All Locations)")]: true,
   });
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
@@ -446,11 +451,6 @@ export default function Page() {
 
   // ============================================================
   // ✅ RETAILER SUMMARY (TRIP-FOCUSED, BUT USING FULL TOTALS)
-  //   For each retailer in your trip, show:
-  //   - Trip stops count
-  //   - Total locations across database
-  //   - Agronomy locations count
-  //   - Category breakdown counts
   // ============================================================
   const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
     const tripCounts: Record<string, number> = {};
@@ -488,6 +488,19 @@ export default function Page() {
 
     return rows;
   }, [tripStops, retailerTotalsIndex]);
+
+  // ============================================================
+  // ✅ TRUE RETAILER NETWORK SUMMARY (ALL LOCATIONS)
+  //   from CertisMap via onRetailerNetworkSummaryLoaded
+  // ============================================================
+  const visibleNetworkRows = useMemo(() => {
+    const q = networkRetailerSearch.trim().toLowerCase();
+    if (!q) return retailerNetworkSummary.slice(0, 120);
+
+    return retailerNetworkSummary
+      .filter((r) => (r.retailer || "").toLowerCase().includes(q))
+      .slice(0, 120);
+  }, [retailerNetworkSummary, networkRetailerSearch]);
 
   // ============================================================
   // ✅ VISUAL SYSTEM (cool blue/gray — no muddy yellow cast)
@@ -941,6 +954,66 @@ export default function Page() {
                 )}
               </div>
 
+              {/* ✅ NEW: NETWORK SUMMARY */}
+              <div className={sectionShellClass}>
+                <SectionHeader
+                  title="Retailer Network Summary (All Locations)"
+                  k={sectionKey("Retailer Network Summary (All Locations)")}
+                  right={
+                    <div className="text-[11px] text-white/55 whitespace-nowrap">
+                      Rows: {retailerNetworkSummary.length}
+                    </div>
+                  }
+                />
+                {!collapsed[sectionKey("Retailer Network Summary (All Locations)")] && (
+                  <div className="space-y-2 mt-3">
+                    <input
+                      value={networkRetailerSearch}
+                      onChange={(e) => setNetworkRetailerSearch(e.target.value)}
+                      placeholder="Search retailer name (network)…"
+                      className={smallInputClass}
+                    />
+
+                    <div className="text-xs text-white/60">
+                      This section is computed from <span className="text-white/80 font-semibold">retailers.geojson</span>{" "}
+                      (true location footprint). It is not limited to trip stops.
+                    </div>
+
+                    <div className="space-y-2">
+                      {visibleNetworkRows.map((r) => (
+                        <div key={r.retailer} className={innerTileClass}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className={tileTitleClass}>{r.retailer}</div>
+                            <div className="text-xs text-white/70 whitespace-nowrap">
+                              Total: {r.totalLocations} • Agronomy: {r.agronomyLocations}
+                            </div>
+                          </div>
+
+                          <div className="text-xs text-white/70 mt-2 space-y-1">
+                            <div>
+                              <span className="font-extrabold text-white/80">States:</span> {r.states.join(", ") || "—"}
+                            </div>
+                            <div>
+                              <span className="font-extrabold text-white/80">Category breakdown:</span>{" "}
+                              {r.categoryCounts?.length
+                                ? r.categoryCounts.map((c) => `${c.category} (${c.count})`).join(", ")
+                                : "—"}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {retailerNetworkSummary.length === 0 && (
+                        <div className="text-xs text-white/60">Network summary not loaded yet.</div>
+                      )}
+                      {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && (
+                        <div className="text-xs text-white/60">No retailer matches that search.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Diagnostics */}
               <div className="text-[11px] text-white/55">
                 Loaded: {allStops.length} stops • Trip: {tripStops.length}
@@ -964,6 +1037,7 @@ export default function Page() {
               onSuppliersLoaded={(s0) => setSuppliers(uniqSorted(s0))}
               onAllStopsLoaded={(stops) => setAllStops(stops)}
               onAddStop={addStopToTrip}
+              onRetailerNetworkSummaryLoaded={(rows) => setRetailerNetworkSummary(rows)}
             />
           </main>
         </div>

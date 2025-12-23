@@ -12,6 +12,11 @@
 //   • ✅ Loop guards: map init once, sources/layers added once, route abort/debounce
 //   • ✅ UI polish: one-line Suppliers + Category/Suppliers label color match
 //   • ✅ Regression fix: Multi-Kingpin dropdown when overlaps occur
+//
+//   ✅ NEW (Retailer Network Summary):
+//     - Computes totals from ALL retailer features (retailers.geojson)
+//     - Emits via onRetailerNetworkSummaryLoaded (optional)
+//     - Includes total locations + agronomy locations + category breakdown counts
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -48,6 +53,22 @@ export type RetailerSummaryRow = {
   states: string[];
 };
 
+export type CategoryCount = {
+  category: string;
+  count: number;
+};
+
+export type RetailerNetworkSummaryRow = {
+  retailer: string;
+  totalLocations: number; // ALL retailer features (including non-agronomy, excluding kingpins)
+  agronomyLocations: number; // retailer features whose category includes "agronomy" (excluding HQ)
+  states: string[];
+
+  // Category breakdown from retailer features.
+  // Note: if a feature has multiple categories (comma-separated), each category is counted.
+  categoryCounts: CategoryCount[];
+};
+
 type Feature = {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };
@@ -76,6 +97,9 @@ type Props = {
 
   onAllStopsLoaded: (stops: Stop[]) => void;
   onAddStop: (stop: Stop) => void;
+
+  // ✅ Optional: true retailer network summary (ALL locations in retailers.geojson)
+  onRetailerNetworkSummaryLoaded?: (rows: RetailerNetworkSummaryRow[]) => void;
 };
 
 const STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
@@ -135,6 +159,10 @@ function isRegionalOrCorporateHQ(category: string) {
   return (hasHQ && (corp || regional)) || c === "hq";
 }
 
+function isAgronomyCategoryToken(catToken: string) {
+  return s(catToken).toLowerCase().includes("agronomy");
+}
+
 function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>) {
   const retailer = s(p.Retailer);
   const name = s(p.Name);
@@ -162,6 +190,7 @@ export default function CertisMap(props: Props) {
     onSuppliersLoaded,
     onAllStopsLoaded,
     onAddStop,
+    onRetailerNetworkSummaryLoaded,
   } = props;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -177,6 +206,9 @@ export default function CertisMap(props: Props) {
   const lastRouteKeyRef = useRef<string>("");
 
   const resizeObsRef = useRef<ResizeObserver | null>(null);
+
+  // Prevent accidental callback loops / re-emits if parent causes re-render
+  const lastNetworkSummaryKeyRef = useRef<string>("");
 
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
@@ -321,21 +353,7 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            "icon-size": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              3,
-              0.014,
-              5,
-              0.023,
-              7,
-              0.032,
-              9,
-              0.041,
-              12,
-              0.050,
-            ],
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.014, 5, 0.023, 7, 0.032, 9, 0.041, 12, 0.05],
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -407,6 +425,75 @@ export default function CertisMap(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basePath, token]);
 
+  function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
+    const acc: Record<
+      string,
+      {
+        total: number;
+        agronomy: number;
+        states: Set<string>;
+        catCounts: Map<string, number>;
+      }
+    > = {};
+
+    for (const f of retailersData.features ?? []) {
+      const p = f.properties ?? {};
+      const retailer = s(p.Retailer) || "Unknown Retailer";
+      const state = s(p.State);
+
+      const categoryRaw = s(p.Category);
+      const categoryTokens = splitCategories(categoryRaw);
+      const isHQ = isRegionalOrCorporateHQ(categoryRaw);
+
+      if (!acc[retailer]) {
+        acc[retailer] = {
+          total: 0,
+          agronomy: 0,
+          states: new Set<string>(),
+          catCounts: new Map<string, number>(),
+        };
+      }
+
+      acc[retailer].total += 1;
+      if (state) acc[retailer].states.add(state);
+
+      // Category breakdown: count each token (if multi-category)
+      if (categoryTokens.length) {
+        for (const tok of categoryTokens) {
+          const k = tok || "Uncategorized";
+          acc[retailer].catCounts.set(k, (acc[retailer].catCounts.get(k) || 0) + 1);
+        }
+      } else {
+        acc[retailer].catCounts.set("Uncategorized", (acc[retailer].catCounts.get("Uncategorized") || 0) + 1);
+      }
+
+      // Agronomy locations: feature-level flag if ANY category token indicates agronomy, excluding HQ
+      if (!isHQ && categoryTokens.some((tok) => isAgronomyCategoryToken(tok))) {
+        acc[retailer].agronomy += 1;
+      } else if (!isHQ && !categoryTokens.length && isAgronomyCategoryToken(categoryRaw)) {
+        // ultra-defensive fallback (rare)
+        acc[retailer].agronomy += 1;
+      }
+    }
+
+    const rows: RetailerNetworkSummaryRow[] = Object.entries(acc).map(([retailer, v]) => {
+      const categoryCounts: CategoryCount[] = Array.from(v.catCounts.entries())
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
+
+      return {
+        retailer,
+        totalLocations: v.total,
+        agronomyLocations: v.agronomy,
+        states: Array.from(v.states).sort(),
+        categoryCounts,
+      };
+    });
+
+    rows.sort((a, b) => b.totalLocations - a.totalLocations || a.retailer.localeCompare(b.retailer));
+    return rows;
+  }
+
   async function loadData() {
     const map = mapRef.current;
     if (!map) return;
@@ -434,6 +521,25 @@ export default function CertisMap(props: Props) {
 
     (map.getSource(SRC_RETAILERS) as mapboxgl.GeoJSONSource).setData(retailersData as any);
     (map.getSource(SRC_KINGPINS) as mapboxgl.GeoJSONSource).setData(offsetKingpins as any);
+
+    // ✅ Build + emit retailer network summary (ALL locations)
+    if (onRetailerNetworkSummaryLoaded) {
+      const rows = buildRetailerNetworkSummary(retailersData);
+
+      // Guard re-emit loops: only emit if data materially changes
+      const key = rows
+        .slice(0, 200) // safety cap
+        .map((r) => `${r.retailer}|${r.totalLocations}|${r.agronomyLocations}|${r.states.join("/")}`)
+        .join(";");
+      if (key !== lastNetworkSummaryKeyRef.current) {
+        lastNetworkSummaryKeyRef.current = key;
+        try {
+          onRetailerNetworkSummaryLoaded(rows);
+        } catch (e) {
+          console.warn("[CertisMap] onRetailerNetworkSummaryLoaded failed:", e);
+        }
+      }
+    }
 
     const allStops: Stop[] = [];
 
@@ -500,8 +606,12 @@ export default function CertisMap(props: Props) {
     onAllStopsLoaded(allStops);
 
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-    onRetailersLoaded(uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean)));
-    onCategoriesLoaded(uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category))));
+    onRetailersLoaded(
+      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
+    );
+    onCategoriesLoaded(
+      uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category)))
+    );
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
 
@@ -697,9 +807,7 @@ export default function CertisMap(props: Props) {
       id: makeId(kind, coords, p),
       kind,
       label:
-        kind === "hq"
-          ? `${retailer || "Regional HQ"} — Regional HQ`
-          : `${retailer || "Retailer"} — ${name || "Site"}`,
+        kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`,
       retailer,
       name,
       address,
@@ -720,7 +828,11 @@ export default function CertisMap(props: Props) {
         <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#facc15;">${header}</div>
         ${name ? `<div style="font-style:italic;margin-bottom:4px;">${name}</div>` : ""}
         <div style="margin-bottom:4px;">${address}<br/>${city}, ${state} ${zip}</div>
-        ${category ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${category}</div>` : ""}
+        ${
+          category
+            ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${category}</div>`
+            : ""
+        }
         <div style="margin-bottom:8px;"><span style="font-weight:700;color:#facc15;">Suppliers:</span> ${suppliers}</div>
         <button id="${addBtnId}" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
           ➕ Add to Trip
@@ -733,7 +845,6 @@ export default function CertisMap(props: Props) {
     setTimeout(() => {
       const btn = document.getElementById(addBtnId);
       if (btn) (btn as HTMLButtonElement).onclick = () => onAddStop(stop);
-      // If popup was closed quickly, guard no-op
       try {
         popup.getElement();
       } catch {}
@@ -777,7 +888,6 @@ export default function CertisMap(props: Props) {
       const suppliers = s(p.Suppliers) || "Not listed";
 
       const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
-      const contactTitle = s(p.ContactTitle || p.Title || p["Contact Title"]);
       const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
       const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
       const email = s(p.Email) || "TBD";
@@ -850,7 +960,6 @@ export default function CertisMap(props: Props) {
           <div style="margin-bottom:4px;">${st.address || ""}<br/>${st.city || ""}, ${st.state || ""} ${st.zip || ""}</div>
           ${cat}
 
-          <!-- ✅ One-line Suppliers + matching label color -->
           <div style="margin-bottom:8px;"><span style="font-weight:700;color:#facc15;">Suppliers:</span> ${sup}</div>
 
           ${whoLine}
