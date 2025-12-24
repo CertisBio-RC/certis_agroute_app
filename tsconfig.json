@@ -29,10 +29,16 @@
     "baseline",
     ".next",
     "out",
+
     "backups",
     "BACKUPS",
     "backups/**",
-    "BACKUPS/**"
+    "BACKUPS/**",
+
+    "_BACKUPS",
+    "_BACKUPS/**",
+
+    "app/_archive",
+    "app/_archive/**"
   ]
 }
-
