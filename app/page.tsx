@@ -495,43 +495,33 @@ export default function Page() {
 
   // ============================================================
   // ✅ VISUAL SYSTEM
-  //   Focus: LEFT PANEL ONLY
-  //   Theme is controlled by CSS variables so we can tune quickly.
   // ============================================================
-
   const appBg =
     "bg-[#050914] " +
     "bg-[radial-gradient(1200px_720px_at_10%_0%,rgba(37,99,235,0.12),transparent_60%)," +
     "radial-gradient(900px_600px_at_88%_18%,rgba(14,165,233,0.10),transparent_60%)," +
     "radial-gradient(900px_600px_at_40%_120%,rgba(34,197,94,0.05),transparent_60%)]";
 
-  // Map container stays neutral dark-glass
   const mapPanelClass =
     "rounded-2xl border border-slate-200/15 ring-1 ring-white/10 bg-slate-950/20 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
 
-  // --- Sidebar theme variables (BLUE GLASS baseline, not nuclear) ---
   const sidebarVars = useMemo(() => {
-    // Dial these to taste (this is the “premium blue glass” baseline)
     return {
-      // outer panel
       ["--sb-top" as any]: "rgba(10, 32, 84, 0.72)",
       ["--sb-bot" as any]: "rgba(5, 10, 24, 0.72)",
-      ["--sb-border" as any]: "rgba(165, 243, 252, 0.22)", // cyan-200/22
-      ["--sb-ring" as any]: "rgba(56, 189, 248, 0.18)", // sky-400/18
+      ["--sb-border" as any]: "rgba(165, 243, 252, 0.22)",
+      ["--sb-ring" as any]: "rgba(56, 189, 248, 0.18)",
 
-      // section shell
       ["--sec-top" as any]: "rgba(18, 66, 170, 0.22)",
       ["--sec-bot" as any]: "rgba(4, 10, 24, 0.20)",
       ["--sec-border" as any]: "rgba(165, 243, 252, 0.18)",
       ["--sec-ring" as any]: "rgba(59, 130, 246, 0.12)",
 
-      // inner tiles
-      ["--tile-top" as any]: "rgba(59, 130, 246, 0.14)", // blue-500/14
+      ["--tile-top" as any]: "rgba(59, 130, 246, 0.14)",
       ["--tile-bot" as any]: "rgba(8, 20, 45, 0.12)",
       ["--tile-border" as any]: "rgba(165, 243, 252, 0.16)",
-      ["--tile-ring" as any]: "rgba(147, 197, 253, 0.10)", // blue-300/10
+      ["--tile-ring" as any]: "rgba(147, 197, 253, 0.10)",
 
-      // list bg
       ["--list-top" as any]: "rgba(10, 30, 80, 0.16)",
       ["--list-bot" as any]: "rgba(6, 12, 28, 0.14)",
     };
@@ -566,7 +556,7 @@ export default function Page() {
 
   const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-300";
   const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-300";
-  const tanSubTextClass = "text-xs text-[#d7c3a1]"; // tan subtitles
+  const tanSubTextClass = "text-xs text-[#d7c3a1]";
   const subTextClass = "text-xs text-white/75";
 
   const clearBtnClass =
@@ -583,7 +573,6 @@ export default function Page() {
     "text-xs px-3 py-1.5 rounded-xl border border-cyan-200/20 bg-[#061126]/45 " +
     "hover:bg-white/10 hover:border-cyan-200/40";
 
-  // SVG caret so it never “disappears”
   const Caret = ({ up }: { up: boolean }) => (
     <svg
       width="14"
@@ -682,29 +671,34 @@ export default function Page() {
                 <SectionHeader title="Home ZIP" k={sectionKey("Home ZIP")} />
                 {!collapsed[sectionKey("Home ZIP")] && (
                   <div className="space-y-2 mt-3">
-                    <div className="flex gap-2">
-                      <input
-                        value={homeZip}
-                        onChange={(e) => setHomeZip(e.target.value)}
-                        placeholder="e.g., 50010"
-                        className={smallInputClass}
-                      />
-                      <button
-                        onClick={setHomeFromZip}
-                        className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#fde047] text-black hover:bg-[#fde047]/90 disabled:opacity-60"
-                        disabled={!homeZip.trim() || !token}
-                        title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
-                      >
-                        Set
-                      </button>
-                      <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
-                        Clear
-                      </button>
+                    {/* ✅ Key fix: put Home ZIP controls on the SAME “inner tile” surface as other cards */}
+                    <div className={innerTileClass}>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            value={homeZip}
+                            onChange={(e) => setHomeZip(e.target.value)}
+                            placeholder="e.g., 50010"
+                            className={smallInputClass}
+                          />
+                          <button
+                            onClick={setHomeFromZip}
+                            className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#fde047] text-black hover:bg-[#fde047]/90 disabled:opacity-60"
+                            disabled={!homeZip.trim() || !token}
+                            title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
+                          >
+                            Set
+                          </button>
+                          <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
+                            Clear
+                          </button>
+                        </div>
+
+                        {homeStatus && <div className="text-xs text-yellow-300 font-semibold">{homeStatus}</div>}
+
+                        <div className={tanSubTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
+                      </div>
                     </div>
-
-                    {homeStatus && <div className="text-xs text-yellow-300 font-semibold">{homeStatus}</div>}
-
-                    <div className={tanSubTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
                   </div>
                 )}
               </div>
