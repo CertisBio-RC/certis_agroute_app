@@ -20,29 +20,14 @@ body {
 }
 
 /* ====================================================================== */
-/* THEME TOKENS */
+/* BASE THEME */
+/*   IMPORTANT:
+ *   The sidebar "blue glass" styling is controlled in app/page.tsx.
+ *   globals.css should NOT add yellow/olive gradients to the sidebar.
+ */
 /* ====================================================================== */
 
 :root {
-  /* Brand / highlight */
-  --accent-yellow: #facc15;
-
-  /* ✅ Sidebar backdrop (lighter than before) */
-  --sidebar-bg: rgba(255, 255, 255, 0.06);
-  --sidebar-bg-2: rgba(255, 255, 255, 0.035);
-
-  /* ✅ Tile styling — LIGHTER + POPPIER */
-  --tile-bg: rgba(255, 255, 255, 0.10);
-  --tile-bg-hover: rgba(255, 255, 255, 0.14);
-
-  /* ✅ Borders stronger + thicker */
-  --tile-border: rgba(250, 204, 21, 0.34);
-  --tile-border-strong: rgba(250, 204, 21, 0.52);
-
-  --tile-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
-  --tile-shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.44);
-
-  /* Body text */
   --text-main: #eaeef6;
 }
 
@@ -68,34 +53,16 @@ body {
   min-height: 0;
   overflow: hidden;
 
-  /* ✅ fixed clamp (desktop) */
+  /* desktop clamp */
   flex: 0 0 420px;
   width: 420px;
   max-width: 420px;
 
-  /* ✅ Lighter sidebar backdrop (removes “flat black” look) */
-  background:
-    radial-gradient(900px 600px at 30% 0%, rgba(250, 204, 21, 0.14), rgba(0, 0, 0, 0) 55%),
-    linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg-2) 100%);
-  backdrop-filter: blur(10px);
+  /* CRITICAL: do not tint sidebar here (page.tsx owns sidebar colors) */
+  background: transparent;
 }
 
-/* Protect logo from shrinking */
-.logo {
-  flex-shrink: 0;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.logo img {
-  max-width: 100%;
-  height: auto;
-  object-fit: contain;
-}
-
-/* Internal scroll for tile list */
+/* Internal scroll for sidebar content */
 .sidebar > .overflow-y-auto {
   flex: 1;
   min-height: 0;
@@ -109,14 +76,13 @@ body {
   display: flex;
   flex-direction: column;
 
-  /* ✅ flexible remainder in flex row */
   flex: 1 1 auto;
   min-width: 0;
   position: relative;
   overflow: hidden;
 }
 
-/* ensure Mapbox canvas is eligible to receive pointer events */
+/* ensure Mapbox canvas can receive pointer events */
 .map-container canvas,
 .map-container .mapboxgl-canvas,
 .map-container .mapboxgl-canvas-container,
@@ -130,53 +96,6 @@ body {
   @apply text-sm flex justify-between items-center px-4 py-2;
   background: rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(6px);
-}
-
-/* ====================================================================== */
-/* ✅ SIDEBAR TILE "POP" + HEADING COLOR */
-/* ====================================================================== */
-
-/* Headings in the sidebar should be yellow */
-.sidebar h1,
-.sidebar h2,
-.sidebar h3,
-.sidebar .tile-title,
-.sidebar .section-title,
-.sidebar .panel-title {
-  color: var(--accent-yellow);
-}
-
-/* Style semantic tile wrappers only */
-.sidebar .tile,
-.sidebar .panel,
-.sidebar .card,
-.sidebar .tile-card,
-.sidebar .filter-tile,
-.sidebar .trip-tile {
-  background: var(--tile-bg);
-  border: 2px solid var(--tile-border); /* ✅ thicker */
-  box-shadow: var(--tile-shadow);
-  backdrop-filter: blur(8px);
-  border-radius: 14px;
-}
-
-/* Hover/active pop */
-.sidebar .tile:hover,
-.sidebar .panel:hover,
-.sidebar .card:hover,
-.sidebar .tile-card:hover,
-.sidebar .filter-tile:hover,
-.sidebar .trip-tile:hover {
-  background: var(--tile-bg-hover);
-  border-color: var(--tile-border-strong);
-  box-shadow: var(--tile-shadow-hover);
-}
-
-/* Make "Clear" / small side actions readable but not competing with headings */
-.sidebar .clear,
-.sidebar button.clear,
-.sidebar .muted {
-  color: rgba(234, 238, 246, 0.8);
 }
 
 /* ====================================================================== */
@@ -212,7 +131,7 @@ body {
   line-height: 1.4;
 }
 
-/* ✅ Bigger close X */
+/* Bigger close X */
 .mapboxgl-popup-close-button {
   font-size: 22px;
   line-height: 22px;
@@ -245,11 +164,10 @@ body {
     max-width: none;
   }
 
-  /* ✅ Force the map to be visible on mobile (real height, not “auto”) */
   .map-container {
     width: 100%;
-    height: 56vh;
-    min-height: 56vh;
+    height: auto;
+    min-height: 56vh; /* map must be visible on mobile */
   }
 
   .mapboxgl-popup-content {
