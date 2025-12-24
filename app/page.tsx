@@ -495,71 +495,93 @@ export default function Page() {
 
   // ============================================================
   // ✅ VISUAL SYSTEM
-  //   Goal: PROVE CONTROL by making sidebar unmistakably BLUE.
-  //   Sidebar-only: NO rgba black bases, NO blur, NO subtle tints.
+  //   Focus: LEFT PANEL ONLY
+  //   Theme is controlled by CSS variables so we can tune quickly.
   // ============================================================
 
-  // Global app background (keep quiet / neutral)
   const appBg =
     "bg-[#050914] " +
-    "bg-[radial-gradient(1100px_700px_at_12%_0%,rgba(56,189,248,0.10),transparent_60%)," +
-    "radial-gradient(900px_620px_at_92%_18%,rgba(99,102,241,0.08),transparent_60%)," +
-    "radial-gradient(900px_650px_at_40%_120%,rgba(34,197,94,0.04),transparent_60%)]";
+    "bg-[radial-gradient(1200px_720px_at_10%_0%,rgba(37,99,235,0.12),transparent_60%)," +
+    "radial-gradient(900px_600px_at_88%_18%,rgba(14,165,233,0.10),transparent_60%)," +
+    "radial-gradient(900px_600px_at_40%_120%,rgba(34,197,94,0.05),transparent_60%)]";
 
-  // Map container stays neutral dark-glass (leave alone)
+  // Map container stays neutral dark-glass
   const mapPanelClass =
     "rounded-2xl border border-slate-200/15 ring-1 ring-white/10 bg-slate-950/20 backdrop-blur-md shadow-[0_22px_50px_rgba(0,0,0,0.55)]";
 
-  // ✅ NUCLEAR: Sidebar container is solid deep-blue gradient (no opacity)
+  // --- Sidebar theme variables (BLUE GLASS baseline, not nuclear) ---
+  const sidebarVars = useMemo(() => {
+    // Dial these to taste (this is the “premium blue glass” baseline)
+    return {
+      // outer panel
+      ["--sb-top" as any]: "rgba(10, 32, 84, 0.72)",
+      ["--sb-bot" as any]: "rgba(5, 10, 24, 0.72)",
+      ["--sb-border" as any]: "rgba(165, 243, 252, 0.22)", // cyan-200/22
+      ["--sb-ring" as any]: "rgba(56, 189, 248, 0.18)", // sky-400/18
+
+      // section shell
+      ["--sec-top" as any]: "rgba(18, 66, 170, 0.22)",
+      ["--sec-bot" as any]: "rgba(4, 10, 24, 0.20)",
+      ["--sec-border" as any]: "rgba(165, 243, 252, 0.18)",
+      ["--sec-ring" as any]: "rgba(59, 130, 246, 0.12)",
+
+      // inner tiles
+      ["--tile-top" as any]: "rgba(59, 130, 246, 0.14)", // blue-500/14
+      ["--tile-bot" as any]: "rgba(8, 20, 45, 0.12)",
+      ["--tile-border" as any]: "rgba(165, 243, 252, 0.16)",
+      ["--tile-ring" as any]: "rgba(147, 197, 253, 0.10)", // blue-300/10
+
+      // list bg
+      ["--list-top" as any]: "rgba(10, 30, 80, 0.16)",
+      ["--list-bot" as any]: "rgba(6, 12, 28, 0.14)",
+    };
+  }, []);
+
   const sidebarPanelClass =
-    "rounded-2xl border border-[#ffd84d]/30 ring-1 ring-[#ffd84d]/15 " +
-    "bg-[linear-gradient(180deg,#0a3d91_0%,#062a66_55%,#041c45_100%)] " +
+    "rounded-2xl border ring-1 backdrop-blur-md " +
+    "bg-[linear-gradient(180deg,var(--sb-top),var(--sb-bot))] " +
+    "border-[color:var(--sb-border)] ring-[color:var(--sb-ring)] " +
     "shadow-[0_26px_60px_rgba(0,0,0,0.65)]";
 
-  // ✅ Section shells: slightly lighter blue slab (still no opacity)
   const sectionShellClass =
-    "rounded-2xl border border-[#ffd84d]/22 ring-1 ring-white/10 " +
-    "bg-[linear-gradient(180deg,#0f4fb2_0%,#0a357f_55%,#062456_100%)] " +
-    "px-3 py-3";
+    "rounded-2xl border ring-1 backdrop-blur-sm px-3 py-3 " +
+    "bg-[linear-gradient(180deg,var(--sec-top),var(--sec-bot))] " +
+    "border-[color:var(--sec-border)] ring-[color:var(--sec-ring)]";
 
-  // ✅ Inner tiles: brighter “card” blue with crisp border
   const innerTileClass =
-    "rounded-xl border border-[#ffd84d]/28 ring-1 ring-white/10 " +
-    "bg-[linear-gradient(180deg,#1b66d4_0%,#0e3e91_60%,#092d6a_100%)] " +
-    "p-3 shadow-[0_14px_30px_rgba(0,0,0,0.35)]";
+    "rounded-xl border ring-1 backdrop-blur-sm p-3 " +
+    "bg-[linear-gradient(180deg,var(--tile-top),var(--tile-bot))] " +
+    "border-[color:var(--tile-border)] ring-[color:var(--tile-ring)] " +
+    "shadow-[0_14px_30px_rgba(0,0,0,0.45)]";
 
-  // ✅ Lists: medium blue container
   const listClass =
-    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border border-[#ffd84d]/22 ring-1 ring-white/10 " +
-    "bg-[linear-gradient(180deg,#0e4aa8_0%,#0a357f_65%,#062456_100%)] " +
-    "p-2";
+    "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border ring-1 backdrop-blur-sm p-2 " +
+    "bg-[linear-gradient(180deg,var(--list-top),var(--list-bot))] " +
+    "border-[color:var(--tile-border)] ring-[color:var(--tile-ring)]";
 
   const stopListClass =
-    "max-h-64 overflow-y-auto space-y-2 rounded-xl border border-[#ffd84d]/22 ring-1 ring-white/10 " +
-    "bg-[linear-gradient(180deg,#0e4aa8_0%,#0a357f_65%,#062456_100%)] " +
-    "p-2";
+    "max-h-64 overflow-y-auto space-y-2 rounded-xl border ring-1 backdrop-blur-sm p-2 " +
+    "bg-[linear-gradient(180deg,var(--list-top),var(--list-bot))] " +
+    "border-[color:var(--tile-border)] ring-[color:var(--tile-ring)]";
 
-  // Typography targets
-  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-[#ffd84d]";
-  const tileTitleClass = "text-sm font-extrabold leading-tight text-[#ffd84d]";
-  const tanSubTextClass = "text-xs text-[#d6c49a]";
-  const subTextClass = "text-xs text-white/85";
+  const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-300";
+  const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-300";
+  const tanSubTextClass = "text-xs text-[#d7c3a1]"; // tan subtitles
+  const subTextClass = "text-xs text-white/75";
 
-  // Buttons / inputs: remove dark translucency; use solid-ish blues
   const clearBtnClass =
-    "text-xs px-2 py-1 rounded-lg border border-[#ffd84d]/28 " +
-    "bg-[#08306d] hover:bg-[#0a3d91] hover:border-[#ffd84d]/45 disabled:opacity-40 disabled:cursor-not-allowed";
+    "text-xs px-2 py-1 rounded-lg border border-cyan-200/20 " +
+    "hover:border-cyan-200/40 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed";
 
   const smallInputClass =
-    "w-full rounded-xl bg-[#062456] border border-[#ffd84d]/22 ring-1 ring-white/10 " +
-    "px-3 py-2 text-sm text-white placeholder:text-white/70 outline-none " +
-    "focus:border-[#ffd84d]/45 focus:ring-[#ffd84d]/20";
+    "w-full rounded-xl bg-[#061126]/55 border border-cyan-200/20 ring-1 ring-blue-200/10 " +
+    "px-3 py-2 text-sm outline-none focus:border-cyan-200/45 focus:ring-cyan-200/20";
 
   const sectionHeaderRowClass = "flex items-center justify-between gap-2";
 
   const collapseBtnClass =
-    "text-xs px-3 py-1.5 rounded-xl border border-[#ffd84d]/24 bg-[#08306d] " +
-    "hover:bg-[#0a3d91] hover:border-[#ffd84d]/45";
+    "text-xs px-3 py-1.5 rounded-xl border border-cyan-200/20 bg-[#061126]/45 " +
+    "hover:bg-white/10 hover:border-cyan-200/40";
 
   // SVG caret so it never “disappears”
   const Caret = ({ up }: { up: boolean }) => (
@@ -574,8 +596,8 @@ export default function Page() {
       <path
         d="M6 9l6 6 6-6"
         fill="none"
-        stroke="rgba(255,216,77,0.98)"
-        strokeWidth="2.6"
+        stroke="rgba(253,224,71,0.95)"
+        strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -601,7 +623,7 @@ export default function Page() {
           title={isCollapsed ? "Expand" : "Collapse"}
         >
           <span className={sectionTitleClass}>{title}</span>
-          <span className="opacity-95">{isCollapsed ? <Caret up={false} /> : <Caret up={true} />}</span>
+          <span className="opacity-90">{isCollapsed ? <Caret up={false} /> : <Caret up={true} />}</span>
         </button>
         <div className="flex items-center gap-2">
           {right}
@@ -620,7 +642,7 @@ export default function Page() {
 
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
-      {/* HEADER (leave neutral) */}
+      {/* HEADER */}
       <header className="w-full border-b border-slate-200/15 bg-slate-950/30 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -637,7 +659,7 @@ export default function Page() {
               CERTIS AgRoute Database
             </div>
             <div className="text-xs text-white/60 whitespace-nowrap">
-              THEME: <span className="text-white/70">SIDEBAR NUCLEAR BLUE TEST</span>
+              THEME: <span className="text-white/70">SIDEBAR BLUE GLASS</span>
             </div>
             <div className="text-xs text-white/60 whitespace-nowrap">
               Token:{" "}
@@ -653,7 +675,7 @@ export default function Page() {
       <div className="flex-1 min-h-0 p-3">
         <div className="h-full min-h-0 flex flex-col md:grid md:grid-cols-[380px_1fr] gap-3">
           {/* SIDEBAR */}
-          <aside className={`${sidebarPanelClass} sidebar min-h-0 md:h-full`}>
+          <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 md:h-full`}>
             <div className="overflow-y-auto px-4 py-3 space-y-4">
               {/* HOME ZIP */}
               <div className={sectionShellClass}>
@@ -669,7 +691,7 @@ export default function Page() {
                       />
                       <button
                         onClick={setHomeFromZip}
-                        className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#ffd84d] text-black hover:bg-[#ffd84d]/90 disabled:opacity-60"
+                        className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#fde047] text-black hover:bg-[#fde047]/90 disabled:opacity-60"
                         disabled={!homeZip.trim() || !token}
                         title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
                       >
@@ -680,7 +702,7 @@ export default function Page() {
                       </button>
                     </div>
 
-                    {homeStatus && <div className="text-xs text-[#ffd84d] font-semibold">{homeStatus}</div>}
+                    {homeStatus && <div className="text-xs text-yellow-300 font-semibold">{homeStatus}</div>}
 
                     <div className={tanSubTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
                   </div>
@@ -692,7 +714,7 @@ export default function Page() {
                 <SectionHeader
                   title="Find a Stop"
                   k={sectionKey("Find a Stop")}
-                  right={<div className="text-[11px] text-white/80 whitespace-nowrap">Loaded: {allStops.length}</div>}
+                  right={<div className="text-[11px] text-white/65 whitespace-nowrap">Loaded: {allStops.length}</div>}
                 />
                 {!collapsed[sectionKey("Find a Stop")] && (
                   <div className="space-y-2 mt-3">
@@ -725,7 +747,7 @@ export default function Page() {
                                 </button>
                                 <button
                                   onClick={() => addStopToTrip(st)}
-                                  className="text-xs px-2 py-1 rounded-lg bg-[#ffd84d] text-black font-extrabold hover:bg-[#ffd84d]/90 disabled:opacity-50"
+                                  className="text-xs px-2 py-1 rounded-lg bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90 disabled:opacity-50"
                                   disabled={inTrip}
                                 >
                                   {inTrip ? "Added" : "Add"}
@@ -774,7 +796,7 @@ export default function Page() {
                       />
                       <div className={listClass}>
                         {visibleStates.map((st) => (
-                          <label key={st} className="flex items-center gap-2 text-sm text-white">
+                          <label key={st} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={selectedStates.includes(st)}
@@ -807,7 +829,7 @@ export default function Page() {
                       />
                       <div className={listClass}>
                         {visibleRetailers.map((r) => (
-                          <label key={r} className="flex items-center gap-2 text-sm text-white">
+                          <label key={r} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={selectedRetailers.includes(r)}
@@ -840,7 +862,7 @@ export default function Page() {
                       />
                       <div className={listClass}>
                         {visibleCategories.map((c) => (
-                          <label key={c} className="flex items-center gap-2 text-sm text-white">
+                          <label key={c} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={selectedCategories.includes(c)}
@@ -873,7 +895,7 @@ export default function Page() {
                       />
                       <div className={listClass}>
                         {visibleSuppliers.map((sp) => (
-                          <label key={sp} className="flex items-center gap-2 text-sm text-white">
+                          <label key={sp} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={selectedSuppliers.includes(sp)}
@@ -966,24 +988,26 @@ export default function Page() {
                       <div key={row.retailer} className={innerTileClass}>
                         <div className="flex items-center justify-between gap-2">
                           <div className={tileTitleClass}>{row.retailer}</div>
-                          <div className="text-xs text-white/90 whitespace-nowrap">
+                          <div className="text-xs text-white/75 whitespace-nowrap">
                             Trip: {row.tripStops} • Total: {row.totalLocations}
                           </div>
                         </div>
 
-                        <div className="text-xs text-white/95 mt-2 space-y-1">
+                        <div className="text-xs text-white/80 mt-2 space-y-1">
                           <div>
-                            <span className="font-extrabold text-white">Agronomy locations:</span> {row.agronomyLocations}
+                            <span className="font-extrabold text-white/90">Agronomy locations:</span>{" "}
+                            {row.agronomyLocations}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white">States:</span> {row.states.join(", ") || "—"}
+                            <span className="font-extrabold text-white/90">States:</span> {row.states.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white">Category breakdown:</span>{" "}
+                            <span className="font-extrabold text-white/90">Category breakdown:</span>{" "}
                             {row.categoryBreakdown.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white">Suppliers:</span> {row.suppliers.join(", ") || "—"}
+                            <span className="font-extrabold text-white/90">Suppliers:</span>{" "}
+                            {row.suppliers.join(", ") || "—"}
                           </div>
                         </div>
                       </div>
@@ -999,7 +1023,9 @@ export default function Page() {
                   title="Retailer Network Summary (All Locations)"
                   k={sectionKey("Retailer Network Summary (All Locations)")}
                   right={
-                    <div className="text-[11px] text-white/85 whitespace-nowrap">Rows: {retailerNetworkSummary.length}</div>
+                    <div className="text-[11px] text-white/65 whitespace-nowrap">
+                      Rows: {retailerNetworkSummary.length}
+                    </div>
                   }
                 />
                 {!collapsed[sectionKey("Retailer Network Summary (All Locations)")] && (
@@ -1012,8 +1038,8 @@ export default function Page() {
                     />
 
                     <div className={tanSubTextClass}>
-                      Computed from <span className="text-white font-semibold">retailers.geojson</span> (true location
-                      footprint).
+                      Computed from <span className="text-white/90 font-semibold">retailers.geojson</span> (true
+                      location footprint).
                     </div>
 
                     <div className="space-y-2">
@@ -1021,17 +1047,17 @@ export default function Page() {
                         <div key={r.retailer} className={innerTileClass}>
                           <div className="flex items-center justify-between gap-2">
                             <div className={tileTitleClass}>{r.retailer}</div>
-                            <div className="text-xs text-white/90 whitespace-nowrap">
+                            <div className="text-xs text-white/75 whitespace-nowrap">
                               Total: {r.totalLocations} • Agronomy: {r.agronomyLocations}
                             </div>
                           </div>
 
-                          <div className="text-xs text-white/95 mt-2 space-y-1">
+                          <div className="text-xs text-white/80 mt-2 space-y-1">
                             <div>
-                              <span className="font-extrabold text-white">States:</span> {r.states.join(", ") || "—"}
+                              <span className="font-extrabold text-white/90">States:</span> {r.states.join(", ") || "—"}
                             </div>
                             <div>
-                              <span className="font-extrabold text-white">Category breakdown:</span>{" "}
+                              <span className="font-extrabold text-white/90">Category breakdown:</span>{" "}
                               {r.categoryCounts?.length
                                 ? r.categoryCounts.map((c) => `${c.category} (${c.count})`).join(", ")
                                 : "—"}
@@ -1052,7 +1078,7 @@ export default function Page() {
               </div>
 
               {/* Diagnostics */}
-              <div className="text-[11px] text-white/85">
+              <div className="text-[11px] text-white/65">
                 Loaded: {allStops.length} stops • Trip: {tripStops.length}
               </div>
             </div>
