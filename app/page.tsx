@@ -163,7 +163,8 @@ export default function Page() {
     [sectionKey("Supplier")]: true,
     [sectionKey("Trip Builder")]: true,
     [sectionKey("Retail Summary - Trip Stops")]: true,
-    [sectionKey("Retail Summary - Whole Network")]: true,
+    // ✅ renamed from "Whole Network" to "Network" to avoid awkward wrapping on mobile
+    [sectionKey("Retail Summary - Network")]: true,
   });
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
@@ -692,7 +693,10 @@ export default function Page() {
           </main>
 
           {/* SIDEBAR SECOND ON MOBILE */}
-          <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}>
+          <aside
+            style={sidebarVars}
+            className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}
+          >
             <div className="overflow-y-auto px-4 py-3 space-y-4">
               {/* HOME ZIP */}
               <div className={sectionShellClass}>
@@ -1034,18 +1038,18 @@ export default function Page() {
                 )}
               </div>
 
-              {/* ✅ RETAIL SUMMARY - WHOLE NETWORK */}
+              {/* ✅ RETAIL SUMMARY - NETWORK */}
               <div className={sectionShellClass}>
                 <SectionHeader
-                  title="Retail Summary - Whole Network"
-                  k={sectionKey("Retail Summary - Whole Network")}
+                  title="Retail Summary - Network"
+                  k={sectionKey("Retail Summary - Network")}
                   right={
                     <div className="text-[11px] text-white/65 whitespace-nowrap">
                       Rows: {retailerNetworkSummary.length}
                     </div>
                   }
                 />
-                {!collapsed[sectionKey("Retail Summary - Whole Network")] && (
+                {!collapsed[sectionKey("Retail Summary - Network")] && (
                   <div className="space-y-2 mt-3">
                     <input
                       value={networkRetailerSearch}
