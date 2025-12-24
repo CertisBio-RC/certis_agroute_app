@@ -245,10 +245,11 @@ body {
     max-width: none;
   }
 
+  /* ✅ Force the map to be visible on mobile (real height, not “auto”) */
   .map-container {
     width: 100%;
-    height: auto;
-    min-height: 50vh;
+    height: 56vh;
+    min-height: 56vh;
   }
 
   .mapboxgl-popup-content {

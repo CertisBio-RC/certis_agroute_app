@@ -73,9 +73,9 @@ type RetailerTotals = {
 };
 
 function normalizeCategoryLabel(raw: string) {
-  const s = String(raw || "").trim();
-  if (!s) return "";
-  return s;
+  const s0 = String(raw || "").trim();
+  if (!s0) return "";
+  return s0;
 }
 
 function isAgronomyCategory(cat: string) {
@@ -162,8 +162,8 @@ export default function Page() {
     [sectionKey("Category")]: true,
     [sectionKey("Supplier")]: true,
     [sectionKey("Trip Builder")]: true,
-    [sectionKey("Retailer Summary (Trip Stops)")]: true,
-    [sectionKey("Retailer Network Summary (All Locations)")]: true,
+    [sectionKey("Retail Summary - Trip Stops")]: true,
+    [sectionKey("Retail Summary - Whole Network")]: true,
   });
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
@@ -496,6 +496,7 @@ export default function Page() {
   // ============================================================
   // ✅ VISUAL SYSTEM
   // ============================================================
+
   const appBg =
     "bg-[#050914] " +
     "bg-[radial-gradient(1200px_720px_at_10%_0%,rgba(37,99,235,0.12),transparent_60%)," +
@@ -629,6 +630,10 @@ export default function Page() {
       ? `Strict person search: multi-word queries must match name/email (e.g., "James Klein").`
       : `Search tip: multi-word queries act like a strict name search (e.g., "James Klein").`;
 
+  // ✅ MOBILE: Map comes first so it’s always visible
+  const mapFirstMobileClass = "order-1 lg:order-2";
+  const sidebarSecondMobileClass = "order-2 lg:order-1";
+
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
       {/* HEADER */}
@@ -662,43 +667,61 @@ export default function Page() {
 
       {/* BODY */}
       <div className="flex-1 min-h-0 p-3">
-        <div className="h-full min-h-0 flex flex-col md:grid md:grid-cols-[380px_1fr] gap-3">
-          {/* SIDEBAR */}
-          <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 md:h-full`}>
+        {/* ✅ Breakpoint changed: lg grid (desktop), stacked (mobile/tablet) */}
+        <div className="h-full min-h-0 flex flex-col lg:grid lg:grid-cols-[380px_1fr] gap-3">
+          {/* MAP FIRST ON MOBILE */}
+          <main
+            className={`${mapPanelClass} overflow-hidden map-container min-h-[56vh] lg:min-h-0 lg:h-full ${mapFirstMobileClass}`}
+          >
+            <CertisMap
+              selectedStates={selectedStates.map(normUpper)}
+              selectedRetailers={selectedRetailers}
+              selectedCategories={selectedCategories}
+              selectedSuppliers={selectedSuppliers}
+              homeCoords={homeCoords}
+              tripStops={tripStops}
+              zoomToStop={zoomToStop}
+              onStatesLoaded={(s0) => setStates(uniqSorted(s0.map(normUpper)))}
+              onRetailersLoaded={(r0) => setRetailers(uniqSorted(r0))}
+              onCategoriesLoaded={(c0) => setCategories(uniqSorted(c0))}
+              onSuppliersLoaded={(s0) => setSuppliers(uniqSorted(s0))}
+              onAllStopsLoaded={(stops) => setAllStops(stops)}
+              onAddStop={addStopToTrip}
+              onRetailerNetworkSummaryLoaded={(rows) => setRetailerNetworkSummary(rows)}
+            />
+          </main>
+
+          {/* SIDEBAR SECOND ON MOBILE */}
+          <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}>
             <div className="overflow-y-auto px-4 py-3 space-y-4">
               {/* HOME ZIP */}
               <div className={sectionShellClass}>
                 <SectionHeader title="Home ZIP" k={sectionKey("Home ZIP")} />
                 {!collapsed[sectionKey("Home ZIP")] && (
                   <div className="space-y-2 mt-3">
-                    {/* ✅ Key fix: put Home ZIP controls on the SAME “inner tile” surface as other cards */}
-                    <div className={innerTileClass}>
-                      <div className="space-y-2">
-                        <div className="flex gap-2">
-                          <input
-                            value={homeZip}
-                            onChange={(e) => setHomeZip(e.target.value)}
-                            placeholder="e.g., 50010"
-                            className={smallInputClass}
-                          />
-                          <button
-                            onClick={setHomeFromZip}
-                            className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#fde047] text-black hover:bg-[#fde047]/90 disabled:opacity-60"
-                            disabled={!homeZip.trim() || !token}
-                            title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
-                          >
-                            Set
-                          </button>
-                          <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
-                            Clear
-                          </button>
-                        </div>
-
-                        {homeStatus && <div className="text-xs text-yellow-300 font-semibold">{homeStatus}</div>}
-
-                        <div className={tanSubTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
-                      </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={homeZip}
+                        onChange={(e) => setHomeZip(e.target.value)}
+                        placeholder="e.g., 50010"
+                        className={smallInputClass}
+                      />
+                      <button
+                        onClick={setHomeFromZip}
+                        className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#fde047] text-black hover:bg-[#fde047]/90 disabled:opacity-60"
+                        disabled={!homeZip.trim() || !token}
+                        title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
+                      >
+                        Set
+                      </button>
+                      <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
+                        Clear
+                      </button>
                     </div>
+
+                    {homeStatus && <div className="text-xs text-yellow-300 font-semibold">{homeStatus}</div>}
+
+                    <div className={tanSubTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
                   </div>
                 )}
               </div>
@@ -973,10 +996,10 @@ export default function Page() {
                 )}
               </div>
 
-              {/* SUMMARY */}
+              {/* ✅ RETAIL SUMMARY - TRIP STOPS */}
               <div className={sectionShellClass}>
-                <SectionHeader title="Retailer Summary (Trip Stops)" k={sectionKey("Retailer Summary (Trip Stops)")} />
-                {!collapsed[sectionKey("Retailer Summary (Trip Stops)")] && (
+                <SectionHeader title="Retail Summary - Trip Stops" k={sectionKey("Retail Summary - Trip Stops")} />
+                {!collapsed[sectionKey("Retail Summary - Trip Stops")] && (
                   <div className="space-y-2 mt-3">
                     {tripRetailerSummary.slice(0, 80).map((row) => (
                       <div key={row.retailer} className={innerTileClass}>
@@ -1011,18 +1034,18 @@ export default function Page() {
                 )}
               </div>
 
-              {/* NETWORK SUMMARY */}
+              {/* ✅ RETAIL SUMMARY - WHOLE NETWORK */}
               <div className={sectionShellClass}>
                 <SectionHeader
-                  title="Retailer Network Summary (All Locations)"
-                  k={sectionKey("Retailer Network Summary (All Locations)")}
+                  title="Retail Summary - Whole Network"
+                  k={sectionKey("Retail Summary - Whole Network")}
                   right={
                     <div className="text-[11px] text-white/65 whitespace-nowrap">
                       Rows: {retailerNetworkSummary.length}
                     </div>
                   }
                 />
-                {!collapsed[sectionKey("Retailer Network Summary (All Locations)")] && (
+                {!collapsed[sectionKey("Retail Summary - Whole Network")] && (
                   <div className="space-y-2 mt-3">
                     <input
                       value={networkRetailerSearch}
@@ -1077,26 +1100,6 @@ export default function Page() {
               </div>
             </div>
           </aside>
-
-          {/* MAP */}
-          <main className={`${mapPanelClass} overflow-hidden map-container min-h-[50vh] md:min-h-0 md:h-full`}>
-            <CertisMap
-              selectedStates={selectedStates.map(normUpper)}
-              selectedRetailers={selectedRetailers}
-              selectedCategories={selectedCategories}
-              selectedSuppliers={selectedSuppliers}
-              homeCoords={homeCoords}
-              tripStops={tripStops}
-              zoomToStop={zoomToStop}
-              onStatesLoaded={(s0) => setStates(uniqSorted(s0.map(normUpper)))}
-              onRetailersLoaded={(r0) => setRetailers(uniqSorted(r0))}
-              onCategoriesLoaded={(c0) => setCategories(uniqSorted(c0))}
-              onSuppliersLoaded={(s0) => setSuppliers(uniqSorted(s0))}
-              onAllStopsLoaded={(stops) => setAllStops(stops)}
-              onAddStop={addStopToTrip}
-              onRetailerNetworkSummaryLoaded={(rows) => setRetailerNetworkSummary(rows)}
-            />
-          </main>
         </div>
       </div>
     </div>
