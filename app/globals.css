@@ -15,14 +15,11 @@ body {
 
 body {
   margin: 0;
-  /* IMPORTANT: do NOT set an app-wide gradient background here.
-     The UI theme is defined in page.tsx (appBg). */
   background: transparent;
 }
 
 /* ==========================================================================
    LAYOUT SAFETY
-   - These help prevent "0-height children" issues in flex/grid stacks.
    ========================================================================== */
 
 #_next {
@@ -31,20 +28,15 @@ body {
 
 /* ==========================================================================
    MAP CONTAINER + MAPBOX CANVAS SAFETY
-   Goal: prevent the "blank map on mobile" problem caused by 0-height canvases.
    ========================================================================== */
 
-/* The map panel in page.tsx uses the 'map-container' class on the <main> wrapper */
 .map-container {
   width: 100%;
   height: 100%;
-  /* On mobile/tablet, we explicitly guarantee vertical space for the map panel.
-     (Your JSX also has a min-height, this reinforces it at the CSS layer.) */
   min-height: 56vh;
   overflow: hidden;
 }
 
-/* Once we hit desktop grid, the panel is full-height of its grid cell */
 @media (min-width: 1024px) {
   .map-container {
     min-height: 0;
@@ -52,7 +44,6 @@ body {
   }
 }
 
-/* Force Mapbox internals to fill the container */
 .map-container canvas,
 .map-container .mapboxgl-canvas,
 .map-container .mapboxgl-canvas-container,
@@ -61,7 +52,6 @@ body {
   height: 100% !important;
 }
 
-/* Ensure the canvas can receive pointer events */
 .map-container canvas {
   display: block;
   pointer-events: auto;
@@ -69,22 +59,19 @@ body {
 }
 
 /* ==========================================================================
-   MAPBOX POPUP — POPUP THEME + WIDTH SAFETY
-   Fixes:
-   - Popup content width behaving oddly across screen sizes
-   - Add-to-Trip button should be full width
-   - Close "X" MUST stay top-right and remain bold/thick (not stretched)
+   MAPBOX POPUP — POPUP THEME (LOCKED / HARDENED)
+   - Prevents "X drifting" / thin X / mid-header X
+   - Prevents popup width weirdness
    ========================================================================== */
 
-/* Cap popup size to a reasonable max, but allow it to shrink on small screens */
 .mapboxgl-popup {
-  max-width: min(420px, 92vw);
+  /* Mapbox uses max-width on the wrapper; keep it reasonable but not restrictive */
+  max-width: 420px !important;
 }
 
-/* Popup content container */
+/* Popup content sizing */
 .mapboxgl-popup-content {
-  position: relative;
-
+  position: relative; /* REQUIRED so the close button can anchor top-right */
   background: #1e1e1e;
   color: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -93,28 +80,12 @@ body {
 
   padding: 12px 12px 10px 12px;
 
-  /* Width behavior */
-  width: auto;
-  max-width: 100%;
-  box-sizing: border-box;
+  /* width safety */
+  min-width: 260px;
+  max-width: 420px;
 }
 
-/* Keep inner elements from overflowing the popup */
-.mapboxgl-popup-content * {
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* Full-width ONLY for real content controls — NOT the Mapbox close button */
-.mapboxgl-popup-content button:not(.mapboxgl-popup-close-button),
-.mapboxgl-popup-content a,
-.mapboxgl-popup-content select,
-.mapboxgl-popup-content input {
-  width: 100%;
-  max-width: 100%;
-}
-
-/* Headings / body text */
+/* Titles & text */
 .mapboxgl-popup-content h3 {
   margin: 0 0 6px 0;
   font-size: 14px;
@@ -130,29 +101,47 @@ body {
   color: rgba(255, 255, 255, 0.86);
 }
 
-/* Strong close button (top-right, bold, no stretching) */
+/* ✅ HARD RESET the close button so it never inherits app button styling */
 .mapboxgl-popup-close-button {
-  position: absolute;
-  top: 8px;
-  right: 10px;
+  all: unset; /* this is the key "never drift again" move */
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  z-index: 2 !important;
 
-  width: auto !important;
-  height: auto !important;
+  width: 30px !important;
+  height: 30px !important;
 
-  padding: 4px 8px;
-  line-height: 1;
-  font-size: 22px;
-  font-weight: 900;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 
-  background: transparent;
-  border: 0;
-  color: rgba(255, 255, 255, 0.85);
-  border-radius: 10px;
+  cursor: pointer !important;
+  user-select: none !important;
+
+  /* Make the X thick and readable */
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  color: rgba(255, 255, 255, 0.85) !important;
+  border-radius: 10px !important;
 }
 
 .mapboxgl-popup-close-button:hover {
-  background: rgba(250, 204, 21, 0.18);
-  color: rgba(255, 255, 255, 0.95);
+  background: rgba(250, 204, 21, 0.18) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Small screens: keep popup from overflowing too hard */
+@media (max-width: 480px) {
+  .mapboxgl-popup {
+    max-width: calc(100vw - 28px) !important;
+  }
+  .mapboxgl-popup-content {
+    max-width: calc(100vw - 28px) !important;
+    min-width: 0;
+  }
 }
 
 /* ==========================================================================
