@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE DATABASE — GOLD (K11-safe + Midwest-view + Popup polish)
+// 💠 CERTIS AGROUTE DATABASE — GOLD (K12 — Canonical Categories + Floating Legend)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Regional HQ filtered ONLY by State (Bailey HQ rule)
@@ -11,12 +11,22 @@
 //   • Trip route: Mapbox Directions (driving) + straight-line fallback
 //   • ✅ Loop guards: map init once, sources/layers added once, route abort/debounce
 //   • ✅ UI polish: one-line Suppliers + Category/Suppliers label color match
-//   • ✅ Regression fix: Multi-Kingpin dropdown when overlaps occur
+//   • ✅ Multi-Kingpin dropdown when overlaps occur
 //
-//   ✅ NEW (Retailer Network Summary):
-//     - Computes totals from ALL retailer features (retailers.geojson)
-//     - Emits via onRetailerNetworkSummaryLoaded (optional)
-//     - Includes total locations + agronomy locations + category breakdown counts
+//   ✅ NEW (Canonical Categories):
+//     - Enforces EXACTLY 5 categories:
+//         Agronomy | Grain/Feed | C-Store/Service/Energy | Distribution | Regional HQ
+//     - Rules:
+//         • If ANY token includes "HQ" (regional/corporate/hq) => Regional HQ
+//         • Else if ANY token includes "Agronomy" => Agronomy wins (hybrids default to Agronomy)
+//         • Else if ANY token includes Grain OR Feed => Grain/Feed
+//         • Else if token includes C-Store or Service or Energy => C-Store/Service/Energy
+//         • Else if token includes Distribution => Distribution
+//         • Else => Grain/Feed (safe default to avoid new/garbage categories)
+//
+//   ✅ NEW (Legend):
+//     - Floating legend overlay on the map (bottom-left)
+//     - Explains the 5 categories + HQ + Kingpin overlay
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -35,7 +45,7 @@ export type Stop = {
   city?: string;
   state?: string;
   zip?: string;
-  category?: string;
+  category?: string; // canonical category for retailers/HQ; "Kingpin" for kingpins
   suppliers?: string;
 
   email?: string;
@@ -61,11 +71,10 @@ export type CategoryCount = {
 export type RetailerNetworkSummaryRow = {
   retailer: string;
   totalLocations: number; // ALL retailer features (including non-agronomy, excluding kingpins)
-  agronomyLocations: number; // retailer features whose category includes "agronomy" (excluding HQ)
+  agronomyLocations: number; // retailer features whose canonical category is "Agronomy" (excluding HQ)
   states: string[];
 
-  // Category breakdown from retailer features.
-  // Note: if a feature has multiple categories (comma-separated), each category is counted.
+  // Canonical category breakdown from retailer features.
   categoryCounts: CategoryCount[];
 };
 
@@ -83,7 +92,7 @@ type FeatureCollection = {
 type Props = {
   selectedStates: string[];
   selectedRetailers: string[];
-  selectedCategories: string[];
+  selectedCategories: string[]; // should now only be the 5 canonical categories
   selectedSuppliers: string[];
   homeCoords: [number, number] | null;
 
@@ -98,7 +107,6 @@ type Props = {
   onAllStopsLoaded: (stops: Stop[]) => void;
   onAddStop: (stop: Stop) => void;
 
-  // ✅ Optional: true retailer network summary (ALL locations in retailers.geojson)
   onRetailerNetworkSummaryLoaded?: (rows: RetailerNetworkSummaryRow[]) => void;
 };
 
@@ -117,6 +125,19 @@ const LYR_ROUTE = "trip-route";
 
 const KINGPIN_ICON_ID = "kingpin-icon";
 const KINGPIN_OFFSET_LNG = 0.0013;
+
+// Canonical category field we inject into retailers.geojson features in-memory
+const CANON_CAT_FIELD = "CanonCategory";
+
+const CANON_CATEGORIES = [
+  "Agronomy",
+  "Grain/Feed",
+  "C-Store/Service/Energy",
+  "Distribution",
+  "Regional HQ",
+] as const;
+
+type CanonCategory = (typeof CANON_CATEGORIES)[number];
 
 function s(v: any) {
   return String(v ?? "").trim();
@@ -145,22 +166,53 @@ function splitCategories(raw: any) {
 }
 
 /**
- * HQ detection supports:
- * - "Corporate HQ" (legacy)
- * - "Regional HQ" (current)
- * - "HQ" (if ever used)
+ * Canonical Category Normalization (Bailey Rule)
+ * - We never allow "Feed/Grain" and "Grain/Feed" to exist as different categories.
+ * - Agronomy wins any hybrid (unless it's clearly an HQ record).
  */
-function isRegionalOrCorporateHQ(category: string) {
-  const c = category.toLowerCase();
-  if (!c) return false;
-  const hasHQ = c.includes("hq");
-  const corp = c.includes("corporate");
-  const regional = c.includes("regional");
-  return (hasHQ && (corp || regional)) || c === "hq";
+function normalizeCategory(raw: any): CanonCategory {
+  const rawStr = s(raw);
+  const tokens = splitCategories(rawStr);
+  const hay = (tokens.length ? tokens.join(" | ") : rawStr).toLowerCase();
+
+  // 1) HQ detection => Regional HQ
+  // Supports: "Corporate HQ", "Regional HQ", "HQ"
+  if (hay.includes("hq")) {
+    // If anyone ever had "HQ" without qualifiers, we still treat it as the HQ bucket.
+    return "Regional HQ";
+  }
+
+  // 2) Agronomy wins hybrids
+  if (hay.includes("agronomy")) {
+    return "Agronomy";
+  }
+
+  // 3) Grain/Feed bucket (grain OR feed anywhere)
+  if (hay.includes("grain") || hay.includes("feed")) {
+    return "Grain/Feed";
+  }
+
+  // 4) C-Store/Service/Energy
+  // (we allow variations like cstore, c-store, service, energy)
+  if (hay.includes("c-store") || hay.includes("cstore") || hay.includes("service") || hay.includes("energy")) {
+    return "C-Store/Service/Energy";
+  }
+
+  // 5) Distribution
+  if (hay.includes("distribution")) {
+    return "Distribution";
+  }
+
+  // Safe default: keep it in the main non-agronomy bucket
+  return "Grain/Feed";
 }
 
-function isAgronomyCategoryToken(catToken: string) {
-  return s(catToken).toLowerCase().includes("agronomy");
+/**
+ * HQ detection should now be based on canonical category.
+ * (We still support legacy raw strings via normalizeCategory.)
+ */
+function isRegionalHQ(rawCategory: any) {
+  return normalizeCategory(rawCategory) === "Regional HQ";
 }
 
 function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>) {
@@ -265,63 +317,44 @@ export default function CertisMap(props: Props) {
         map.addSource(SRC_ROUTE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
 
-      // Retailers layer
+      // Retailers layer (NON-HQ only) — color by CANONICAL category
       if (!map.getLayer(LYR_RETAILERS)) {
         map.addLayer({
           id: LYR_RETAILERS,
           type: "circle",
           source: SRC_RETAILERS,
+          filter: ["!=", ["get", CANON_CAT_FIELD], "Regional HQ"],
           paint: {
             "circle-radius": 4,
             "circle-stroke-width": 1,
             "circle-stroke-color": "#111827",
             "circle-color": [
-              "case",
-              [
-                "all",
-                ["==", ["index-of", "hq", ["downcase", ["get", "Category"]]], -1],
-                [">=", ["index-of", "agronomy", ["downcase", ["get", "Category"]]], 0],
-              ],
+              "match",
+              ["get", CANON_CAT_FIELD],
+              "Agronomy",
               "#22c55e",
-              [">=", ["index-of", "grain", ["downcase", ["get", "Category"]]], 0],
+              "Grain/Feed",
               "#f97316",
-              [
-                "any",
-                [">=", ["index-of", "c-store", ["downcase", ["get", "Category"]]], 0],
-                [">=", ["index-of", "service", ["downcase", ["get", "Category"]]], 0],
-                [">=", ["index-of", "energy", ["downcase", ["get", "Category"]]], 0],
-              ],
+              "C-Store/Service/Energy",
               "#0ea5e9",
-              [">=", ["index-of", "distribution", ["downcase", ["get", "Category"]]], 0],
+              "Distribution",
               "#a855f7",
+              // default
               "#f9fafb",
             ],
           },
         });
       }
 
-      // HQ layer (supports Corporate HQ / Regional HQ / HQ) + slightly smaller
+      // HQ layer — show ONLY canonical HQ bucket
       if (!map.getLayer(LYR_HQ)) {
         map.addLayer({
           id: LYR_HQ,
           type: "circle",
           source: SRC_RETAILERS,
-          filter: [
-            "any",
-            [
-              "all",
-              [">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0],
-              [">=", ["index-of", "regional", ["downcase", ["get", "Category"]]], 0],
-            ],
-            [
-              "all",
-              [">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0],
-              [">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0],
-            ],
-            ["==", ["downcase", ["get", "Category"]], "hq"],
-          ],
+          filter: ["==", ["get", CANON_CAT_FIELD], "Regional HQ"],
           paint: {
-            "circle-radius": 6, // Problem B: down from 7
+            "circle-radius": 6,
             "circle-color": "#ff0000",
             "circle-stroke-color": "#facc15",
             "circle-stroke-width": 2,
@@ -441,9 +474,8 @@ export default function CertisMap(props: Props) {
       const retailer = s(p.Retailer) || "Unknown Retailer";
       const state = s(p.State);
 
-      const categoryRaw = s(p.Category);
-      const categoryTokens = splitCategories(categoryRaw);
-      const isHQ = isRegionalOrCorporateHQ(categoryRaw);
+      const canon = (s(p[CANON_CAT_FIELD]) as CanonCategory) || normalizeCategory(p.Category);
+      const isHQ = canon === "Regional HQ";
 
       if (!acc[retailer]) {
         acc[retailer] = {
@@ -457,21 +489,11 @@ export default function CertisMap(props: Props) {
       acc[retailer].total += 1;
       if (state) acc[retailer].states.add(state);
 
-      // Category breakdown: count each token (if multi-category)
-      if (categoryTokens.length) {
-        for (const tok of categoryTokens) {
-          const k = tok || "Uncategorized";
-          acc[retailer].catCounts.set(k, (acc[retailer].catCounts.get(k) || 0) + 1);
-        }
-      } else {
-        acc[retailer].catCounts.set("Uncategorized", (acc[retailer].catCounts.get("Uncategorized") || 0) + 1);
-      }
+      // Canonical breakdown
+      acc[retailer].catCounts.set(canon, (acc[retailer].catCounts.get(canon) || 0) + 1);
 
-      // Agronomy locations: feature-level flag if ANY category token indicates agronomy, excluding HQ
-      if (!isHQ && categoryTokens.some((tok) => isAgronomyCategoryToken(tok))) {
-        acc[retailer].agronomy += 1;
-      } else if (!isHQ && !categoryTokens.length && isAgronomyCategoryToken(categoryRaw)) {
-        // ultra-defensive fallback (rare)
+      // Agronomy locations: canonical category is Agronomy, excluding HQ
+      if (!isHQ && canon === "Agronomy") {
         acc[retailer].agronomy += 1;
       }
     }
@@ -494,6 +516,23 @@ export default function CertisMap(props: Props) {
     return rows;
   }
 
+  function withCanonicalCategories(retailersData: FeatureCollection): FeatureCollection {
+    return {
+      ...retailersData,
+      features: (retailersData.features ?? []).map((f) => {
+        const p = f.properties ?? {};
+        const canon = normalizeCategory(p.Category);
+        return {
+          ...f,
+          properties: {
+            ...p,
+            [CANON_CAT_FIELD]: canon,
+          },
+        };
+      }),
+    };
+  }
+
   async function loadData() {
     const map = mapRef.current;
     if (!map) return;
@@ -502,8 +541,11 @@ export default function CertisMap(props: Props) {
     const kingpinsUrl = `${basePath}/data/kingpin.geojson`;
 
     const [r1, r2] = await Promise.all([fetch(retailersUrl), fetch(kingpinsUrl)]);
-    const retailersData = (await r1.json()) as FeatureCollection;
+    const retailersDataRaw = (await r1.json()) as FeatureCollection;
     const kingpinData = (await r2.json()) as FeatureCollection;
+
+    // ✅ Canonicalize categories in-memory (source of truth for UI + filtering)
+    const retailersData = withCanonicalCategories(retailersDataRaw);
 
     const offsetKingpins: FeatureCollection = {
       ...kingpinData,
@@ -528,9 +570,10 @@ export default function CertisMap(props: Props) {
 
       // Guard re-emit loops: only emit if data materially changes
       const key = rows
-        .slice(0, 200) // safety cap
+        .slice(0, 250)
         .map((r) => `${r.retailer}|${r.totalLocations}|${r.agronomyLocations}|${r.states.join("/")}`)
         .join(";");
+
       if (key !== lastNetworkSummaryKeyRef.current) {
         lastNetworkSummaryKeyRef.current = key;
         try {
@@ -548,8 +591,8 @@ export default function CertisMap(props: Props) {
       const coords = f.geometry?.coordinates;
       if (!coords) continue;
 
-      const category = s(p.Category);
-      const kind: StopKind = isRegionalOrCorporateHQ(category) ? "hq" : "retailer";
+      const canon = (s(p[CANON_CAT_FIELD]) as CanonCategory) || normalizeCategory(p.Category);
+      const kind: StopKind = canon === "Regional HQ" ? "hq" : "retailer";
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
@@ -569,7 +612,7 @@ export default function CertisMap(props: Props) {
         city: s(p.City),
         state: s(p.State),
         zip: s(p.Zip),
-        category,
+        category: canon,
         suppliers: s(p.Suppliers),
         coords,
       });
@@ -605,13 +648,17 @@ export default function CertisMap(props: Props) {
 
     onAllStopsLoaded(allStops);
 
+    // States + Retailers from retailersData (plus kingpins for state list)
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
+
     onRetailersLoaded(
       uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
     );
-    onCategoriesLoaded(
-      uniqSorted((retailersData.features ?? []).flatMap((f: any) => splitCategories(f.properties?.Category)))
-    );
+
+    // ✅ Categories: ALWAYS the canonical 5 in stable order
+    onCategoriesLoaded([...CANON_CATEGORIES]);
+
+    // Suppliers unchanged
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
 
@@ -620,17 +667,16 @@ export default function CertisMap(props: Props) {
     const retailersData = retailersRef.current;
     if (!map || !retailersData) return;
 
+    // Retailers layer is already filtered to non-HQ, but we keep filter logic clean.
     const retailerFilter: any[] = ["all"];
-    retailerFilter.push(["==", ["index-of", "hq", ["downcase", ["get", "Category"]]], -1]);
+    retailerFilter.push(["!=", ["get", CANON_CAT_FIELD], "Regional HQ"]);
 
     if (selectedStates.length) retailerFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
     if (selectedRetailers.length) retailerFilter.push(["in", ["get", "Retailer"], ["literal", selectedRetailers]]);
 
+    // ✅ Canonical category filtering = exact match
     if (selectedCategories.length) {
-      retailerFilter.push([
-        "any",
-        ...selectedCategories.map((c) => [">=", ["index-of", c.toLowerCase(), ["downcase", ["get", "Category"]]], 0]),
-      ]);
+      retailerFilter.push(["in", ["get", CANON_CAT_FIELD], ["literal", selectedCategories]]);
     }
 
     if (selectedSuppliers.length) {
@@ -640,23 +686,9 @@ export default function CertisMap(props: Props) {
       ]);
     }
 
+    // HQ filter: Bailey HQ rule (HQ filtered only by State)
     const hqFilter: any[] = ["all"];
-    hqFilter.push([
-      "any",
-      [
-        "all",
-        [">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0],
-        [">=", ["index-of", "regional", ["downcase", ["get", "Category"]]], 0],
-      ],
-      [
-        "all",
-        [">=", ["index-of", "hq", ["downcase", ["get", "Category"]]], 0],
-        [">=", ["index-of", "corporate", ["downcase", ["get", "Category"]]], 0],
-      ],
-      ["==", ["downcase", ["get", "Category"]], "hq"],
-    ]);
-
-    // Bailey HQ rule: HQ filtered only by State
+    hqFilter.push(["==", ["get", CANON_CAT_FIELD], "Regional HQ"]);
     if (selectedStates.length) hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
 
     map.setFilter(LYR_RETAILERS, retailerFilter as any);
@@ -798,10 +830,11 @@ export default function CertisMap(props: Props) {
     const city = s(p.City);
     const state = s(p.State);
     const zip = s(p.Zip);
-    const category = s(p.Category);
+
+    const canon = (s(p[CANON_CAT_FIELD]) as CanonCategory) || normalizeCategory(p.Category);
     const suppliers = s(p.Suppliers) || "Not listed";
 
-    const kind: StopKind = isRegionalOrCorporateHQ(category) ? "hq" : "retailer";
+    const kind: StopKind = canon === "Regional HQ" ? "hq" : "retailer";
 
     const stop: Stop = {
       id: makeId(kind, coords, p),
@@ -814,7 +847,7 @@ export default function CertisMap(props: Props) {
       city,
       state,
       zip,
-      category,
+      category: canon,
       suppliers,
       coords,
     };
@@ -828,11 +861,7 @@ export default function CertisMap(props: Props) {
         <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#facc15;">${header}</div>
         ${name ? `<div style="font-style:italic;margin-bottom:4px;">${name}</div>` : ""}
         <div style="margin-bottom:4px;">${address}<br/>${city}, ${state} ${zip}</div>
-        ${
-          category
-            ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${category}</div>`
-            : ""
-        }
+        <div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${canon}</div>
         <div style="margin-bottom:8px;"><span style="font-weight:700;color:#facc15;">Suppliers:</span> ${suppliers}</div>
         <button id="${addBtnId}" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
           ➕ Add to Trip
@@ -840,6 +869,7 @@ export default function CertisMap(props: Props) {
       </div>
     `;
 
+    // NOTE: close button styling stays in globals.css (.mapboxgl-popup-close-button)
     const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
 
     setTimeout(() => {
@@ -918,9 +948,6 @@ export default function CertisMap(props: Props) {
 
     const renderDetailsHtml = (st: Stop) => {
       const header = st.retailer || "Unknown Retailer";
-      const cat = st.category
-        ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${st.category}</div>`
-        : "";
 
       const sup = st.suppliers && st.suppliers.trim() ? st.suppliers : "Not listed";
 
@@ -957,8 +984,13 @@ export default function CertisMap(props: Props) {
               : ""
           }
 
-          <div style="margin-bottom:4px;">${st.address || ""}<br/>${st.city || ""}, ${st.state || ""} ${st.zip || ""}</div>
-          ${cat}
+          <div style="margin-bottom:4px;">${st.address || ""}<br/>${st.city || ""}, ${st.state || ""} ${
+        st.zip || ""
+      }</div>
+
+          <div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${
+            st.category || "Kingpin"
+          }</div>
 
           <div style="margin-bottom:8px;"><span style="font-weight:700;color:#facc15;">Suppliers:</span> ${sup}</div>
 
@@ -1008,5 +1040,96 @@ export default function CertisMap(props: Props) {
     setTimeout(() => wirePopup(), 0);
   }
 
-  return <div ref={containerRef} className="w-full h-full min-h-0" />;
+  // Floating legend (minimal, high-contrast, pointer-safe)
+  const legend = (
+    <div
+      className="absolute bottom-3 left-3 z-20 pointer-events-auto"
+      style={{
+        maxWidth: 240,
+        background: "rgba(17,24,39,0.88)", // slate-900-ish
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 12,
+        boxShadow: "0 16px 45px rgba(0,0,0,0.55)",
+        padding: 10,
+        backdropFilter: "blur(6px)",
+      }}
+    >
+      <div style={{ fontWeight: 800, fontSize: 12, color: "rgba(253,224,71,0.95)", marginBottom: 8 }}>
+        Legend
+      </div>
+
+      <div style={{ display: "grid", gap: 6, fontSize: 12, color: "rgba(255,255,255,0.9)" }}>
+        <LegendRow dotColor="#22c55e" label="Agronomy" />
+        <LegendRow dotColor="#f97316" label="Grain/Feed" />
+        <LegendRow dotColor="#0ea5e9" label="C-Store/Service/Energy" />
+        <LegendRow dotColor="#a855f7" label="Distribution" />
+        <LegendHQRow label="Regional HQ" />
+        <LegendIconRow iconUrl={`${basePath}/icons/kingpin.png`} label="Kingpin (always visible)" />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="relative w-full h-full min-h-0">
+      <div ref={containerRef} className="w-full h-full min-h-0" />
+      {legend}
+    </div>
+  );
+}
+
+function LegendRow(props: { dotColor: string; label: string }) {
+  const { dotColor, label } = props;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          background: dotColor,
+          border: "1px solid rgba(17,24,39,0.9)",
+          display: "inline-block",
+        }}
+      />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function LegendHQRow(props: { label: string }) {
+  const { label } = props;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          background: "#ff0000",
+          border: "2px solid #facc15",
+          display: "inline-block",
+        }}
+      />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function LegendIconRow(props: { iconUrl: string; label: string }) {
+  const { iconUrl, label } = props;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <img
+        src={iconUrl}
+        alt="Kingpin"
+        style={{
+          width: 14,
+          height: 14,
+          objectFit: "contain",
+          transform: "translateY(1px)",
+        }}
+      />
+      <span>{label}</span>
+    </div>
+  );
 }
