@@ -2,244 +2,118 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ====================================================================== */
-/* GLOBAL LAYOUT */
-/* ====================================================================== */
+/* ==========================================================================
+   GLOBALS
+   - Keep global styling minimal.
+   - Page-level theme (blue glass gradients) is controlled in app/page.tsx.
+   ========================================================================== */
 
 html,
 body {
   height: 100%;
-  margin: 0;
-  padding: 0;
 }
 
-/* App Router doesn't use #__next, but harmless */
-#__next,
-.app-container {
-  height: 100%;
-}
-
-/* ====================================================================== */
-/* BASE THEME */
-/*   IMPORTANT:
- *   The sidebar "blue glass" styling is controlled in app/page.tsx.
- *   globals.css should NOT add yellow/olive gradients to the sidebar.
- */
-/* ====================================================================== */
-
-:root {
-  --text-main: #eaeef6;
-}
-
-/* Keep the midnight-blue body gradient backdrop */
 body {
-  color: var(--text-main);
-  background:
-    radial-gradient(1200px 700px at 12% 0%, rgba(12, 46, 94, 0.62), rgba(0, 0, 0, 0) 62%),
-    radial-gradient(900px 650px at 88% 8%, rgba(250, 204, 21, 0.18), rgba(0, 0, 0, 0) 58%),
-    radial-gradient(1000px 800px at 60% 110%, rgba(22, 78, 150, 0.26), rgba(0, 0, 0, 0) 55%),
-    linear-gradient(180deg, #081e36 0%, #061222 45%, #050b12 100%);
-}
-
-/* ====================================================================== */
-/* LAYOUT HELPERS */
-/* ====================================================================== */
-
-/* Sidebar internal scroll without affecting map height */
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-
-  /* desktop clamp */
-  flex: 0 0 420px;
-  width: 420px;
-  max-width: 420px;
-
-  /* CRITICAL: do not tint sidebar here (page.tsx owns sidebar colors) */
+  margin: 0;
+  /* IMPORTANT: do NOT set an app-wide gradient background here.
+     The UI theme is defined in page.tsx (appBg). */
   background: transparent;
 }
 
-/* Internal scroll for sidebar content */
-.sidebar > .overflow-y-auto {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+/* ==========================================================================
+   LAYOUT SAFETY
+   - These help prevent "0-height children" issues in flex/grid stacks.
+   ========================================================================== */
+
+#_next {
+  min-height: 100%;
 }
 
-/* Map panel always full height */
-.map-container {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+/* ==========================================================================
+   MAP CONTAINER + MAPBOX CANVAS SAFETY
+   Goal: prevent the "blank map on mobile" problem caused by 0-height canvases.
+   ========================================================================== */
 
-  flex: 1 1 auto;
-  min-width: 0;
-  position: relative;
+/* The map panel in page.tsx uses the 'map-container' class on the <main> wrapper */
+.map-container {
+  width: 100%;
+  height: 100%;
+  /* On mobile/tablet, we explicitly guarantee vertical space for the map panel.
+     (Your JSX also has min-h-[56vh], this reinforces it at the CSS layer.) */
+  min-height: 56vh;
   overflow: hidden;
 }
 
-/* ensure Mapbox canvas can receive pointer events */
+/* Once we hit desktop grid, the panel is full-height of its grid cell */
+@media (min-width: 1024px) {
+  .map-container {
+    min-height: 0;
+    height: 100%;
+  }
+}
+
+/* Force Mapbox internals to fill the container */
 .map-container canvas,
 .map-container .mapboxgl-canvas,
 .map-container .mapboxgl-canvas-container,
 .map-container .mapboxgl-map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Ensure the canvas can receive pointer events */
+.map-container canvas {
+  display: block;
   pointer-events: auto;
+  touch-action: pan-x pan-y;
 }
 
-/* Footer fixed cleanly */
-.footer {
-  flex-shrink: 0;
-  @apply text-sm flex justify-between items-center px-4 py-2;
-  background: rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(6px);
-}
-
-/* ====================================================================== */
-/* MAPBOX POPUP — POPUP THEME */
-/* ====================================================================== */
+/* ==========================================================================
+   MAPBOX POPUP — POPUP THEME
+   ========================================================================== */
 
 .mapboxgl-popup {
-  z-index: 10;
+  max-width: 320px;
 }
 
 .mapboxgl-popup-content {
-  min-width: 380px;
-  max-width: 420px;
-
   background: #1e1e1e;
-  color: #fff;
-  font-size: 14px;
-  border-radius: 10px;
-  padding: 12px 14px;
-  line-height: 1.5;
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  padding: 12px 12px 10px 12px;
 }
 
 .mapboxgl-popup-content h3 {
-  margin: 0 0 6px;
+  margin: 0 0 6px 0;
+  font-size: 14px;
   font-weight: 800;
-  font-size: 15px;
-  color: #ffd700;
+  letter-spacing: 0.02em;
+  color: rgba(253, 224, 71, 0.95);
 }
 
 .mapboxgl-popup-content p {
-  margin: 2px 0;
-  line-height: 1.4;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.25rem;
+  color: rgba(255, 255, 255, 0.86);
 }
 
-/* Bigger close X */
 .mapboxgl-popup-close-button {
-  font-size: 22px;
-  line-height: 22px;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  color: #facc15;
-  font-weight: 900;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: 10px;
 }
 
 .mapboxgl-popup-close-button:hover {
   background: rgba(250, 204, 21, 0.18);
-  color: #fde68a;
-  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.92);
 }
 
-/* ====================================================================== */
-/* MOBILE OPTIMIZATION */
-/* ====================================================================== */
-
-@media (max-width: 768px) {
-  .sidebar {
-    display: flex;
-    height: auto;
-    max-height: none;
-    overflow: visible;
-
-    flex: 1 1 auto;
-    width: 100%;
-    max-width: none;
-  }
-
-  .map-container {
-    width: 100%;
-    height: auto;
-    min-height: 56vh; /* map must be visible on mobile */
-  }
-
-  .mapboxgl-popup-content {
-    font-size: 16px;
-    min-width: 85vw;
-    max-width: 90vw;
-  }
-}
-
-/* ====================================================================== */
-/* SIDEBAR CHECKBOX LABELS */
-/* ====================================================================== */
-
-.sidebar input[type="checkbox"] + label {
-  font-size: 1.05rem;
-  line-height: 1.5;
-  margin-top: 4px;
-  margin-bottom: 4px;
-  display: inline-block;
-}
-
-/* ====================================================================== */
-/* LEGEND */
-/* ====================================================================== */
-
-.legend-kingpin {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 6px 0;
-}
-
-.legend-kingpin .color-box {
-  width: 16px;
-  height: 16px;
-  background-color: #e10600;
-  border: 2px solid #ffd60a;
-  border-radius: 3px;
-}
-
-.legend-kingpin span {
-  font-size: 1.05rem;
-  line-height: 1.5;
-}
-
-.legend-kingpin1 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 6px 0;
-}
-
-.legend-kingpin1 .color-box {
-  width: 18px;
-  height: 18px;
-  background-color: #0040ff;
-  border: 2px solid #ffffff;
-  border-radius: 3px;
-}
-
-.legend-kingpin1 span {
-  font-size: 1.05rem;
-  line-height: 1.5;
-}
-
-/* ====================================================================== */
-/* HOME MARKER */
-/* ====================================================================== */
-
-.home-marker {
-  width: 30px;
-  height: 30px;
-  background-size: contain;
-  background-repeat: no-repeat;
-}
+/* ==========================================================================
+   NOTE:
+   If you have custom marker CSS (home/kingpin icons) elsewhere, keep it there.
+   globals.css should not control app-wide color themes.
+   ========================================================================== */
