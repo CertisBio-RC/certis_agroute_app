@@ -69,20 +69,39 @@ body {
 }
 
 /* ==========================================================================
-   MAPBOX POPUP — POPUP THEME
+   MAPBOX POPUP — POPUP THEME + WIDTH SAFETY
    ========================================================================== */
 
 .mapboxgl-popup {
-  max-width: 320px;
+  /* Prevent wide popups on desktop and guarantee it fits on mobile */
+  max-width: min(340px, calc(100vw - 24px));
 }
 
 .mapboxgl-popup-content {
+  /* Match the outer constraint so children can't force expansion */
+  width: 100%;
+  max-width: min(340px, calc(100vw - 24px));
+  box-sizing: border-box;
+
   background: #1e1e1e;
   color: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
   padding: 12px 12px 10px 12px;
+
+  /* Keep long strings from blowing out width */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Keep controls from exceeding popup width (this is usually the real culprit) */
+.mapboxgl-popup-content button,
+.mapboxgl-popup-content a,
+.mapboxgl-popup-content select,
+.mapboxgl-popup-content input {
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .mapboxgl-popup-content h3 {
