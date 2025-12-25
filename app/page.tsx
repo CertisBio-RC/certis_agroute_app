@@ -60,7 +60,7 @@ type RetailerSummaryRow = {
   totalLocations: number;
   agronomyLocations: number;
   suppliers: string[];
-  categoryBreakdown: string[]; // e.g. "Agronomy (42)"
+  categoryBreakdown: string[];
   states: string[];
 };
 
@@ -123,7 +123,7 @@ export default function Page() {
   const [categories, setCategories] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
 
-  // ✅ Network summary from retailers.geojson (computed inside CertisMap)
+  // Network summary from retailers.geojson (computed inside CertisMap)
   const [retailerNetworkSummary, setRetailerNetworkSummary] = useState<RetailerNetworkSummaryRow[]>([]);
   const [networkRetailerSearch, setNetworkRetailerSearch] = useState<string>("");
 
@@ -150,9 +150,7 @@ export default function Page() {
   const [supplierSearch, setSupplierSearch] = useState("");
   const [stopSearch, setStopSearch] = useState("");
 
-  // ============================================================
-  // ✅ DEFAULT COLLAPSE BEHAVIOR
-  // ============================================================
+  // Default collapse behavior
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     [sectionKey("Home ZIP")]: true,
     [sectionKey("Find a Stop")]: true,
@@ -163,7 +161,6 @@ export default function Page() {
     [sectionKey("Supplier")]: true,
     [sectionKey("Trip Builder")]: true,
     [sectionKey("Retail Summary - Trip Stops")]: true,
-    // ✅ renamed from "Whole Network" to "Network" to avoid awkward wrapping on mobile
     [sectionKey("Retail Summary - Network")]: true,
   });
 
@@ -280,9 +277,7 @@ export default function Page() {
     return q ? suppliers.filter((x) => includesLoose(x, q)) : suppliers;
   }, [suppliers, supplierSearch]);
 
-  // ============================================================
-  // ✅ STOP SEARCH
-  // ============================================================
+  // STOP SEARCH
   const stopResults = useMemo(() => {
     const qRaw = stopSearch.trim();
     if (!qRaw) return allStops.slice(0, 30);
@@ -398,9 +393,7 @@ export default function Page() {
     return scored.map((x) => x.st).slice(0, 50);
   }, [allStops, stopSearch, tripStops]);
 
-  // ============================================================
-  // ✅ MASTER RETAILER TOTALS (FULL FOOTPRINT)
-  // ============================================================
+  // MASTER RETAILER TOTALS (FULL FOOTPRINT)
   const retailerTotalsIndex = useMemo(() => {
     const acc: Record<string, RetailerTotals> = {};
 
@@ -442,9 +435,7 @@ export default function Page() {
     return acc;
   }, [allStops]);
 
-  // ============================================================
-  // ✅ RETAILER SUMMARY (TRIP-FOCUSED, BUT USING FULL TOTALS)
-  // ============================================================
+  // RETAILER SUMMARY (TRIP-FOCUSED, BUT USING FULL TOTALS)
   const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
     const tripCounts: Record<string, number> = {};
 
@@ -482,9 +473,7 @@ export default function Page() {
     return rows;
   }, [tripStops, retailerTotalsIndex]);
 
-  // ============================================================
-  // ✅ TRUE RETAILER NETWORK SUMMARY (ALL LOCATIONS)
-  // ============================================================
+  // TRUE RETAILER NETWORK SUMMARY (ALL LOCATIONS)
   const visibleNetworkRows = useMemo(() => {
     const q = networkRetailerSearch.trim().toLowerCase();
     if (!q) return retailerNetworkSummary.slice(0, 120);
@@ -494,10 +483,7 @@ export default function Page() {
       .slice(0, 120);
   }, [retailerNetworkSummary, networkRetailerSearch]);
 
-  // ============================================================
-  // ✅ VISUAL SYSTEM
-  // ============================================================
-
+  // VISUAL SYSTEM
   const appBg =
     "bg-[#050914] " +
     "bg-[radial-gradient(1200px_720px_at_10%_0%,rgba(37,99,235,0.12),transparent_60%)," +
@@ -509,52 +495,52 @@ export default function Page() {
 
   const sidebarVars = useMemo(() => {
     return {
-      ["--sb-top" as any]: "rgba(10, 32, 84, 0.72)",
-      ["--sb-bot" as any]: "rgba(5, 10, 24, 0.72)",
-      ["--sb-border" as any]: "rgba(165, 243, 252, 0.22)",
-      ["--sb-ring" as any]: "rgba(56, 189, 248, 0.18)",
+      ["--cad-sb-top" as any]: "rgba(10, 32, 84, 0.72)",
+      ["--cad-sb-bot" as any]: "rgba(5, 10, 24, 0.72)",
+      ["--cad-sb-border" as any]: "rgba(165, 243, 252, 0.22)",
+      ["--cad-sb-ring" as any]: "rgba(56, 189, 248, 0.18)",
 
-      ["--sec-top" as any]: "rgba(18, 66, 170, 0.22)",
-      ["--sec-bot" as any]: "rgba(4, 10, 24, 0.20)",
-      ["--sec-border" as any]: "rgba(165, 243, 252, 0.18)",
-      ["--sec-ring" as any]: "rgba(59, 130, 246, 0.12)",
+      ["--cad-sec-top" as any]: "rgba(18, 66, 170, 0.22)",
+      ["--cad-sec-bot" as any]: "rgba(4, 10, 24, 0.20)",
+      ["--cad-sec-border" as any]: "rgba(165, 243, 252, 0.18)",
+      ["--cad-sec-ring" as any]: "rgba(59, 130, 246, 0.12)",
 
-      ["--tile-top" as any]: "rgba(59, 130, 246, 0.14)",
-      ["--tile-bot" as any]: "rgba(8, 20, 45, 0.12)",
-      ["--tile-border" as any]: "rgba(165, 243, 252, 0.16)",
-      ["--tile-ring" as any]: "rgba(147, 197, 253, 0.10)",
+      ["--cad-tile-top" as any]: "rgba(59, 130, 246, 0.14)",
+      ["--cad-tile-bot" as any]: "rgba(8, 20, 45, 0.12)",
+      ["--cad-tile-border" as any]: "rgba(165, 243, 252, 0.16)",
+      ["--cad-tile-ring" as any]: "rgba(147, 197, 253, 0.10)",
 
-      ["--list-top" as any]: "rgba(10, 30, 80, 0.16)",
-      ["--list-bot" as any]: "rgba(6, 12, 28, 0.14)",
+      ["--cad-list-top" as any]: "rgba(10, 30, 80, 0.16)",
+      ["--cad-list-bot" as any]: "rgba(6, 12, 28, 0.14)",
     };
   }, []);
 
   const sidebarPanelClass =
     "rounded-2xl border ring-1 backdrop-blur-md " +
-    "bg-[linear-gradient(180deg,var(--sb-top),var(--sb-bot))] " +
-    "border-[color:var(--sb-border)] ring-[color:var(--sb-ring)] " +
+    "bg-[linear-gradient(180deg,var(--cad-sb-top),var(--cad-sb-bot))] " +
+    "border-[color:var(--cad-sb-border)] ring-[color:var(--cad-sb-ring)] " +
     "shadow-[0_26px_60px_rgba(0,0,0,0.65)]";
 
   const sectionShellClass =
     "rounded-2xl border ring-1 backdrop-blur-sm px-3 py-3 " +
-    "bg-[linear-gradient(180deg,var(--sec-top),var(--sec-bot))] " +
-    "border-[color:var(--sec-border)] ring-[color:var(--sec-ring)]";
+    "bg-[linear-gradient(180deg,var(--cad-sec-top),var(--cad-sec-bot))] " +
+    "border-[color:var(--cad-sec-border)] ring-[color:var(--cad-sec-ring)]";
 
   const innerTileClass =
     "rounded-xl border ring-1 backdrop-blur-sm p-3 " +
-    "bg-[linear-gradient(180deg,var(--tile-top),var(--tile-bot))] " +
-    "border-[color:var(--tile-border)] ring-[color:var(--tile-ring)] " +
+    "bg-[linear-gradient(180deg,var(--cad-tile-top),var(--cad-tile-bot))] " +
+    "border-[color:var(--cad-tile-border)] ring-[color:var(--cad-tile-ring)] " +
     "shadow-[0_14px_30px_rgba(0,0,0,0.45)]";
 
   const listClass =
     "max-h-52 overflow-y-auto pr-1 space-y-1 rounded-xl border ring-1 backdrop-blur-sm p-2 " +
-    "bg-[linear-gradient(180deg,var(--list-top),var(--list-bot))] " +
-    "border-[color:var(--tile-border)] ring-[color:var(--tile-ring)]";
+    "bg-[linear-gradient(180deg,var(--cad-list-top),var(--cad-list-bot))] " +
+    "border-[color:var(--cad-tile-border)] ring-[color:var(--cad-tile-ring)]";
 
   const stopListClass =
     "max-h-64 overflow-y-auto space-y-2 rounded-xl border ring-1 backdrop-blur-sm p-2 " +
-    "bg-[linear-gradient(180deg,var(--list-top),var(--list-bot))] " +
-    "border-[color:var(--tile-border)] ring-[color:var(--tile-ring)]";
+    "bg-[linear-gradient(180deg,var(--cad-list-top),var(--cad-list-bot))] " +
+    "border-[color:var(--cad-tile-border)] ring-[color:var(--cad-tile-ring)]";
 
   const sectionTitleClass = "text-sm font-extrabold tracking-wide text-yellow-300";
   const tileTitleClass = "text-sm font-extrabold leading-tight text-yellow-300";
@@ -631,13 +617,13 @@ export default function Page() {
       ? `Strict person search: multi-word queries must match name/email (e.g., "James Klein").`
       : `Search tip: multi-word queries act like a strict name search (e.g., "James Klein").`;
 
-  // ✅ MOBILE: Map comes first so it’s always visible
+  // MOBILE: Map comes first so it’s always visible
   const mapFirstMobileClass = "order-1 lg:order-2";
   const sidebarSecondMobileClass = "order-2 lg:order-1";
 
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
-      {/* HEADER */}
+      {/* HEADER (clean — no theme/token up here) */}
       <header className="w-full border-b border-slate-200/15 bg-slate-950/30 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -649,30 +635,24 @@ export default function Page() {
             />
           </div>
 
-          <div className="flex items-center gap-4 ml-auto">
-            <div className="text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
-              CERTIS AgRoute Database
-            </div>
-            <div className="text-xs text-white/60 whitespace-nowrap">
-              THEME: <span className="text-white/70">SIDEBAR BLUE GLASS</span>
-            </div>
-            <div className="text-xs text-white/60 whitespace-nowrap">
-              Token:{" "}
-              <span className={token ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
-                {token ? "OK" : "MISSING"}
-              </span>
-            </div>
+          <div className="ml-auto text-yellow-400 font-extrabold tracking-wide text-lg sm:text-xl text-right">
+            CERTIS AgRoute Database
           </div>
         </div>
       </header>
 
       {/* BODY */}
       <div className="flex-1 min-h-0 p-3">
-        {/* ✅ Breakpoint changed: lg grid (desktop), stacked (mobile/tablet) */}
         <div className="h-full min-h-0 flex flex-col lg:grid lg:grid-cols-[380px_1fr] gap-3">
-          {/* MAP FIRST ON MOBILE */}
+          {/* MAP FIRST ON MOBILE — force a real height so it cannot disappear */}
           <main
-            className={`${mapPanelClass} overflow-hidden map-container min-h-[56vh] lg:min-h-0 lg:h-full ${mapFirstMobileClass}`}
+            className={[
+              mapPanelClass,
+              "overflow-hidden map-container w-full",
+              "h-[60vh] min-h-[420px] sm:h-[65vh] md:h-[70vh]",
+              "lg:h-full lg:min-h-0",
+              mapFirstMobileClass,
+            ].join(" ")}
           >
             <CertisMap
               selectedStates={selectedStates.map(normUpper)}
@@ -693,10 +673,7 @@ export default function Page() {
           </main>
 
           {/* SIDEBAR SECOND ON MOBILE */}
-          <aside
-            style={sidebarVars}
-            className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}
-          >
+          <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}>
             <div className="overflow-y-auto px-4 py-3 space-y-4">
               {/* HOME ZIP */}
               <div className={sectionShellClass}>
@@ -1000,7 +977,7 @@ export default function Page() {
                 )}
               </div>
 
-              {/* ✅ RETAIL SUMMARY - TRIP STOPS */}
+              {/* RETAIL SUMMARY - TRIP STOPS */}
               <div className={sectionShellClass}>
                 <SectionHeader title="Retail Summary - Trip Stops" k={sectionKey("Retail Summary - Trip Stops")} />
                 {!collapsed[sectionKey("Retail Summary - Trip Stops")] && (
@@ -1038,7 +1015,7 @@ export default function Page() {
                 )}
               </div>
 
-              {/* ✅ RETAIL SUMMARY - NETWORK */}
+              {/* RETAIL SUMMARY - NETWORK */}
               <div className={sectionShellClass}>
                 <SectionHeader
                   title="Retail Summary - Network"
@@ -1098,9 +1075,12 @@ export default function Page() {
                 )}
               </div>
 
-              {/* Diagnostics */}
+              {/* Diagnostics (theme/token moved here) */}
               <div className="text-[11px] text-white/65">
-                Loaded: {allStops.length} stops • Trip: {tripStops.length}
+                Loaded: {allStops.length} stops • Trip: {tripStops.length} • Theme: SIDEBAR BLUE GLASS • Token:{" "}
+                <span className={token ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                  {token ? "OK" : "MISSING"}
+                </span>
               </div>
             </div>
           </aside>
