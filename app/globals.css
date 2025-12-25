@@ -39,7 +39,7 @@ body {
   width: 100%;
   height: 100%;
   /* On mobile/tablet, we explicitly guarantee vertical space for the map panel.
-     (Your JSX also has min-h-[56vh], this reinforces it at the CSS layer.) */
+     (Your JSX also has min-h/viewport heights; this reinforces it at the CSS layer.) */
   min-height: 56vh;
   overflow: hidden;
 }
@@ -69,41 +69,55 @@ body {
 }
 
 /* ==========================================================================
-   MAPBOX POPUP — POPUP THEME + WIDTH SAFETY
+   MAPBOX POPUP — POPUP THEME + WIDTH CLAMPING (FIXES “YELLOW BAR ESCAPES CARD”)
    ========================================================================== */
 
+/* Remove Mapbox’s default max-width behavior on the outer wrapper */
 .mapboxgl-popup {
-  /* Prevent wide popups on desktop and guarantee it fits on mobile */
-  max-width: min(340px, calc(100vw - 24px));
+  max-width: none !important;
 }
 
+/* Hard-clamp the popup card itself */
 .mapboxgl-popup-content {
-  /* Match the outer constraint so children can't force expansion */
-  width: 100%;
-  max-width: min(340px, calc(100vw - 24px));
   box-sizing: border-box;
-
   background: #1e1e1e;
   color: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
-  padding: 12px 12px 10px 12px;
 
-  /* Keep long strings from blowing out width */
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  /* THE IMPORTANT PART */
+  width: 320px; /* desktop target */
+  max-width: calc(100vw - 36px); /* mobile safety */
+  overflow: hidden; /* prevents any child from “bleeding” outside the card */
+
+  padding: 12px 12px 10px 12px;
 }
 
-/* Keep controls from exceeding popup width (this is usually the real culprit) */
+/* Force everything inside to respect the card width */
+.mapboxgl-popup-content *,
+.mapboxgl-popup-content *::before,
+.mapboxgl-popup-content *::after {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* Buttons/inputs/selects inside popups must never exceed the card width */
 .mapboxgl-popup-content button,
 .mapboxgl-popup-content a,
+.mapboxgl-popup-content input,
 .mapboxgl-popup-content select,
-.mapboxgl-popup-content input {
+.mapboxgl-popup-content textarea {
   max-width: 100%;
-  box-sizing: border-box;
 }
 
+/* If your “Add to Trip” is a block/button, this ensures it fits perfectly */
+.mapboxgl-popup-content button,
+.mapboxgl-popup-content a {
+  width: 100%;
+}
+
+/* Typical text styling */
 .mapboxgl-popup-content h3 {
   margin: 0 0 6px 0;
   font-size: 14px;
@@ -119,6 +133,7 @@ body {
   color: rgba(255, 255, 255, 0.86);
 }
 
+/* Close button */
 .mapboxgl-popup-close-button {
   color: rgba(255, 255, 255, 0.75);
   font-size: 18px;
