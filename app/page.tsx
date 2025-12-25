@@ -1017,15 +1017,10 @@ export default function Page() {
 
               {/* RETAIL SUMMARY - NETWORK */}
               <div className={sectionShellClass}>
-                <SectionHeader
-                  title="Retail Summary - Network"
-                  k={sectionKey("Retail Summary - Network")}
-                  right={
-                    <div className="text-[11px] text-white/65 whitespace-nowrap">
-                      Rows: {retailerNetworkSummary.length}
-                    </div>
-                  }
-                />
+<SectionHeader
+  title="Retail Summary - Network"
+  k={sectionKey("Retail Summary - Network")}
+/>
                 {!collapsed[sectionKey("Retail Summary - Network")] && (
                   <div className="space-y-2 mt-3">
                     <input
