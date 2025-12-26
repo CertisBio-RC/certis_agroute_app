@@ -760,9 +760,7 @@ export default function CertisMap(props: Props) {
 
         src.setData({
           type: "FeatureCollection",
-          features: [
-            { type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } },
-          ],
+          features: [{ type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } }],
         } as any);
       }
     }, 150);
@@ -994,7 +992,7 @@ export default function CertisMap(props: Props) {
   }
 
   // Floating Legend overlay (matches your screenshot placement)
-  // ✅ Kingpin star is dark blue; ✅ label is just "Kingpin"
+  // ✅ Kingpin legend marker uses a small dark-blue "pin/star" chip; ✅ label is just "Kingpin"
   return (
     <div className="relative w-full h-full min-h-0">
       <div ref={containerRef} className="w-full h-full min-h-0" />
@@ -1032,9 +1030,16 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
+            {/* Kingpin */}
             <div className="flex items-center gap-2 pt-1">
-              <span className="text-[14px] font-black" style={{ color: "#1e3a8a" }}>
-                ★
+              <span
+                className="inline-flex items-center justify-center h-4 w-4 rounded-md border border-black/40"
+                style={{ background: "#0b1f4b" }}
+                aria-hidden="true"
+              >
+                <span className="text-[12px] leading-none font-black" style={{ color: "#dbeafe" }}>
+                  ✦
+                </span>
               </span>
               <span>Kingpin</span>
             </div>
