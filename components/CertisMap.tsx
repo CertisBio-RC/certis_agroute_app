@@ -1031,7 +1031,7 @@ export default function CertisMap(props: Props) {
             </div>
 
             <div className="flex items-center gap-2 pt-1">
-              <span className="text-[14px] leading-none font-black" style={{ color: "#1e3a8a" }} aria-hidden="true">
+              <span className="text-[14px] leading-none font-black" style={{ color: "#191970" }} aria-hidden="true">
                 ★
               </span>
               <span>Kingpin</span>
