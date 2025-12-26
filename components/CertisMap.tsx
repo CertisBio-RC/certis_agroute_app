@@ -155,6 +155,18 @@ function isRegionalOrCorporateHQ(category: string) {
   return (hasHQ && (corp || regional)) || c === "hq";
 }
 
+/**
+ * ✅ Popup display rule:
+ * - Never show "Corporate HQ" anywhere in UI.
+ * - Any HQ-like label => "Regional HQ"
+ */
+function normalizeDisplayCategoryForPopup(rawCategory: any): string {
+  const raw = s(rawCategory);
+  if (!raw) return "";
+  if (isRegionalOrCorporateHQ(raw)) return CAT_HQ;
+  return raw;
+}
+
 function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>) {
   const retailer = s(p.Retailer);
   const name = s(p.Name);
@@ -450,10 +462,8 @@ export default function CertisMap(props: Props) {
   }, [basePath, token]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
-    const acc: Record<
-      string,
-      { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }
-    > = {};
+    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> =
+      {};
 
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
@@ -560,7 +570,8 @@ export default function CertisMap(props: Props) {
       const retailer = s(p.Retailer);
       const name = s(p.Name);
 
-      const label = kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
+      const label =
+        kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -597,7 +608,8 @@ export default function CertisMap(props: Props) {
         city: s(p.City),
         state: s(p.State),
         zip: s(p.Zip),
-        category: s(p.Category) || "Kingpin",
+        // ✅ never show Corporate HQ
+        category: normalizeDisplayCategoryForPopup(p.Category) || "Kingpin",
         suppliers: s(p.Suppliers),
         email: s(p.Email) || "TBD",
         phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
@@ -609,9 +621,7 @@ export default function CertisMap(props: Props) {
     onAllStopsLoaded(allStops);
 
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-    onRetailersLoaded(
-      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
-    );
+    onRetailersLoaded(uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean)));
 
     onCategoriesLoaded([...CANONICAL_CATEGORIES]);
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
@@ -740,13 +750,18 @@ export default function CertisMap(props: Props) {
         const geom = json?.routes?.[0]?.geometry;
         if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
 
-        src.setData({ type: "FeatureCollection", features: [{ type: "Feature", geometry: geom, properties: {} }] } as any);
+        src.setData({
+          type: "FeatureCollection",
+          features: [{ type: "Feature", geometry: geom, properties: {} }],
+        } as any);
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
         src.setData({
           type: "FeatureCollection",
-          features: [{ type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } }],
+          features: [
+            { type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } },
+          ],
         } as any);
       }
     }, 150);
@@ -756,6 +771,10 @@ export default function CertisMap(props: Props) {
     updateRoute();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripStops, token]);
+
+  // =========================
+  // ✅ HANDLERS (FULLY INCLUDED)
+  // =========================
 
   function handleRetailerClick(e: mapboxgl.MapMouseEvent) {
     const map = mapRef.current;
@@ -852,7 +871,10 @@ export default function CertisMap(props: Props) {
       const city = s(p.City);
       const state = s(p.State);
       const zip = s(p.Zip);
-      const category = s(p.Category) || "Kingpin";
+
+      // ✅ never show Corporate HQ
+      const category = normalizeDisplayCategoryForPopup(p.Category) || "Kingpin";
+
       const suppliers = s(p.Suppliers) || "Not listed";
 
       const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
@@ -886,6 +908,7 @@ export default function CertisMap(props: Props) {
 
     const renderDetailsHtml = (st: Stop) => {
       const header = st.retailer || "Unknown Retailer";
+
       const cat = st.category
         ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${st.category}</div>`
         : "";
@@ -976,7 +999,7 @@ export default function CertisMap(props: Props) {
     setTimeout(() => wirePopup(), 0);
   }
 
-  // Floating Legend overlay (matches your screenshot placement)
+  // Floating Legend overlay
   // ✅ Kingpin marker uses the real kingpin.png so it matches on ALL platforms
   const legendKingpinIconUrl = `${basePath}/icons/kingpin.png`;
 
@@ -1018,14 +1041,19 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
+            {/* ✅ NO ✦ — legend uses the real PNG (matches the Mapbox marker) */}
             <div className="flex items-center gap-2 pt-1">
               <span
-                className="inline-block h-4 w-4"
+                className="inline-block"
                 style={{
+                  width: 18,
+                  height: 18,
                   backgroundImage: `url(${legendKingpinIconUrl})`,
-                  backgroundSize: "contain",
+                  backgroundSize: "18px 18px",
                   backgroundRepeat: "no-repeat",
                   backgroundPosition: "center",
+                  imageRendering: "auto",
+                  transform: "translateZ(0)",
                 }}
                 aria-hidden="true"
               />
