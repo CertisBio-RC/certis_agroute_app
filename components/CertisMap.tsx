@@ -140,15 +140,6 @@ function splitMulti(raw: any) {
     .filter(Boolean);
 }
 
-function splitCategories(raw: any) {
-  const str = s(raw);
-  if (!str) return [];
-  return str
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
-
 /**
  * HQ detection supports:
  * - "Corporate HQ" (legacy)
@@ -162,10 +153,6 @@ function isRegionalOrCorporateHQ(category: string) {
   const corp = c.includes("corporate");
   const regional = c.includes("regional");
   return (hasHQ && (corp || regional)) || c === "hq";
-}
-
-function isAgronomyCategoryToken(catToken: string) {
-  return s(catToken).toLowerCase().includes("agronomy");
 }
 
 function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>) {
@@ -292,6 +279,22 @@ export default function CertisMap(props: Props) {
       resizeObsRef.current.observe(containerRef.current);
     } catch {}
 
+    // ✅ Mobile: force resize on orientation/viewport changes (prevents "blank until rotate")
+    const handleViewportResize = () => {
+      const m = mapRef.current;
+      if (!m) return;
+      // Allow layout to settle
+      window.setTimeout(() => {
+        try {
+          m.resize();
+        } catch {}
+      }, 60);
+    };
+
+    window.addEventListener("resize", handleViewportResize, { passive: true });
+    // iOS Safari
+    window.addEventListener("orientationchange", handleViewportResize, { passive: true } as any);
+
     map.on("load", async () => {
       // Sources (once)
       if (!map.getSource(SRC_RETAILERS)) {
@@ -409,6 +412,7 @@ export default function CertisMap(props: Props) {
       map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
 
+      // Extra settle-resize (helps mobile first paint)
       requestAnimationFrame(() => {
         try {
           map.resize();
@@ -433,6 +437,9 @@ export default function CertisMap(props: Props) {
         resizeObsRef.current?.disconnect();
       } catch {}
       resizeObsRef.current = null;
+
+      window.removeEventListener("resize", handleViewportResize as any);
+      window.removeEventListener("orientationchange", handleViewportResize as any);
 
       try {
         map.remove();
@@ -500,7 +507,6 @@ export default function CertisMap(props: Props) {
     const retailersDataRaw = (await r1.json()) as FeatureCollection;
     const kingpinData = (await r2.json()) as FeatureCollection;
 
-    // Normalize retailer categories into canonical set
     const retailersData: FeatureCollection = {
       ...retailersDataRaw,
       features: (retailersDataRaw.features ?? []).map((f) => {
@@ -553,6 +559,7 @@ export default function CertisMap(props: Props) {
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
+
       const label = kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
@@ -602,11 +609,11 @@ export default function CertisMap(props: Props) {
     onAllStopsLoaded(allStops);
 
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-    onRetailersLoaded(uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean)));
+    onRetailersLoaded(
+      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
+    );
 
-    // ✅ Categories exposed to UI: ONLY the canonical 5 (in this order)
     onCategoriesLoaded([...CANONICAL_CATEGORIES]);
-
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
 
@@ -634,6 +641,7 @@ export default function CertisMap(props: Props) {
 
     const hqFilter: any[] = ["all"];
     hqFilter.push(["==", ["get", "Category"], CAT_HQ]);
+
     if (selectedStates.length) hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
 
     map.setFilter(LYR_RETAILERS, retailerFilter as any);
@@ -969,10 +977,13 @@ export default function CertisMap(props: Props) {
   }
 
   // Floating Legend overlay (matches your screenshot placement)
-  // ✅ Kingpin marker in legend now uses the ACTUAL icon (kingpin.png) to match shape & color.
+  // ✅ Kingpin marker uses the real kingpin.png so it matches on ALL platforms
+  const legendKingpinIconUrl = `${basePath}/icons/kingpin.png`;
+
   return (
     <div className="relative w-full h-full min-h-0">
-      <div ref={containerRef} className="w-full h-full min-h-0" />
+      {/* ✅ Key mobile fix: ensure the map container has non-zero height before Mapbox paints */}
+      <div ref={containerRef} className="w-full h-full min-h-[55vh] sm:min-h-0" />
 
       <div className="absolute bottom-4 left-4 z-10">
         <div className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-4 py-3">
@@ -1007,12 +1018,11 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ Kingpin — use the actual icon file for perfect match */}
             <div className="flex items-center gap-2 pt-1">
               <span
                 className="inline-block h-4 w-4"
                 style={{
-                  backgroundImage: `url(${basePath}/icons/kingpin.png)`,
+                  backgroundImage: `url(${legendKingpinIconUrl})`,
                   backgroundSize: "contain",
                   backgroundRepeat: "no-repeat",
                   backgroundPosition: "center",
