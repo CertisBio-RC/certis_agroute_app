@@ -316,19 +316,14 @@ export default function CertisMap(props: Props) {
             "circle-stroke-color": "#111827",
             "circle-color": [
               "case",
-              // agronomy (non-hq)
               ["==", ["get", "Category"], CAT_AGRONOMY],
               "#22c55e",
-              // grain/feed
               ["==", ["get", "Category"], CAT_GRAINFEED],
               "#f97316",
-              // c-store/service/energy
               ["==", ["get", "Category"], CAT_CSTORE],
               "#0ea5e9",
-              // distribution
               ["==", ["get", "Category"], CAT_DISTRIBUTION],
               "#a855f7",
-              // fallback
               "#f9fafb",
             ],
           },
@@ -450,12 +445,7 @@ export default function CertisMap(props: Props) {
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
     const acc: Record<
       string,
-      {
-        total: number;
-        agronomy: number;
-        states: Set<string>;
-        catCounts: Map<string, number>;
-      }
+      { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }
     > = {};
 
     for (const f of retailersData.features ?? []) {
@@ -510,19 +500,13 @@ export default function CertisMap(props: Props) {
     const retailersDataRaw = (await r1.json()) as FeatureCollection;
     const kingpinData = (await r2.json()) as FeatureCollection;
 
-    // Normalize retailer categories into canonical set (and also normalize casing/cleanup)
+    // Normalize retailer categories into canonical set
     const retailersData: FeatureCollection = {
       ...retailersDataRaw,
       features: (retailersDataRaw.features ?? []).map((f) => {
         const p = f.properties ?? {};
         const cat = normalizeCategory(p.Category);
-        return {
-          ...f,
-          properties: {
-            ...p,
-            Category: cat || "", // store canonical
-          },
-        };
+        return { ...f, properties: { ...p, Category: cat || "" } };
       }),
     };
 
@@ -569,9 +553,7 @@ export default function CertisMap(props: Props) {
 
       const retailer = s(p.Retailer);
       const name = s(p.Name);
-
-      const label =
-        kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
+      const label = kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -633,7 +615,6 @@ export default function CertisMap(props: Props) {
     const retailersData = retailersRef.current;
     if (!map || !retailersData) return;
 
-    // Retailers layer excludes HQ by category (canonical)
     const retailerFilter: any[] = ["all"];
     retailerFilter.push(["!=", ["get", "Category"], CAT_HQ]);
 
@@ -641,7 +622,6 @@ export default function CertisMap(props: Props) {
     if (selectedRetailers.length) retailerFilter.push(["in", ["get", "Retailer"], ["literal", selectedRetailers]]);
 
     if (selectedCategories.length) {
-      // Because Category is canonical single-value, filtering is exact match list
       retailerFilter.push(["in", ["get", "Category"], ["literal", selectedCategories]]);
     }
 
@@ -654,8 +634,6 @@ export default function CertisMap(props: Props) {
 
     const hqFilter: any[] = ["all"];
     hqFilter.push(["==", ["get", "Category"], CAT_HQ]);
-
-    // Bailey HQ rule: HQ filtered only by State
     if (selectedStates.length) hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
 
     map.setFilter(LYR_RETAILERS, retailerFilter as any);
@@ -835,7 +813,6 @@ export default function CertisMap(props: Props) {
     }, 0);
   }
 
-  // ✅ Multi-Kingpin dropdown restored (handles overlap clicks)
   function handleKingpinClick(e: mapboxgl.MapMouseEvent) {
     const map = mapRef.current;
     if (!map) return;
@@ -992,7 +969,7 @@ export default function CertisMap(props: Props) {
   }
 
   // Floating Legend overlay (matches your screenshot placement)
-  // ✅ Kingpin marker in legend is a DARK BLUE STAR (★) — no sparkle glyph
+  // ✅ Kingpin marker in legend now uses the ACTUAL icon (kingpin.png) to match shape & color.
   return (
     <div className="relative w-full h-full min-h-0">
       <div ref={containerRef} className="w-full h-full min-h-0" />
@@ -1030,10 +1007,18 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
+            {/* ✅ Kingpin — use the actual icon file for perfect match */}
             <div className="flex items-center gap-2 pt-1">
-              <span className="text-[14px] leading-none font-black" style={{ color: "#191970" }} aria-hidden="true">
-                ★
-              </span>
+              <span
+                className="inline-block h-4 w-4"
+                style={{
+                  backgroundImage: `url(${basePath}/icons/kingpin.png)`,
+                  backgroundSize: "contain",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "center",
+                }}
+                aria-hidden="true"
+              />
               <span>Kingpin</span>
             </div>
           </div>
