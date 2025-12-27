@@ -155,16 +155,10 @@ function isRegionalOrCorporateHQ(category: string) {
   return (hasHQ && (corp || regional)) || c === "hq";
 }
 
-/**
- * ✅ Popup display rule:
- * - Never show "Corporate HQ" anywhere in UI.
- * - Any HQ-like label => "Regional HQ"
- */
-function normalizeDisplayCategoryForPopup(rawCategory: any): string {
-  const raw = s(rawCategory);
+function normalizeHQLabel(category: any): string {
+  const raw = s(category);
   if (!raw) return "";
-  if (isRegionalOrCorporateHQ(raw)) return CAT_HQ;
-  return raw;
+  return isRegionalOrCorporateHQ(raw) ? CAT_HQ : raw;
 }
 
 function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>) {
@@ -295,7 +289,6 @@ export default function CertisMap(props: Props) {
     const handleViewportResize = () => {
       const m = mapRef.current;
       if (!m) return;
-      // Allow layout to settle
       window.setTimeout(() => {
         try {
           m.resize();
@@ -304,7 +297,6 @@ export default function CertisMap(props: Props) {
     };
 
     window.addEventListener("resize", handleViewportResize, { passive: true });
-    // iOS Safari
     window.addEventListener("orientationchange", handleViewportResize, { passive: true } as any);
 
     map.on("load", async () => {
@@ -361,7 +353,7 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Kingpin icon
+      // Kingpin icon (PNG in /public/icons)
       try {
         if (!map.hasImage(KINGPIN_ICON_ID)) {
           const iconUrl = `${basePath}/icons/kingpin.png`;
@@ -462,8 +454,7 @@ export default function CertisMap(props: Props) {
   }, [basePath, token]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
-    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> =
-      {};
+    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> = {};
 
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
@@ -598,6 +589,10 @@ export default function CertisMap(props: Props) {
       const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
       const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
 
+      // ✅ Normalize any HQ-ish category in kingpin properties to "Regional HQ"
+      const rawKpCat = s(p.Category);
+      const kpCategory = rawKpCat ? normalizeHQLabel(rawKpCat) : "Kingpin";
+
       allStops.push({
         id: makeId("kingpin", coords, p),
         kind: "kingpin",
@@ -608,8 +603,7 @@ export default function CertisMap(props: Props) {
         city: s(p.City),
         state: s(p.State),
         zip: s(p.Zip),
-        // ✅ never show Corporate HQ
-        category: normalizeDisplayCategoryForPopup(p.Category) || "Kingpin",
+        category: kpCategory,
         suppliers: s(p.Suppliers),
         email: s(p.Email) || "TBD",
         phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
@@ -750,10 +744,7 @@ export default function CertisMap(props: Props) {
         const geom = json?.routes?.[0]?.geometry;
         if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
 
-        src.setData({
-          type: "FeatureCollection",
-          features: [{ type: "Feature", geometry: geom, properties: {} }],
-        } as any);
+        src.setData({ type: "FeatureCollection", features: [{ type: "Feature", geometry: geom, properties: {} }] } as any);
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
@@ -773,7 +764,7 @@ export default function CertisMap(props: Props) {
   }, [tripStops, token]);
 
   // =========================
-  // ✅ HANDLERS (FULLY INCLUDED)
+  // ✅ COMPLETE HANDLERS
   // =========================
 
   function handleRetailerClick(e: mapboxgl.MapMouseEvent) {
@@ -872,8 +863,8 @@ export default function CertisMap(props: Props) {
       const state = s(p.State);
       const zip = s(p.Zip);
 
-      // ✅ never show Corporate HQ
-      const category = normalizeDisplayCategoryForPopup(p.Category) || "Kingpin";
+      const rawCat = s(p.Category);
+      const category = rawCat ? normalizeHQLabel(rawCat) : "Kingpin";
 
       const suppliers = s(p.Suppliers) || "Not listed";
 
@@ -950,7 +941,6 @@ export default function CertisMap(props: Props) {
 
           <div style="margin-bottom:4px;">${st.address || ""}<br/>${st.city || ""}, ${st.state || ""} ${st.zip || ""}</div>
           ${cat}
-
           <div style="margin-bottom:8px;"><span style="font-weight:700;color:#facc15;">Suppliers:</span> ${sup}</div>
 
           ${whoLine}
@@ -1000,7 +990,7 @@ export default function CertisMap(props: Props) {
   }
 
   // Floating Legend overlay
-  // ✅ Kingpin marker uses the real kingpin.png so it matches on ALL platforms
+  // ✅ Kingpin marker uses the real kingpin.png (NOT unicode) so it matches on ALL platforms
   const legendKingpinIconUrl = `${basePath}/icons/kingpin.png`;
 
   return (
@@ -1041,21 +1031,14 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ NO ✦ — legend uses the real PNG (matches the Mapbox marker) */}
             <div className="flex items-center gap-2 pt-1">
-              <span
-                className="inline-block"
-                style={{
-                  width: 18,
-                  height: 18,
-                  backgroundImage: `url(${legendKingpinIconUrl})`,
-                  backgroundSize: "18px 18px",
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "center",
-                  imageRendering: "auto",
-                  transform: "translateZ(0)",
-                }}
+              <img
+                src={legendKingpinIconUrl}
+                alt=""
                 aria-hidden="true"
+                width={16}
+                height={16}
+                style={{ width: 16, height: 16, objectFit: "contain", imageRendering: "auto" }}
               />
               <span>Kingpin</span>
             </div>
