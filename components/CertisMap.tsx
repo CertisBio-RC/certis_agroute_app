@@ -24,6 +24,10 @@
 //   - KINGPIN_ICON_VERSION = "K13"
 //   - KINGPIN_ICON_ID = `kingpin-icon-${KINGPIN_ICON_VERSION}`
 //   - kingpin.png?v=K13
+//
+// LEGEND PATCH (Chrome-proof):
+//   ✅ Legend Kingpin icon is now a simple dark-blue circle (no <img>, no glyph).
+//   If this displays correctly everywhere, we can later swap it to a 5-point star.
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -1014,34 +1018,22 @@ export default function CertisMap(props: Props) {
 
           <div className="space-y-1.5 text-[13px] text-white/85">
             <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-3 w-3 rounded-full border border-black/40"
-                style={{ background: "#22c55e" }}
-              />
+              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#22c55e" }} />
               <span>{CAT_AGRONOMY}</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-3 w-3 rounded-full border border-black/40"
-                style={{ background: "#f97316" }}
-              />
+              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#f97316" }} />
               <span>{CAT_GRAINFEED}</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-3 w-3 rounded-full border border-black/40"
-                style={{ background: "#0ea5e9" }}
-              />
+              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#0ea5e9" }} />
               <span>{CAT_CSTORE}</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-3 w-3 rounded-full border border-black/40"
-                style={{ background: "#a855f7" }}
-              />
+              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#a855f7" }} />
               <span>{CAT_DISTRIBUTION}</span>
             </div>
 
@@ -1053,17 +1045,16 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ KINGPIN LEGEND: MUST MATCH MAP ICON EXACTLY (NO GLYPHS) */}
+            {/* ✅ KINGPIN LEGEND: TEMPORARY SIMPLE SYMBOL (Chrome-proof) */}
             <div className="flex items-center gap-2 pt-1">
-              <span className="inline-flex items-center justify-center h-4 w-4" aria-hidden="true">
-                <img
-                  src={KINGPIN_ICON_URL}
-                  alt=""
-                  width={16}
-                  height={16}
-                  style={{ width: 16, height: 16, objectFit: "contain", display: "block" }}
-                />
-              </span>
+              <span
+                className="inline-block h-3.5 w-3.5 rounded-full border border-white/20"
+                style={{
+                  background: "#1e3a8a", // dark blue
+                  boxShadow: "0 0 0 1px rgba(0,0,0,0.35) inset",
+                }}
+                aria-hidden="true"
+              />
               <span>Kingpin</span>
             </div>
           </div>
