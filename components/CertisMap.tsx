@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE DATABASE — GOLD (K11-safe + Midwest-view + Popup polish)
+// 💠 CERTIS AGROUTE DATABASE — GOLD (K12+SVG Icon Unification + Chrome-proof)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Regional HQ filtered ONLY by State (Bailey HQ rule)
@@ -12,21 +12,9 @@
 //   • ✅ Loop guards: map init once, sources/layers added once, route abort/debounce
 //   • ✅ UI polish: one-line Suppliers + Category/Suppliers label color match
 //   • ✅ Regression fix: Multi-Kingpin dropdown when overlaps occur
-//   • ✅ NEW: Canonical category normalization + floating legend overlay
-//     - Canonical categories (5): Agronomy, Grain/Feed, C-Store/Service/Energy,
-//       Distribution, Regional HQ
-//     - Grain OR Feed => Grain/Feed
-//     - Any hybrid containing Agronomy => Agronomy
-//
-// K13 PATCH (Chrome-only Kingpin legend mismatch):
-//   ✅ Version BOTH the URL and the Mapbox image ID so Chrome/Mapbox cannot reuse
-//      a stale cached PNG under the same image key.
-//   - KINGPIN_ICON_VERSION = "K13"
-//   - KINGPIN_ICON_ID = `kingpin-icon-${KINGPIN_ICON_VERSION}`
-//   - kingpin.png?v=K13
-//
-// LEGEND PATCH:
-//   ✅ Legend Kingpin icon is now an inline SVG 5-point star (cache-proof).
+//   • ✅ Canonical category normalization + floating legend overlay
+//   • ✅ NEW: Kingpin icon is ONE source of truth (SVG -> Canvas -> Mapbox addImage)
+//     - No PNG, no caching weirdness, Chrome/Edge identical
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -121,10 +109,8 @@ const LYR_HQ = "corp-hq-circle";
 const LYR_KINGPINS = "kingpin-symbol";
 const LYR_ROUTE = "trip-route";
 
-// ✅ K13: Version BOTH URL + Mapbox image ID (Chrome cache-proof)
-const KINGPIN_ICON_VERSION = "K13";
+const KINGPIN_ICON_VERSION = "K13"; // bump only if you change the SVG
 const KINGPIN_ICON_ID = `kingpin-icon-${KINGPIN_ICON_VERSION}`;
-
 const KINGPIN_OFFSET_LNG = 0.0013;
 
 // Canonical categories (the only ones we expose to filters/UX)
@@ -135,6 +121,11 @@ const CAT_DISTRIBUTION = "Distribution";
 const CAT_HQ = "Regional HQ";
 
 const CANONICAL_CATEGORIES = [CAT_AGRONOMY, CAT_GRAINFEED, CAT_CSTORE, CAT_DISTRIBUTION, CAT_HQ];
+
+// Kingpin icon styling (deep Certis-blue + white stroke for satellite contrast)
+const KINGPIN_FILL = "#1e3a8a"; // deep blue
+const KINGPIN_STROKE = "#ffffff";
+const KINGPIN_STROKE_WIDTH = 7; // in the 0..100 SVG coordinate space
 
 function s(v: any) {
   return String(v ?? "").trim();
@@ -216,6 +207,73 @@ function normalizeCategory(rawCategory: any): string {
   return "";
 }
 
+/**
+ * Single-source Kingpin SVG (legend + Mapbox image).
+ * 5-point star polygon in a 0..100 viewBox.
+ */
+function buildKingpinSvgString(sizePx: number) {
+  const points = [
+    [50, 5],
+    [61, 35],
+    [95, 35],
+    [67, 54],
+    [78, 88],
+    [50, 69],
+    [22, 88],
+    [33, 54],
+    [5, 35],
+    [39, 35],
+  ]
+    .map((p) => p.join(","))
+    .join(" ");
+
+  // Important: include an explicit background="none" and shape-rendering hints.
+  // We keep it simple and let the white stroke create the contrast edge.
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" width="${sizePx}" height="${sizePx}" viewBox="0 0 100 100">
+  <polygon
+    points="${points}"
+    fill="${KINGPIN_FILL}"
+    stroke="${KINGPIN_STROKE}"
+    stroke-width="${KINGPIN_STROKE_WIDTH}"
+    stroke-linejoin="round"
+  />
+</svg>`.trim();
+}
+
+/**
+ * Convert SVG string -> ImageData for Mapbox addImage (Chrome/Edge consistent).
+ */
+async function svgToImageData(svg: string, sizePx: number): Promise<ImageData> {
+  const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      // NOTE: blob URLs are same-origin; no need for crossOrigin.
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Kingpin SVG image load failed"));
+      image.src = url;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = sizePx;
+    canvas.height = sizePx;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D context unavailable");
+
+    ctx.clearRect(0, 0, sizePx, sizePx);
+    ctx.drawImage(img, 0, 0, sizePx, sizePx);
+
+    const imageData = ctx.getImageData(0, 0, sizePx, sizePx);
+    return imageData;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export default function CertisMap(props: Props) {
   const {
     selectedStates,
@@ -258,12 +316,6 @@ export default function CertisMap(props: Props) {
     const env = (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim();
     return env || (MAPBOX_TOKEN || "").trim();
   }, []);
-
-  // ✅ SINGLE SOURCE OF TRUTH for the Kingpin icon URL (map layer)
-  // ✅ K13: URL is versioned
-  const KINGPIN_ICON_URL = useMemo(() => {
-    return `${basePath}/icons/kingpin.png?v=${KINGPIN_ICON_VERSION}`;
-  }, [basePath]);
 
   useEffect(() => {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
@@ -366,21 +418,17 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Kingpin icon (load once)
-      // ✅ K13: image ID is versioned; if Chrome/Mapbox cached an older PNG under
-      //         the old ID, it cannot be reused.
+      // ✅ Kingpin icon (SVG -> Canvas -> addImage). No PNG. No caching weirdness.
       try {
         if (!map.hasImage(KINGPIN_ICON_ID)) {
-          const img = await new Promise<any>((resolve, reject) => {
-            map.loadImage(KINGPIN_ICON_URL, (err, image) => {
-              if (err || !image) reject(err || new Error("loadImage failed"));
-              else resolve(image);
-            });
-          });
-          map.addImage(KINGPIN_ICON_ID, img, { pixelRatio: 2 });
+          const sizePx = 128; // high-res source, Mapbox scales down via icon-size
+          const svg = buildKingpinSvgString(sizePx);
+          const imageData = await svgToImageData(svg, sizePx);
+          // Mapbox accepts ImageData directly.
+          map.addImage(KINGPIN_ICON_ID, imageData as any, { pixelRatio: 2 });
         }
       } catch (e) {
-        console.warn("[CertisMap] Kingpin icon load failed:", e);
+        console.warn("[CertisMap] Kingpin SVG icon build failed:", e);
       }
 
       // Kingpins layer
@@ -464,13 +512,11 @@ export default function CertisMap(props: Props) {
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basePath, token, KINGPIN_ICON_URL]);
+  }, [basePath, token]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
-    const acc: Record<
-      string,
-      { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }
-    > = {};
+    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> =
+      {};
 
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
@@ -758,10 +804,7 @@ export default function CertisMap(props: Props) {
         const geom = json?.routes?.[0]?.geometry;
         if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
 
-        src.setData({
-          type: "FeatureCollection",
-          features: [{ type: "Feature", geometry: geom, properties: {} }],
-        } as any);
+        src.setData({ type: "FeatureCollection", features: [{ type: "Feature", geometry: geom, properties: {} }] } as any);
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
@@ -805,10 +848,7 @@ export default function CertisMap(props: Props) {
     const stop: Stop = {
       id: makeId(kind, coords, p),
       kind,
-      label:
-        kind === "hq"
-          ? `${retailer || "Regional HQ"} — Regional HQ`
-          : `${retailer || "Retailer"} — ${name || "Site"}`,
+      label: kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`,
       retailer,
       name,
       address,
@@ -945,7 +985,7 @@ export default function CertisMap(props: Props) {
                     .map((x, i) => {
                       const who = x.name || "Kingpin";
                       const where = [x.city, x.state].filter(Boolean).join(", ");
-                      const label = where ? `${who} (${where})` : who;
+                      const label = where ? `${R} (${where})` : R;
                       return `<option value="${i}" ${i === activeIndex ? "selected" : ""}>${label}</option>`;
                     })
                     .join("")}
@@ -1006,6 +1046,22 @@ export default function CertisMap(props: Props) {
     setTimeout(() => wirePopup(), 0);
   }
 
+  // Legend SVG component (same geometry + colors as Mapbox icon)
+  const LegendKingpinIcon = () => {
+    const points = "50,5 61,35 95,35 67,54 78,88 50,69 22,88 33,54 5,35 39,35";
+    return (
+      <svg width="16" height="16" viewBox="0 0 100 100" aria-hidden="true" style={{ display: "block" }}>
+        <polygon
+          points={points}
+          fill={KINGPIN_FILL}
+          stroke={KINGPIN_STROKE}
+          strokeWidth={KINGPIN_STROKE_WIDTH}
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  };
+
   return (
     <div className="relative w-full h-full min-h-0">
       {/* ✅ Key mobile fix: ensure the map container has non-zero height before Mapbox paints */}
@@ -1044,24 +1100,10 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ KINGPIN LEGEND: INLINE SVG STAR (Chrome-proof, cache-proof) */}
+            {/* ✅ KINGPIN LEGEND: SVG matches Mapbox icon exactly */}
             <div className="flex items-center gap-2 pt-1">
               <span className="inline-flex items-center justify-center h-4 w-4" aria-hidden="true">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  style={{ display: "block" }}
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M12 2.6l2.73 5.53 6.1.89-4.41 4.3 1.04 6.08L12 16.98 6.54 19.4l1.04-6.08-4.41-4.3 6.1-.89L12 2.6z"
-                    fill="#1e3a8a"
-                    stroke="rgba(255,255,255,0.22)"
-                    strokeWidth="1.2"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <LegendKingpinIcon />
               </span>
               <span>Kingpin</span>
             </div>
