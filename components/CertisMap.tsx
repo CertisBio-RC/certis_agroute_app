@@ -21,12 +21,10 @@
 //   ✅ NEW (Chrome-proof): Kingpin icon generated via SVG → Canvas
 //     - No network PNG fetch
 //     - Versioned Mapbox image ID to avoid stale image cache
-//     - Legend uses the same generated raster (PNG data URL)
-//   ✅ NEW (Mobile): Tap halos + bbox hit-test (Option A: mobile only)
-//     - Much easier to select points on touch devices
+//     - Legend uses the same generated image (data URL)
 // ============================================================================
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import { MAPBOX_TOKEN } from "../utils/token";
 
@@ -117,11 +115,6 @@ const LYR_RETAILERS = "retailers-circle";
 const LYR_HQ = "corp-hq-circle";
 const LYR_KINGPINS = "kingpin-symbol";
 const LYR_ROUTE = "trip-route";
-
-// Mobile hit-target helpers (invisible)
-const LYR_RETAILERS_TAP = "retailers-tap-halo";
-const LYR_HQ_TAP = "hq-tap-halo";
-const LYR_KINGPINS_TAP = "kingpin-tap-halo";
 
 const KINGPIN_OFFSET_LNG = 0.0013;
 
@@ -219,6 +212,7 @@ function normalizeCategory(rawCategory: any): string {
 // ===============================
 
 function svgDataUrl(svg: string) {
+  // Encode as UTF-8 for stable rendering
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -247,37 +241,12 @@ async function rasterizeSvgToMapboxImage(svg: string, sizePx: number, pixelRatio
 
   const imageData = ctx.getImageData(0, 0, w, h);
 
+  // Mapbox raw image object: { width, height, data }
   return {
-    mapboxImage: {
-      width: w,
-      height: h,
-      data: imageData.data,
-    },
-    pngDataUrl: canvas.toDataURL("image/png"),
+    width: w,
+    height: h,
+    data: imageData.data,
   };
-}
-
-// ===============================
-// Mobile tap helpers (Option A)
-// ===============================
-
-function isCoarsePointerNow(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-  } catch {
-    return false;
-  }
-}
-
-function bboxFromPoint(pt: mapboxgl.PointLike, tol: number): [mapboxgl.PointLike, mapboxgl.PointLike] {
-  const p = pt as any;
-  const x = Number(p?.x ?? 0);
-  const y = Number(p?.y ?? 0);
-  return [
-    { x: x - tol, y: y - tol },
-    { x: x + tol, y: y + tol },
-  ] as any;
 }
 
 export default function CertisMap(props: Props) {
@@ -327,28 +296,43 @@ export default function CertisMap(props: Props) {
   const KINGPIN_ICON_VERSION = "K15";
   const KINGPIN_ICON_ID = useMemo(() => `kingpin-icon-${KINGPIN_ICON_VERSION}`, []);
 
-  // ✅ Back to your intention: Kingpins are stars (not circles)
-  const KINGPIN_SHAPE: "star" = "star";
+  // ✅ Back to your intent: star on the map
+  const KINGPIN_SHAPE: "star" | "circle" = "star";
 
+  // ✅ Dark blue that reads well on satellite (not navy-black)
   const KINGPIN_FILL = "#1e3a8a"; // dark blue
   const KINGPIN_STROKE = "#0b1220"; // deep outline
+
+  // This is ONLY used in SVG stroke-width attributes (not a Mapbox paint prop)
   const KINGPIN_STROKE_W = 10;
 
+  // ✅ Render size + pixel ratio for crispness
+  const KINGPIN_ICON_SIZE_PX = 64;
+  const KINGPIN_ICON_PIXEL_RATIO = 2;
+
   const KINGPIN_SVG = useMemo(() => {
+    if (KINGPIN_SHAPE === "circle") {
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+          <circle cx="64" cy="64" r="44" fill="${KINGPIN_FILL}" stroke="${KINGPIN_STROKE}" stroke-width="${KINGPIN_STROKE_W}"/>
+        </svg>
+      `.trim();
+    }
+
     // 5-point star (fills most of the viewBox)
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
         <path
-          d="M64 10
-             L79.0 47.5
-             L118 52.3
-             L89.5 76.5
-             L98.5 116
-             L64 95
-             L29.5 116
-             L38.5 76.5
-             L10 52.3
-             L49 47.5
+          d="M64 14
+             L78.6 47.5
+             L115 52.2
+             L88 75.1
+             L96.1 110
+             L64 92
+             L31.9 110
+             L40 75.1
+             L13 52.2
+             L49.4 47.5
              Z"
           fill="${KINGPIN_FILL}"
           stroke="${KINGPIN_STROKE}"
@@ -359,8 +343,8 @@ export default function CertisMap(props: Props) {
     `.trim();
   }, [KINGPIN_SHAPE, KINGPIN_FILL, KINGPIN_STROKE, KINGPIN_STROKE_W]);
 
-  // Legend should match the same raster that Mapbox uses
-  const [kingpinLegendPng, setKingpinLegendPng] = useState<string>("");
+  // Legend uses the exact same image (no external file, no caching issues)
+  const KINGPIN_ICON_DATA_URL = useMemo(() => svgDataUrl(KINGPIN_SVG), [KINGPIN_SVG]);
 
   useEffect(() => {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
@@ -465,11 +449,11 @@ export default function CertisMap(props: Props) {
 
       // Kingpin icon (SVG → Canvas → Mapbox image)
       try {
-        const { mapboxImage, pngDataUrl } = await rasterizeSvgToMapboxImage(KINGPIN_SVG, 96, 2);
         if (!map.hasImage(KINGPIN_ICON_ID)) {
-          map.addImage(KINGPIN_ICON_ID, mapboxImage as any);
+          const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG, KINGPIN_ICON_SIZE_PX, KINGPIN_ICON_PIXEL_RATIO);
+          // ✅ Tell Mapbox the pixelRatio so icon-size behaves predictably
+          map.addImage(KINGPIN_ICON_ID, img as any, { pixelRatio: KINGPIN_ICON_PIXEL_RATIO });
         }
-        setKingpinLegendPng(pngDataUrl);
       } catch (e) {
         console.warn("[CertisMap] Kingpin SVG→canvas icon load failed:", e);
       }
@@ -482,52 +466,15 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.014, 5, 0.023, 7, 0.032, 9, 0.041, 12, 0.05],
+
+            // ✅ IMPORTANT: make Kingpins visible at DEFAULT_ZOOM=5.
+            // Base rendered pixel size at icon-size=1 is roughly (imagePx / pixelRatio) = 64px.
+            // So at zoom 5, 0.18 => ~11-12px, which is readable but not obnoxious.
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.12, 5, 0.18, 7, 0.24, 9, 0.3, 12, 0.38],
+
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
-          },
-        });
-      }
-
-      // ✅ Mobile tap halos (Option A: only used for selection; visually invisible)
-      // We add them unconditionally, but ONLY query them on coarse pointer devices.
-      if (!map.getLayer(LYR_RETAILERS_TAP)) {
-        map.addLayer({
-          id: LYR_RETAILERS_TAP,
-          type: "circle",
-          source: SRC_RETAILERS,
-          paint: {
-            "circle-radius": 20,
-            "circle-opacity": 0,
-            "circle-stroke-opacity": 0,
-          },
-        });
-      }
-
-      if (!map.getLayer(LYR_HQ_TAP)) {
-        map.addLayer({
-          id: LYR_HQ_TAP,
-          type: "circle",
-          source: SRC_RETAILERS,
-          filter: ["==", ["get", "Category"], CAT_HQ],
-          paint: {
-            "circle-radius": 24,
-            "circle-opacity": 0,
-            "circle-stroke-opacity": 0,
-          },
-        });
-      }
-
-      if (!map.getLayer(LYR_KINGPINS_TAP)) {
-        map.addLayer({
-          id: LYR_KINGPINS_TAP,
-          type: "circle",
-          source: SRC_KINGPINS,
-          paint: {
-            "circle-radius": 26,
-            "circle-opacity": 0,
-            "circle-stroke-opacity": 0,
           },
         });
       }
@@ -559,9 +506,9 @@ export default function CertisMap(props: Props) {
         map.on("mouseleave", lyr, clearPointer);
       });
 
-      // ✅ One tap handler that routes to the right popup.
-      // On mobile (coarse pointer) we use a bbox query + tap halos.
-      map.on("click", (e) => handleUnifiedTap(e));
+      map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
+      map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
+      map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
 
       requestAnimationFrame(() => {
         try {
@@ -793,13 +740,8 @@ export default function CertisMap(props: Props) {
 
     if (selectedStates.length) hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
 
-    // Apply to visual layers
     map.setFilter(LYR_RETAILERS, retailerFilter as any);
     map.setFilter(LYR_HQ, hqFilter as any);
-
-    // Apply to tap halos so mobile selection respects filters
-    if (map.getLayer(LYR_RETAILERS_TAP)) map.setFilter(LYR_RETAILERS_TAP, retailerFilter as any);
-    if (map.getLayer(LYR_HQ_TAP)) map.setFilter(LYR_HQ_TAP, hqFilter as any);
   }
 
   useEffect(() => {
@@ -900,9 +842,7 @@ export default function CertisMap(props: Props) {
 
         src.setData({
           type: "FeatureCollection",
-          features: [
-            { type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } },
-          ],
+          features: [{ type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } }],
         } as any);
       }
     }, 150);
@@ -913,91 +853,16 @@ export default function CertisMap(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripStops, token]);
 
-  // ============================================================
-  // Unified tap selection (mobile only uses halos + bbox)
-  // ============================================================
-
-  function handleUnifiedTap(e: mapboxgl.MapMouseEvent) {
+  function handleRetailerClick(e: mapboxgl.MapMouseEvent) {
     const map = mapRef.current;
     if (!map) return;
 
-    const coarse = isCoarsePointerNow();
+    const features = map.queryRenderedFeatures(e.point, { layers: [LYR_RETAILERS, LYR_HQ] }) as any[];
+    if (!features.length) return;
 
-    // Desktop: keep strict behavior (your original intent)
-    if (!coarse) {
-      // Prioritize kingpins, then HQ, then retailers at the exact point
-      const kp = map.queryRenderedFeatures(e.point, { layers: [LYR_KINGPINS] }) as any[];
-      if (kp.length) {
-        handleKingpinFeatures(kp);
-        return;
-      }
-
-      const hq = map.queryRenderedFeatures(e.point, { layers: [LYR_HQ] }) as any[];
-      if (hq.length) {
-        handleRetailerFeature(hq[0]);
-        return;
-      }
-
-      const rt = map.queryRenderedFeatures(e.point, { layers: [LYR_RETAILERS] }) as any[];
-      if (rt.length) {
-        handleRetailerFeature(rt[0]);
-        return;
-      }
-
-      return;
-    }
-
-    // Mobile: bbox + halos (forgiving)
-    const tol = 22; // tuned for finger taps
-    const bb = bboxFromPoint(e.point, tol);
-
-    const hits = map.queryRenderedFeatures(bb as any, {
-      layers: [LYR_KINGPINS_TAP, LYR_HQ_TAP, LYR_RETAILERS_TAP],
-    }) as any[];
-
-    if (!hits.length) return;
-
-    // We want: Kingpin > HQ > Retailer
-    const kpHits = hits.filter((f) => f.layer?.id === LYR_KINGPINS_TAP);
-    if (kpHits.length) {
-      // Get real kingpin features near tap using the symbol layer (so props match)
-      const kps = map.queryRenderedFeatures(bb as any, { layers: [LYR_KINGPINS] }) as any[];
-      if (kps.length) {
-        handleKingpinFeatures(kps);
-        return;
-      }
-      // fallback: use tap halo features if symbol layer missed
-      handleKingpinFeatures(kpHits);
-      return;
-    }
-
-    const hqHits = hits.filter((f) => f.layer?.id === LYR_HQ_TAP);
-    if (hqHits.length) {
-      // Query real HQ features (with correct geometry/properties)
-      const hq = map.queryRenderedFeatures(bb as any, { layers: [LYR_HQ] }) as any[];
-      handleRetailerFeature((hq[0] as any) || (hqHits[0] as any));
-      return;
-    }
-
-    const rtHits = hits.filter((f) => f.layer?.id === LYR_RETAILERS_TAP);
-    if (rtHits.length) {
-      const rt = map.queryRenderedFeatures(bb as any, { layers: [LYR_RETAILERS] }) as any[];
-      handleRetailerFeature((rt[0] as any) || (rtHits[0] as any));
-      return;
-    }
-  }
-
-  // ============================================================
-  // Popup builders (feature-driven; no tiny hit reliance)
-  // ============================================================
-
-  function handleRetailerFeature(f: any) {
-    const map = mapRef.current;
-    if (!map || !f) return;
-
+    const f = features[0];
     const p = f.properties ?? {};
     const coords = (f.geometry?.coordinates ?? []) as [number, number];
-    if (!coords?.length) return;
 
     const retailer = s(p.Retailer);
     const name = s(p.Name);
@@ -1052,11 +917,12 @@ export default function CertisMap(props: Props) {
     }, 0);
   }
 
-  function handleKingpinFeatures(featuresRaw: any[]) {
+  function handleKingpinClick(e: mapboxgl.MapMouseEvent) {
     const map = mapRef.current;
     if (!map) return;
 
-    if (!featuresRaw?.length) return;
+    const featuresRaw = map.queryRenderedFeatures(e.point, { layers: [LYR_KINGPINS] }) as any[];
+    if (!featuresRaw.length) return;
 
     const features = [...featuresRaw].sort((a, b) => {
       const ap = a.properties ?? {};
@@ -1248,20 +1114,16 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ KINGPIN LEGEND: SAME RASTER OUTPUT AS MAPBOX IMAGE */}
+            {/* ✅ KINGPIN LEGEND: SAME SVG SOURCE AS MAP */}
             <div className="flex items-center gap-2 pt-1">
               <span className="inline-flex items-center justify-center h-4 w-4" aria-hidden="true">
-                {kingpinLegendPng ? (
-                  <img
-                    src={kingpinLegendPng}
-                    alt=""
-                    width={16}
-                    height={16}
-                    style={{ width: 16, height: 16, objectFit: "contain", display: "block" }}
-                  />
-                ) : (
-                  <span className="inline-block h-3 w-3 rounded-sm bg-white/70" />
-                )}
+                <img
+                  src={KINGPIN_ICON_DATA_URL}
+                  alt=""
+                  width={16}
+                  height={16}
+                  style={{ width: 16, height: 16, objectFit: "contain", display: "block" }}
+                />
               </span>
               <span>Kingpin</span>
             </div>
