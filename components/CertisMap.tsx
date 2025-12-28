@@ -22,6 +22,10 @@
 //     - No network PNG fetch
 //     - Versioned Mapbox image ID to avoid stale image cache
 //     - Legend uses the same generated image (data URL)
+//
+//   ✅ FIX (K14): Kingpin icon reliably shows on map
+//     - icon-size values corrected for 128px raster
+//     - styleimagemissing handler re-adds image if Mapbox drops it
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -301,13 +305,13 @@ export default function CertisMap(props: Props) {
   // - Then switch to "star" once satisfied
   const KINGPIN_SHAPE: "circle" | "star" = "circle";
 
-  const KINGPIN_FILL = "#1e3a8a"; // dark blue
-  const KINGPIN_STROKE = "#0b1220"; // deep outline
+  // ✅ Darker blue than before (reads clearly in Chrome + on glass overlay)
+  const KINGPIN_FILL = "#0b2a5b";
+  const KINGPIN_STROKE = "#0b1220";
   const KINGPIN_STROKE_W = 18;
 
   const KINGPIN_SVG = useMemo(() => {
     if (KINGPIN_SHAPE === "circle") {
-      // Circle icon: simple + deterministic
       return `
         <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
           <circle cx="64" cy="64" r="44" fill="${KINGPIN_FILL}" stroke="${KINGPIN_STROKE}" stroke-width="10"/>
@@ -315,7 +319,6 @@ export default function CertisMap(props: Props) {
       `.trim();
     }
 
-    // 5-point star (fills most of the viewBox)
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
         <path
@@ -339,7 +342,7 @@ export default function CertisMap(props: Props) {
     `.trim();
   }, [KINGPIN_SHAPE, KINGPIN_FILL, KINGPIN_STROKE]);
 
-  // Legend uses the exact same image (no external file, no caching issues)
+  // Legend uses the exact same SVG (data URL)
   const KINGPIN_ICON_DATA_URL = useMemo(() => svgDataUrl(KINGPIN_SVG), [KINGPIN_SVG]);
 
   useEffect(() => {
@@ -388,6 +391,31 @@ export default function CertisMap(props: Props) {
 
     window.addEventListener("resize", handleViewportResize, { passive: true });
     window.addEventListener("orientationchange", handleViewportResize, { passive: true } as any);
+
+    // ✅ Ensure Kingpin icon exists (and is the current version) before symbol layer renders
+    const ensureKingpinImage = async () => {
+      try {
+        if (map.hasImage(KINGPIN_ICON_ID)) {
+          try {
+            map.removeImage(KINGPIN_ICON_ID);
+          } catch {}
+        }
+        const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG, 64, 2); // 128×128
+        map.addImage(KINGPIN_ICON_ID, img as any);
+      } catch (e) {
+        console.warn("[CertisMap] Kingpin SVG→canvas icon load failed:", e);
+      }
+    };
+
+    // ✅ If Mapbox ever requests an icon that isn't present, re-add it (style reload safety)
+    const onStyleImageMissing = async (ev: any) => {
+      const id = String(ev?.id ?? "");
+      if (id === KINGPIN_ICON_ID) {
+        await ensureKingpinImage();
+      }
+    };
+
+    map.on("styleimagemissing", onStyleImageMissing);
 
     map.on("load", async () => {
       // Sources (once)
@@ -443,16 +471,8 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Kingpin icon (SVG → Canvas → Mapbox image)
-      try {
-        if (!map.hasImage(KINGPIN_ICON_ID)) {
-          const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG, 64, 2);
-          // When passing raw image data, do NOT pass pixelRatio here (already baked into width/height)
-          map.addImage(KINGPIN_ICON_ID, img as any);
-        }
-      } catch (e) {
-        console.warn("[CertisMap] Kingpin SVG→canvas icon load failed:", e);
-      }
+      // ✅ Kingpin icon (SVG → Canvas → Mapbox image)
+      await ensureKingpinImage();
 
       // Kingpins layer
       if (!map.getLayer(LYR_KINGPINS)) {
@@ -462,7 +482,11 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.014, 5, 0.023, 7, 0.032, 9, 0.041, 12, 0.05],
+
+            // ✅ IMPORTANT: Your previous values were far too small for a 128px icon.
+            // These values make the marker visible again across Midwest zoom levels.
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.08, 5, 0.12, 7, 0.16, 9, 0.2, 12, 0.24],
+
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -525,6 +549,10 @@ export default function CertisMap(props: Props) {
         resizeObsRef.current?.disconnect();
       } catch {}
       resizeObsRef.current = null;
+
+      try {
+        map.off("styleimagemissing", onStyleImageMissing as any);
+      } catch {}
 
       window.removeEventListener("resize", handleViewportResize as any);
       window.removeEventListener("orientationchange", handleViewportResize as any);
@@ -1008,7 +1036,6 @@ export default function CertisMap(props: Props) {
                     .map((x, i) => {
                       const who = x.name || "Kingpin";
                       const where = [x.city, x.state].filter(Boolean).join(", ");
-                      // ✅ FIX: use `who` (not undefined `R`)
                       const label = where ? `${who} (${where})` : who;
                       return `<option value="${i}" ${i === activeIndex ? "selected" : ""}>${label}</option>`;
                     })
@@ -1108,7 +1135,7 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ KINGPIN LEGEND: EXACT SAME SVG→CANVAS SOURCE AS MAP */}
+            {/* ✅ KINGPIN LEGEND: SAME SVG SOURCE AS MAP */}
             <div className="flex items-center gap-2 pt-1">
               <span className="inline-flex items-center justify-center h-4 w-4" aria-hidden="true">
                 <img
