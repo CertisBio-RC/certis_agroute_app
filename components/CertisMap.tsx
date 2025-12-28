@@ -155,12 +155,6 @@ function isRegionalOrCorporateHQ(category: string) {
   return (hasHQ && (corp || regional)) || c === "hq";
 }
 
-function normalizeHQLabel(category: any): string {
-  const raw = s(category);
-  if (!raw) return "";
-  return isRegionalOrCorporateHQ(raw) ? CAT_HQ : raw;
-}
-
 function makeId(kind: StopKind, coords: [number, number], p: Record<string, any>) {
   const retailer = s(p.Retailer);
   const name = s(p.Name);
@@ -251,6 +245,13 @@ export default function CertisMap(props: Props) {
     const env = (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim();
     return env || (MAPBOX_TOKEN || "").trim();
   }, []);
+
+  // ✅ SINGLE SOURCE OF TRUTH for the Kingpin icon URL (map layer + legend)
+  // ✅ Cache-bust to eliminate desktop stale asset/bundle issues
+  const KINGPIN_ICON_URL = useMemo(() => {
+    const v = "K12"; // bump this if you ever replace kingpin.png
+    return `${basePath}/icons/kingpin.png?v=${v}`;
+  }, [basePath]);
 
   useEffect(() => {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
@@ -353,12 +354,11 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Kingpin icon (PNG in /public/icons)
+      // Kingpin icon (load once)
       try {
         if (!map.hasImage(KINGPIN_ICON_ID)) {
-          const iconUrl = `${basePath}/icons/kingpin.png`;
           const img = await new Promise<any>((resolve, reject) => {
-            map.loadImage(iconUrl, (err, image) => {
+            map.loadImage(KINGPIN_ICON_URL, (err, image) => {
               if (err || !image) reject(err || new Error("loadImage failed"));
               else resolve(image);
             });
@@ -416,7 +416,6 @@ export default function CertisMap(props: Props) {
       map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
 
-      // Extra settle-resize (helps mobile first paint)
       requestAnimationFrame(() => {
         try {
           map.resize();
@@ -451,10 +450,13 @@ export default function CertisMap(props: Props) {
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basePath, token]);
+  }, [basePath, token, KINGPIN_ICON_URL]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
-    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> = {};
+    const acc: Record<
+      string,
+      { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }
+    > = {};
 
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
@@ -589,10 +591,6 @@ export default function CertisMap(props: Props) {
       const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
       const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
 
-      // ✅ Normalize any HQ-ish category in kingpin properties to "Regional HQ"
-      const rawKpCat = s(p.Category);
-      const kpCategory = rawKpCat ? normalizeHQLabel(rawKpCat) : "Kingpin";
-
       allStops.push({
         id: makeId("kingpin", coords, p),
         kind: "kingpin",
@@ -603,7 +601,7 @@ export default function CertisMap(props: Props) {
         city: s(p.City),
         state: s(p.State),
         zip: s(p.Zip),
-        category: kpCategory,
+        category: s(p.Category) || "Kingpin",
         suppliers: s(p.Suppliers),
         email: s(p.Email) || "TBD",
         phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
@@ -615,7 +613,9 @@ export default function CertisMap(props: Props) {
     onAllStopsLoaded(allStops);
 
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-    onRetailersLoaded(uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean)));
+    onRetailersLoaded(
+      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
+    );
 
     onCategoriesLoaded([...CANONICAL_CATEGORIES]);
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
@@ -763,10 +763,6 @@ export default function CertisMap(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripStops, token]);
 
-  // =========================
-  // ✅ COMPLETE HANDLERS
-  // =========================
-
   function handleRetailerClick(e: mapboxgl.MapMouseEvent) {
     const map = mapRef.current;
     if (!map) return;
@@ -863,8 +859,9 @@ export default function CertisMap(props: Props) {
       const state = s(p.State);
       const zip = s(p.Zip);
 
+      // ✅ If kingpin data ever still says "Corporate HQ", force display label to "Regional HQ"
       const rawCat = s(p.Category);
-      const category = rawCat ? normalizeHQLabel(rawCat) : "Kingpin";
+      const category = isRegionalOrCorporateHQ(rawCat) ? CAT_HQ : (rawCat || "Kingpin");
 
       const suppliers = s(p.Suppliers) || "Not listed";
 
@@ -899,7 +896,6 @@ export default function CertisMap(props: Props) {
 
     const renderDetailsHtml = (st: Stop) => {
       const header = st.retailer || "Unknown Retailer";
-
       const cat = st.category
         ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${st.category}</div>`
         : "";
@@ -941,6 +937,7 @@ export default function CertisMap(props: Props) {
 
           <div style="margin-bottom:4px;">${st.address || ""}<br/>${st.city || ""}, ${st.state || ""} ${st.zip || ""}</div>
           ${cat}
+
           <div style="margin-bottom:8px;"><span style="font-weight:700;color:#facc15;">Suppliers:</span> ${sup}</div>
 
           ${whoLine}
@@ -989,10 +986,6 @@ export default function CertisMap(props: Props) {
     setTimeout(() => wirePopup(), 0);
   }
 
-  // Floating Legend overlay
-  // ✅ Kingpin marker uses the real kingpin.png (NOT unicode) so it matches on ALL platforms
-  const legendKingpinIconUrl = `${basePath}/icons/kingpin.png`;
-
   return (
     <div className="relative w-full h-full min-h-0">
       {/* ✅ Key mobile fix: ensure the map container has non-zero height before Mapbox paints */}
@@ -1031,15 +1024,17 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
+            {/* ✅ KINGPIN LEGEND: MUST MATCH MAP ICON EXACTLY (NO GLYPHS) */}
             <div className="flex items-center gap-2 pt-1">
-              <img
-                src={legendKingpinIconUrl}
-                alt=""
-                aria-hidden="true"
-                width={16}
-                height={16}
-                style={{ width: 16, height: 16, objectFit: "contain", imageRendering: "auto" }}
-              />
+              <span className="inline-flex items-center justify-center h-4 w-4" aria-hidden="true">
+                <img
+                  src={KINGPIN_ICON_URL}
+                  alt=""
+                  width={16}
+                  height={16}
+                  style={{ width: 16, height: 16, objectFit: "contain", display: "block" }}
+                />
+              </span>
               <span>Kingpin</span>
             </div>
           </div>
