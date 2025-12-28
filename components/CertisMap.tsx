@@ -25,9 +25,8 @@
 //   - KINGPIN_ICON_ID = `kingpin-icon-${KINGPIN_ICON_VERSION}`
 //   - kingpin.png?v=K13
 //
-// LEGEND PATCH (Chrome-proof):
-//   ✅ Legend Kingpin icon is now a simple dark-blue circle (no <img>, no glyph).
-//   If this displays correctly everywhere, we can later swap it to a 5-point star.
+// LEGEND PATCH:
+//   ✅ Legend Kingpin icon is now an inline SVG 5-point star (cache-proof).
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -260,7 +259,7 @@ export default function CertisMap(props: Props) {
     return env || (MAPBOX_TOKEN || "").trim();
   }, []);
 
-  // ✅ SINGLE SOURCE OF TRUTH for the Kingpin icon URL (map layer + legend)
+  // ✅ SINGLE SOURCE OF TRUTH for the Kingpin icon URL (map layer)
   // ✅ K13: URL is versioned
   const KINGPIN_ICON_URL = useMemo(() => {
     return `${basePath}/icons/kingpin.png?v=${KINGPIN_ICON_VERSION}`;
@@ -1045,16 +1044,25 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ KINGPIN LEGEND: TEMPORARY SIMPLE SYMBOL (Chrome-proof) */}
+            {/* ✅ KINGPIN LEGEND: INLINE SVG STAR (Chrome-proof, cache-proof) */}
             <div className="flex items-center gap-2 pt-1">
-              <span
-                className="inline-block h-3.5 w-3.5 rounded-full border border-white/20"
-                style={{
-                  background: "#1e3a8a", // dark blue
-                  boxShadow: "0 0 0 1px rgba(0,0,0,0.35) inset",
-                }}
-                aria-hidden="true"
-              />
+              <span className="inline-flex items-center justify-center h-4 w-4" aria-hidden="true">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  style={{ display: "block" }}
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 2.6l2.73 5.53 6.1.89-4.41 4.3 1.04 6.08L12 16.98 6.54 19.4l1.04-6.08-4.41-4.3 6.1-.89L12 2.6z"
+                    fill="#1e3a8a"
+                    stroke="rgba(255,255,255,0.22)"
+                    strokeWidth="1.2"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
               <span>Kingpin</span>
             </div>
           </div>
