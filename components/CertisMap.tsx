@@ -17,6 +17,13 @@
 //       Distribution, Regional HQ
 //     - Grain OR Feed => Grain/Feed
 //     - Any hybrid containing Agronomy => Agronomy
+//
+// K13 PATCH (Chrome-only Kingpin legend mismatch):
+//   ✅ Version BOTH the URL and the Mapbox image ID so Chrome/Mapbox cannot reuse
+//      a stale cached PNG under the same image key.
+//   - KINGPIN_ICON_VERSION = "K13"
+//   - KINGPIN_ICON_ID = `kingpin-icon-${KINGPIN_ICON_VERSION}`
+//   - kingpin.png?v=K13
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
@@ -111,7 +118,10 @@ const LYR_HQ = "corp-hq-circle";
 const LYR_KINGPINS = "kingpin-symbol";
 const LYR_ROUTE = "trip-route";
 
-const KINGPIN_ICON_ID = "kingpin-icon";
+// ✅ K13: Version BOTH URL + Mapbox image ID (Chrome cache-proof)
+const KINGPIN_ICON_VERSION = "K13";
+const KINGPIN_ICON_ID = `kingpin-icon-${KINGPIN_ICON_VERSION}`;
+
 const KINGPIN_OFFSET_LNG = 0.0013;
 
 // Canonical categories (the only ones we expose to filters/UX)
@@ -247,10 +257,9 @@ export default function CertisMap(props: Props) {
   }, []);
 
   // ✅ SINGLE SOURCE OF TRUTH for the Kingpin icon URL (map layer + legend)
-  // ✅ Cache-bust to eliminate desktop stale asset/bundle issues
+  // ✅ K13: URL is versioned
   const KINGPIN_ICON_URL = useMemo(() => {
-    const v = "K12"; // bump this if you ever replace kingpin.png
-    return `${basePath}/icons/kingpin.png?v=${v}`;
+    return `${basePath}/icons/kingpin.png?v=${KINGPIN_ICON_VERSION}`;
   }, [basePath]);
 
   useEffect(() => {
@@ -355,6 +364,8 @@ export default function CertisMap(props: Props) {
       }
 
       // Kingpin icon (load once)
+      // ✅ K13: image ID is versioned; if Chrome/Mapbox cached an older PNG under
+      //         the old ID, it cannot be reused.
       try {
         if (!map.hasImage(KINGPIN_ICON_ID)) {
           const img = await new Promise<any>((resolve, reject) => {
@@ -744,7 +755,10 @@ export default function CertisMap(props: Props) {
         const geom = json?.routes?.[0]?.geometry;
         if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
 
-        src.setData({ type: "FeatureCollection", features: [{ type: "Feature", geometry: geom, properties: {} }] } as any);
+        src.setData({
+          type: "FeatureCollection",
+          features: [{ type: "Feature", geometry: geom, properties: {} }],
+        } as any);
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
@@ -788,7 +802,10 @@ export default function CertisMap(props: Props) {
     const stop: Stop = {
       id: makeId(kind, coords, p),
       kind,
-      label: kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`,
+      label:
+        kind === "hq"
+          ? `${retailer || "Regional HQ"} — Regional HQ`
+          : `${retailer || "Retailer"} — ${name || "Site"}`,
       retailer,
       name,
       address,
@@ -861,7 +878,7 @@ export default function CertisMap(props: Props) {
 
       // ✅ If kingpin data ever still says "Corporate HQ", force display label to "Regional HQ"
       const rawCat = s(p.Category);
-      const category = isRegionalOrCorporateHQ(rawCat) ? CAT_HQ : (rawCat || "Kingpin");
+      const category = isRegionalOrCorporateHQ(rawCat) ? CAT_HQ : rawCat || "Kingpin";
 
       const suppliers = s(p.Suppliers) || "Not listed";
 
@@ -997,22 +1014,34 @@ export default function CertisMap(props: Props) {
 
           <div className="space-y-1.5 text-[13px] text-white/85">
             <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#22c55e" }} />
+              <span
+                className="inline-block h-3 w-3 rounded-full border border-black/40"
+                style={{ background: "#22c55e" }}
+              />
               <span>{CAT_AGRONOMY}</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#f97316" }} />
+              <span
+                className="inline-block h-3 w-3 rounded-full border border-black/40"
+                style={{ background: "#f97316" }}
+              />
               <span>{CAT_GRAINFEED}</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#0ea5e9" }} />
+              <span
+                className="inline-block h-3 w-3 rounded-full border border-black/40"
+                style={{ background: "#0ea5e9" }}
+              />
               <span>{CAT_CSTORE}</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#a855f7" }} />
+              <span
+                className="inline-block h-3 w-3 rounded-full border border-black/40"
+                style={{ background: "#a855f7" }}
+              />
               <span>{CAT_DISTRIBUTION}</span>
             </div>
 
