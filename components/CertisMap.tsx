@@ -1,35 +1,25 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE DATABASE — GOLD (K11-safe + Midwest-view + Popup polish)
+// 💠 CERTIS AGROUTE DATABASE — GOLD (K15-safe + Kingpin intent restored + Mobile hitboxes)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Regional HQ filtered ONLY by State (Bailey HQ rule)
 //   • Kingpins always visible overlay (not filtered)
 //   • Applies ~100m offset to Kingpins (lng + 0.0013) like K10
-//   • Kingpin icon size is ZOOM-SCALED (tuned down slightly)
-//   • Trip route: Mapbox Directions (driving) + straight-line fallback
-//   • ✅ Loop guards: map init once, sources/layers added once, route abort/debounce
-//   • ✅ UI polish: one-line Suppliers + Category/Suppliers label color match
-//   • ✅ Regression fix: Multi-Kingpin dropdown when overlaps occur
-//   • ✅ NEW: Canonical category normalization + floating legend overlay
-//     - Canonical categories (5): Agronomy, Grain/Feed, C-Store/Service/Energy,
-//       Distribution, Regional HQ
+//   • Kingpin icon is SVG → Canvas → Mapbox image (Chrome-proof), fallback to /icons/kingpin.png
+//   • ✅ Mobile usability: invisible “hitbox” layers for easier tapping
+//   • ✅ Loop guards: init once, sources/layers once, route abort/debounce
+//
+//   ✅ Category normalization (canonical 5):
+//     - Agronomy, Grain/Feed, C-Store/Service/Energy, Distribution, Regional HQ
 //     - Grain OR Feed => Grain/Feed
 //     - Any hybrid containing Agronomy => Agronomy
-//
-//   ✅ NEW (Chrome-proof): Kingpin icon generated via SVG → Canvas (Blob URL)
-//     - No network PNG fetch required
-//     - Versioned Mapbox image ID to avoid stale image cache
-//     - ✅ Robust fallback: if SVG→Canvas fails, use /icons/kingpin.png
-//
-//   ✅ NEW (Mobile usability): Invisible “hitbox” layers for easier tapping
-//     - Retailers, HQ, and Kingpins get larger invisible circles for touch
 // ============================================================================
 
 import { useEffect, useMemo, useRef } from "react";
 import mapboxgl from "mapbox-gl";
-import Image from "next/image";
+import NextImage from "next/image";
 import { MAPBOX_TOKEN } from "../utils/token";
 
 type StopKind = "retailer" | "hq" | "kingpin";
@@ -54,14 +44,6 @@ export type Stop = {
   coords: [number, number]; // [lng, lat]
 };
 
-export type RetailerSummaryRow = {
-  retailer: string;
-  count: number;
-  suppliers: string[];
-  categories: string[];
-  states: string[];
-};
-
 export type CategoryCount = {
   category: string;
   count: number;
@@ -69,8 +51,8 @@ export type CategoryCount = {
 
 export type RetailerNetworkSummaryRow = {
   retailer: string;
-  totalLocations: number; // ALL retailer features (including non-agronomy, excluding kingpins)
-  agronomyLocations: number; // retailer features whose category includes "agronomy" (excluding HQ)
+  totalLocations: number;
+  agronomyLocations: number;
   states: string[];
   categoryCounts: CategoryCount[];
 };
@@ -120,14 +102,13 @@ const LYR_HQ = "corp-hq-circle";
 const LYR_KINGPINS = "kingpin-symbol";
 const LYR_ROUTE = "trip-route";
 
-// ✅ Mobile hitbox layers (invisible but clickable)
 const LYR_RETAILERS_HIT = "retailers-hitbox";
 const LYR_HQ_HIT = "hq-hitbox";
 const LYR_KINGPINS_HIT = "kingpin-hitbox";
 
 const KINGPIN_OFFSET_LNG = 0.0013;
 
-// Canonical categories (the only ones we expose to filters/UX)
+// Canonical categories
 const CAT_AGRONOMY = "Agronomy";
 const CAT_GRAINFEED = "Grain/Feed";
 const CAT_CSTORE = "C-Store/Service/Energy";
@@ -153,12 +134,6 @@ function splitMulti(raw: any) {
     .filter(Boolean);
 }
 
-/**
- * HQ detection supports:
- * - "Corporate HQ" (legacy)
- * - "Regional HQ" (current)
- * - "HQ" (if ever used)
- */
 function isRegionalOrCorporateHQ(category: string) {
   const c = s(category).toLowerCase();
   if (!c) return false;
@@ -180,37 +155,22 @@ function safeDomId(prefix: string) {
   return `${prefix}-${Math.random().toString(16).slice(2)}-${Date.now().toString(16)}`;
 }
 
-/**
- * Canonical category normalization (Bailey Rules):
- * - Any hybrid containing Agronomy => Agronomy
- * - Grain OR Feed (or any hybrid that contains either) => Grain/Feed
- * - C-Store/Service/Energy => C-Store/Service/Energy
- * - Distribution => Distribution
- * - HQ => Regional HQ
- * - If none match => "" (we leave uncategorized)
- */
 function normalizeCategory(rawCategory: any): string {
   const raw = s(rawCategory);
   const low = raw.toLowerCase();
   if (!low) return "";
 
-  // HQ wins into dedicated bucket
   if (isRegionalOrCorporateHQ(raw)) return CAT_HQ;
-
-  // Agronomy overrides any hybrid
   if (low.includes("agronomy")) return CAT_AGRONOMY;
 
-  // Grain/Feed: either token implies Grain/Feed
   const hasGrain = low.includes("grain");
   const hasFeed = low.includes("feed");
   if (hasGrain || hasFeed) return CAT_GRAINFEED;
 
-  // C-Store/Service/Energy
   if (low.includes("c-store") || low.includes("c store") || low.includes("service") || low.includes("energy")) {
     return CAT_CSTORE;
   }
 
-  // Distribution
   if (low.includes("distribution")) return CAT_DISTRIBUTION;
 
   return "";
@@ -221,12 +181,10 @@ function normalizeCategory(rawCategory: any): string {
 // ===============================
 
 function svgDataUrl(svg: string) {
-  // Encode as UTF-8 for stable rendering (legend only)
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 function svgBlobUrl(svg: string) {
-  // ✅ More Chrome-stable than data: URLs for <img> decoding
   const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
   return URL.createObjectURL(blob);
 }
@@ -241,11 +199,11 @@ async function rasterizeSvgToMapboxImage(svg: string, sizePx: number, pixelRatio
 
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("2D context not available");
-
-  // Image smoothing helps keep the star clean at small sizes
   ctx.imageSmoothingEnabled = true;
 
-  const img = new Image();
+  // ✅ IMPORTANT: do NOT use `new Image()` here because we also import NextImage.
+  // Use a DOM <img> element instead (avoids TS confusion and builds cleanly).
+  const img: HTMLImageElement = document.createElement("img");
   img.decoding = "async";
 
   const blobUrl = svgBlobUrl(svg);
@@ -265,7 +223,6 @@ async function rasterizeSvgToMapboxImage(svg: string, sizePx: number, pixelRatio
 
   const imageData = ctx.getImageData(0, 0, w, h);
 
-  // Mapbox raw image object: { width, height, data }
   return {
     width: w,
     height: h,
@@ -325,17 +282,14 @@ export default function CertisMap(props: Props) {
     return env || (MAPBOX_TOKEN || "").trim();
   }, []);
 
-  // 🔒 Version these so Mapbox/Chrome cannot reuse a stale image ID
+  // ✅ Versioned Mapbox image id to dodge stale caches
   const KINGPIN_ICON_VERSION = "K15";
   const KINGPIN_ICON_ID = useMemo(() => `kingpin-icon-${KINGPIN_ICON_VERSION}`, []);
 
-  // ✅ Choose the shape you want rendered everywhere:
-  //    Keep your original intention: STAR on the map.
+  // ✅ Your intended star look
   const KINGPIN_SHAPE = useMemo<"circle" | "star">(() => "star", []);
-
-  // ✅ Your intended dark-blue kingpin look
-  const KINGPIN_FILL = "#1e3a8a"; // dark blue
-  const KINGPIN_STROKE = "#0b1220"; // deep outline
+  const KINGPIN_FILL = "#1e3a8a";
+  const KINGPIN_STROKE = "#0b1220";
   const KINGPIN_STROKE_W = 10;
 
   const KINGPIN_SVG = useMemo(() => {
@@ -347,7 +301,6 @@ export default function CertisMap(props: Props) {
       `.trim();
     }
 
-    // 5-point star (fills most of the viewBox) — matches your historical "star" intention
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
         <path
@@ -371,7 +324,6 @@ export default function CertisMap(props: Props) {
     `.trim();
   }, [KINGPIN_SHAPE, KINGPIN_FILL, KINGPIN_STROKE, KINGPIN_STROKE_W]);
 
-  // Legend uses the SVG string (not the Mapbox image), so it always matches shape/color intent
   const KINGPIN_ICON_DATA_URL = useMemo(() => svgDataUrl(KINGPIN_SVG), [KINGPIN_SVG]);
 
   useEffect(() => {
@@ -393,7 +345,7 @@ export default function CertisMap(props: Props) {
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
-    // ✅ ResizeObserver: keeps the map canvas synced with layout changes
+    // Keep the map sized correctly
     try {
       resizeObsRef.current = new ResizeObserver(() => {
         const m = mapRef.current;
@@ -407,7 +359,6 @@ export default function CertisMap(props: Props) {
       resizeObsRef.current.observe(containerRef.current);
     } catch {}
 
-    // ✅ Mobile: force resize on orientation/viewport changes (prevents "blank until rotate")
     const handleViewportResize = () => {
       const m = mapRef.current;
       if (!m) return;
@@ -421,14 +372,12 @@ export default function CertisMap(props: Props) {
     window.addEventListener("resize", handleViewportResize, { passive: true });
     window.addEventListener("orientationchange", handleViewportResize, { passive: true } as any);
 
-    // ✅ Ensure kingpin icon exists (SVG→Canvas first; fallback to PNG)
     const ensureKingpinIcon = async () => {
       const m = mapRef.current;
       if (!m) return;
-
       if (m.hasImage(KINGPIN_ICON_ID)) return;
 
-      // 1) Primary: SVG → Canvas → addImage (no network dependency)
+      // 1) Primary: SVG → Canvas → addImage
       try {
         const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG, 96, 2);
         m.addImage(KINGPIN_ICON_ID, img as any);
@@ -437,7 +386,7 @@ export default function CertisMap(props: Props) {
         console.warn("[CertisMap] SVG→Canvas kingpin icon failed; falling back to PNG.", e);
       }
 
-      // 2) Fallback: known-good PNG (keeps the map usable even if SVG rasterization fails)
+      // 2) Fallback: PNG
       try {
         const pngUrl = `${basePath}/icons/kingpin.png?v=${encodeURIComponent(KINGPIN_ICON_VERSION)}`;
         const png = await loadMapboxImage(m, pngUrl);
@@ -448,7 +397,7 @@ export default function CertisMap(props: Props) {
     };
 
     map.on("load", async () => {
-      // Sources (once)
+      // Sources
       if (!map.getSource(SRC_RETAILERS)) {
         map.addSource(SRC_RETAILERS, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
@@ -459,7 +408,7 @@ export default function CertisMap(props: Props) {
         map.addSource(SRC_ROUTE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
 
-      // Retailers layer (canonical categories)
+      // Retailers
       if (!map.getLayer(LYR_RETAILERS)) {
         map.addLayer({
           id: LYR_RETAILERS,
@@ -485,7 +434,7 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // ✅ Retailers hitbox (mobile): bigger invisible circles
+      // Retailers hitbox (mobile)
       if (!map.getLayer(LYR_RETAILERS_HIT)) {
         map.addLayer({
           id: LYR_RETAILERS_HIT,
@@ -494,13 +443,13 @@ export default function CertisMap(props: Props) {
           paint: {
             "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 10, 5, 14, 7, 18, 10, 20],
             "circle-color": "#000000",
-            "circle-opacity": 0.001, // effectively invisible but clickable
+            "circle-opacity": 0.001,
             "circle-stroke-width": 0,
           },
         });
       }
 
-      // HQ layer (canonical)
+      // HQ
       if (!map.getLayer(LYR_HQ)) {
         map.addLayer({
           id: LYR_HQ,
@@ -516,7 +465,7 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // ✅ HQ hitbox (mobile)
+      // HQ hitbox
       if (!map.getLayer(LYR_HQ_HIT)) {
         map.addLayer({
           id: LYR_HQ_HIT,
@@ -532,10 +481,9 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Kingpin icon (SVG → Canvas → Mapbox image; fallback to PNG)
+      // Kingpin icon + layers
       await ensureKingpinIcon();
 
-      // Kingpins symbol layer
       if (!map.getLayer(LYR_KINGPINS)) {
         map.addLayer({
           id: LYR_KINGPINS,
@@ -543,7 +491,6 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            // ✅ tuned to match your original “star” presence (avoid tiny / avoid huge)
             "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.16, 5, 0.22, 7, 0.28, 9, 0.33, 12, 0.38],
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
@@ -552,7 +499,6 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // ✅ Kingpin hitbox (mobile): large invisible circles, click handler uses this layer
       if (!map.getLayer(LYR_KINGPINS_HIT)) {
         map.addLayer({
           id: LYR_KINGPINS_HIT,
@@ -567,7 +513,7 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Route line
+      // Route
       if (!map.getLayer(LYR_ROUTE)) {
         map.addLayer({
           id: LYR_ROUTE,
@@ -589,17 +535,17 @@ export default function CertisMap(props: Props) {
       const setPointer = () => (map.getCanvas().style.cursor = "pointer");
       const clearPointer = () => (map.getCanvas().style.cursor = "");
 
-      // ✅ Pointer cues on both visual and hitbox layers
       [LYR_RETAILERS, LYR_HQ, LYR_KINGPINS, LYR_RETAILERS_HIT, LYR_HQ_HIT, LYR_KINGPINS_HIT].forEach((lyr) => {
         map.on("mouseenter", lyr, setPointer);
         map.on("mouseleave", lyr, clearPointer);
       });
 
-      // ✅ Click handlers target hitbox layers first (mobile), but also keep visual layers
+      // Click handlers: hitboxes first
       map.on("click", LYR_RETAILERS_HIT, (e) => handleRetailerClick(e));
       map.on("click", LYR_HQ_HIT, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS_HIT, (e) => handleKingpinClick(e));
 
+      // Still allow direct clicks on visible layers
       map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
       map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
@@ -609,8 +555,6 @@ export default function CertisMap(props: Props) {
           map.resize();
         } catch {}
       });
-
-      console.info("[CertisMap] Loaded.");
     });
 
     return () => {
@@ -641,8 +585,10 @@ export default function CertisMap(props: Props) {
   }, [basePath, token, KINGPIN_ICON_ID, KINGPIN_SVG]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
-    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> =
-      {};
+    const acc: Record<
+      string,
+      { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }
+    > = {};
 
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
@@ -802,7 +748,6 @@ export default function CertisMap(props: Props) {
     onRetailersLoaded(
       uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
     );
-
     onCategoriesLoaded([...CANONICAL_CATEGORIES]);
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
@@ -831,10 +776,8 @@ export default function CertisMap(props: Props) {
 
     const hqFilter: any[] = ["all"];
     hqFilter.push(["==", ["get", "Category"], CAT_HQ]);
-
     if (selectedStates.length) hqFilter.push(["in", ["upcase", ["get", "State"]], ["literal", selectedStates]]);
 
-    // ✅ Apply to both visual and hitbox layers
     map.setFilter(LYR_RETAILERS, retailerFilter as any);
     map.setFilter(LYR_RETAILERS_HIT, retailerFilter as any);
 
@@ -957,7 +900,6 @@ export default function CertisMap(props: Props) {
     const map = mapRef.current;
     if (!map) return;
 
-    // ✅ Query hitbox first (more reliable on mobile), then visual layers
     const features =
       (map.queryRenderedFeatures(e.point, { layers: [LYR_RETAILERS_HIT, LYR_HQ_HIT] }) as any[]) ||
       (map.queryRenderedFeatures(e.point, { layers: [LYR_RETAILERS, LYR_HQ] }) as any[]);
@@ -1025,7 +967,6 @@ export default function CertisMap(props: Props) {
     const map = mapRef.current;
     if (!map) return;
 
-    // ✅ Query hitbox first (mobile), then visual symbol layer
     const featuresRaw =
       (map.queryRenderedFeatures(e.point, { layers: [LYR_KINGPINS_HIT] }) as any[]) ||
       (map.queryRenderedFeatures(e.point, { layers: [LYR_KINGPINS] }) as any[]);
@@ -1057,12 +998,10 @@ export default function CertisMap(props: Props) {
       const state = s(p.State);
       const zip = s(p.Zip);
 
-      // ✅ If kingpin data ever still says "Corporate HQ", force display label to "Regional HQ"
       const rawCat = s(p.Category);
       const category = isRegionalOrCorporateHQ(rawCat) ? CAT_HQ : rawCat || "Kingpin";
 
       const suppliers = s(p.Suppliers) || "Not listed";
-
       const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
       const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
       const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
@@ -1186,7 +1125,6 @@ export default function CertisMap(props: Props) {
 
   return (
     <div className="relative w-full h-full min-h-0">
-      {/* ✅ Key mobile fix: ensure the map container has non-zero height before Mapbox paints */}
       <div ref={containerRef} className="w-full h-full min-h-[55vh] sm:min-h-0" />
 
       <div className="absolute bottom-4 left-4 z-10">
@@ -1222,10 +1160,10 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ KINGPIN LEGEND: matches the same SVG that feeds the Mapbox icon */}
+            {/* ✅ Kingpin legend star (matches the SVG used for the Mapbox icon source) */}
             <div className="flex items-center gap-2 pt-1">
               <span className="inline-flex items-center justify-center h-4 w-4" aria-hidden="true">
-                <Image
+                <NextImage
                   src={KINGPIN_ICON_DATA_URL}
                   alt=""
                   width={16}
