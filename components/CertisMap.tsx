@@ -299,7 +299,7 @@ export default function CertisMap(props: Props) {
   // Choose the shape you want rendered everywhere:
   // - Start with circle (proved the pipeline works)
   // - Then switch to "star" once satisfied
-  const KINGPIN_SHAPE: "circle" | "star" = "star";
+  const KINGPIN_SHAPE: "circle" | "star" = "circle";
 
   const KINGPIN_FILL = "#1e3a8a"; // dark blue
   const KINGPIN_STROKE = "#0b1220"; // deep outline
