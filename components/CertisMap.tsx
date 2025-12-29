@@ -230,11 +230,13 @@ async function rasterizeSvgToMapboxImage(svg: string, sizePx: number, pixelRatio
   };
 }
 
+// ✅ Mapbox typings do NOT export mapboxgl.ImageData.
+// map.loadImage returns an image-like object (HTMLImageElement or ImageBitmap).
 function loadMapboxImage(map: mapboxgl.Map, url: string) {
-  return new Promise<mapboxgl.ImageData>((resolve, reject) => {
+  return new Promise<HTMLImageElement | ImageBitmap>((resolve, reject) => {
     map.loadImage(url, (err, img) => {
       if (err || !img) return reject(err || new Error("loadImage failed"));
-      resolve(img);
+      resolve(img as unknown as HTMLImageElement | ImageBitmap);
     });
   });
 }
@@ -390,7 +392,7 @@ export default function CertisMap(props: Props) {
       try {
         const pngUrl = `${basePath}/icons/kingpin.png?v=${encodeURIComponent(KINGPIN_ICON_VERSION)}`;
         const png = await loadMapboxImage(m, pngUrl);
-        m.addImage(KINGPIN_ICON_ID, png, { sdf: false });
+        m.addImage(KINGPIN_ICON_ID, png as any, { sdf: false });
       } catch (e) {
         console.error("[CertisMap] PNG fallback kingpin icon also failed:", e);
       }
@@ -585,10 +587,8 @@ export default function CertisMap(props: Props) {
   }, [basePath, token, KINGPIN_ICON_ID, KINGPIN_SVG]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
-    const acc: Record<
-      string,
-      { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }
-    > = {};
+    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> =
+      {};
 
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
