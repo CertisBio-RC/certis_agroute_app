@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE DATABASE — GOLD (K16 sizing + legend fix + Chrome/Edge parity)
+// 💠 CERTIS AGROUTE DATABASE — GOLD (K15-safe + Kingpin intent restored + Mobile hitboxes)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Regional HQ filtered ONLY by State (Bailey HQ rule)
@@ -154,6 +154,7 @@ function safeDomId(prefix: string) {
   return `${prefix}-${Math.random().toString(16).slice(2)}-${Date.now().toString(16)}`;
 }
 
+// Category normalization
 function normalizeCategory(rawCategory: any): string {
   const raw = s(rawCategory);
   const low = raw.toLowerCase();
@@ -178,6 +179,10 @@ function normalizeCategory(rawCategory: any): string {
 // ===============================
 // Kingpin SVG → Canvas utilities
 // ===============================
+
+function svgDataUrl(svg: string) {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
 
 function svgBlobUrl(svg: string) {
   const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
@@ -232,18 +237,19 @@ function loadMapboxImage(map: mapboxgl.Map, url: string) {
   });
 }
 
-// Inline legend icon (Chrome/Edge consistent)
+// Legend kingpin icon: keep inline SVG but with CSS that reduces subpixel weirdness
 function LegendKingpinIcon(props: { svg: string }) {
   return (
     <span
-      className="inline-flex items-center justify-center"
+      className="inline-flex items-center justify-center h-4 w-4"
       aria-hidden="true"
       // eslint-disable-next-line react/no-danger
       dangerouslySetInnerHTML={{ __html: props.svg }}
       style={{
-        width: 14,
-        height: 14,
         lineHeight: 0,
+        display: "inline-flex",
+        transform: "translateZ(0)", // nudge Chrome into saner raster
+        willChange: "transform",
       }}
     />
   );
@@ -297,19 +303,28 @@ export default function CertisMap(props: Props) {
   }, [token]);
 
   // ✅ Versioned Mapbox image id to dodge stale caches
-  const KINGPIN_ICON_VERSION = "K16";
+  const KINGPIN_ICON_VERSION = "K15";
   const KINGPIN_ICON_ID = useMemo(() => `kingpin-icon-${KINGPIN_ICON_VERSION}`, []);
 
-  // ✅ Kingpin styling (adjusted: thinner stroke so it doesn’t blob/square at small sizes)
-  const KINGPIN_FILL = "#1e3a8a";
+  // ✅ Star look (but tuned to match what Chrome renders cleanly)
+  const KINGPIN_SHAPE = useMemo<"circle" | "star">(() => "star", []);
+
+  // ✅ CHANGE: brighter fill + slightly thinner stroke
+  const KINGPIN_FILL = "#2563eb"; // brighter blue (crisper at small size)
   const KINGPIN_STROKE = "#0b1220";
-  const KINGPIN_STROKE_W_MAP = 7; // thinner than before (prevents “blob”)
-  const KINGPIN_STROKE_W_LEGEND = 6;
+  const KINGPIN_STROKE_W = 8; // was 10
 
-  // ✅ Padded viewBox prevents clipping in Chrome/Edge at tiny legend sizes
-  const KINGPIN_SVG_MAP = useMemo(() => {
+  const KINGPIN_SVG = useMemo(() => {
+    if (KINGPIN_SHAPE === "circle") {
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 128 128">
+          <circle cx="64" cy="64" r="44" fill="${KINGPIN_FILL}" stroke="${KINGPIN_STROKE}" stroke-width="${KINGPIN_STROKE_W}"/>
+        </svg>
+      `.trim();
+    }
+
     return `
-      <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="-10 -10 148 148" preserveAspectRatio="xMidYMid meet" style="display:block">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 128 128" shape-rendering="geometricPrecision">
         <path
           d="M64 14
              L78.6 47.5
@@ -324,36 +339,15 @@ export default function CertisMap(props: Props) {
              Z"
           fill="${KINGPIN_FILL}"
           stroke="${KINGPIN_STROKE}"
-          stroke-width="${KINGPIN_STROKE_W_MAP}"
+          stroke-width="${KINGPIN_STROKE_W}"
           stroke-linejoin="round"
         />
       </svg>
     `.trim();
-  }, [KINGPIN_FILL, KINGPIN_STROKE, KINGPIN_STROKE_W_MAP]);
+  }, [KINGPIN_SHAPE, KINGPIN_FILL, KINGPIN_STROKE, KINGPIN_STROKE_W]);
 
-  const KINGPIN_SVG_LEGEND = useMemo(() => {
-    return `
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="-10 -10 148 148" preserveAspectRatio="xMidYMid meet" style="display:block">
-        <path
-          d="M64 14
-             L78.6 47.5
-             L115 52.2
-             L88 75.1
-             L96.1 110
-             L64 92
-             L31.9 110
-             L40 75.1
-             L13 52.2
-             L49.4 47.5
-             Z"
-          fill="${KINGPIN_FILL}"
-          stroke="${KINGPIN_STROKE}"
-          stroke-width="${KINGPIN_STROKE_W_LEGEND}"
-          stroke-linejoin="round"
-        />
-      </svg>
-    `.trim();
-  }, [KINGPIN_FILL, KINGPIN_STROKE, KINGPIN_STROKE_W_LEGEND]);
+  // Kept for debugging / optional uses
+  const KINGPIN_ICON_DATA_URL = useMemo(() => svgDataUrl(KINGPIN_SVG), [KINGPIN_SVG]);
 
   // INIT MAP (once)
   useEffect(() => {
@@ -370,7 +364,6 @@ export default function CertisMap(props: Props) {
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
 
-    // Keep the map sized correctly
     try {
       resizeObsRef.current = new ResizeObserver(() => {
         const m = mapRef.current;
@@ -402,16 +395,14 @@ export default function CertisMap(props: Props) {
       if (!m) return;
       if (m.hasImage(KINGPIN_ICON_ID)) return;
 
-      // 1) Primary: SVG → Canvas → addImage
       try {
-        const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG_MAP, 96, 2);
+        const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG, 96, 2);
         m.addImage(KINGPIN_ICON_ID, img as any);
         return;
       } catch (e) {
         console.warn("[CertisMap] SVG→Canvas kingpin icon failed; falling back to PNG.", e);
       }
 
-      // 2) Fallback: PNG
       try {
         const pngUrl = `${basePath}/icons/kingpin.png?v=${encodeURIComponent(KINGPIN_ICON_VERSION)}`;
         const png = await loadMapboxImage(m, pngUrl);
@@ -422,7 +413,6 @@ export default function CertisMap(props: Props) {
     };
 
     map.on("load", async () => {
-      // Sources
       if (!map.getSource(SRC_RETAILERS)) {
         map.addSource(SRC_RETAILERS, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
@@ -433,7 +423,6 @@ export default function CertisMap(props: Props) {
         map.addSource(SRC_ROUTE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
 
-      // Retailers
       if (!map.getLayer(LYR_RETAILERS)) {
         map.addLayer({
           id: LYR_RETAILERS,
@@ -459,7 +448,6 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Retailers hitbox (mobile)
       if (!map.getLayer(LYR_RETAILERS_HIT)) {
         map.addLayer({
           id: LYR_RETAILERS_HIT,
@@ -474,7 +462,6 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // HQ (slightly smaller than before)
       if (!map.getLayer(LYR_HQ)) {
         map.addLayer({
           id: LYR_HQ,
@@ -482,7 +469,7 @@ export default function CertisMap(props: Props) {
           source: SRC_RETAILERS,
           filter: ["==", ["get", "Category"], CAT_HQ],
           paint: {
-            "circle-radius": 5, // was 6
+            "circle-radius": 6,
             "circle-color": "#ff0000",
             "circle-stroke-color": "#facc15",
             "circle-stroke-width": 2,
@@ -490,7 +477,6 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // HQ hitbox
       if (!map.getLayer(LYR_HQ_HIT)) {
         map.addLayer({
           id: LYR_HQ_HIT,
@@ -506,7 +492,6 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Kingpin icon + layers
       await ensureKingpinIcon();
 
       if (!map.getLayer(LYR_KINGPINS)) {
@@ -516,17 +501,14 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            // ✅ SHRUNK: these were too large in both browsers
-            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.09, 5, 0.12, 7, 0.15, 9, 0.18, 12, 0.21],
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.16, 5, 0.22, 7, 0.28, 9, 0.33, 12, 0.38],
             "icon-anchor": "center",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
-            "icon-padding": 1,
           },
         });
       }
 
-      // Kingpin hitbox stays forgiving (tap usability)
       if (!map.getLayer(LYR_KINGPINS_HIT)) {
         map.addLayer({
           id: LYR_KINGPINS_HIT,
@@ -541,7 +523,6 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Route
       if (!map.getLayer(LYR_ROUTE)) {
         map.addLayer({
           id: LYR_ROUTE,
@@ -568,12 +549,10 @@ export default function CertisMap(props: Props) {
         map.on("mouseleave", lyr, clearPointer);
       });
 
-      // Click handlers: hitboxes first
       map.on("click", LYR_RETAILERS_HIT, (e) => handleRetailerClick(e));
       map.on("click", LYR_HQ_HIT, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS_HIT, (e) => handleKingpinClick(e));
 
-      // Still allow direct clicks on visible layers
       map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
       map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
@@ -610,7 +589,7 @@ export default function CertisMap(props: Props) {
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basePath, token, KINGPIN_ICON_ID, KINGPIN_SVG_MAP]);
+  }, [basePath, token, KINGPIN_ICON_ID, KINGPIN_SVG]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
     const acc: Record<
@@ -773,7 +752,9 @@ export default function CertisMap(props: Props) {
     onAllStopsLoaded(allStops);
 
     onStatesLoaded(uniqSorted(allStops.map((st) => s(st.state).toUpperCase()).filter(Boolean)));
-    onRetailersLoaded(uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean)));
+    onRetailersLoaded(
+      uniqSorted((retailersData.features ?? []).map((f: any) => s(f.properties?.Retailer)).filter(Boolean))
+    );
     onCategoriesLoaded([...CANONICAL_CATEGORIES]);
     onSuppliersLoaded(uniqSorted(allStops.flatMap((st) => splitMulti(st.suppliers))));
   }
@@ -895,9 +876,6 @@ export default function CertisMap(props: Props) {
         `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsStr}` +
         `?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(token)}`;
 
-      const src2 = map.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
-      if (!src2) return;
-
       try {
         const resp = await fetch(url, { signal: controller.signal });
         if (!resp.ok) throw new Error(`Directions HTTP ${resp.status} ${resp.statusText}`);
@@ -906,13 +884,15 @@ export default function CertisMap(props: Props) {
         const geom = json?.routes?.[0]?.geometry;
         if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
 
-        src2.setData({ type: "FeatureCollection", features: [{ type: "Feature", geometry: geom, properties: {} }] } as any);
+        src.setData({ type: "FeatureCollection", features: [{ type: "Feature", geometry: geom, properties: {} }] } as any);
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
-        src2.setData({
+        src.setData({
           type: "FeatureCollection",
-          features: [{ type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } }],
+          features: [
+            { type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } },
+          ],
         } as any);
       }
     }, 150);
@@ -1209,11 +1189,13 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ Kingpin legend icon — padded viewBox + thin stroke = no “square blob” in Chrome */}
             <div className="flex items-center gap-2 pt-1">
-              <LegendKingpinIcon svg={KINGPIN_SVG_LEGEND} />
+              <LegendKingpinIcon svg={KINGPIN_SVG} />
               <span>Kingpin</span>
             </div>
+
+            {/* Debug (optional) */}
+            {/* <div className="text-[10px] text-white/40 break-all">{KINGPIN_ICON_DATA_URL}</div> */}
           </div>
         </div>
       </div>
