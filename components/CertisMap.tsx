@@ -392,7 +392,7 @@ export default function CertisMap(props: Props) {
 
       // 1) Primary: SVG → Canvas → addImage
       try {
-        const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG, 96, 2);
+	const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG, 64, 2);
         m.addImage(KINGPIN_ICON_ID, img as any);
         return;
       } catch (e) {
@@ -505,7 +505,19 @@ export default function CertisMap(props: Props) {
           layout: {
             "icon-image": KINGPIN_ICON_ID,
             // ✅ Half-step sizing: bigger than “too small”, smaller than “obnoxious”
-            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.19, 5, 0.25, 7, 0.30, 9, 0.34, 12, 0.38],
+"icon-size": [
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  3, 0.18,
+  5, 0.20,
+  7, 0.24,
+  9, 0.30,
+  11, 0.36,
+  13, 0.44,
+  15, 0.52,
+  17, 0.60
+],
             "icon-anchor": "center",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
