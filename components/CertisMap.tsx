@@ -6,7 +6,7 @@
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Regional HQ filtered ONLY by State (Bailey HQ rule)
 //   • Kingpins always visible overlay (not filtered)
-//   • ✅ Restored ~100m offset to Kingpins (lng + 0.0013) like K10
+//   • Applies ~100m offset to Kingpins (lng + 0.0013) like K10
 //   • Kingpin icon is SVG → Canvas → Mapbox image (Chrome-proof), fallback to /icons/kingpin.png
 //   • ✅ Mobile usability: invisible “hitbox” layers for easier tapping
 //   • ✅ Loop guards: init once, sources/layers once, route abort/debounce
@@ -105,8 +105,6 @@ const LYR_RETAILERS_HIT = "retailers-hitbox";
 const LYR_HQ_HIT = "hq-hitbox";
 const LYR_KINGPINS_HIT = "kingpin-hitbox";
 
-// ✅ ~100m longitudinal offset (K10 behavior)
-// 0.0013° lon ≈ ~100m around the Midwest latitudes (good enough for visual separation)
 const KINGPIN_OFFSET_LNG = 0.0013;
 
 // Canonical categories
@@ -223,7 +221,6 @@ async function rasterizeSvgToMapboxImage(svg: string, sizePx: number, pixelRatio
 
   const imageData = ctx.getImageData(0, 0, w, h);
 
-  // Mapbox accepts {width,height,data} for addImage
   return {
     width: w,
     height: h,
@@ -232,7 +229,6 @@ async function rasterizeSvgToMapboxImage(svg: string, sizePx: number, pixelRatio
 }
 
 function loadMapboxImage(map: mapboxgl.Map, url: string) {
-  // map.loadImage returns HTMLImageElement | ImageBitmap (types vary by mapbox-gl version)
   return new Promise<any>((resolve, reject) => {
     map.loadImage(url, (err, img) => {
       if (err || !img) return reject(err || new Error("loadImage failed"));
@@ -243,7 +239,6 @@ function loadMapboxImage(map: mapboxgl.Map, url: string) {
 
 // Inline legend icon (avoids Chrome weirdness with data-url <Image> rendering)
 function LegendKingpinIcon(props: { svg: string }) {
-  // Render the same SVG string in the DOM, so legend == map source (visually)
   return (
     <span
       className="inline-flex items-center justify-center h-4 w-4"
@@ -302,13 +297,13 @@ export default function CertisMap(props: Props) {
   const KINGPIN_ICON_VERSION = "K15";
   const KINGPIN_ICON_ID = useMemo(() => `kingpin-icon-${KINGPIN_ICON_VERSION}`, []);
 
-  // ✅ Your intended star look (legend + map share the same SVG source)
+  // ✅ Kingpin visual tuning (fix: too-dark rasterization + mismatch vs legend)
+  //   - Lighter fill (matches your preferred legend look)
+  //   - Thinner stroke so the fill doesn't "collapse" when rasterized down to an icon
   const KINGPIN_SHAPE = useMemo<"circle" | "star">(() => "star", []);
-  const KINGPIN_FILL = "#1e3a8a";
-
-  // Keep the stroke matching what your legend is currently using
+  const KINGPIN_FILL = "#2563eb"; // lighter blue (Tailwind blue-600)
   const KINGPIN_STROKE = "#0b1220";
-  const KINGPIN_STROKE_W = 6;
+  const KINGPIN_STROKE_W = 6; // was heavier; smaller keeps fill visible after rasterization
 
   const KINGPIN_SVG = useMemo(() => {
     if (KINGPIN_SHAPE === "circle") {
@@ -342,7 +337,6 @@ export default function CertisMap(props: Props) {
     `.trim();
   }, [KINGPIN_SHAPE, KINGPIN_FILL, KINGPIN_STROKE, KINGPIN_STROKE_W]);
 
-  // Kept for debugging / optional uses (not required for legend anymore)
   const KINGPIN_ICON_DATA_URL = useMemo(() => svgDataUrl(KINGPIN_SVG), [KINGPIN_SVG]);
 
   useEffect(() => {
@@ -510,12 +504,8 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-
-            // ✅ Kingpin size: +1 “click” (slightly larger at all zooms)
-            // Previous: 3:0.16, 5:0.22, 7:0.28, 9:0.33, 12:0.38
-            // New:      3:0.18, 5:0.25, 7:0.31, 9:0.37, 12:0.42
-            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.18, 5, 0.25, 7, 0.31, 9, 0.37, 12, 0.42],
-
+            // ✅ Half-step sizing: bigger than “too small”, smaller than “obnoxious”
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.19, 5, 0.25, 7, 0.30, 9, 0.34, 12, 0.38],
             "icon-anchor": "center",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -523,7 +513,7 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // ✅ BIGGER / MORE FORGIVING kingpin hitbox (fixes “hunt for hotspot”)
+      // Kingpin hitbox (mobile)
       if (!map.getLayer(LYR_KINGPINS_HIT)) {
         map.addLayer({
           id: LYR_KINGPINS_HIT,
@@ -610,8 +600,10 @@ export default function CertisMap(props: Props) {
   }, [basePath, token, KINGPIN_ICON_ID, KINGPIN_SVG]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
-    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> =
-      {};
+    const acc: Record<
+      string,
+      { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }
+    > = {};
 
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
@@ -674,11 +666,11 @@ export default function CertisMap(props: Props) {
       }),
     };
 
-    // ✅ Apply ~100m eastward offset to kingpins (lng + 0.0013) so they don't sit exactly on retailers
     const offsetKingpins: FeatureCollection = {
       ...kingpinData,
       features: (kingpinData.features ?? []).map((f: any) => {
         const [lng, lat] = f.geometry?.coordinates ?? [0, 0];
+        // ✅ Restore ~100m offset (lng + 0.0013)
         return { ...f, geometry: { ...f.geometry, coordinates: [lng + KINGPIN_OFFSET_LNG, lat] } };
       }),
     };
@@ -932,10 +924,8 @@ export default function CertisMap(props: Props) {
     const map = mapRef.current;
     if (!map) return;
 
-    // ✅ Best: use layer event features (most accurate)
     let features = getEventFeatures(e);
 
-    // Fallback: query (only if needed)
     if (!features || features.length === 0) {
       features = map.queryRenderedFeatures(e.point, { layers: [LYR_RETAILERS_HIT, LYR_HQ_HIT] }) as any[];
       if (!features || features.length === 0) {
@@ -1006,10 +996,8 @@ export default function CertisMap(props: Props) {
     const map = mapRef.current;
     if (!map) return;
 
-    // ✅ Best: use layer event features (fixes “hotspot drift”)
     let featuresRaw = getEventFeatures(e);
 
-    // Fallback: query (only if needed)
     if (!featuresRaw || featuresRaw.length === 0) {
       featuresRaw = map.queryRenderedFeatures(e.point, { layers: [LYR_KINGPINS_HIT] }) as any[];
       if (!featuresRaw || featuresRaw.length === 0) {
@@ -1206,13 +1194,13 @@ export default function CertisMap(props: Props) {
               <span>{CAT_HQ}</span>
             </div>
 
-            {/* ✅ Kingpin legend star — inline SVG (matches map’s SVG source visually; Chrome-safe) */}
+            {/* ✅ Kingpin legend star — inline SVG (Chrome-safe) */}
             <div className="flex items-center gap-2 pt-1">
               <LegendKingpinIcon svg={KINGPIN_SVG} />
               <span>Kingpin</span>
             </div>
 
-            {/* Optional debug hook */}
+            {/* Optional debug */}
             {/* <div className="text-[10px] text-white/40 break-all">{KINGPIN_ICON_DATA_URL}</div> */}
           </div>
         </div>
