@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE DATABASE — GOLD (K16: Home removed + Single Kingpin popup)
+// 💠 CERTIS AGROUTE DATABASE — GOLD (K16: Home removed + Kingpin chooser popup)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Regional HQ filtered ONLY by State (Bailey HQ rule)
@@ -9,7 +9,7 @@
 //   • Applies ~100m offset to Kingpins (lng + 0.0013) like K10
 //   • Kingpin icon is SVG → Canvas → Mapbox image (Chrome-proof), fallback to /icons/kingpin.png
 //   • ✅ Mobile usability: invisible “hitbox” layers for easier tapping (Retailer/HQ/Kingpin)
-//   • ✅ Kingpin behavior: single popup (nearest feature) + single active popup at a time
+//   • ✅ Kingpin behavior: SINGLE popup, with DROPDOWN chooser when multiple overlap
 //   • ✅ Loop guards: init once, sources/layers once, route abort/debounce
 //
 //   ✅ Category normalization (canonical 5):
@@ -21,11 +21,6 @@
 //     • Removed on-map legend (page.tsx owns sidebar legend now)
 //     • Added route status badge when fallback polyline is used
 //     • Added dataLoadedRef guard (prevents accidental reload if map "load" fires again)
-//
-//   K16.1 PATCH (Dec 2025):
-//     • ✅ Kingpin icon-size capped at 0.26 (prevents obnoxiously large stars at close zoom)
-//     • ✅ Click handlers only on HITBOX layers (prevents duplicate popups; keeps mobile-friendly selection)
-//     • ✅ Single active popup enforced via popupRef.remove()
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -254,6 +249,73 @@ function distanceSq(a: [number, number], b: [number, number]) {
 
 type RouteMode = "none" | "roads" | "fallback";
 
+type LayerClickEvent = mapboxgl.MapMouseEvent & { features?: any[] };
+
+function getEventFeatures(e: mapboxgl.MapMouseEvent): any[] {
+  const anyE = e as LayerClickEvent;
+  if (anyE.features && anyE.features.length) return anyE.features;
+  return [];
+}
+
+function kingpinDisplayName(p: Record<string, any>) {
+  const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]) || "Kingpin";
+  const retailer = s(p.Retailer);
+  const city = s(p.City);
+  const state = s(p.State);
+  const loc = [city, state].filter(Boolean).join(", ");
+  if (retailer && loc) return `${contactName} — ${retailer} (${loc})`;
+  if (retailer) return `${contactName} — ${retailer}`;
+  if (loc) return `${contactName} (${loc})`;
+  return contactName;
+}
+
+function kingpinStableKey(p: Record<string, any>, coords: [number, number]) {
+  const retailer = s(p.Retailer);
+  const contact = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
+  const email = s(p.Email);
+  const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell);
+  const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice);
+  const city = s(p.City);
+  const state = s(p.State);
+  const zip = s(p.Zip);
+
+  // Prefer identity-like fields; fall back to coords if needed.
+  const core = [contact, retailer, email, cell, office, city, state, zip].filter(Boolean).join("|");
+  if (core) return core;
+  return `${coords[0].toFixed(6)},${coords[1].toFixed(6)}|${retailer}|${contact}`;
+}
+
+function makeKingpinStopFromFeature(f: any): Stop | null {
+  const p = f?.properties ?? {};
+  const coords = (f?.geometry?.coordinates ?? null) as [number, number] | null;
+  if (!coords) return null;
+
+  const retailer = s(p.Retailer);
+  const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]) || "Kingpin";
+  const label = retailer ? `${contactName} — ${retailer}` : `${contactName}`;
+
+  const rawCat = s(p.Category);
+  const category = isRegionalOrCorporateHQ(rawCat) ? CAT_HQ : rawCat || "Kingpin";
+
+  return {
+    id: makeId("kingpin", coords, p),
+    kind: "kingpin",
+    label,
+    retailer,
+    name: contactName,
+    address: s(p.Address),
+    city: s(p.City),
+    state: s(p.State),
+    zip: s(p.Zip),
+    category,
+    suppliers: s(p.Suppliers),
+    email: s(p.Email) || "TBD",
+    phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
+    phoneCell: s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD",
+    coords,
+  };
+}
+
 export default function CertisMap(props: Props) {
   const {
     selectedStates,
@@ -289,7 +351,7 @@ export default function CertisMap(props: Props) {
   const [routeMode, setRouteMode] = useState<RouteMode>("none");
   const routeModeRef = useRef<RouteMode>("none");
 
-  // ✅ Single active popup (prevents “stacking” multiple popups on dense areas)
+  // ✅ Keep only ONE open popup at a time (prevents stacking)
   const activePopupRef = useRef<mapboxgl.Popup | null>(null);
 
   const basePath = useMemo(() => {
@@ -353,18 +415,6 @@ export default function CertisMap(props: Props) {
   useEffect(() => {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
   }, [token]);
-
-  function closeActivePopup() {
-    try {
-      activePopupRef.current?.remove();
-    } catch {}
-    activePopupRef.current = null;
-  }
-
-  function setActivePopup(p: mapboxgl.Popup) {
-    closeActivePopup();
-    activePopupRef.current = p;
-  }
 
   // INIT MAP (once)
   useEffect(() => {
@@ -527,24 +577,31 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            // ✅ Capped growth to prevent huge stars (HQ-like stability)
+
+            // ✅ Keep Kingpins from getting obnoxiously large:
+            // Cap the top end ~0.26 (your request).
             "icon-size": [
               "interpolate",
               ["linear"],
               ["zoom"],
               3,
               0.18,
-              6,
+              5,
+              0.2,
+              7,
               0.22,
               9,
-              0.26,
-              12,
+              0.24,
+              11,
+              0.25,
+              13,
               0.26,
               15,
               0.26,
               17,
               0.26,
             ],
+
             "icon-anchor": "center",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -552,7 +609,7 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Kingpin hitbox (reduced; still mobile friendly)
+      // Kingpin hitbox (mobile friendly)
       if (!map.getLayer(LYR_KINGPINS_HIT)) {
         map.addLayer({
           id: LYR_KINGPINS_HIT,
@@ -593,16 +650,20 @@ export default function CertisMap(props: Props) {
       const setPointer = () => (map.getCanvas().style.cursor = "pointer");
       const clearPointer = () => (map.getCanvas().style.cursor = "");
 
-      // Cursor hints on both visible + hitbox layers
       [LYR_RETAILERS, LYR_HQ, LYR_KINGPINS, LYR_RETAILERS_HIT, LYR_HQ_HIT, LYR_KINGPINS_HIT].forEach((lyr) => {
         map.on("mouseenter", lyr, setPointer);
         map.on("mouseleave", lyr, clearPointer);
       });
 
-      // ✅ Click handlers ONLY on hitboxes (prevents duplicate popups; keeps mobile usability)
+      // Click handlers: hitboxes first
       map.on("click", LYR_RETAILERS_HIT, (e) => handleRetailerClick(e));
       map.on("click", LYR_HQ_HIT, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS_HIT, (e) => handleKingpinClick(e));
+
+      // Still allow direct clicks on visible layers
+      map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
+      map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
+      map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
 
       requestAnimationFrame(() => {
         try {
@@ -628,8 +689,9 @@ export default function CertisMap(props: Props) {
       resizeObsRef.current = null;
 
       try {
-        closeActivePopup();
+        activePopupRef.current?.remove();
       } catch {}
+      activePopupRef.current = null;
 
       window.removeEventListener("resize", handleViewportResize as any);
       window.removeEventListener("orientationchange", handleViewportResize as any);
@@ -771,31 +833,9 @@ export default function CertisMap(props: Props) {
     }
 
     for (const f of offsetKingpins.features ?? []) {
-      const p = f.properties ?? {};
-      const coords = f.geometry?.coordinates;
-      if (!coords) continue;
-
-      const retailer = s(p.Retailer);
-      const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
-      const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
-
-      allStops.push({
-        id: makeId("kingpin", coords, p),
-        kind: "kingpin",
-        label,
-        retailer,
-        name: contactName || "Kingpin",
-        address: s(p.Address),
-        city: s(p.City),
-        state: s(p.State),
-        zip: s(p.Zip),
-        category: s(p.Category) || "Kingpin",
-        suppliers: s(p.Suppliers),
-        email: s(p.Email) || "TBD",
-        phoneOffice: s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD",
-        phoneCell: s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD",
-        coords,
-      });
+      const st = makeKingpinStopFromFeature(f);
+      if (!st) continue;
+      allStops.push(st);
     }
 
     onAllStopsLoaded(allStops);
@@ -904,9 +944,7 @@ export default function CertisMap(props: Props) {
 
         src.setData({
           type: "FeatureCollection",
-          features: [
-            { type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } },
-          ],
+          features: [{ type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } }],
         } as any);
         setRouteModeSafe("fallback");
       }
@@ -918,23 +956,27 @@ export default function CertisMap(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripStops, token]);
 
-  // ===============================
-  // Click helpers
-  // ===============================
+  function closeActivePopup() {
+    try {
+      activePopupRef.current?.remove();
+    } catch {}
+    activePopupRef.current = null;
+  }
 
-  type LayerClickEvent = mapboxgl.MapMouseEvent & { features?: any[] };
+  function openSinglePopupAt(coords: [number, number], html: string) {
+    const map = mapRef.current;
+    if (!map) return null;
 
-  function getEventFeatures(e: mapboxgl.MapMouseEvent): any[] {
-    const anyE = e as LayerClickEvent;
-    if (anyE.features && anyE.features.length) return anyE.features;
-    return [];
+    closeActivePopup();
+
+    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(html).addTo(map);
+    activePopupRef.current = popup;
+    return popup;
   }
 
   function handleRetailerClick(e: mapboxgl.MapMouseEvent) {
     const map = mapRef.current;
     if (!map) return;
-
-    closeActivePopup();
 
     let features = getEventFeatures(e);
 
@@ -993,15 +1035,11 @@ export default function CertisMap(props: Props) {
       </div>
     `;
 
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
-    setActivePopup(popup);
+    openSinglePopupAt(coords, popupHtml);
 
     setTimeout(() => {
       const btn = document.getElementById(addBtnId);
       if (btn) (btn as HTMLButtonElement).onclick = () => onAddStop(stop);
-      try {
-        popup.getElement();
-      } catch {}
     }, 0);
   }
 
@@ -1009,8 +1047,7 @@ export default function CertisMap(props: Props) {
     const map = mapRef.current;
     if (!map) return;
 
-    closeActivePopup();
-
+    // Pull rendered features at click for the Kingpin hitbox/layer
     let featuresRaw = getEventFeatures(e);
 
     if (!featuresRaw || featuresRaw.length === 0) {
@@ -1022,97 +1059,185 @@ export default function CertisMap(props: Props) {
 
     if (!featuresRaw || featuresRaw.length === 0) return;
 
-    // ✅ Single-feature selection: pick nearest to click point
+    // De-dupe features and build candidates
     const clickLngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-    const features = featuresRaw.filter(Boolean);
+    const candidates = (featuresRaw || [])
+      .filter(Boolean)
+      .map((f: any) => {
+        const coords = (f.geometry?.coordinates ?? null) as [number, number] | null;
+        const p = f.properties ?? {};
+        if (!coords) return null;
+        return {
+          f,
+          coords,
+          p,
+          d: distanceSq(clickLngLat, coords),
+          label: kingpinDisplayName(p),
+          key: kingpinStableKey(p, coords),
+        };
+      })
+      .filter(Boolean) as Array<{ f: any; coords: [number, number]; p: any; d: number; label: string; key: string }>;
 
-    let best = features[0];
-    let bestD = Number.POSITIVE_INFINITY;
-    for (const f of features) {
-      const c = (f.geometry?.coordinates ?? null) as [number, number] | null;
-      if (!c) continue;
-      const d = distanceSq(clickLngLat, c);
-      if (d < bestD) {
-        bestD = d;
-        best = f;
-      }
+    // If Mapbox returns duplicates, dedupe by stable key
+    const byKey: Record<string, { f: any; coords: [number, number]; p: any; d: number; label: string; key: string }> = {};
+    for (const c of candidates) {
+      if (!byKey[c.key] || c.d < byKey[c.key].d) byKey[c.key] = c;
     }
+    const uniq = Object.values(byKey).sort((a, b) => a.d - b.d || a.label.localeCompare(b.label));
 
-    const p = best.properties ?? {};
-    const coords = (best.geometry?.coordinates ?? []) as [number, number];
+    if (!uniq.length) return;
 
-    const retailer = s(p.Retailer);
-    const address = s(p.Address);
-    const city = s(p.City);
-    const state = s(p.State);
-    const zip = s(p.Zip);
+    // Choose default = nearest
+    const defaultPick = uniq[0];
 
-    const rawCat = s(p.Category);
-    const category = isRegionalOrCorporateHQ(rawCat) ? CAT_HQ : rawCat || "Kingpin";
+    // Popup should anchor at the picked feature coords (not click coords)
+    const anchorCoords = defaultPick.coords;
 
-    const suppliers = s(p.Suppliers) || "Not listed";
-    const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
-    const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
-    const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
-    const email = s(p.Email) || "TBD";
-
-    const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
-
-    const stop: Stop = {
-      id: makeId("kingpin", coords, p),
-      kind: "kingpin",
-      label,
-      retailer,
-      name: contactName || "Kingpin",
-      address,
-      city,
-      state,
-      zip,
-      category,
-      suppliers,
-      phoneOffice: office,
-      phoneCell: cell,
-      email,
-      coords,
-    };
-
-    const header = retailer || "Unknown Retailer";
+    // Build UI ids
+    const selectId = safeDomId("kp-select");
     const addBtnId = safeDomId("kp-add");
 
-    const titleRaw = p.ContactTitle || p.Title || p["Contact Title"] || "";
+    // We’ll render a dropdown only if multiple candidates are present
+    const hasMany = uniq.length > 1;
+
+    // Initial details use default pick
+    const initialStop = makeKingpinStopFromFeature(defaultPick.f);
+    if (!initialStop) return;
+
+    const header = s(defaultPick.p.Retailer) || "Unknown Retailer";
+    const titleRaw = defaultPick.p.ContactTitle || defaultPick.p.Title || defaultPick.p["Contact Title"] || "";
     const title = s(titleRaw);
 
+    // Render options
+    const optionsHtml = uniq
+      .map((c, idx) => {
+        const sel = idx === 0 ? ` selected="selected"` : "";
+        // Keep option text plain; sanitize minimal (avoid quotes breaking HTML)
+        const text = c.label.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const val = c.key.replace(/"/g, "&quot;");
+        return `<option value="${val}"${sel}>${text}</option>`;
+      })
+      .join("");
+
+    const chooserHtml = hasMany
+      ? `
+        <div style="margin:8px 0 10px 0;">
+          <div style="font-size:12px;font-weight:700;color:#facc15;margin-bottom:4px;">Multiple Kingpins here</div>
+          <select id="${selectId}" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:#0b1220;color:#fff;font-size:13px;">
+            ${optionsHtml}
+          </select>
+        </div>
+      `
+      : "";
+
     const popupHtml = `
-      <div style="font-size:13px;min-width:300px;max-width:340px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
-        <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">${header}</div>
-        <div style="font-weight:700;margin-bottom:2px;">${stop.name || "Kingpin"}</div>
-        ${title ? `<div style="margin-bottom:4px;">${title}</div>` : ""}
-        <div style="margin-bottom:4px;">${stop.address || ""}<br/>${stop.city || ""}, ${stop.state || ""} ${stop.zip || ""}</div>
-        ${
-          stop.category
-            ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${stop.category}</div>`
-            : ""
-        }
-        <div style="margin-bottom:8px;"><span style="font-weight:700;color:#facc15;">Suppliers:</span> ${
-          stop.suppliers && stop.suppliers.trim() ? stop.suppliers : "Not listed"
-        }</div>
-        <div style="margin-bottom:4px;">Office: ${stop.phoneOffice || "TBD"} • Cell: ${stop.phoneCell || "TBD"}</div>
-        <div style="margin-bottom:8px;">Email: ${stop.email || "TBD"}</div>
-        <button id="${addBtnId}" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
+      <div style="font-size:13px;min-width:320px;max-width:380px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+          <div>
+            <div style="font-size:16px;font-weight:800;margin-bottom:6px;color:#facc15;">${header}</div>
+          </div>
+          <div style="opacity:0.7;font-weight:700;">KP</div>
+        </div>
+
+        ${chooserHtml}
+
+        <div id="kp-details">
+          <div style="font-weight:800;margin-bottom:2px;">${(initialStop.name || "Kingpin").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+          ${title ? `<div style="margin-bottom:4px;">${title.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+          <div style="margin-bottom:6px;">${s(initialStop.address).replace(/</g, "&lt;").replace(/>/g, "&gt;")}<br/>${s(
+            initialStop.city
+          )}, ${s(initialStop.state)} ${s(initialStop.zip)}</div>
+
+          ${
+            initialStop.category
+              ? `<div style="margin-bottom:6px;"><span style="font-weight:800;color:#facc15;">Category:</span> ${s(
+                  initialStop.category
+                ).replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`
+              : ""
+          }
+
+          <div style="margin-bottom:8px;"><span style="font-weight:800;color:#facc15;">Suppliers:</span> ${
+            s(initialStop.suppliers).trim() ? s(initialStop.suppliers).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "Not listed"
+          }</div>
+
+          <div style="margin-bottom:4px;">Office: ${s(initialStop.phoneOffice)} • Cell: ${s(initialStop.phoneCell)}</div>
+          <div style="margin-bottom:10px;">Email: ${s(initialStop.email)}</div>
+        </div>
+
+        <button id="${addBtnId}" style="padding:7px 10px;border:none;background:#facc15;border-radius:6px;font-weight:900;font-size:13px;color:#111827;cursor:pointer;width:100%;">
           ➕ Add to Trip
         </button>
       </div>
     `;
 
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
-    setActivePopup(popup);
+    openSinglePopupAt(anchorCoords, popupHtml);
 
+    // Wire up selection + Add to Trip
     setTimeout(() => {
+      // Track current selection in closure
+      let current = defaultPick;
+
+      const updateDetails = (pick: typeof defaultPick) => {
+        const stop = makeKingpinStopFromFeature(pick.f);
+        if (!stop) return;
+
+        const p = pick.p ?? {};
+        const titleRaw2 = p.ContactTitle || p.Title || p["Contact Title"] || "";
+        const title2 = s(titleRaw2);
+
+        const detailsEl = document.getElementById("kp-details");
+        if (!detailsEl) return;
+
+        const safe = (x: string) => s(x).replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        detailsEl.innerHTML = `
+          <div style="font-weight:800;margin-bottom:2px;">${safe(stop.name || "Kingpin")}</div>
+          ${title2 ? `<div style="margin-bottom:4px;">${safe(title2)}</div>` : ""}
+          <div style="margin-bottom:6px;">${safe(stop.address || "")}<br/>${safe(stop.city || "")}, ${safe(stop.state || "")} ${safe(
+          stop.zip || ""
+        )}</div>
+          ${
+            stop.category
+              ? `<div style="margin-bottom:6px;"><span style="font-weight:800;color:#facc15;">Category:</span> ${safe(stop.category)}</div>`
+              : ""
+          }
+          <div style="margin-bottom:8px;"><span style="font-weight:800;color:#facc15;">Suppliers:</span> ${
+            safe(stop.suppliers || "").trim() ? safe(stop.suppliers || "") : "Not listed"
+          }</div>
+          <div style="margin-bottom:4px;">Office: ${safe(stop.phoneOffice || "TBD")} • Cell: ${safe(stop.phoneCell || "TBD")}</div>
+          <div style="margin-bottom:10px;">Email: ${safe(stop.email || "TBD")}</div>
+        `;
+
+        // Also update the Add button handler to add this selected stop
+        const btn = document.getElementById(addBtnId);
+        if (btn) (btn as HTMLButtonElement).onclick = () => onAddStop(stop);
+      };
+
+      // Default Add button -> defaultPick
+      updateDetails(defaultPick);
+
+      // If dropdown exists, wire it
+      if (hasMany) {
+        const sel = document.getElementById(selectId) as HTMLSelectElement | null;
+        if (sel) {
+          sel.onchange = () => {
+            const key = sel.value;
+            const found = uniq.find((u) => u.key === key);
+            if (found) {
+              current = found;
+              updateDetails(found);
+            }
+          };
+        }
+      }
+
+      // Ensure Add button works even if no dropdown
       const btn = document.getElementById(addBtnId);
-      if (btn) (btn as HTMLButtonElement).onclick = () => onAddStop(stop);
-      try {
-        popup.getElement();
-      } catch {}
+      if (btn) {
+        (btn as HTMLButtonElement).onclick = () => {
+          const stop = makeKingpinStopFromFeature(current.f);
+          if (stop) onAddStop(stop);
+        };
+      }
     }, 0);
   }
 
@@ -1125,9 +1250,7 @@ export default function CertisMap(props: Props) {
         <div className="absolute top-4 left-4 z-10">
           <div className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-3 py-2" style={{ maxWidth: 340 }}>
             <div className="text-[12px] font-extrabold text-yellow-300">Route fallback active</div>
-            <div className="text-[11px] text-white/80 mt-0.5">
-              Using a straight-line polyline (Directions API failed). Check token/network or retry.
-            </div>
+            <div className="text-[11px] text-white/80 mt-0.5">Using a straight-line polyline (Directions API failed). Check token/network or retry.</div>
           </div>
         </div>
       )}
