@@ -1,358 +1,357 @@
 ﻿#!/usr/bin/env python3
-# scripts/geocode_kingpin.py
-# ============================================================
-# 👑 CERTIS AgRoute Database — KINGPIN GEOCODING (ROBUST)
-# - Repo-root safe paths (run from anywhere)
-# - Prefers your real input: data/kingpin_COMBINED.xlsx
-# - Reads ALL sheets (skips sheets starting with "_")
-# - Handles column-name drift (ADDRESS vs Address vs Street, etc.)
-# - Forces ZIP as string-ish (prevents 56138.0)
-# - Uses Mapbox token from env OR data/token.txt / data/token.json (BOM-safe)
-# - Caches geocodes in data/geocode-cache.json
-# - Outputs:
-#     • data/kingpin_latlong.xlsx   (primary pipeline output)
-#     • scripts/out/kingpin_geocoded.csv (audit)
-# ============================================================
+"""
+CERTIS — KINGPIN GEOCODING
+- Input:  ../data/kingpin_COMBINED.xlsx
+- Output: ../data/kingpin_latlong.xlsx
+- Also writes: ./out/kingpin_geocoded.csv
+- Cache:  ../data/geocode-cache.json
 
-from __future__ import annotations
+Token priority:
+1) ENV: MAPBOX_TOKEN                 (explicit override for a run)
+2) ENV: MAPBOX_ACCESS_TOKEN
+3) ../data/token.txt                 (single-line token)
+4) ../data/token.json                (supports:
+      - {"MAPBOX_TOKEN_FOR_GEOCODING": "...", "MAPBOX_TOKEN_FOR_WEB": "..."}
+      - {"token": "..."} / {"MAPBOX_TOKEN": "..."} / {"access_token": "..."} / {"MAPBOX_ACCESS_TOKEN": "..."} / {"MAPBOX_TOKEN_FOR_WEB": "..."}
+   )
+
+GEOCODE_STATUS values:
+- ok
+- http_401 / http_4xx / http_5xx
+- no_token
+- missing_query
+- exception
+"""
 
 import json
 import os
-import re
 import time
+import hashlib
 from pathlib import Path
-from typing import Dict, Optional, Tuple, List
+from typing import Any, Dict, Tuple, Optional
 
 import pandas as pd
 import requests
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = REPO_ROOT / "data"
-SCRIPTS_DIR = REPO_ROOT / "scripts"
-OUT_DIR = SCRIPTS_DIR / "out"
-CACHE_PATH = DATA_DIR / "geocode-cache.json"
+# -----------------------------
+# Paths (Bailey rule: Excel in /data)
+# -----------------------------
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = SCRIPT_DIR.parent
+DATA_DIR = ROOT_DIR / "data"
+OUT_DIR = SCRIPT_DIR / "out"
 
-OUT_DIR.mkdir(parents=True, exist_ok=True)
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+INPUT_XLSX = DATA_DIR / "kingpin_COMBINED.xlsx"
+OUTPUT_XLSX = DATA_DIR / "kingpin_latlong.xlsx"
+OUTPUT_CSV = OUT_DIR / "kingpin_geocoded.csv"
 
-MAPBOX_URL = "https://api.mapbox.com/geocoding/v5/mapbox.places/"
+CACHE_FILE = DATA_DIR / "geocode-cache.json"
 
-
-def _norm_col(name: str) -> str:
-    # Uppercase, trim, collapse internal whitespace/newlines
-    return " ".join(str(name).replace("\n", " ").replace("\r", " ").split()).strip().upper()
-
-
-def _strip_quotes(s: str) -> str:
-    s = str(s or "").strip()
-    if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
-        return s[1:-1].strip()
-    return s
+MAPBOX_ENDPOINT = "https://api.mapbox.com/geocoding/v5/mapbox.places/{q}.json"
+MAPBOX_LIMIT = 1
+MAPBOX_COUNTRY = "us"   # keep tight for speed/accuracy
+MAPBOX_TYPES = "address,place,postcode"  # reasonable set for your queries
 
 
-def _load_token() -> str:
-    # Prefer env (supports your workflow)
-    for k in ("MAPBOX_ACCESS_TOKEN", "MAPBOX_TOKEN", "NEXT_PUBLIC_MAPBOX_TOKEN"):
-        v = os.getenv(k, "").strip()
-        if v:
-            return _strip_quotes(v)
+# -----------------------------
+# Helpers
+# -----------------------------
+def banner(title: str) -> None:
+    print("\n" + "=" * 43)
+    print(f"  {title}")
+    print("=" * 43 + "\n")
 
-    # token files (BOM-safe)
+
+def safe_strip_token(raw: Any) -> str:
+    """Strip whitespace and surrounding quotes if present."""
+    if raw is None:
+        return ""
+    t = str(raw).strip()
+    if (t.startswith('"') and t.endswith('"')) or (t.startswith("'") and t.endswith("'")):
+        t = t[1:-1].strip()
+    return t
+
+
+def load_token() -> Tuple[str, str]:
+    """
+    Return (token, token_source). token_source is human-readable.
+
+    Priority:
+    1) ENV: MAPBOX_TOKEN
+    2) ENV: MAPBOX_ACCESS_TOKEN
+    3) data/token.txt
+    4) data/token.json (prefers MAPBOX_TOKEN_FOR_GEOCODING)
+    """
+    # ENV first (single-run override)
+    env1 = safe_strip_token(os.getenv("MAPBOX_TOKEN") or "")
+    if env1:
+        return env1, "env:MAPBOX_TOKEN"
+
+    env2 = safe_strip_token(os.getenv("MAPBOX_ACCESS_TOKEN") or "")
+    if env2:
+        return env2, "env:MAPBOX_ACCESS_TOKEN"
+
+    # token.txt (single line)
     token_txt = DATA_DIR / "token.txt"
     if token_txt.exists():
-        raw = _strip_quotes(token_txt.read_text(encoding="utf-8-sig").strip())
-        # allow token=... format
-        raw = re.sub(r"^\s*(token|access_token|mapbox_token|mapbox_access_token|next_public_mapbox_token)\s*=\s*",
-                     "", raw, flags=re.IGNORECASE).strip()
-        if raw.startswith("{") and raw.endswith("}"):
-            try:
-                obj = json.loads(raw)
-                for kk in ("MAPBOX_ACCESS_TOKEN", "MAPBOX_TOKEN", "NEXT_PUBLIC_MAPBOX_TOKEN", "token", "access_token"):
-                    if kk in obj and obj[kk]:
-                        return _strip_quotes(str(obj[kk]))
-            except Exception:
-                pass
-        return raw
-
-    token_json = DATA_DIR / "token.json"
-    if token_json.exists():
         try:
-            obj = json.loads(token_json.read_text(encoding="utf-8-sig"))
-            if isinstance(obj, dict):
-                for kk in ("MAPBOX_ACCESS_TOKEN", "MAPBOX_TOKEN", "NEXT_PUBLIC_MAPBOX_TOKEN", "token", "access_token"):
-                    if kk in obj and obj[kk]:
-                        return _strip_quotes(str(obj[kk]))
+            lines = token_txt.read_text(encoding="utf-8", errors="ignore").splitlines()
+            t = safe_strip_token(lines[0] if lines else "")
+            if t:
+                return t, "data/token.txt"
         except Exception:
             pass
 
-    return ""
-
-
-def _load_cache() -> Dict[str, dict]:
-    if CACHE_PATH.exists():
+    # token.json (supports your two-token format)
+    token_json = DATA_DIR / "token.json"
+    if token_json.exists():
         try:
-            return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+            obj = json.loads(token_json.read_text(encoding="utf-8", errors="ignore"))
+
+            # ✅ Your preferred keys (first choice for geocoding)
+            for k in ("MAPBOX_TOKEN_FOR_GEOCODING",):
+                if k in obj and obj[k]:
+                    t = safe_strip_token(obj[k])
+                    if t:
+                        return t, f"data/token.json:{k}"
+
+            # ✅ Acceptable fallbacks (in case you only have one token)
+            for k in (
+                "MAPBOX_TOKEN",
+                "MAPBOX_ACCESS_TOKEN",
+                "access_token",
+                "token",
+                "MAPBOX_TOKEN_FOR_WEB",
+            ):
+                if k in obj and obj[k]:
+                    t = safe_strip_token(obj[k])
+                    if t:
+                        return t, f"data/token.json:{k}"
+        except Exception:
+            pass
+
+    return "", "none"
+
+
+def load_cache(path: Path) -> Dict[str, Dict[str, Any]]:
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             return {}
     return {}
 
 
-def _save_cache(cache: Dict[str, dict]) -> None:
-    CACHE_PATH.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+def save_cache(path: Path, cache: Dict[str, Dict[str, Any]]) -> None:
+    path.write_text(json.dumps(cache, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def _detect_input_file() -> Path:
-    # ✅ Your actual canonical input first
-    candidates = [
-        DATA_DIR / "kingpin_COMBINED.xlsx",
-        DATA_DIR / "kingpin_COMBINED.xlsm",
-        DATA_DIR / "kingpin_COMBINED.csv",
-        # Backward/legacy possibilities
-        DATA_DIR / "kingpin1_COMBINED.xlsx",
-        DATA_DIR / "kingpin1_COMBINED.xlsm",
-        DATA_DIR / "kingpin.xlsx",
-        DATA_DIR / "kingpins.xlsx",
-        DATA_DIR / "kingpins.csv",
-        SCRIPTS_DIR / "in" / "kingpin.xlsx",
-        SCRIPTS_DIR / "in" / "kingpins.xlsx",
-    ]
-
-    for p in candidates:
-        if p.exists():
-            return p
-
-    hits = list(REPO_ROOT.rglob("*kingpin*.xlsx")) + list(REPO_ROOT.rglob("*kingpin*.xlsm")) + list(REPO_ROOT.rglob("*kingpin*.csv"))
-    if hits:
-        # most recently modified
-        hits.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-        return hits[0]
-
-    raise FileNotFoundError("Could not locate a Kingpin input file (xlsx/xlsm/csv).")
+def cache_key(query: str) -> str:
+    return hashlib.sha256(query.strip().encode("utf-8")).hexdigest()
 
 
-def _read_input_all_sheets(path: Path) -> pd.DataFrame:
-    if path.suffix.lower() == ".csv":
-        return pd.read_csv(path, dtype=str, keep_default_na=False)
+def build_query(row: pd.Series) -> str:
+    """
+    Prefer FULL BLOCK ADDRESS if present.
+    Expected columns:
+    - FULL BLOCK ADDRESS
+    - ADDRESS
+    - CITY
+    - STATE.1
+    - ZIP CODE
+    """
+    fba = str(row.get("FULL BLOCK ADDRESS", "")).strip()
+    if fba:
+        # light cleanup; don't over-normalize (avoid accidentally mangling valid strings)
+        fba = fba.replace(",,", ",").replace(" ,", ",").strip()
+        fba = " ".join(fba.split())
+        return fba
 
-    xls = pd.ExcelFile(path)
-    frames: List[pd.DataFrame] = []
-    for sh in xls.sheet_names:
-        if str(sh).strip().startswith("_"):
-            continue
-        df = pd.read_excel(path, sheet_name=sh, dtype=str, keep_default_na=False)
-        df["_Sheet"] = str(sh)
-        frames.append(df)
-
-    if not frames:
-        # fallback: first sheet
-        sh = xls.sheet_names[0]
-        df = pd.read_excel(path, sheet_name=sh, dtype=str, keep_default_na=False)
-        df["_Sheet"] = str(sh)
-        return df
-
-    return pd.concat(frames, ignore_index=True)
-
-
-def _pick_col(cols_norm_to_actual: Dict[str, str], options: Tuple[str, ...]) -> Optional[str]:
-    for opt in options:
-        opt_norm = _norm_col(opt)
-        if opt_norm in cols_norm_to_actual:
-            return cols_norm_to_actual[opt_norm]
-    return None
+    addr = str(row.get("ADDRESS", "")).strip()
+    city = str(row.get("CITY", "")).strip()
+    st = str(row.get("STATE.1", "")).strip()
+    z = str(row.get("ZIP CODE", "")).strip()
+    parts = [p for p in [addr, city, st, z] if p]
+    return ", ".join(parts).strip()
 
 
-def _get_latlon_from_row(row: pd.Series, lat_col: Optional[str], lon_col: Optional[str]) -> Tuple[Optional[float], Optional[float]]:
-    if not lat_col or not lon_col:
-        return None, None
-
-    lat_raw = str(row.get(lat_col, "")).strip()
-    lon_raw = str(row.get(lon_col, "")).strip()
-    if not lat_raw or not lon_raw:
-        return None, None
-
+def mapbox_geocode(query: str, token: str) -> Tuple[str, Optional[float], Optional[float], str, int]:
+    """
+    Returns: (status, lat, lon, debug_msg, http_status)
+    status: ok | http_401 | http_4xx | http_5xx | exception
+    """
     try:
-        return float(lat_raw), float(lon_raw)
-    except Exception:
-        return None, None
+        q_enc = requests.utils.quote(query, safe="")
+        url = MAPBOX_ENDPOINT.format(q=q_enc)
+        params = {
+            "access_token": token,
+            "limit": MAPBOX_LIMIT,
+            "country": MAPBOX_COUNTRY,
+            "types": MAPBOX_TYPES,
+        }
+        r = requests.get(url, params=params, timeout=20)
+
+        if r.status_code == 200:
+            data = r.json()
+            feats = data.get("features", []) or []
+            if not feats:
+                return "ok", None, None, "no_features", 200
+            center = feats[0].get("center", None)
+            if not center or len(center) != 2:
+                return "ok", None, None, "no_center", 200
+            lon = float(center[0])
+            lat = float(center[1])
+            return "ok", lat, lon, "hit", 200
+
+        if r.status_code == 401:
+            return "http_401", None, None, (r.text[:200] if r.text else "401"), 401
+        if 400 <= r.status_code < 500:
+            return f"http_{r.status_code}", None, None, (r.text[:200] if r.text else str(r.status_code)), r.status_code
+        if 500 <= r.status_code < 600:
+            return f"http_{r.status_code}", None, None, (r.text[:200] if r.text else str(r.status_code)), r.status_code
+
+        return f"http_{r.status_code}", None, None, (r.text[:200] if r.text else str(r.status_code)), r.status_code
+    except Exception as e:
+        return "exception", None, None, repr(e), 0
 
 
-def _geocode_mapbox(query: str, token: str, timeout_s: int = 25) -> Tuple[Optional[float], Optional[float], str]:
-    url = MAPBOX_URL + requests.utils.quote(query) + ".json"
-    params = {
-        "access_token": token,
-        "limit": 1,
-        "autocomplete": "false",
-    }
-    r = requests.get(url, params=params, timeout=timeout_s)
-    if r.status_code != 200:
-        return None, None, f"http_{r.status_code}"
+def main() -> int:
+    banner("CERTIS — KINGPIN GEOCODING STARTING")
+    print(f"Input: {INPUT_XLSX}")
 
-    data = r.json()
-    feats = data.get("features", [])
-    if not feats:
-        return None, None, "no_results"
+    if not INPUT_XLSX.exists():
+        print(f"\n❌ Input file not found: {INPUT_XLSX}\n")
+        return 1
 
-    center = feats[0].get("center")
-    if not center or len(center) != 2:
-        return None, None, "bad_center"
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    lon, lat = center[0], center[1]
-    return float(lat), float(lon), "ok"
-
-
-def main() -> None:
-    print("\n===========================================")
-    print("  CERTIS — KINGPIN GEOCODING STARTING")
-    print("===========================================\n")
-
-    token = _load_token()
+    token, token_source = load_token()
     if not token:
-        raise RuntimeError(
-            "Missing Mapbox token. Set MAPBOX_ACCESS_TOKEN (or MAPBOX_TOKEN / NEXT_PUBLIC_MAPBOX_TOKEN) "
-            "or put it in data/token.txt or data/token.json"
-        )
+        print("\n❌ No Mapbox token found.")
+        print("   Set MAPBOX_TOKEN env var, or place token in ../data/token.txt or ../data/token.json\n")
+    else:
+        print(f"\n🔑 Token source: {token_source}")
+        print(f"🔑 Token length: {len(token)} (prefix: {token[:3]})")
 
-    input_path = _detect_input_file()
-    print(f"Input: {input_path}")
+    cache = load_cache(CACHE_FILE)
 
-    df = _read_input_all_sheets(input_path)
-    df.columns = [str(c) for c in df.columns]  # ensure string cols
-
-    # Normalize column map
-    cols_norm_to_actual = {_norm_col(c): c for c in df.columns}
-
-    # Address components (allow drift)
-    address_col = _pick_col(
-        cols_norm_to_actual,
-        (
-            "ADDRESS", "ADDRESS 1", "STREET", "STREET ADDRESS", "MAILING ADDRESS",
-            "LOCATION ADDRESS", "ADDR", "ADDR1"
-        ),
-    )
-    city_col = _pick_col(cols_norm_to_actual, ("CITY", "TOWN"))
-    state_col = _pick_col(cols_norm_to_actual, ("STATE", "ST", "STATE ABBR", "STATE CODE", "STATE.1"))
-    zip_col = _pick_col(cols_norm_to_actual, ("ZIP", "ZIP CODE", "ZIPCODE", "POSTAL", "POSTAL CODE"))
-
-    # Lat/Lon columns (if already present)
-    # We standardize final outputs to LAT/LON columns, but we can detect existing variants.
-    lat_existing = _pick_col(cols_norm_to_actual, ("LAT", "LATITUDE", "Y"))
-    lon_existing = _pick_col(cols_norm_to_actual, ("LON", "LONG", "LONGITUDE", "X", "LNG"))
-
-    if not address_col or not city_col or not state_col or not zip_col:
-        print("\n❌ Column detection failed. Found columns (normalized):")
-        for k in sorted(cols_norm_to_actual.keys()):
-            print(" -", k)
-        raise KeyError("Could not find required address columns. Need at least: ADDRESS + CITY + STATE + ZIP.")
-
-    cache = _load_cache()
-    cache_hits = 0
-    cache_writes = 0
-    geocoded_new = 0
-    skipped_existing = 0
-    failed = 0
+    df = pd.read_excel(INPUT_XLSX)
+    rows_total = len(df)
 
     # Ensure output columns exist
-    if "GEOCODE_STATUS" not in df.columns:
-        df["GEOCODE_STATUS"] = ""
-    if "GEOCODE_QUERY" not in df.columns:
-        df["GEOCODE_QUERY"] = ""
-    if "LAT" not in df.columns:
-        df["LAT"] = ""
-    if "LON" not in df.columns:
-        df["LON"] = ""
+    for col in ["GEOCODE_STATUS", "GEOCODE_QUERY", "LAT", "LON"]:
+        if col not in df.columns:
+            df[col] = ""
 
-    for i, row in df.iterrows():
-        # If already has LAT/LON (or existing columns), skip
-        existing_lat, existing_lon = _get_latlon_from_row(row, "LAT", "LON")
-        if existing_lat is None or existing_lon is None:
-            # try existing lat/lon columns if present (e.g., Latitude/Longitude)
-            ex_lat2, ex_lon2 = _get_latlon_from_row(row, lat_existing, lon_existing)
-            if ex_lat2 is not None and ex_lon2 is not None:
-                df.at[i, "LAT"] = str(ex_lat2)
-                df.at[i, "LON"] = str(ex_lon2)
-                skipped_existing += 1
-                continue
-        else:
+    skipped_existing = 0
+    geocoded_new = 0
+    failed_or_missing = 0
+    cache_hits = 0
+    cache_writes = 0
+
+    # Fail-fast if token is wrong (401). We'll detect on first attempted request.
+    saw_http_401 = False
+    first_request_done = False
+
+    for i in range(rows_total):
+        row = df.iloc[i]
+
+        # Existing lat/lon?
+        lat_existing = str(row.get("LAT", "")).strip()
+        lon_existing = str(row.get("LON", "")).strip()
+        if lat_existing and lon_existing:
             skipped_existing += 1
             continue
 
-        addr = str(row.get(address_col, "")).strip()
-        city = str(row.get(city_col, "")).strip()
-        state = str(row.get(state_col, "")).strip()
-        z = str(row.get(zip_col, "")).strip()
-
-        # Normalize ZIP: keep digits and dash
-        z_compact = "".join(ch for ch in z if ch.isdigit() or ch == "-")
-        if z_compact:
-            z = z_compact
-
-        if not addr or not city or not state:
-            df.at[i, "GEOCODE_STATUS"] = "missing_min"
-            failed += 1
-            continue
-
-        query = f"{addr}, {city}, {state} {z}".strip()
+        query = build_query(row)
         df.at[i, "GEOCODE_QUERY"] = query
 
-        cache_key = query.upper()
-        if cache_key in cache and "lat" in cache[cache_key] and "lon" in cache[cache_key]:
-            df.at[i, "LAT"] = str(cache[cache_key]["lat"])
-            df.at[i, "LON"] = str(cache[cache_key]["lon"])
-            df.at[i, "GEOCODE_STATUS"] = "cache"
+        if not query:
+            df.at[i, "GEOCODE_STATUS"] = "missing_query"
+            failed_or_missing += 1
+            continue
+
+        if not token:
+            df.at[i, "GEOCODE_STATUS"] = "no_token"
+            failed_or_missing += 1
+            continue
+
+        if saw_http_401:
+            # token is bad; don't continue burning requests
+            df.at[i, "GEOCODE_STATUS"] = "http_401"
+            failed_or_missing += 1
+            continue
+
+        ck = cache_key(query)
+        if ck in cache:
+            hit = cache[ck]
+            df.at[i, "GEOCODE_STATUS"] = hit.get("status", "ok")
+            df.at[i, "LAT"] = hit.get("lat", "")
+            df.at[i, "LON"] = hit.get("lon", "")
             cache_hits += 1
             continue
 
-        lat, lon, status = _geocode_mapbox(query, token)
+        status, lat, lon, dbg, http_status = mapbox_geocode(query, token)
+        first_request_done = True
         df.at[i, "GEOCODE_STATUS"] = status
-        if lat is not None and lon is not None:
-            df.at[i, "LAT"] = str(lat)
-            df.at[i, "LON"] = str(lon)
-            geocoded_new += 1
 
-            cache[cache_key] = {"lat": lat, "lon": lon, "status": status, "query": query}
+        if status == "ok" and lat is not None and lon is not None:
+            df.at[i, "LAT"] = lat
+            df.at[i, "LON"] = lon
+            geocoded_new += 1
+            cache[ck] = {"status": status, "lat": lat, "lon": lon}
             cache_writes += 1
         else:
-            failed += 1
+            failed_or_missing += 1
 
-        # Gentle throttle (Mapbox rate safety)
-        time.sleep(0.08)
+            # If 401, stop the bleeding — this is nearly always a token problem.
+            if http_status == 401:
+                saw_http_401 = True
+                print("\n❌ Mapbox returned HTTP 401 on first failing request.")
+                print("   This indicates the token used for geocoding is invalid/restricted.")
+                print(f"   Token source used: {token_source}")
+                print("   Fix: set MAPBOX_TOKEN to your geocoding token (Option A), OR ensure data/token.json has MAPBOX_TOKEN_FOR_GEOCODING.\n")
+                # Do NOT cache 401 failures (they're not address-specific)
+            else:
+                # cache non-401 failures to reduce repeat hammering
+                cache[ck] = {"status": status, "lat": "", "lon": "", "debug": dbg}
+                cache_writes += 1
 
-    _save_cache(cache)
+        time.sleep(0.05)
 
-    # Outputs
-    out_csv = OUT_DIR / "kingpin_geocoded.csv"
-    df.to_csv(out_csv, index=False, encoding="utf-8")
-
-    out_xlsx = DATA_DIR / "kingpin_latlong.xlsx"
+    # Save artifacts
     try:
-        df.to_excel(out_xlsx, index=False)
+        save_cache(CACHE_FILE, cache)
     except Exception:
-        # If Excel write fails for any reason, at least leave the CSV.
         pass
 
-    print("\n===========================================")
-    print("  KINGPIN GEOCODING COMPLETE")
-    print("===========================================")
-    print(
-        json.dumps(
-            {
-                "input_file": str(input_path),
-                "rows_total": int(len(df)),
-                "skipped_existing_latlon": int(skipped_existing),
-                "geocoded_new": int(geocoded_new),
-                "failed_or_missing": int(failed),
-                "cache_file": str(CACHE_PATH),
-                "cache_hits": int(cache_hits),
-                "cache_writes": int(cache_writes),
-                "out_csv": str(out_csv),
-                "out_xlsx": str(out_xlsx),
-                "token_source": "env_or_data/token.(txt|json)",
-            },
-            indent=2,
-        )
-    )
+    df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8")
+    df.to_excel(OUTPUT_XLSX, index=False)
+
+    banner("KINGPIN GEOCODING COMPLETE")
+    summary = {
+        "input_file": str(INPUT_XLSX),
+        "rows_total": rows_total,
+        "skipped_existing_latlon": skipped_existing,
+        "geocoded_new": geocoded_new,
+        "failed_or_missing": failed_or_missing,
+        "cache_file": str(CACHE_FILE),
+        "cache_hits": cache_hits,
+        "cache_writes": cache_writes,
+        "out_csv": str(OUTPUT_CSV),
+        "out_xlsx": str(OUTPUT_XLSX),
+        "token_source": token_source,
+    }
+    print(json.dumps(summary, indent=2))
+
+    # Clear hint if everything failed and we saw 401
+    if first_request_done and geocoded_new == 0 and saw_http_401:
+        print("\n⚠️  Run ended early due to HTTP 401 (token restriction).")
+        print("   Confirm token.json contains MAPBOX_TOKEN_FOR_GEOCODING OR set env:MAPBOX_TOKEN before running.\n")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

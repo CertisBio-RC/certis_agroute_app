@@ -1,61 +1,78 @@
 ﻿# =========================
-# CERTIS AGROUTE — .gitignore (Corrected)
+# CERTIS AGROUTE — .gitignore (Corrected / Hardened)
 # =========================
 
+# -------------------------
 # Node / Next build artifacts
+# -------------------------
 node_modules/
 .next/
 out/
 
+# -------------------------
 # Env files (never commit)
+# -------------------------
 .env*
+!.env.example
 
+# -------------------------
 # OS / editor noise
+# -------------------------
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
 
+# -------------------------
+# Python cache
+# -------------------------
+__pycache__/
+*.pyc
+
+# -------------------------
 # ETL cache / intermediate artifacts (never commit)
+# -------------------------
 data/geocode-cache.json
 scripts/out/
 
+# -------------------------
 # Token / secrets (never commit)
+#   Bailey rule: tokens live in /data, but we harden by ignoring token files anywhere.
+# -------------------------
 data/token.txt
 data/token.json
 data/token*.txt
 data/token*.json
-public/data/token.txt
-public/data/token.json
-public/data/token*.txt
-public/data/token*.json
+**/token*.txt
+**/token*.json
 
+# -------------------------
+# Data inputs (keep raw XLSX out of git)
+# -------------------------
+data/*.xlsx
+
+# -------------------------
 # Portable tool archives
+# -------------------------
 *.7z.exe
 PortableGit*.7z.exe
 PortableGit/
 
-# Data inputs (keep raw XLSX out of git)
-data/*.xlsx
-
+# -------------------------
 # Archive of working versions
+# -------------------------
 __archive/
-
-# Ignore Gold Baseline backup folders
 backup/
+_BACKUPS/
 
-# Python cache
-__pycache__/
-*.pyc
-
+# -------------------------
 # Editor/script backups
+# -------------------------
 *.bak
 *.bak*
 
-
-# --- accidental terminal/paste artifacts (do not commit) ---
+# -------------------------
+# Accidental terminal/paste artifacts (do not commit)
+# -------------------------
 ersjbaileycertis_agroute_app
 x).Length
-
-
-# Local backups
-_BACKUPS/
-
