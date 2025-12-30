@@ -712,7 +712,7 @@ export default function Page() {
                             </span>
                           )}
 
-                          <div className="flex-1 text-sm font-extrabold text-white/90 leading-tight">{it.label}</div>
+                          <div className="flex-1 text-sm font-normal text-white/90 leading-tight">{it.label}</div>
 
                           {it.kind === "hq" && <div className="text-[11px] text-white/60 whitespace-nowrap">red + ring</div>}
                         </div>
