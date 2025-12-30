@@ -585,7 +585,7 @@ export default function Page() {
   const mapFirstMobileClass = "order-1 lg:order-2";
   const sidebarSecondMobileClass = "order-2 lg:order-1";
 
-  // LEGEND (sidebar card)
+  // LEGEND (sidebar card) — Option A: compact list
   const legendItems = useMemo(() => {
     const has = (x: string) => categories.includes(x);
 
@@ -664,69 +664,63 @@ export default function Page() {
           {/* SIDEBAR SECOND ON MOBILE */}
           <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}>
             <div className="overflow-y-auto px-4 py-3 space-y-4">
-              {/* LEGEND (replaces Home ZIP) */}
+              {/* LEGEND (replaces Home ZIP) — Option A */}
               <div className={sectionShellClass}>
-                <SectionHeader
-                  title="Legend"
-                  k={sectionKey("Legend")}
-                  right={<div className="text-[11px] text-white/65 whitespace-nowrap">Map symbols</div>}
-                />
+                <SectionHeader title="Legend" k={sectionKey("Legend")} />
                 {!collapsed[sectionKey("Legend")] && (
-                  <div className="space-y-2 mt-3">
-                    <div className="grid grid-cols-1 gap-2">
+                  <div className="mt-3">
+                    <div className="rounded-xl border ring-1 backdrop-blur-sm px-3 py-2 space-y-2 bg-[linear-gradient(180deg,var(--cad-list-top),var(--cad-list-bot))] border-[color:var(--cad-tile-border)] ring-[color:var(--cad-tile-ring)]">
                       {legendItems.map((it) => (
-                        <div key={it.label} className={innerTileClass}>
-                          <div className="flex items-center gap-3">
-                            {it.kind === "dot" && (
-                              <span
-                                className="inline-block h-3 w-3 rounded-full border border-black/40"
-                                style={{ background: it.swatch }}
-                              />
-                            )}
+                        <div key={it.label} className="flex items-center gap-3">
+                          {it.kind === "dot" && (
+                            <span
+                              className="inline-block h-3 w-3 rounded-full border border-black/40 flex-shrink-0"
+                              style={{ background: it.swatch }}
+                              aria-hidden="true"
+                            />
+                          )}
 
-                            {it.kind === "hq" && (
-                              <span
-                                className="inline-block h-3 w-3 rounded-full border border-black/40"
-                                style={{ background: it.swatch, boxShadow: "0 0 0 2px rgba(250,204,21,0.85) inset" }}
-                              />
-                            )}
+                          {it.kind === "hq" && (
+                            <span
+                              className="inline-block h-3 w-3 rounded-full border border-black/40 flex-shrink-0"
+                              style={{ background: it.swatch, boxShadow: "0 0 0 2px rgba(250,204,21,0.85) inset" }}
+                              aria-hidden="true"
+                            />
+                          )}
 
-                            {it.kind === "kingpin" && (
-                              <span className="inline-flex items-center justify-center h-4 w-4" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="16" height="16">
-                                  <path
-                                    d="M64 14
-                                       L78.6 47.5
-                                       L115 52.2
-                                       L88 75.1
-                                       L96.1 110
-                                       L64 92
-                                       L31.9 110
-                                       L40 75.1
-                                       L13 52.2
-                                       L49.4 47.5
-                                       Z"
-                                    fill={it.swatch}
-                                    stroke="#0b1220"
-                                    strokeWidth="6"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              </span>
-                            )}
+                          {it.kind === "kingpin" && (
+                            <span className="inline-flex items-center justify-center h-4 w-4 flex-shrink-0" aria-hidden="true">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="16" height="16">
+                                <path
+                                  d="M64 14
+                                     L78.6 47.5
+                                     L115 52.2
+                                     L88 75.1
+                                     L96.1 110
+                                     L64 92
+                                     L31.9 110
+                                     L40 75.1
+                                     L13 52.2
+                                     L49.4 47.5
+                                     Z"
+                                  fill={it.swatch}
+                                  stroke="#0b1220"
+                                  strokeWidth="6"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </span>
+                          )}
 
-                            <div className="flex-1">
-                              <div className="text-sm font-extrabold text-white/90">{it.label}</div>
-                              {it.kind === "kingpin" && <div className={tanSubTextClass}>Star marker</div>}
-                              {it.kind === "hq" && <div className={tanSubTextClass}>Red dot + yellow inset ring</div>}
-                            </div>
-                          </div>
+                          <div className="flex-1 text-sm font-extrabold text-white/90 leading-tight">{it.label}</div>
+
+                          {it.kind === "hq" && <div className="text-[11px] text-white/60 whitespace-nowrap">red + ring</div>}
                         </div>
                       ))}
                     </div>
 
-                    <div className={tanSubTextClass}>
-                      Tip: Kingpins are always visible and offset from the corresponding retailer marker to avoid overlap.
+                    <div className="mt-2 text-[11px] text-white/60">
+                      Kingpins are always visible (offset slightly to avoid overlap).
                     </div>
                   </div>
                 )}
