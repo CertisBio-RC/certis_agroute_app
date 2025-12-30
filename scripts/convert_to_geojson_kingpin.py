@@ -7,7 +7,7 @@ CERTIS AGROUTE — Build public/data/kingpin.geojson (Hybrid)
       - --token-file (txt or json; BOM-safe)
       - data/token.txt (raw token OR JSON)
       - data/token.json (BOM-safe)
-      - env MAPBOX_TOKEN or NEXT_PUBLIC_MAPBOX_TOKEN
+      - env MAPBOX_ACCESS_TOKEN / MAPBOX_TOKEN / NEXT_PUBLIC_MAPBOX_TOKEN
   • Category rules (updated):
       - Facility categories are canonicalized; any "nan"/"NaN"/"None"/"null" are treated as missing
       - Missing/invalid facility categories default to "Agronomy"
@@ -69,6 +69,16 @@ ORDINAL_WORDS = {
     "ninth": "9th",
     "tenth": "10th",
 }
+
+# -----------------------------------------------------------------------------
+# Repo-root-safe path helpers
+# -----------------------------------------------------------------------------
+def repo_root() -> str:
+    # scripts/convert_to_geojson_kingpin.py -> scripts -> repo root
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+def root_path(*parts: str) -> str:
+    return os.path.join(repo_root(), *parts)
 
 # -----------------------------------------------------------------------------
 # Normalization helpers
@@ -154,9 +164,7 @@ def canonicalize_category(raw: str) -> str:
     if low in {"nan", "none", "null"}:
         return ""
 
-    # If multiple categories are stuffed together, we still choose a single canonical.
     # Priority: Corporate HQ > Distribution > C-Store/Service/Energy > Grain/Feed > Agronomy > Kingpin
-    # (Kingpin usually won't exist in retailers.geojson, but we keep it here for completeness.)
     if "corporate" in low or "hq" in low:
         return "Corporate HQ"
     if "distribution" in low:
@@ -242,7 +250,6 @@ def load_retailers_geojson(path: str) -> List[Facility]:
         st = normalize_state(props.get("State", ""))
         z = normalize_zip(props.get("Zip", ""))
 
-        # canonicalize, but allow blank / 'nan' to fall back to Agronomy later
         cat_raw = props.get("Category", "")
         cat = canonicalize_category(cat_raw)
         supp = canonical_suppliers(props.get("Suppliers", ""))
@@ -328,92 +335,103 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
         # This avoids losing state when both columns exist and one is blank.
         # ------------------------------------------------------------
         cols_upper = {str(c).strip().upper(): c for c in df.columns}
-        state1 = df[cols_upper['STATE.1']] if 'STATE.1' in cols_upper else ''
-        state0 = df[cols_upper['STATE']]   if 'STATE'   in cols_upper else ''
-        if 'STATE.1' in cols_upper or 'STATE' in cols_upper:
-            s1 = state1.astype(str).str.strip() if hasattr(state1, 'astype') else ''
-            df['State'] = state1.where(s1.ne(''), state0) if hasattr(state1, 'where') else state0
-            # Drop originals so later header mapping can't overwrite State
+        state1 = df[cols_upper["STATE.1"]] if "STATE.1" in cols_upper else ""
+        state0 = df[cols_upper["STATE"]] if "STATE" in cols_upper else ""
+        if "STATE.1" in cols_upper or "STATE" in cols_upper:
+            s1 = state1.astype(str).str.strip() if hasattr(state1, "astype") else ""
+            df["State"] = state1.where(s1.ne(""), state0) if hasattr(state1, "where") else state0
             drop_cols = []
-            if 'STATE.1' in cols_upper: drop_cols.append(cols_upper['STATE.1'])
-            if 'STATE' in cols_upper: drop_cols.append(cols_upper['STATE'])
-            drop_cols = [c for c in drop_cols if c in df.columns and c != 'State']
-            if drop_cols: df = df.drop(columns=drop_cols)
-
+            if "STATE.1" in cols_upper:
+                drop_cols.append(cols_upper["STATE.1"])
+            if "STATE" in cols_upper:
+                drop_cols.append(cols_upper["STATE"])
+            drop_cols = [c for c in drop_cols if c in df.columns and c != "State"]
+            if drop_cols:
+                df = df.drop(columns=drop_cols)
 
         # ------------------------------------------------------------
         # Header normalization (Kingpin XLSX variants -> canonical keys)
-        # Accepts headers like 'CONTACT NAME', 'ZIP CODE', 'OFFICE PHONE', etc.
         # ------------------------------------------------------------
         col_map = {}
         for c in df.columns:
             cu = str(c).strip().upper()
-            if cu == 'RETAILER':
-                col_map[c] = 'Retailer'
-            elif cu in ('CONTACT NAME', 'CONTACTNAME'):
-                col_map[c] = 'ContactName'
-            elif cu == 'ADDRESS':
-                col_map[c] = 'Address'
-            elif cu == 'CITY':
-                col_map[c] = 'City'
-            elif cu in ('STATE.1', 'STATE'):
-                col_map[c] = 'State'
-            elif cu in ('ZIP', 'ZIP CODE', 'ZIPCODE'):
-                col_map[c] = 'Zip'
-            elif cu in ('OFFICE PHONE', 'OFFICEPHONE'):
-                col_map[c] = 'OfficePhone'
-            elif cu in ('CELL PHONE', 'CELLPHONE'):
-                col_map[c] = 'CellPhone'
-            elif cu == 'EMAIL':
-                col_map[c] = 'Email'
-            elif cu in ('TITLE', 'CONTACT TITLE', 'CONTACTTITLE'):
-                col_map[c] = 'ContactTitle'
-            elif cu in ('SUPPLIER', 'SUPPLIERS'):
-                col_map[c] = 'Suppliers'
-            elif cu in ('FULL BLOCK ADDRESS', 'FULLADDRESS', 'FULL ADDRESS'):
-                col_map[c] = 'FullAddress'
+            if cu == "RETAILER":
+                col_map[c] = "Retailer"
+            elif cu in ("CONTACT NAME", "CONTACTNAME"):
+                col_map[c] = "ContactName"
+            elif cu == "ADDRESS":
+                col_map[c] = "Address"
+            elif cu == "CITY":
+                col_map[c] = "City"
+            elif cu in ("STATE.1", "STATE"):
+                col_map[c] = "State"
+            elif cu in ("ZIP", "ZIP CODE", "ZIPCODE"):
+                col_map[c] = "Zip"
+            elif cu in ("OFFICE PHONE", "OFFICEPHONE"):
+                col_map[c] = "OfficePhone"
+            elif cu in ("CELL PHONE", "CELLPHONE"):
+                col_map[c] = "CellPhone"
+            elif cu == "EMAIL":
+                col_map[c] = "Email"
+            elif cu in ("TITLE", "CONTACT TITLE", "CONTACTTITLE"):
+                col_map[c] = "ContactTitle"
+            elif cu in ("SUPPLIER", "SUPPLIERS"):
+                col_map[c] = "Suppliers"
+            elif cu in ("FULL BLOCK ADDRESS", "FULLADDRESS", "FULL ADDRESS"):
+                col_map[c] = "FullAddress"
 
         if col_map:
             df = df.rename(columns=col_map)
-            # If both STATE and STATE.1 existed, keep the last (STATE.1 usually).
-            if 'State' in df.columns:
+            if "State" in df.columns:
                 cols = list(df.columns)
-                idxs = [k for k, x in enumerate(cols) if x == 'State']
+                idxs = [k for k, x in enumerate(cols) if x == "State"]
                 if len(idxs) > 1:
                     df = df.drop(df.columns[idxs[:-1]], axis=1)
 
         for _, r in df.iterrows():
             def _canon_key(_k: str) -> str:
                 ku = str(_k).strip().upper()
-                if ku == 'RETAILER': return 'Retailer'
-                if ku in ('CONTACT NAME','CONTACTNAME'): return 'ContactName'
-                if ku == 'ADDRESS': return 'Address'
-                if ku == 'CITY': return 'City'
-                if ku in ('STATE.1','STATE'): return 'State'
-                if ku in ('ZIP','ZIP CODE','ZIPCODE'): return 'Zip'
-                if ku in ('OFFICE PHONE','OFFICEPHONE'): return 'OfficePhone'
-                if ku in ('CELL PHONE','CELLPHONE'): return 'CellPhone'
-                if ku == 'EMAIL': return 'Email'
-                if ku in ('TITLE','CONTACT TITLE','CONTACTTITLE'): return 'ContactTitle'
-                if ku in ('SUPPLIER','SUPPLIERS'): return 'Suppliers'
-                if ku in ('FULL BLOCK ADDRESS','FULLADDRESS','FULL ADDRESS'): return 'FullAddress'
+                if ku == "RETAILER":
+                    return "Retailer"
+                if ku in ("CONTACT NAME", "CONTACTNAME"):
+                    return "ContactName"
+                if ku == "ADDRESS":
+                    return "Address"
+                if ku == "CITY":
+                    return "City"
+                if ku in ("STATE.1", "STATE"):
+                    return "State"
+                if ku in ("ZIP", "ZIP CODE", "ZIPCODE"):
+                    return "Zip"
+                if ku in ("OFFICE PHONE", "OFFICEPHONE"):
+                    return "OfficePhone"
+                if ku in ("CELL PHONE", "CELLPHONE"):
+                    return "CellPhone"
+                if ku == "EMAIL":
+                    return "Email"
+                if ku in ("TITLE", "CONTACT TITLE", "CONTACTTITLE"):
+                    return "ContactTitle"
+                if ku in ("SUPPLIER", "SUPPLIERS"):
+                    return "Suppliers"
+                if ku in ("FULL BLOCK ADDRESS", "FULLADDRESS", "FULL ADDRESS"):
+                    return "FullAddress"
                 return str(_k).strip()
 
-            d = { _canon_key(k): ('' if pd.isna(v) else str(v)) for k, v in r.to_dict().items() }
-            # Ensure canonical State exists for downstream required-min checks
-            if not d.get('State'):
-                # Try multiple sources because upstream header normalization may rename columns
-                st = ''
-                for k in ('STATE.1','STATE','State','STATE.1 ','STATE ','STATE.1.1'):
+            d = {_canon_key(k): ("" if pd.isna(v) else str(v)) for k, v in r.to_dict().items()}
+
+            # Ensure canonical State exists
+            if not d.get("State"):
+                st = ""
+                for k in ("STATE.1", "STATE", "State", "STATE.1 ", "STATE ", "STATE.1.1"):
                     try:
-                        v = r.get(k, '')
+                        v = r.get(k, "")
                     except Exception:
-                        v = ''
-                    s = str(v).strip() if v is not None else ''
-                    if s and s.lower() != 'nan':
-                        st = s
+                        v = ""
+                    ss = str(v).strip() if v is not None else ""
+                    if ss and ss.lower() != "nan":
+                        st = ss
                         break
-                d['State'] = st
+                d["State"] = st
 
             d["_Sheet"] = sh
             rows.append(d)
@@ -443,7 +461,7 @@ def _extract_token_from_obj(obj: Any) -> str:
     if isinstance(obj, str):
         return _strip_quotes(obj)
     if isinstance(obj, dict):
-        for k in ["MAPBOX_TOKEN", "token", "access_token", "NEXT_PUBLIC_MAPBOX_TOKEN"]:
+        for k in ["MAPBOX_ACCESS_TOKEN", "MAPBOX_TOKEN", "token", "access_token", "NEXT_PUBLIC_MAPBOX_TOKEN"]:
             if k in obj and obj[k]:
                 return _strip_quotes(str(obj[k]))
     return ""
@@ -479,7 +497,7 @@ def load_token_from_txt(path: str) -> str:
                 pass
 
         raw = re.sub(
-            r"^\s*(token|access_token|mapbox_token|next_public_mapbox_token)\s*=\s*",
+            r"^\s*(token|access_token|mapbox_access_token|mapbox_token|next_public_mapbox_token)\s*=\s*",
             "",
             raw,
             flags=re.IGNORECASE,
@@ -489,26 +507,43 @@ def load_token_from_txt(path: str) -> str:
         return ""
 
 def resolve_mapbox_token(token_file: Optional[str]) -> Tuple[str, str]:
+    # token file provided explicitly
     if token_file:
-        if token_file.lower().endswith(".json"):
-            t = load_token_from_json(token_file)
+        tf = token_file
+        # allow relative paths from repo root
+        if not os.path.isabs(tf):
+            tf = root_path(tf)
+        if tf.lower().endswith(".json"):
+            t = load_token_from_json(tf)
         else:
-            t = load_token_from_txt(token_file)
+            t = load_token_from_txt(tf)
         if t:
-            return t, f"--token-file:{token_file}"
+            return t, f"--token-file:{tf}"
 
-    if os.path.exists(os.path.join("data", "token.txt")):
-        t = load_token_from_txt(os.path.join("data", "token.txt"))
-        if t:
-            return t, "data/token.txt"
-    if os.path.exists(os.path.join("data", "token.json")):
-        t = load_token_from_json(os.path.join("data", "token.json"))
-        if t:
-            return t, "data/token.json"
+    # default token files (repo root /data)
+    tf_txt = root_path("data", "token.txt")
+    tf_json = root_path("data", "token.json")
 
-    t = os.getenv("MAPBOX_TOKEN") or os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN") or ""
+    if os.path.exists(tf_txt):
+        t = load_token_from_txt(tf_txt)
+        if t:
+            return t, tf_txt
+
+    if os.path.exists(tf_json):
+        t = load_token_from_json(tf_json)
+        if t:
+            return t, tf_json
+
+    # env
+    t = (
+        os.getenv("MAPBOX_ACCESS_TOKEN")
+        or os.getenv("MAPBOX_TOKEN")
+        or os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN")
+        or ""
+    )
     if t:
         return t, "env"
+
     return "", "none"
 
 # -----------------------------------------------------------------------------
@@ -579,28 +614,62 @@ def geocode_address_mapbox(
 # -----------------------------------------------------------------------------
 def main() -> int:
     ap = argparse.ArgumentParser(description="Build kingpin.geojson (inherit coords if matched; geocode only TBD).")
-    ap.add_argument("--kingpin-xlsx", default="data/kingpin1_COMBINED.xlsx", help="Path to kingpin xlsx.")
+
+    # ✅ FIX: correct default input file name
+    ap.add_argument(
+        "--kingpin-xlsx",
+        default=root_path("data", "kingpin_COMBINED.xlsx"),
+        help="Path to kingpin xlsx.",
+    )
+
     ap.add_argument(
         "--retailers-geojson",
-        default=os.path.join("public", "data", "retailers.geojson"),
+        default=root_path("public", "data", "retailers.geojson"),
         help="Path to retailers.geojson (inheritance authority).",
     )
     ap.add_argument(
         "--out-geojson",
-        default=os.path.join("public", "data", "kingpin.geojson"),
+        default=root_path("public", "data", "kingpin.geojson"),
         help="Output path for kingpin.geojson.",
     )
-    ap.add_argument("--out-dir", default=os.path.join("scripts", "out"), help="Directory for audit outputs.")
+    ap.add_argument(
+        "--out-dir",
+        default=root_path("scripts", "out"),
+        help="Directory for audit outputs.",
+    )
     ap.add_argument(
         "--geocode-no-match",
         action="store_true",
         help="If set, TBD rows will be geocoded via Mapbox. Otherwise TBD rows are excluded.",
     )
-    ap.add_argument("--token-file", default="", help="Optional token file path (txt or json). BOM-safe; txt may be JSON.")
+    ap.add_argument(
+        "--token-file",
+        default="",
+        help="Optional token file path (txt or json). BOM-safe; txt may be JSON.",
+    )
     ap.add_argument("--geocode-sleep", type=float, default=0.12, help="Sleep seconds between Mapbox calls.")
     ap.add_argument("--debug-geocode-failures", type=int, default=5, help="Print first N geocode failures.")
-    ap.add_argument("--cache-file", default=os.path.join("data", "geocode-cache.json"), help="Geocode cache file.")
+    ap.add_argument(
+        "--cache-file",
+        default=root_path("data", "geocode-cache.json"),
+        help="Geocode cache file.",
+    )
+
     args = ap.parse_args()
+
+    # Allow caller to pass relative paths; resolve against repo root for safety.
+    def _abs(p: str) -> str:
+        if not p:
+            return p
+        return p if os.path.isabs(p) else root_path(p)
+
+    args.kingpin_xlsx = _abs(args.kingpin_xlsx)
+    args.retailers_geojson = _abs(args.retailers_geojson)
+    args.out_geojson = _abs(args.out_geojson)
+    args.out_dir = _abs(args.out_dir)
+    args.cache_file = _abs(args.cache_file)
+    if args.token_file:
+        args.token_file = _abs(args.token_file)
 
     if not os.path.exists(args.retailers_geojson):
         print(f"❌ Missing retailers geojson: {args.retailers_geojson}")
@@ -619,7 +688,7 @@ def main() -> int:
         token, token_source = resolve_mapbox_token(args.token_file)
         if not token:
             print("❌ geocode-no-match enabled but no token found.")
-            print("   Put token in data/token.txt or data/token.json, set MAPBOX_TOKEN/NEXT_PUBLIC_MAPBOX_TOKEN, or pass --token-file.")
+            print("   Put token in data/token.txt or data/token.json, set MAPBOX_ACCESS_TOKEN/MAPBOX_TOKEN/NEXT_PUBLIC_MAPBOX_TOKEN, or pass --token-file.")
             return 1
 
     cache = load_geocode_cache(args.cache_file) if args.geocode_no_match else {}
@@ -655,7 +724,7 @@ def main() -> int:
         retailer_raw = _clean_ws(row.get("Retailer", ""))
         suppliers_raw = canonical_suppliers(row.get("Suppliers", ""))
         contact = _clean_ws(row.get("ContactName", ""))
-        title = _clean_ws(row.get("Title", ""))
+        title = _clean_ws(row.get("Title", "")) or _clean_ws(row.get("ContactTitle", ""))
         email = _clean_ws(row.get("Email", ""))
         office = _clean_ws(row.get("OfficePhone", ""))
         cell = _clean_ws(row.get("CellPhone", ""))
@@ -677,7 +746,7 @@ def main() -> int:
         geosource = "MAPBOX"
         matched_fac: Optional[Facility] = None
 
-        # T1: exact addr match (retailer+addr+city+state+zip)
+        # T1: exact addr match
         cands1 = by_addr.get(ak, [])
         if cands1:
             matched_fac = choose_best_facility(cands1)
@@ -685,7 +754,7 @@ def main() -> int:
             geosource = "FACILITY"
             n_t1 += 1
 
-        # T2: unique city match (retailer+city+state+zip) where only 1 facility in that city+zip
+        # T2: unique city match
         if matched_fac is None:
             cands2 = by_city.get(ck, [])
             if len(cands2) == 1:
@@ -694,7 +763,7 @@ def main() -> int:
                 geosource = "FACILITY"
                 n_t2 += 1
 
-        # T3: retailer+state fallback (pick Corporate HQ if present)
+        # T3: retailer+state fallback
         if matched_fac is None:
             cands3 = by_retailer_state.get(rk, [])
             if cands3:
@@ -707,8 +776,8 @@ def main() -> int:
             "Retailer": retailer_raw,
             "Suppliers": suppliers_raw,
             "ContactName": contact,
-            "ContactTitle": title,  # keep for popup fields
-            "Title": title,         # backward compat if something expects Title
+            "ContactTitle": title,
+            "Title": title,
             "Email": email,
             "OfficePhone": office,
             "CellPhone": cell,
@@ -723,7 +792,7 @@ def main() -> int:
         lonlat: Optional[Tuple[float, float]] = None
 
         if matched_fac is not None:
-            props["Category"] = matched_fac.category  # already cleaned / defaulted away from "nan"
+            props["Category"] = matched_fac.category
             props["FacilityName"] = matched_fac.name
             props["LongName"] = matched_fac.longname
             props["MatchTier"] = match_tier
@@ -736,9 +805,7 @@ def main() -> int:
             lonlat = (matched_fac.lon, matched_fac.lat)
 
         else:
-            # Unmatched => TBD values (then geocode if enabled)
             n_tbd += 1
-            # Category for unmatched kingpins: always Agronomy (per your preference)
             props["Category"] = "Agronomy"
             props["FacilityName"] = ""
             props["LongName"] = ""
@@ -747,6 +814,7 @@ def main() -> int:
 
             if args.geocode_no_match:
                 ck_full = cache_key_full(addr_raw, city_raw, state, zipc)
+
                 if ck_full in cache and isinstance(cache[ck_full], list) and len(cache[ck_full]) == 2:
                     try:
                         lonlat = (float(cache[ck_full][0]), float(cache[ck_full][1]))

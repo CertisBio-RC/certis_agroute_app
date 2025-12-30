@@ -6,36 +6,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -92.621167,
-          44.396297
-        ]
-      },
-      "properties": {
-        "Retailer": "Ag Partners",
-        "Suppliers": "",
-        "ContactName": "Dan Stamschror",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "dans@agpartners.net",
-        "OfficePhone": "651-923-4496",
-        "CellPhone": "651-764-3095",
-        "Address": "301 S. Broadway St.",
-        "City": "Goodhue",
-        "State": "MN",
-        "Zip": "55027",
-        "FullAddress": "301 S. Broadway St., Goodhue, MN 55027",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -99.896741,
           40.301759
         ]
@@ -44,8 +14,8 @@
         "Retailer": "Ag Valley Coop",
         "Suppliers": "Winfield",
         "ContactName": "Kirk Nielsen",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agron. Dept. Mgr.",
+        "Title": "Agron. Dept. Mgr.",
         "Email": "kmnielsen@agvalley.com",
         "OfficePhone": "800-228-1352",
         "CellPhone": "308-962-4589",
@@ -74,8 +44,8 @@
         "Retailer": "AgLand Coop",
         "Suppliers": "",
         "ContactName": "Todd Kludt",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "VP Agronomy",
+        "Title": "VP Agronomy",
         "Email": "todd@aglandsd.com",
         "OfficePhone": "",
         "CellPhone": "605-928-3381",
@@ -104,8 +74,8 @@
         "Retailer": "Agriland FS",
         "Suppliers": "Growmark",
         "ContactName": "John Knobloch",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "General Mgr",
+        "Title": "General Mgr",
         "Email": "jknobloch@agrilandfs.com",
         "OfficePhone": "(515) 462-5353",
         "CellPhone": "",
@@ -134,8 +104,8 @@
         "Retailer": "Agtegra",
         "Suppliers": "Winfield, Rosen's",
         "ContactName": "Brett Harrison",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Head of CP",
+        "Title": "Head of CP",
         "Email": "brett.harrison@agtegra.com",
         "OfficePhone": "605-570-0772",
         "CellPhone": "605-225-5500",
@@ -164,8 +134,8 @@
         "Retailer": "Agtegra",
         "Suppliers": "Winfield, Rosen's",
         "ContactName": "Aaron Rogers",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Proprietary Product MGR",
+        "Title": "Proprietary Product MGR",
         "Email": "aaron.rogers@agtegra.com",
         "OfficePhone": "",
         "CellPhone": "605-350-3821",
@@ -194,8 +164,8 @@
         "Retailer": "Agtegra",
         "Suppliers": "Winfield, Rosen's",
         "ContactName": "Brad Ruden",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Technical Mgr.",
+        "Title": "Technical Mgr.",
         "Email": "brad.ruden@agtegra.com",
         "OfficePhone": "(605) 651-4159",
         "CellPhone": "(605) 725-8331",
@@ -224,8 +194,8 @@
         "Retailer": "Agtegra",
         "Suppliers": "Winfield, Rosen's",
         "ContactName": "Ryan Schuchhardt",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Head. Of Sales Agronomy",
+        "Title": "Head. Of Sales Agronomy",
         "Email": "ryan.schuchhardt@agtegra.com",
         "OfficePhone": "",
         "CellPhone": "(605)-350-3156",
@@ -254,8 +224,8 @@
         "Retailer": "Agtegra",
         "Suppliers": "Winfield, Rosen's",
         "ContactName": "Jason White",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Branch Mgr.",
+        "Title": "Branch Mgr.",
         "Email": "jason.white@agtegra.com",
         "OfficePhone": "",
         "CellPhone": "605-846-1166",
@@ -284,8 +254,8 @@
         "Retailer": "Agtegra",
         "Suppliers": "Winfield, Rosen's",
         "ContactName": "David J. Merxbauer",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Branch Mgr. (Bath)",
+        "Title": "Branch Mgr. (Bath)",
         "Email": "david.merxbauer@agtegra.com",
         "OfficePhone": "605-225-3280",
         "CellPhone": "605-268-0775",
@@ -314,8 +284,8 @@
         "Retailer": "Agvantage FS",
         "Suppliers": "Growmark",
         "ContactName": "Matt Kruse",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "General Mgr",
+        "Title": "General Mgr",
         "Email": "mkruse@agvantagefs.com",
         "OfficePhone": "(319) 483-4900",
         "CellPhone": "",
@@ -344,8 +314,8 @@
         "Retailer": "Agvantage FS",
         "Suppliers": "Growmark",
         "ContactName": "Jordan Heit",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Crop Specialist",
+        "Title": "Crop Specialist",
         "Email": "jheit@agvantagefs.com",
         "OfficePhone": "641-228-1153",
         "CellPhone": "319-215-9278",
@@ -374,8 +344,8 @@
         "Retailer": "Agvantage FS",
         "Suppliers": "Growmark",
         "ContactName": "Rick Schwennen",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Crop Consultant",
+        "Title": "Crop Consultant",
         "Email": "rschwennen@agvantagefs.com",
         "OfficePhone": "563-652-5636",
         "CellPhone": "319-559-8471",
@@ -396,126 +366,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -97.12872,
-          44.87293
-        ]
-      },
-      "properties": {
-        "Retailer": "AgWrx",
-        "Suppliers": "Winfield",
-        "ContactName": "Wade Goens",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "wgoens@agwrxcoop.com",
-        "OfficePhone": "605-886-8333",
-        "CellPhone": "606-695-3986",
-        "Address": "812 20th Ave. SW",
-        "City": "Watertown",
-        "State": "SD",
-        "Zip": "57201",
-        "FullAddress": "812 20th Ave. SW, Watertown, SD 57201",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.889432,
-          43.491773
-        ]
-      },
-      "properties": {
-        "Retailer": "Asmus Farm Supply",
-        "Suppliers": "Nutrien, Winfield",
-        "ContactName": "Harlan Asmus",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "harlan@afschem.com",
-        "OfficePhone": "641-566-3658",
-        "CellPhone": "",
-        "Address": "50245 40th Ave",
-        "City": "Rake",
-        "State": "IA",
-        "Zip": "50465",
-        "FullAddress": "50245 40th Ave, Rake, IA 50465",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.889432,
-          43.491773
-        ]
-      },
-      "properties": {
-        "Retailer": "Asmus Farm Supply",
-        "Suppliers": "Nutrien, Winfield",
-        "ContactName": "Amy Asmus",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "amy@afschem.com",
-        "OfficePhone": "641-566-3672",
-        "CellPhone": "641-590-1658",
-        "Address": "50245 40th Ave",
-        "City": "Rake",
-        "State": "IA",
-        "Zip": "50465",
-        "FullAddress": "50245 40th Ave, Rake, IA 50465",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.889432,
-          43.491773
-        ]
-      },
-      "properties": {
-        "Retailer": "Asmus Farm Supply",
-        "Suppliers": "Nutrien, Winfield",
-        "ContactName": "Cody Wertjes",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "cody@afschem.com",
-        "OfficePhone": "641-566-3658",
-        "CellPhone": "",
-        "Address": "50245 40th Ave",
-        "City": "Rake",
-        "State": "IA",
-        "Zip": "50465",
-        "FullAddress": "50245 40th Ave, Rake, IA 50465",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -98.003,
           40.867245
         ]
@@ -524,8 +374,8 @@
         "Retailer": "Aurora Coop",
         "Suppliers": "Winfield",
         "ContactName": "Lucas Birch",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agron. Sales Rep.",
+        "Title": "Agron. Sales Rep.",
         "Email": "burchla13@gmail.com",
         "OfficePhone": "402-694-2106",
         "CellPhone": "308-746-2807",
@@ -554,8 +404,8 @@
         "Retailer": "Aurora Coop",
         "Suppliers": "Winfield",
         "ContactName": "Chris Decker",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Chief Executive Officer",
+        "Title": "Chief Executive Officer",
         "Email": "cdecker@auroracoop.com",
         "OfficePhone": "402-694-2106",
         "CellPhone": "",
@@ -584,8 +434,8 @@
         "Retailer": "Aurora Coop",
         "Suppliers": "Winfield",
         "ContactName": "Carl Smith",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Chief Financial Officer",
+        "Title": "Chief Financial Officer",
         "Email": "csmith@auroracoop.com",
         "OfficePhone": "402-694-2106",
         "CellPhone": "",
@@ -614,8 +464,8 @@
         "Retailer": "Aurora Coop",
         "Suppliers": "Winfield",
         "ContactName": "Dan Karr",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Dir of Crop Nutrients",
+        "Title": "Dir of Crop Nutrients",
         "Email": "dkarr@auroracoop.com",
         "OfficePhone": "402-694-7745",
         "CellPhone": "402-631-3550",
@@ -636,156 +486,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.286772,
-          40.878709
-        ]
-      },
-      "properties": {
-        "Retailer": "B&D Chemical",
-        "Suppliers": "",
-        "ContactName": "Brandon Grubbs",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "banddchemical@yahoo.com",
-        "OfficePhone": "",
-        "CellPhone": "815-674-6477",
-        "Address": "33755 E. 1700 N. Rd.",
-        "City": "Cullum",
-        "State": "IL",
-        "Zip": "60929",
-        "FullAddress": "33755 E. 1700 N. Rd., Cullum, IL 60929",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.286772,
-          40.878709
-        ]
-      },
-      "properties": {
-        "Retailer": "B&D Chemical",
-        "Suppliers": "",
-        "ContactName": "Bill Houck",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "banddchemical@yahoo.com",
-        "OfficePhone": "815-304-6687",
-        "CellPhone": "636-856-3400",
-        "Address": "33755 E. 1700 N. Rd.",
-        "City": "Cullum",
-        "State": "IL",
-        "Zip": "60929",
-        "FullAddress": "33755 E. 1700 N. Rd., Cullum, IL 60929",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -89.994004,
-          39.891984
-        ]
-      },
-      "properties": {
-        "Retailer": "Brandt",
-        "Suppliers": "",
-        "ContactName": "Tim Greer",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "tim.greer@brandt.co",
-        "OfficePhone": "217-476-3438",
-        "CellPhone": "",
-        "Address": "32995 IL 135",
-        "City": "Ashland",
-        "State": "IL",
-        "Zip": "62612",
-        "FullAddress": "32995 IL 135, Ashland, IL 62612",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -89.963605,
-          39.724754
-        ]
-      },
-      "properties": {
-        "Retailer": "Brandt",
-        "Suppliers": "",
-        "ContactName": "Pat Hermes",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "pat.hermes@brandt.com",
-        "OfficePhone": "217-488-3125",
-        "CellPhone": "217-652-4555",
-        "Address": "16714 Old Rt. 54",
-        "City": "New Berlin",
-        "State": "IL",
-        "Zip": "62670",
-        "FullAddress": "16714 Old Rt. 54, New Berlin, IL 62670",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -94.43828,
-          43.82746
-        ]
-      },
-      "properties": {
-        "Retailer": "Central Farm Services",
-        "Suppliers": "",
-        "ContactName": "Tristan Wilmes",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "twilmes@cfs.com",
-        "OfficePhone": "507-776-2831",
-        "CellPhone": "507-621-0243",
-        "Address": "233 W. Ciro St.",
-        "City": "Truman",
-        "State": "MN",
-        "Zip": "56088",
-        "FullAddress": "233 W. Ciro St., Truman, MN 56088",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -97.834107,
           42.047016
         ]
@@ -794,8 +494,8 @@
         "Retailer": "Central Farmers Coop.",
         "Suppliers": "Winfield",
         "ContactName": "Jeff Schmiesing",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agron. Dept. Mgr.",
+        "Title": "Agron. Dept. Mgr.",
         "Email": "jschmiesing@cfc4ag.com",
         "OfficePhone": "605-940-7665",
         "CellPhone": "507-330-3418",
@@ -824,8 +524,8 @@
         "Retailer": "Central Valley Ag",
         "Suppliers": "Winfield",
         "ContactName": "Cary Skibinski",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Dir. Spec. Prod.",
+        "Title": "Dir. Spec. Prod.",
         "Email": "cary.skibinski@cvacoop.com",
         "OfficePhone": "402-362-8454",
         "CellPhone": "402-710-0598",
@@ -854,8 +554,8 @@
         "Retailer": "Central Valley Ag",
         "Suppliers": "Winfield",
         "ContactName": "Korbin Kudera",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Research Agron.",
+        "Title": "Research Agron.",
         "Email": "korbin.kudera@cvacoop.com",
         "OfficePhone": "402-728-5252",
         "CellPhone": "402-270-2909",
@@ -884,8 +584,8 @@
         "Retailer": "Central Valley Ag",
         "Suppliers": "Winfield",
         "ContactName": "Brandt Anderson",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Mgr.",
+        "Title": "Location Mgr.",
         "Email": "brandt.anderson@cvacoop.com",
         "OfficePhone": "402-374-2180",
         "CellPhone": "402-870-0224",
@@ -914,8 +614,8 @@
         "Retailer": "CHS - Brandon",
         "Suppliers": "CHS",
         "ContactName": "Tony Van Overscheide",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agronomy Dept. Mgr.",
+        "Title": "Agronomy Dept. Mgr.",
         "Email": "tony.vanoverscheide@chsinc.com",
         "OfficePhone": "",
         "CellPhone": "605-582-2415",
@@ -936,36 +636,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -97.533144,
-          42.498573
-        ]
-      },
-      "properties": {
-        "Retailer": "CHS - RETAIL",
-        "Suppliers": "CHS",
-        "ContactName": "Erik Haglund",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "erik.haglund@chsinc.com",
-        "OfficePhone": "402-584-2272",
-        "CellPhone": "",
-        "Address": "809 Broadway St.",
-        "City": "Wausa",
-        "State": "NE",
-        "Zip": "68786",
-        "FullAddress": "809 Broadway St., Wausa, NE 68786",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -92.458197,
           43.996814
         ]
@@ -974,8 +644,8 @@
         "Retailer": "CHS - Rochester",
         "Suppliers": "CHS",
         "ContactName": "Aaron Ulland",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Sales Mgr.",
+        "Title": "Sales Mgr.",
         "Email": "",
         "OfficePhone": "507-289-4086",
         "CellPhone": "507-226-5871",
@@ -1004,8 +674,8 @@
         "Retailer": "CHS - Rochester",
         "Suppliers": "CHS",
         "ContactName": "Rod Hart",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agronomist",
+        "Title": "Agronomist",
         "Email": "rod.hart@chsinc.com",
         "OfficePhone": "507-289-4086",
         "CellPhone": "507-259-3026",
@@ -1034,8 +704,8 @@
         "Retailer": "CHS - Rochester",
         "Suppliers": "CHS",
         "ContactName": "Gary Schmiesing",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agronomist",
+        "Title": "Agronomist",
         "Email": "gary.schmiesing@chsinc.com",
         "OfficePhone": "507-289-4086",
         "CellPhone": "507-330-3418",
@@ -1056,36 +726,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.429177,
-          42.304346
-        ]
-      },
-      "properties": {
-        "Retailer": "Conserve FS",
-        "Suppliers": "Growmark",
-        "ContactName": "Adam Day",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "aday@conservfs.com",
-        "OfficePhone": "815-334-5931",
-        "CellPhone": "815-529-1435",
-        "Address": "1110 McConnell Rd.",
-        "City": "Woodstock",
-        "State": "IL",
-        "Zip": "60098",
-        "FullAddress": "1110 McConnell Rd., Woodstock, IL 60098",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -95.535191,
           43.417387
         ]
@@ -1094,8 +734,8 @@
         "Retailer": "CFE",
         "Suppliers": "Winfield",
         "ContactName": "Dan Jacobsma",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agronomy Manager",
+        "Title": "Agronomy Manager",
         "Email": "djacobsma@coopfe.com",
         "OfficePhone": "712-758-3636",
         "CellPhone": "712-330-6144",
@@ -1124,8 +764,8 @@
         "Retailer": "CFE",
         "Suppliers": "Winfield",
         "ContactName": "Jeff Blauwet",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agron. Tech. Specialist",
+        "Title": "Agron. Tech. Specialist",
         "Email": "jblauwet@coopfe.com",
         "OfficePhone": "712-758-3636",
         "CellPhone": "712-470-1416",
@@ -1154,8 +794,8 @@
         "Retailer": "CPI",
         "Suppliers": "Rosen's, Winfield, IAP",
         "ContactName": "Mike Battin",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "VP of Agronomy",
+        "Title": "VP of Agronomy",
         "Email": "mbattin@cpicoop.com",
         "OfficePhone": "402-463-5148",
         "CellPhone": "785-421-8327",
@@ -1184,8 +824,8 @@
         "Retailer": "CPI",
         "Suppliers": "Rosen's, Winfield, IAP",
         "ContactName": "Kevin Hoffschneider",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Procurement Strategy & Prod Mgr.",
+        "Title": "Procurement Strategy & Prod Mgr.",
         "Email": "khoffschneider@cpicoop.com",
         "OfficePhone": "402-744-0090",
         "CellPhone": "308-750-7912",
@@ -1244,8 +884,8 @@
         "Retailer": "Country Partners Coop",
         "Suppliers": "Winfield",
         "ContactName": "Pete Cullan",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "VP of Agronomy",
+        "Title": "VP of Agronomy",
         "Email": "pcullan@countrypartnerscoop.com",
         "OfficePhone": "308-537-7141",
         "CellPhone": "308-530-5050",
@@ -1274,8 +914,8 @@
         "Retailer": "Countryside Ag Service",
         "Suppliers": "Rosen's, Winfield, Nutrien",
         "ContactName": "Randy Van Veldhuizen",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Owner",
+        "Title": "Owner",
         "Email": "randyvanveld@gmail.com",
         "OfficePhone": "712-722-2675",
         "CellPhone": "712-441-5632",
@@ -1304,8 +944,8 @@
         "Retailer": "Farm Service Coop",
         "Suppliers": "Winfield, Rosen's",
         "ContactName": "Tyler Reimers",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agron. Div. Mgr.",
+        "Title": "Agron. Div. Mgr.",
         "Email": "tylerreimers@fscoop.com",
         "OfficePhone": "712-755-3185",
         "CellPhone": "",
@@ -1334,8 +974,8 @@
         "Retailer": "Farm Service Coop",
         "Suppliers": "Winfield, Rosen's",
         "ContactName": "James Klein",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agron. Mgr.",
+        "Title": "Agron. Mgr.",
         "Email": "jamesklein@fscoop.com",
         "OfficePhone": "712-755-3185",
         "CellPhone": "712-571-0349",
@@ -1356,36 +996,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -97.598207,
-          41.999513
-        ]
-      },
-      "properties": {
-        "Retailer": "Farmers Pride Coop",
-        "Suppliers": "Winfield",
-        "ContactName": "Bryan Hoffman",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "bhoffman@farmerspride.com",
-        "OfficePhone": "402-675-2375",
-        "CellPhone": "",
-        "Address": "83755 S. Hwy. 121",
-        "City": "Battle Creek",
-        "State": "NE",
-        "Zip": "68715",
-        "FullAddress": "83755 S. Hwy. 121, Battle Creek, NE 68715",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -91.947376,
           41.363035
         ]
@@ -1394,8 +1004,8 @@
         "Retailer": "FCA Vision Ag",
         "Suppliers": "Nutrien, Winfield",
         "ContactName": "Ellie Bell",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Mkting Mgr.",
+        "Title": "Mkting Mgr.",
         "Email": "ebell@keotafarmerscoop.com",
         "OfficePhone": "641-636-3748",
         "CellPhone": "",
@@ -1424,8 +1034,8 @@
         "Retailer": "FCS, Inc",
         "Suppliers": "Nutrien, Winfield, Rosen's",
         "ContactName": "Kris Norgaard",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Sr. Dir. Agron.",
+        "Title": "Sr. Dir. Agron.",
         "Email": "kris@farmerscoopsociety.com",
         "OfficePhone": "712-722-2671",
         "CellPhone": "",
@@ -1454,8 +1064,8 @@
         "Retailer": "FCS, Inc",
         "Suppliers": "Nutrien, Winfield, Rosen's",
         "ContactName": "Ben VanBeek",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agronomy Mgr.",
+        "Title": "Agronomy Mgr.",
         "Email": "ben@farmerscoopsociety.com",
         "OfficePhone": "712-722-2671",
         "CellPhone": "712-729-3205",
@@ -1484,8 +1094,8 @@
         "Retailer": "Frenchman Valley Coop",
         "Suppliers": "Winfield",
         "ContactName": "Jeff Wessels",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "VP of Agronomy",
+        "Title": "VP of Agronomy",
         "Email": "jrwessels@fvcoop.net",
         "OfficePhone": "",
         "CellPhone": "308-655-0638",
@@ -1514,8 +1124,8 @@
         "Retailer": "Frenchman Valley Coop",
         "Suppliers": "Winfield",
         "ContactName": "Bryan Kopriva",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agron Asst.",
+        "Title": "Agron Asst.",
         "Email": "bkopriva@fvcoop.net",
         "OfficePhone": "",
         "CellPhone": "308-882-8425",
@@ -1544,8 +1154,8 @@
         "Retailer": "Frenchman Valley Coop",
         "Suppliers": "Winfield",
         "ContactName": "Luke Korf",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agron./Prod. Advisor",
+        "Title": "Agron./Prod. Advisor",
         "Email": "lkorf@fvcoop.net",
         "OfficePhone": "",
         "CellPhone": "308-353-7838",
@@ -1574,8 +1184,8 @@
         "Retailer": "Frontier Coop",
         "Suppliers": "Winfield",
         "ContactName": "Dave Reese",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "VP of Agronomy",
+        "Title": "VP of Agronomy",
         "Email": "dave.reese@frontiercooperative.com",
         "OfficePhone": "402-937-1800",
         "CellPhone": "402-209-0855",
@@ -1604,8 +1214,8 @@
         "Retailer": "Frontier Coop",
         "Suppliers": "Winfield",
         "ContactName": "Jason Penlerick",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "CP & Seed Procurement Mgr.",
+        "Title": "CP & Seed Procurement Mgr.",
         "Email": "jason.penlerick@frontiercooperative.com",
         "OfficePhone": "402-937-8052",
         "CellPhone": "402-480-0113",
@@ -1626,186 +1236,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -89.643089,
-          42.296002
-        ]
-      },
-      "properties": {
-        "Retailer": "Growmark - RETAIL",
-        "Suppliers": "Growmark",
-        "ContactName": "Patrick Lind",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "plind@growmark.com",
-        "OfficePhone": "",
-        "CellPhone": "815-656-0730",
-        "Address": "22 N. Mernitz Ave.",
-        "City": "Freeport",
-        "State": "IL",
-        "Zip": "61032",
-        "FullAddress": "22 N. Mernitz Ave., Freeport, IL 61032",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.647841,
-          40.241372
-        ]
-      },
-      "properties": {
-        "Retailer": "Growmark - RETAIL",
-        "Suppliers": "Growmark",
-        "ContactName": "Barry Soliday",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "bsoliday@growmark.com",
-        "OfficePhone": "",
-        "CellPhone": "217-871-1662",
-        "Address": "406 Washington St.",
-        "City": "Farmer City",
-        "State": "IL",
-        "Zip": "61842",
-        "FullAddress": "406 Washington St., Farmer City, IL 61842",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.82251,
-          37.720477
-        ]
-      },
-      "properties": {
-        "Retailer": "Growmark - RETAIL",
-        "Suppliers": "Growmark",
-        "ContactName": "Steve Westrich",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "swestrich@growmark.com",
-        "OfficePhone": "",
-        "CellPhone": "618-527-9111",
-        "Address": "8681 Valley View Rd.",
-        "City": "Marion",
-        "State": "IL",
-        "Zip": "62959",
-        "FullAddress": "8681 Valley View Rd., Marion, IL 62959",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.088038,
-          38.72929
-        ]
-      },
-      "properties": {
-        "Retailer": "Growmark - RETAIL",
-        "Suppliers": "Growmark",
-        "ContactName": "Brett Isley",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "bisley@growmark.com",
-        "OfficePhone": "",
-        "CellPhone": "217-248-5992",
-        "Address": "209 S. Camp St. Apt. 4",
-        "City": "Olney",
-        "State": "IL",
-        "Zip": "62450",
-        "FullAddress": "209 S. Camp St. Apt. 4, Olney, IL 62450",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -92.88037,
-          41.63613
-        ]
-      },
-      "properties": {
-        "Retailer": "Growmark - RETAIL",
-        "Suppliers": "Growmark",
-        "ContactName": "Jason Schnell",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "jschnell@growmark.com",
-        "OfficePhone": "",
-        "CellPhone": "641-521-7064",
-        "Address": "5636 E. 108 St. S.",
-        "City": "Sully",
-        "State": "IA",
-        "Zip": "50251",
-        "FullAddress": "5636 E. 108 St. S., Sully, IA 50251",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -87.976961,
-          39.309413
-        ]
-      },
-      "properties": {
-        "Retailer": "Heartland Ag Inc.",
-        "Suppliers": "KOVA",
-        "ContactName": "Jim Wiley",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "jwiley@joink.com",
-        "OfficePhone": "",
-        "CellPhone": "217-343-6311",
-        "Address": "500 NE 15th St.",
-        "City": "Casey",
-        "State": "IL",
-        "Zip": "62420",
-        "FullAddress": "500 NE 15th St., Casey, IL 62420",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -95.855064,
           40.676609
         ]
@@ -1814,8 +1244,8 @@
         "Retailer": "Heartland Coop",
         "Suppliers": "Nutrien",
         "ContactName": "Jeff Linder",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Manager / Agronomy Lead",
+        "Title": "Location Manager / Agronomy Lead",
         "Email": "jlinden@heartlandcoop.com",
         "OfficePhone": "",
         "CellPhone": "",
@@ -1844,8 +1274,8 @@
         "Retailer": "Heartland Coop",
         "Suppliers": "Nutrien",
         "ContactName": "Shawn Bissell",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Grain Superintendent / Ops",
+        "Title": "Grain Superintendent / Ops",
         "Email": "sbissell@heartlandcoop.com",
         "OfficePhone": "",
         "CellPhone": "",
@@ -1874,8 +1304,8 @@
         "Retailer": "Heartland Coop",
         "Suppliers": "Nutrien",
         "ContactName": "Eric Finch",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Regional Operations Manager",
+        "Title": "Regional Operations Manager",
         "Email": "efinch@heartlandcoop.com",
         "OfficePhone": "",
         "CellPhone": "",
@@ -1904,8 +1334,8 @@
         "Retailer": "Heartland Coop.",
         "Suppliers": "Nutrien",
         "ContactName": "Monte Van Wyk",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Dir. of Agron.",
+        "Title": "Dir. of Agron.",
         "Email": "mvanwyk@heartlandcoop.com",
         "OfficePhone": "515-225-1334",
         "CellPhone": "515-975-6154",
@@ -1934,8 +1364,8 @@
         "Retailer": "Heartland Coop.",
         "Suppliers": "Nutrien",
         "ContactName": "Dave Coppess",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "VP Sales & Marketing",
+        "Title": "VP Sales & Marketing",
         "Email": "dcoppess@heartlandcoop.com",
         "OfficePhone": "515-225-1334",
         "CellPhone": "515-314-1414",
@@ -1964,8 +1394,8 @@
         "Retailer": "Heartland Coop.",
         "Suppliers": "Nutrien",
         "ContactName": "Craig Orr",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Director Market Development",
+        "Title": "Director Market Development",
         "Email": "corr@heartlandcoop.com",
         "OfficePhone": "515-225-1334",
         "CellPhone": "515-321-2416",
@@ -1994,8 +1424,8 @@
         "Retailer": "Heartland Coop.",
         "Suppliers": "Nutrien",
         "ContactName": "Brett Schnathorst",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Manager",
+        "Title": "Location Manager",
         "Email": "bschnathorst@heartlandcoop.com",
         "OfficePhone": "641-752-2418",
         "CellPhone": "641-485-7006",
@@ -2024,8 +1454,8 @@
         "Retailer": "Heartland Coop.",
         "Suppliers": "Nutrien",
         "ContactName": "Mark Toennies",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Manager",
+        "Title": "Location Manager",
         "Email": "mtoennies@heartlandcoop.com",
         "OfficePhone": "319-439-5382",
         "CellPhone": "319-231-6569",
@@ -2054,8 +1484,8 @@
         "Retailer": "Heartland Coop.",
         "Suppliers": "Nutrien",
         "ContactName": "Brian Tomasek",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Manager",
+        "Title": "Location Manager",
         "Email": "btomasek@heartlandcoop.com",
         "OfficePhone": "712-485-8080",
         "CellPhone": "712-355-4321",
@@ -2084,8 +1514,8 @@
         "Retailer": "Heartland Coop.",
         "Suppliers": "Nutrien",
         "ContactName": "Larry Hansen",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Manager",
+        "Title": "Location Manager",
         "Email": "lhansen@heartlandcoop.com",
         "OfficePhone": "641-473-2640",
         "CellPhone": "641-751-9049",
@@ -2114,8 +1544,8 @@
         "Retailer": "Heartland Coop.",
         "Suppliers": "Nutrien",
         "ContactName": "Charlie White",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Manager",
+        "Title": "Location Manager",
         "Email": "cwhite@heartlandcoop.com",
         "OfficePhone": "641-528-2535",
         "CellPhone": "641-990-5912",
@@ -2144,8 +1574,8 @@
         "Retailer": "Heartland Coop.",
         "Suppliers": "Nutrien",
         "ContactName": "Jonathan Struthers",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Manager",
+        "Title": "Location Manager",
         "Email": "jstruthers@heartlandcoop.com",
         "OfficePhone": "641-227-3231",
         "CellPhone": "641-831-6143",
@@ -2166,16 +1596,16 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -93.7672,
-          41.59779
+          -93.766868,
+          41.597487
         ]
       },
       "properties": {
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "John Walter",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "MidWest Division Mgr.",
+        "Title": "MidWest Division Mgr.",
         "Email": "walterj@helenaagri.com",
         "OfficePhone": "515-309-3461",
         "CellPhone": "515-650-7986",
@@ -2196,16 +1626,16 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -93.7672,
-          41.59779
+          -93.766868,
+          41.597487
         ]
       },
       "properties": {
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Dustin Smith",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "East Sales Manager",
+        "Title": "East Sales Manager",
         "Email": "smithd@helenaagri.com",
         "OfficePhone": "",
         "CellPhone": "360-223-5463",
@@ -2234,8 +1664,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Joel McCormick",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "AIGRIntelligence Product Mgr.",
+        "Title": "AIGRIntelligence Product Mgr.",
         "Email": "mccormickj@helenaagri.com",
         "OfficePhone": "515-267-0530",
         "CellPhone": "309-645-5190",
@@ -2264,8 +1694,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Aaron Webster",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "North Central Division Mgr.",
+        "Title": "North Central Division Mgr.",
         "Email": "ebstera@helenaagri.com",
         "OfficePhone": "317-815-6370",
         "CellPhone": "859-242-0683",
@@ -2286,36 +1716,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -87.13141,
-          37.757782
-        ]
-      },
-      "properties": {
-        "Retailer": "HELENA - RETAIL",
-        "Suppliers": "Helena",
-        "ContactName": "Joel Mattingly",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "mattinglyij@helenaagri.com",
-        "OfficePhone": "",
-        "CellPhone": "270-302-5015",
-        "Address": "1572 Oak Park Dr.",
-        "City": "Owensboro",
-        "State": "KY",
-        "Zip": "42301",
-        "FullAddress": "1572 Oak Park Dr., Owensboro, KY 42301",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -85.444324,
           40.89624
         ]
@@ -2324,8 +1724,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Kyle Krieger",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "NCD South - AGRIntelligence Info. Spec.",
+        "Title": "NCD South - AGRIntelligence Info. Spec.",
         "Email": "kriegerk@helenaagri.com",
         "OfficePhone": "",
         "CellPhone": "270-231-4984",
@@ -2354,8 +1754,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Aaron Siebeneck",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "NCD North - AGRIntelligence Info. Spec.",
+        "Title": "NCD North - AGRIntelligence Info. Spec.",
         "Email": "asiebenecka@helenaagri.com",
         "OfficePhone": "",
         "CellPhone": "419-890-2397",
@@ -2384,8 +1784,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Randy Stephens",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Sales Manager",
+        "Title": "Sales Manager",
         "Email": "stevensr@helenaagri.com",
         "OfficePhone": "217-382-4241",
         "CellPhone": "",
@@ -2414,8 +1814,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Jason Smith",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Operations Mgr.",
+        "Title": "Operations Mgr.",
         "Email": "smithjason@helenaagri.com",
         "OfficePhone": "217-584-1133",
         "CellPhone": "217-204-8197",
@@ -2444,8 +1844,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Todd Boers",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Prod. Mgr.",
+        "Title": "Prod. Mgr.",
         "Email": "",
         "OfficePhone": "",
         "CellPhone": "309-854-2912",
@@ -2474,8 +1874,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Greg Mills",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "AGRintelligence Agronomist",
+        "Title": "AGRintelligence Agronomist",
         "Email": "gregmills63@gmail.com",
         "OfficePhone": "",
         "CellPhone": "217-202-8644",
@@ -2504,8 +1904,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Samantha Harper",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Sales Rep/Oper. Mgr.",
+        "Title": "Sales Rep/Oper. Mgr.",
         "Email": "harpers@helenaagri.com",
         "OfficePhone": "217-286-3562",
         "CellPhone": "217-273-3260",
@@ -2534,8 +1934,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Parker Hathaway",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Crop Advisor",
+        "Title": "Crop Advisor",
         "Email": "hathawayp@helenaagri.com",
         "OfficePhone": "217-286-3562",
         "CellPhone": "217-799-1069",
@@ -2556,16 +1956,16 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -93.7672,
-          41.59779
+          -93.766868,
+          41.597487
         ]
       },
       "properties": {
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Andy Smarsh",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "West Central Division Mgr. (incl. NE)",
+        "Title": "West Central Division Mgr. (incl. NE)",
         "Email": "smarsha@helenaagri.com",
         "OfficePhone": "515-309-3515",
         "CellPhone": "316-640-3248",
@@ -2594,8 +1994,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Shannon Harney",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Sales Manager (East)",
+        "Title": "Sales Manager (East)",
         "Email": "harneys@helenaagri.com",
         "OfficePhone": "",
         "CellPhone": "402-380-1208",
@@ -2616,16 +2016,16 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -96.14921,
-          41.15769
+          -96.149214,
+          41.157495
         ]
       },
       "properties": {
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Keith Mach",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "AGRIntelligence Argonomist (East)",
+        "Title": "AGRIntelligence Argonomist (East)",
         "Email": "machk@helenaagri.com",
         "OfficePhone": "",
         "CellPhone": "402-300-0437",
@@ -2646,16 +2046,16 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -96.14921,
-          41.15769
+          -96.149214,
+          41.157495
         ]
       },
       "properties": {
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Lorin Krieger",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "AGRIntelligence Product Mgr. (East)",
+        "Title": "AGRIntelligence Product Mgr. (East)",
         "Email": "krieger@helenaagri.com",
         "OfficePhone": "",
         "CellPhone": "402-741-2464",
@@ -2676,16 +2076,16 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -96.14921,
-          41.15769
+          -96.149214,
+          41.157495
         ]
       },
       "properties": {
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "David Tarin",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Branch Mgr.",
+        "Title": "Branch Mgr.",
         "Email": "tarind@helenaagri.com",
         "OfficePhone": "402-944-2139",
         "CellPhone": "531-358-0494",
@@ -2706,16 +2106,16 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -96.14921,
-          41.15769
+          -96.149214,
+          41.157495
         ]
       },
       "properties": {
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Benjie Scholl",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Branch Mgr.",
+        "Title": "Branch Mgr.",
         "Email": "schollb@helenaagri.com",
         "OfficePhone": "402-379-2910",
         "CellPhone": "402-245-7212",
@@ -2744,8 +2144,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Jarvis Quill",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Branch Mgr.",
+        "Title": "Branch Mgr.",
         "Email": "quillj@helenaagri.com",
         "OfficePhone": "402-685-6206",
         "CellPhone": "402-360-2436",
@@ -2774,8 +2174,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Spencer Breckenridge",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Sales Rep.",
+        "Title": "Sales Rep.",
         "Email": "breckenkridges@helenaagri.com",
         "OfficePhone": "",
         "CellPhone": "402-943-6892",
@@ -2804,8 +2204,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "James Lynn",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Seed Mgr.",
+        "Title": "Seed Mgr.",
         "Email": "lynnja@helenaagri.com",
         "OfficePhone": "",
         "CellPhone": "531-212-0470",
@@ -2834,8 +2234,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Matt Neujahr",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Branch Mgr.",
+        "Title": "Branch Mgr.",
         "Email": "neujahrm@helenaagri.com",
         "OfficePhone": "402-379-2910",
         "CellPhone": "402-641-8246",
@@ -2856,16 +2256,16 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -93.7672,
-          41.59779
+          -93.766868,
+          41.597487
         ]
       },
       "properties": {
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "John Walter",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "MidWest Division Mgr.",
+        "Title": "MidWest Division Mgr.",
         "Email": "walterj@helenaagri.com",
         "OfficePhone": "515-309-3461",
         "CellPhone": "515-650-7986",
@@ -2894,8 +2294,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Steven McKechnie",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "AGRIntelligence Argonomist",
+        "Title": "AGRIntelligence Argonomist",
         "Email": "mckechnies@helenagri.com",
         "OfficePhone": "",
         "CellPhone": "19-588-7188",
@@ -2924,8 +2324,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Jeff Schreck",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "AIGRIntelligence Product Mgr.",
+        "Title": "AIGRIntelligence Product Mgr.",
         "Email": "schreckj@helenaagri.com",
         "OfficePhone": "641-747-6303",
         "CellPhone": "641-757-0607",
@@ -2954,8 +2354,8 @@
         "Retailer": "HELENA - RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Nick Lentz",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Branch Mgr.",
+        "Title": "Branch Mgr.",
         "Email": "lentzn@helenaagri.com",
         "OfficePhone": "605-857-5047",
         "CellPhone": "605-870-0520",
@@ -2981,101 +2381,11 @@
         ]
       },
       "properties": {
-        "Retailer": "HELENA-IA",
-        "Suppliers": "Helena",
-        "ContactName": "John Walter",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "walterj@helenaagri.com",
-        "OfficePhone": "515-309-3461",
-        "CellPhone": "515-650-7986",
-        "Address": "4546 Corporate Dr. Ste 170",
-        "City": "West Des Moines",
-        "State": "IA",
-        "Zip": "50266",
-        "FullAddress": "4546 Corporate Dr. Ste 170, West Des Moines, IA 50266",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.766868,
-          41.597487
-        ]
-      },
-      "properties": {
-        "Retailer": "HELENA-IA",
-        "Suppliers": "Helena",
-        "ContactName": "Scott Fischer",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "fischerscott@helenaagri.com",
-        "OfficePhone": "515-309-3483",
-        "CellPhone": "515-291-7601",
-        "Address": "4546 Corporate Dr. Ste 170",
-        "City": "West Des Moines",
-        "State": "IA",
-        "Zip": "50266",
-        "FullAddress": "4546 Corporate Dr. Ste 170, West Des Moines, IA 50266",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.791056,
-          41.68838
-        ]
-      },
-      "properties": {
-        "Retailer": "HELENA-IA",
-        "Suppliers": "Helena",
-        "ContactName": "Greg Besch",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "beschg@helenaagri.com",
-        "OfficePhone": "",
-        "CellPhone": "515-460-4142",
-        "Address": "City Center",
-        "City": "Grimes",
-        "State": "IA",
-        "Zip": "50111",
-        "FullAddress": "City Center, Grimes, IA 50111",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.7672,
-          41.59779
-        ]
-      },
-      "properties": {
         "Retailer": "HELENA-RETAIL",
         "Suppliers": "Helena",
         "ContactName": "John Walter",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "MidWest Division Mgr.",
+        "Title": "MidWest Division Mgr.",
         "Email": "walterj@helenaagri.com",
         "OfficePhone": "515-309-3461",
         "CellPhone": "515-650-7986",
@@ -3104,8 +2414,8 @@
         "Retailer": "HELENA-RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Steven McKechnie",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "AGRIntelligence Argonomist",
+        "Title": "AGRIntelligence Argonomist",
         "Email": "mckechnies@helenagri.com",
         "OfficePhone": "515-309-3490",
         "CellPhone": "319-588-7188",
@@ -3134,8 +2444,8 @@
         "Retailer": "HELENA-RETAIL",
         "Suppliers": "Helena",
         "ContactName": "Jeff Schreck",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "AIGRIntelligence Product Mgr.",
+        "Title": "AIGRIntelligence Product Mgr.",
         "Email": "schreckj@helenaagri.com",
         "OfficePhone": "641-747-6303",
         "CellPhone": "641-757-0607",
@@ -3164,8 +2474,8 @@
         "Retailer": "Heritage FS",
         "Suppliers": "Growmark",
         "ContactName": "Jason Wesslund",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Area Manager",
+        "Title": "Area Manager",
         "Email": "jwesslund@heritagefs.com",
         "OfficePhone": "815-707-7020",
         "CellPhone": "815-383-8314",
@@ -3194,8 +2504,8 @@
         "Retailer": "Heritage FS",
         "Suppliers": "Growmark",
         "ContactName": "Phil Tjardes",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Mgr.",
+        "Title": "Location Mgr.",
         "Email": "philt@heritagefs.com",
         "OfficePhone": "815-268-4030",
         "CellPhone": "815-383-0003",
@@ -3224,8 +2534,8 @@
         "Retailer": "Heritage FS",
         "Suppliers": "Growmark",
         "ContactName": "Danny Diemers",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Crop Specialist",
+        "Title": "Crop Specialist",
         "Email": "",
         "OfficePhone": "",
         "CellPhone": "",
@@ -3254,8 +2564,8 @@
         "Retailer": "Heritage FS",
         "Suppliers": "Growmark",
         "ContactName": "Darrin Schumacher",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Liq. Fuel Del.",
+        "Title": "Liq. Fuel Del.",
         "Email": "dschumacher@heritagefs.com",
         "OfficePhone": "815-426-6556",
         "CellPhone": "815-378-3418",
@@ -3276,36 +2586,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.955898,
-          39.841415
-        ]
-      },
-      "properties": {
-        "Retailer": "Herrin",
-        "Suppliers": "",
-        "ContactName": "Greg Hooten",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "ghooten78@gmail.com",
-        "OfficePhone": "217-498-7851",
-        "CellPhone": "217-273-6230",
-        "Address": "City Center",
-        "City": "Rochester",
-        "State": "IL",
-        "Zip": "62523",
-        "FullAddress": "City Center, Rochester, IL 62523",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -101.389218,
           40.844309
         ]
@@ -3314,8 +2594,8 @@
         "Retailer": "Hi-Line Cooperative",
         "Suppliers": "Winfield, Nutrien, Rosen's",
         "ContactName": "Chris Fryzek",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "CEO/Gen. Mgr.",
+        "Title": "CEO/Gen. Mgr.",
         "Email": "chrisf@hilinecoop.com",
         "OfficePhone": "308-352-2800",
         "CellPhone": "",
@@ -3336,66 +2616,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -96.23287,
-          41.87289
-        ]
-      },
-      "properties": {
-        "Retailer": "HiWay 75 Ag, LLC",
-        "Suppliers": "Nutrien",
-        "ContactName": "Brett Kazemba",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "brettkazemba@hwy75.net",
-        "OfficePhone": "402-870-0278",
-        "CellPhone": "",
-        "Address": "1426 Hwy. 75",
-        "City": "Tekamah",
-        "State": "NE",
-        "Zip": "68061",
-        "FullAddress": "1426 Hwy. 75, Tekamah, NE 68061",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -96.23287,
-          41.87289
-        ]
-      },
-      "properties": {
-        "Retailer": "HiWay 75 Ag, LLC",
-        "Suppliers": "Nutrien",
-        "ContactName": "Dash Cameron",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "dashcameron@hwy75.net",
-        "OfficePhone": "402-870-0278",
-        "CellPhone": "402-936-5166",
-        "Address": "1426 Hwy. 75",
-        "City": "Tekamah",
-        "State": "NE",
-        "Zip": "68061",
-        "FullAddress": "1426 Hwy. 75, Tekamah, NE 68061",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -96.129558,
           43.188484
         ]
@@ -3404,8 +2624,8 @@
         "Retailer": "Hull Coop",
         "Suppliers": "Winfield, Nutrien",
         "ContactName": "Lonnie Egdorf",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agronomy Sales",
+        "Title": "Agronomy Sales",
         "Email": "lonnie.egdorf@hullcoop.com",
         "OfficePhone": "712-439-2831",
         "CellPhone": "712-441-1185",
@@ -3434,8 +2654,8 @@
         "Retailer": "Hull Coop",
         "Suppliers": "Winfield, Nutrien",
         "ContactName": "Peter Westra",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agronomy Dept. Mgr.",
+        "Title": "Agronomy Dept. Mgr.",
         "Email": "peter.westra@hullcoop.com",
         "OfficePhone": "712-439-2832",
         "CellPhone": "712-470-0994",
@@ -3464,8 +2684,8 @@
         "Retailer": "Illini FS",
         "Suppliers": "Growmark",
         "ContactName": "Mark Dowell",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Cert. Crop Spec.",
+        "Title": "Cert. Crop Spec.",
         "Email": "mdowell@illinifs.com",
         "OfficePhone": "217-837-2051",
         "CellPhone": "217-497-2477",
@@ -3494,8 +2714,8 @@
         "Retailer": "Illini FS",
         "Suppliers": "Growmark",
         "ContactName": "Nellie Cox",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Loc. Admin.",
+        "Title": "Loc. Admin.",
         "Email": "ncox@illinifs.com",
         "OfficePhone": "217-837-2051",
         "CellPhone": "217-280-0708",
@@ -3524,8 +2744,8 @@
         "Retailer": "Landus Coop",
         "Suppliers": "IAP",
         "ContactName": "Scott Ahrenholz",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Tech. Sales Mgr.",
+        "Title": "Tech. Sales Mgr.",
         "Email": "scott.ahrenholtz@landus.ag",
         "OfficePhone": "",
         "CellPhone": "515-686-0850",
@@ -3554,8 +2774,8 @@
         "Retailer": "Landus Coop",
         "Suppliers": "IAP",
         "ContactName": "Wade Kent",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Acre Edge Mgr.",
+        "Title": "Acre Edge Mgr.",
         "Email": "wade.kent@@conduit.ag",
         "OfficePhone": "",
         "CellPhone": "515-341-4247",
@@ -3576,156 +2796,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -103.667634,
-          41.854713
-        ]
-      },
-      "properties": {
-        "Retailer": "Legacy Coop",
-        "Suppliers": "",
-        "ContactName": "Sean Gross",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "sgross@panhandlecoop.com",
-        "OfficePhone": "308-632-5301",
-        "CellPhone": "308-225-1232",
-        "Address": "401 S. Beltline Hwy West",
-        "City": "Scottsbluff",
-        "State": "NE",
-        "Zip": "69363",
-        "FullAddress": "401 S. Beltline Hwy West, Scottsbluff, NE 69363",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -95.26323,
-          44.2327
-        ]
-      },
-      "properties": {
-        "Retailer": "Meadowland Famers Coop",
-        "Suppliers": "Helena, Nutrien, Winfield",
-        "ContactName": "Ralph Price",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "rprice@mfcoop.us",
-        "OfficePhone": "507-752-7352",
-        "CellPhone": "507-221-0321",
-        "Address": "101 1st Ave. E.",
-        "City": "Lamberton",
-        "State": "MN",
-        "Zip": "56152",
-        "FullAddress": "101 1st Ave. E., Lamberton, MN 56152",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -95.128075,
-          44.211002
-        ]
-      },
-      "properties": {
-        "Retailer": "Meadowland Famers Coop",
-        "Suppliers": "Helena, Nutrien, Winfield",
-        "ContactName": "Curt Erickson",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "cerickson@mfcoop.us",
-        "OfficePhone": "507-648-3831",
-        "CellPhone": "507-830-1251",
-        "Address": "220 N. Main",
-        "City": "Sanborn",
-        "State": "MN",
-        "Zip": "56083",
-        "FullAddress": "220 N. Main, Sanborn, MN 56083",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -95.25574,
-          44.398225
-        ]
-      },
-      "properties": {
-        "Retailer": "Meadowland Famers Coop",
-        "Suppliers": "Helena, Nutrien, Winfield",
-        "ContactName": "Brian Fischer",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "bfischer@mfcoop.us",
-        "OfficePhone": "507-342-5163",
-        "CellPhone": "507-829-4929",
-        "Address": "140 State Hwy 68",
-        "City": "Wabasso",
-        "State": "MN",
-        "Zip": "56293",
-        "FullAddress": "140 State Hwy 68, Wabasso, MN 56293",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -96.22117,
-          41.76085
-        ]
-      },
-      "properties": {
-        "Retailer": "Midwest Service Inc.",
-        "Suppliers": "Winfield, Helena",
-        "ContactName": "Jason Hansen",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "jasonhansenmws@gmail.com",
-        "OfficePhone": "402-374-2275",
-        "CellPhone": "402-870-2231",
-        "Address": "649 Hwy 75",
-        "City": "Tekamah",
-        "State": "NE",
-        "Zip": "68061",
-        "FullAddress": "649 Hwy 75, Tekamah, NE 68061",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -94.161031,
           42.505943
         ]
@@ -3734,8 +2804,8 @@
         "Retailer": "NEW Coop",
         "Suppliers": "Winfield",
         "ContactName": "Shan Jaeshke",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agronomy Mgr.",
+        "Title": "Agronomy Mgr.",
         "Email": "sjaeshke@newcoop.com",
         "OfficePhone": "",
         "CellPhone": "",
@@ -3764,8 +2834,8 @@
         "Retailer": "NEW Coop",
         "Suppliers": "Winfield",
         "ContactName": "Colby Kraninger",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Agronomist",
+        "Title": "Agronomist",
         "Email": "ckraninger@newcoop.com",
         "OfficePhone": "",
         "CellPhone": "515-341-6717",
@@ -3779,546 +2849,6 @@
         "LongName": "NEW Cooperative - IA",
         "MatchTier": "T3",
         "GeoSource": "FACILITY"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -87.667076,
-          39.26386
-        ]
-      },
-      "properties": {
-        "Retailer": "NUTRIEN - RETAIL",
-        "Suppliers": "Nutrien",
-        "ContactName": "Brian Williams",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "217-822-8347",
-        "Address": "7847 IL 1",
-        "City": "West Union",
-        "State": "IL",
-        "Zip": "62477",
-        "FullAddress": "7847 IL 1, West Union, IL 62477",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -103.794127,
-          41.906082
-        ]
-      },
-      "properties": {
-        "Retailer": "NUTRIEN - RETAIL",
-        "Suppliers": "Nutrien",
-        "ContactName": "Mike Monke",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "mike.monke@nutrien.com",
-        "OfficePhone": "402-478-4153",
-        "CellPhone": "402-533-3754",
-        "Address": "70098 County Rd. 15",
-        "City": "Arlington",
-        "State": "NE",
-        "Zip": "68002",
-        "FullAddress": "70098 County Rd. 15, Arlington, NE 68002",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.772,
-          41.637391
-        ]
-      },
-      "properties": {
-        "Retailer": "NUTRIEN-IA",
-        "Suppliers": "Nutrien",
-        "ContactName": "Robb Kittsman",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "robb.kitzman@nutrien.com",
-        "OfficePhone": "",
-        "CellPhone": "563-543-7398",
-        "Address": "11236 Aurora Ave.",
-        "City": "Urbandale",
-        "State": "IA",
-        "Zip": "50322",
-        "FullAddress": "11236 Aurora Ave., Urbandale, IA 50322",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.87374,
-          42.056924
-        ]
-      },
-      "properties": {
-        "Retailer": "NUTRIEN-IA",
-        "Suppliers": "Nutrien",
-        "ContactName": "Wade Eisenbarth",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "wade.eisenbarth@nutrien.com",
-        "OfficePhone": "515-320-0960",
-        "CellPhone": "515-882-3234",
-        "Address": "109 Linn St.",
-        "City": "LuVerne",
-        "State": "IA",
-        "Zip": "59560",
-        "FullAddress": "109 Linn St., LuVerne, IA 59560",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -95.089521,
-          42.255032
-        ]
-      },
-      "properties": {
-        "Retailer": "NUTRIEN-IA",
-        "Suppliers": "Nutrien",
-        "ContactName": "Joel Nelson",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "joel.nelson@nutrien.com",
-        "OfficePhone": "",
-        "CellPhone": "319-551-8753",
-        "Address": "1215 S. Center Street",
-        "City": "Wall Lake",
-        "State": "IA",
-        "Zip": "51466",
-        "FullAddress": "1215 S. Center Street, Wall Lake, IA 51466",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -95.192608,
-          43.682916
-        ]
-      },
-      "properties": {
-        "Retailer": "NUTRIEN-RETAIL",
-        "Suppliers": "Nutrien",
-        "ContactName": "Tom Kellen",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "tom.kellen@nutrien.com",
-        "OfficePhone": "507-662-5442",
-        "CellPhone": "507-360-5621",
-        "Address": "44107 Okabena Rd.",
-        "City": "Lakefield",
-        "State": "MN",
-        "Zip": "56150",
-        "FullAddress": "44107 Okabena Rd., Lakefield, MN 56150",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -99.753867,
-          40.780391
-        ]
-      },
-      "properties": {
-        "Retailer": "O'Hanlon Seed & Irrigation",
-        "Suppliers": "",
-        "ContactName": "Dustin O'Hanlon",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "dustin.ohanlon@gmail.com",
-        "OfficePhone": "308-324-4567",
-        "CellPhone": "308-325-7987",
-        "Address": "921 W. 7th",
-        "City": "Lexington",
-        "State": "NE",
-        "Zip": "68850",
-        "FullAddress": "921 W. 7th, Lexington, NE 68850",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.778559,
-          41.376568
-        ]
-      },
-      "properties": {
-        "Retailer": "Ottawa Plant Food",
-        "Suppliers": "Rosen's",
-        "ContactName": "Anita Pleasant",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "apleasant@ottawaplantfood.com",
-        "OfficePhone": "815-433-2090",
-        "CellPhone": "217-663-4770",
-        "Address": "3076 N. Rt. 71",
-        "City": "Ottawa",
-        "State": "IL",
-        "Zip": "61350",
-        "FullAddress": "3076 N. Rt. 71, Ottawa, IL 61350",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -97.27355,
-          41.70733
-        ]
-      },
-      "properties": {
-        "Retailer": "Redstar Fertilizer",
-        "Suppliers": "IAP, Helena",
-        "ContactName": "Ryan Mullenhoff",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "ryan@redstarne.com",
-        "OfficePhone": "",
-        "CellPhone": "402-936-5166",
-        "Address": "48303 115 Ave.",
-        "City": "Leigh",
-        "State": "NE",
-        "Zip": "68643",
-        "FullAddress": "48303 115 Ave., Leigh, NE 68643",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -97.27355,
-          41.70733
-        ]
-      },
-      "properties": {
-        "Retailer": "Redstar Fertilizer",
-        "Suppliers": "IAP, Helena",
-        "ContactName": "Tom Stanton",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "tomstanton@redstarfertilizer.com",
-        "OfficePhone": "844-502-9368",
-        "CellPhone": "712-301-2549",
-        "Address": "48303 115 Ave.",
-        "City": "Leigh",
-        "State": "NE",
-        "Zip": "68643",
-        "FullAddress": "48303 115 Ave., Leigh, NE 68643",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.615105,
-          41.58889
-        ]
-      },
-      "properties": {
-        "Retailer": "Rosen's - RETAIL",
-        "Suppliers": "Rosen's",
-        "ContactName": "Adam Baker",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "abaker@riw2000.com",
-        "OfficePhone": "",
-        "CellPhone": "641--525-2503",
-        "Address": "City Center",
-        "City": "Des Moines",
-        "State": "IA",
-        "Zip": "50301",
-        "FullAddress": "City Center, Des Moines, IA 50301",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.138298,
-          44.452167
-        ]
-      },
-      "properties": {
-        "Retailer": "ROSEN'S - HQ",
-        "Suppliers": "Rosen's",
-        "ContactName": "Steve Koziolek",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "skoziolek@riw2000.com",
-        "OfficePhone": "507-664-0520",
-        "CellPhone": "612-240-5840",
-        "Address": "800 Mayflower Ct.",
-        "City": "Northfield",
-        "State": "MN",
-        "Zip": "55057",
-        "FullAddress": "800 Mayflower Ct., Northfield, MN 55057",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -93.3482,
-          44.967881
-        ]
-      },
-      "properties": {
-        "Retailer": "ROSEN'S - HQ",
-        "Suppliers": "Rosen's",
-        "ContactName": "Kyle Lilly",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "klilly@riw2000.com",
-        "OfficePhone": "Remote",
-        "CellPhone": "913-333-6108",
-        "Address": "St. Louis Park",
-        "City": "Minneapolis",
-        "State": "MN",
-        "Zip": "55416",
-        "FullAddress": "St. Louis Park, Minneapolis, MN 55416",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.716722,
-          40.40084
-        ]
-      },
-      "properties": {
-        "Retailer": "Rosen's - RETAIL",
-        "Suppliers": "Rosen's",
-        "ContactName": "Shawn Clapp",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "sclapp@riw2000.com",
-        "OfficePhone": "",
-        "CellPhone": "309-261-1378",
-        "Address": "763 N. 2850 East Rd.",
-        "City": "Leroy",
-        "State": "IL",
-        "Zip": "61752",
-        "FullAddress": "763 N. 2850 East Rd., Leroy, IL 61752",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -96.684549,
-          40.715249
-        ]
-      },
-      "properties": {
-        "Retailer": "Rosen's - RETAIL",
-        "Suppliers": "Rosen's",
-        "ContactName": "Dave Clemans",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "dclemans@riw2000.com",
-        "OfficePhone": "402-423-3303",
-        "CellPhone": "308-380-1993",
-        "Address": "9700 Wildfire Circle",
-        "City": "Lincoln",
-        "State": "NE",
-        "Zip": "68512",
-        "FullAddress": "9700 Wildfire Circle, Lincoln, NE 68512",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -96.78869,
-          42.8504
-        ]
-      },
-      "properties": {
-        "Retailer": "Southeast Farmers Coop",
-        "Suppliers": "Winfield",
-        "ContactName": "Josh Adams",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "j.adams@southeastfarmers.com",
-        "OfficePhone": "",
-        "CellPhone": "605-253-6150",
-        "Address": "31303 471st Ave.",
-        "City": "Burbank",
-        "State": "SD",
-        "Zip": "57010",
-        "FullAddress": "31303 471st Ave., Burbank, SD 57010",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -90.208789,
-          39.954919
-        ]
-      },
-      "properties": {
-        "Retailer": "Sunrise FS",
-        "Suppliers": "Growmark",
-        "ContactName": "Ross Barker",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "rbarker@sunrise-fs.com",
-        "OfficePhone": "217-204-7418",
-        "CellPhone": "",
-        "Address": "20735 IL Rt. 125",
-        "City": "Virginia",
-        "State": "IL",
-        "Zip": "62691",
-        "FullAddress": "20735 IL Rt. 125, Virginia, IL 62691",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -87.705895,
-          39.398428
-        ]
-      },
-      "properties": {
-        "Retailer": "The EQUITY",
-        "Suppliers": "Winfield",
-        "ContactName": "John Babcock",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "217-826-6331",
-        "CellPhone": "217-822-0015",
-        "Address": "16990 N 2nd St",
-        "City": "Marshall",
-        "State": "IL",
-        "Zip": "62441",
-        "FullAddress": "16990 N 2nd St, Marshall, IL 62441",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
       }
     },
     {
@@ -4544,8 +3074,8 @@
         "Retailer": "United Prairie, LLC",
         "Suppliers": "Winfield",
         "ContactName": "Curt Miller",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "General Mgr.",
+        "Title": "General Mgr.",
         "Email": "cmiller@unitedprairie.com",
         "OfficePhone": "217-485-6000",
         "CellPhone": "217-343-6324",
@@ -4574,8 +3104,8 @@
         "Retailer": "United Prairie, LLC",
         "Suppliers": "Winfield",
         "ContactName": "Todd Shunk",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Sales Mgr.",
+        "Title": "Sales Mgr.",
         "Email": "tshunk@unitedprairie.com",
         "OfficePhone": "217-485-6000",
         "CellPhone": "217-841-5360",
@@ -4604,8 +3134,8 @@
         "Retailer": "United Prairie, LLC",
         "Suppliers": "Winfield",
         "ContactName": "Ben Rawlins",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Operations Mgr.",
+        "Title": "Operations Mgr.",
         "Email": "brawlins@unitedprairie.com",
         "OfficePhone": "217-485-6000",
         "CellPhone": "217-841-5340",
@@ -4634,8 +3164,8 @@
         "Retailer": "United Prairie, LLC",
         "Suppliers": "Winfield",
         "ContactName": "Greg Cahill",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Location Mgr.",
+        "Title": "Location Mgr.",
         "Email": "gcahill@unitedprairie.com",
         "OfficePhone": "217-485-6000",
         "CellPhone": "217-480-7142",
@@ -4664,8 +3194,8 @@
         "Retailer": "United Prairie, LLC",
         "Suppliers": "Winfield",
         "ContactName": "Aaron Grote",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "GIS Manager",
+        "Title": "GIS Manager",
         "Email": "agrote@unitedprairie.com",
         "OfficePhone": "217-485-6000",
         "CellPhone": "217-841-5337",
@@ -4694,8 +3224,8 @@
         "Retailer": "United Prairie, LLC",
         "Suppliers": "Winfield",
         "ContactName": "Adam Hoerner",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Sales Agronomist",
+        "Title": "Sales Agronomist",
         "Email": "ahoerner@unitedprairie.com",
         "OfficePhone": "217-485-6000",
         "CellPhone": "309-212-8439",
@@ -4724,8 +3254,8 @@
         "Retailer": "United Prairie, LLC",
         "Suppliers": "Winfield",
         "ContactName": "Austin Wiggins",
-        "ContactTitle": "",
-        "Title": "",
+        "ContactTitle": "Sales Agronomist",
+        "Title": "Sales Agronomist",
         "Email": "awiggins@unitedprairie.com",
         "OfficePhone": "217-462-7711",
         "CellPhone": "217-419-5565",
@@ -4739,186 +3269,6 @@
         "LongName": "United Prairie LLC - IL",
         "MatchTier": "T2",
         "GeoSource": "FACILITY"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -91.441836,
-          40.361477
-        ]
-      },
-      "properties": {
-        "Retailer": "URSA Farmers Coop",
-        "Suppliers": "",
-        "ContactName": "Truman Phillips",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "tphillips@ursacoop.com",
-        "OfficePhone": "",
-        "CellPhone": "217-242-9480",
-        "Address": "1 Water St.",
-        "City": "Warsaw",
-        "State": "IL",
-        "Zip": "62379",
-        "FullAddress": "1 Water St., Warsaw, IL 62379",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -95.90575,
-          45.23998
-        ]
-      },
-      "properties": {
-        "Retailer": "West-Con Agronomy",
-        "Suppliers": "Helena, Nutrien",
-        "ContactName": "Darrell Bartz",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "dbartz@west-con.com",
-        "OfficePhone": "320-394-2171",
-        "CellPhone": "218-948-2187",
-        "Address": "520 County Road 9",
-        "City": "Holloway",
-        "State": "MN",
-        "Zip": "56249",
-        "FullAddress": "520 County Road 9, Holloway, MN 56249",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -96.207878,
-          43.656237
-        ]
-      },
-      "properties": {
-        "Retailer": "West-Con Agronomy",
-        "Suppliers": "Helena, Nutrien",
-        "ContactName": "Brian Fick",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "fickfive@gmail.com",
-        "OfficePhone": "507-283-2053",
-        "CellPhone": "507-220-2525",
-        "Address": "City Center",
-        "City": "Luverne",
-        "State": "MN",
-        "Zip": "56156",
-        "FullAddress": "City Center, Luverne, MN 56156",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -95.90575,
-          45.23998
-        ]
-      },
-      "properties": {
-        "Retailer": "Western Consolidated Coop",
-        "Suppliers": "Nutrien, Rosen's",
-        "ContactName": "Darrell Bartz",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "dbartz@west-con.com",
-        "OfficePhone": "320-394-2180",
-        "CellPhone": "320-241-7697",
-        "Address": "520 Co. Rd.. 9",
-        "City": "Holloway",
-        "State": "MN",
-        "Zip": "56249",
-        "FullAddress": "520 Co. Rd.. 9, Holloway, MN 56249",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -92.265562,
-          44.440834
-        ]
-      },
-      "properties": {
-        "Retailer": "Western Consolidated Coop",
-        "Suppliers": "Nutrien, Rosen's",
-        "ContactName": "Scott Mattocks",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "scott.mattocks@west-con.com",
-        "OfficePhone": "320-394-2171",
-        "CellPhone": "320-288-3279",
-        "Address": "521 Co. Rd.. 9",
-        "City": "Holloway",
-        "State": "MN",
-        "Zip": "56249",
-        "FullAddress": "521 Co. Rd.. 9, Holloway, MN 56249",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -96.49053,
-          45.815541
-        ]
-      },
-      "properties": {
-        "Retailer": "Wheaton Dumont Ag",
-        "Suppliers": "Nutrien, Rosen's",
-        "ContactName": "Kevin Grimes",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "kevin.grimes@wdcoop.com",
-        "OfficePhone": "320-563-8152",
-        "CellPhone": "320-808-4938",
-        "Address": "6587 US Hwy 75",
-        "City": "Wheaton",
-        "State": "MN",
-        "Zip": "56296",
-        "FullAddress": "6587 US Hwy 75, Wheaton, MN 56296",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "MAPBOX"
       }
     }
   ]
