@@ -8,8 +8,8 @@
 //   • Kingpins always visible overlay (not filtered)
 //   • Applies ~100m offset to Kingpins (lng + 0.0013) like K10
 //   • Kingpin icon is SVG → Canvas → Mapbox image (Chrome-proof), fallback to /icons/kingpin.png
-//   • ✅ Mobile usability: invisible “hitbox” layers for easier tapping (Retailer/HQ)
-//   • ✅ Kingpin behavior: single popup (nearest feature), reduced hitbox
+//   • ✅ Mobile usability: invisible “hitbox” layers for easier tapping (Retailer/HQ/Kingpin)
+//   • ✅ Kingpin behavior: single popup (nearest feature) + single active popup at a time
 //   • ✅ Loop guards: init once, sources/layers once, route abort/debounce
 //
 //   ✅ Category normalization (canonical 5):
@@ -21,6 +21,11 @@
 //     • Removed on-map legend (page.tsx owns sidebar legend now)
 //     • Added route status badge when fallback polyline is used
 //     • Added dataLoadedRef guard (prevents accidental reload if map "load" fires again)
+//
+//   K16.1 PATCH (Dec 2025):
+//     • ✅ Kingpin icon-size capped at 0.26 (prevents obnoxiously large stars at close zoom)
+//     • ✅ Click handlers only on HITBOX layers (prevents duplicate popups; keeps mobile-friendly selection)
+//     • ✅ Single active popup enforced via popupRef.remove()
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -284,6 +289,9 @@ export default function CertisMap(props: Props) {
   const [routeMode, setRouteMode] = useState<RouteMode>("none");
   const routeModeRef = useRef<RouteMode>("none");
 
+  // ✅ Single active popup (prevents “stacking” multiple popups on dense areas)
+  const activePopupRef = useRef<mapboxgl.Popup | null>(null);
+
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
     return bp || "/certis_agroute_app";
@@ -345,6 +353,18 @@ export default function CertisMap(props: Props) {
   useEffect(() => {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
   }, [token]);
+
+  function closeActivePopup() {
+    try {
+      activePopupRef.current?.remove();
+    } catch {}
+    activePopupRef.current = null;
+  }
+
+  function setActivePopup(p: mapboxgl.Popup) {
+    closeActivePopup();
+    activePopupRef.current = p;
+  }
 
   // INIT MAP (once)
   useEffect(() => {
@@ -507,26 +527,23 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
+            // ✅ Capped growth to prevent huge stars (HQ-like stability)
             "icon-size": [
               "interpolate",
               ["linear"],
               ["zoom"],
               3,
               0.18,
-              5,
-              0.2,
-              7,
-              0.24,
+              6,
+              0.22,
               9,
-              0.3,
-              11,
-              0.36,
-              13,
-              0.44,
+              0.26,
+              12,
+              0.26,
               15,
-              0.52,
+              0.26,
               17,
-              0.6,
+              0.26,
             ],
             "icon-anchor": "center",
             "icon-allow-overlap": true,
@@ -576,20 +593,16 @@ export default function CertisMap(props: Props) {
       const setPointer = () => (map.getCanvas().style.cursor = "pointer");
       const clearPointer = () => (map.getCanvas().style.cursor = "");
 
+      // Cursor hints on both visible + hitbox layers
       [LYR_RETAILERS, LYR_HQ, LYR_KINGPINS, LYR_RETAILERS_HIT, LYR_HQ_HIT, LYR_KINGPINS_HIT].forEach((lyr) => {
         map.on("mouseenter", lyr, setPointer);
         map.on("mouseleave", lyr, clearPointer);
       });
 
-      // Click handlers: hitboxes first
+      // ✅ Click handlers ONLY on hitboxes (prevents duplicate popups; keeps mobile usability)
       map.on("click", LYR_RETAILERS_HIT, (e) => handleRetailerClick(e));
       map.on("click", LYR_HQ_HIT, (e) => handleRetailerClick(e));
       map.on("click", LYR_KINGPINS_HIT, (e) => handleKingpinClick(e));
-
-      // Still allow direct clicks on visible layers
-      map.on("click", LYR_RETAILERS, (e) => handleRetailerClick(e));
-      map.on("click", LYR_HQ, (e) => handleRetailerClick(e));
-      map.on("click", LYR_KINGPINS, (e) => handleKingpinClick(e));
 
       requestAnimationFrame(() => {
         try {
@@ -613,6 +626,10 @@ export default function CertisMap(props: Props) {
         resizeObsRef.current?.disconnect();
       } catch {}
       resizeObsRef.current = null;
+
+      try {
+        closeActivePopup();
+      } catch {}
 
       window.removeEventListener("resize", handleViewportResize as any);
       window.removeEventListener("orientationchange", handleViewportResize as any);
@@ -735,9 +752,7 @@ export default function CertisMap(props: Props) {
       const name = s(p.Name);
 
       const label =
-        kind === "hq"
-          ? `${retailer || "Regional HQ"} — Regional HQ`
-          : `${retailer || "Retailer"} — ${name || "Site"}`;
+        kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -889,7 +904,9 @@ export default function CertisMap(props: Props) {
 
         src.setData({
           type: "FeatureCollection",
-          features: [{ type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } }],
+          features: [
+            { type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } },
+          ],
         } as any);
         setRouteModeSafe("fallback");
       }
@@ -916,6 +933,8 @@ export default function CertisMap(props: Props) {
   function handleRetailerClick(e: mapboxgl.MapMouseEvent) {
     const map = mapRef.current;
     if (!map) return;
+
+    closeActivePopup();
 
     let features = getEventFeatures(e);
 
@@ -975,6 +994,7 @@ export default function CertisMap(props: Props) {
     `;
 
     const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
+    setActivePopup(popup);
 
     setTimeout(() => {
       const btn = document.getElementById(addBtnId);
@@ -988,6 +1008,8 @@ export default function CertisMap(props: Props) {
   function handleKingpinClick(e: mapboxgl.MapMouseEvent) {
     const map = mapRef.current;
     if (!map) return;
+
+    closeActivePopup();
 
     let featuresRaw = getEventFeatures(e);
 
@@ -1083,6 +1105,7 @@ export default function CertisMap(props: Props) {
     `;
 
     const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
+    setActivePopup(popup);
 
     setTimeout(() => {
       const btn = document.getElementById(addBtnId);
@@ -1100,10 +1123,7 @@ export default function CertisMap(props: Props) {
       {/* Route status (only shows when fallback is active) */}
       {routeMode === "fallback" && (
         <div className="absolute top-4 left-4 z-10">
-          <div
-            className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-3 py-2"
-            style={{ maxWidth: 340 }}
-          >
+          <div className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-3 py-2" style={{ maxWidth: 340 }}>
             <div className="text-[12px] font-extrabold text-yellow-300">Route fallback active</div>
             <div className="text-[11px] text-white/80 mt-0.5">
               Using a straight-line polyline (Directions API failed). Check token/network or retry.
