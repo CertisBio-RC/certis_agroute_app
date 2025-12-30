@@ -1,23 +1,29 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE DATABASE — GOLD (K15-safe + Kingpin intent restored + Mobile hitboxes)
+// 💠 CERTIS AGROUTE DATABASE — GOLD (K16: Home removed + Single Kingpin popup)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Regional HQ filtered ONLY by State (Bailey HQ rule)
 //   • Kingpins always visible overlay (not filtered)
 //   • Applies ~100m offset to Kingpins (lng + 0.0013) like K10
 //   • Kingpin icon is SVG → Canvas → Mapbox image (Chrome-proof), fallback to /icons/kingpin.png
-//   • ✅ Mobile usability: invisible “hitbox” layers for easier tapping
+//   • ✅ Mobile usability: invisible “hitbox” layers for easier tapping (Retailer/HQ)
+//   • ✅ Kingpin behavior: single popup (nearest feature), reduced hitbox
 //   • ✅ Loop guards: init once, sources/layers once, route abort/debounce
 //
 //   ✅ Category normalization (canonical 5):
 //     - Agronomy, Grain/Feed, C-Store/Service/Energy, Distribution, Regional HQ
 //     - Grain OR Feed => Grain/Feed
 //     - Any hybrid containing Agronomy => Agronomy
+//
+//   K16 PATCH (Dec 2025):
+//     • Removed on-map legend (page.tsx owns sidebar legend now)
+//     • Added route status badge when fallback polyline is used
+//     • Added dataLoadedRef guard (prevents accidental reload if map "load" fires again)
 // ============================================================================
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import { MAPBOX_TOKEN } from "../utils/token";
 
@@ -72,6 +78,9 @@ type Props = {
   selectedRetailers: string[];
   selectedCategories: string[];
   selectedSuppliers: string[];
+
+  // NOTE: Home is deprecated. We keep this prop so page.tsx doesn't break if it still passes it.
+  // It is intentionally ignored inside this component.
   homeCoords: [number, number] | null;
 
   tripStops: Stop[];
@@ -179,10 +188,6 @@ function normalizeCategory(rawCategory: any): string {
 // Kingpin SVG → Canvas utilities
 // ===============================
 
-function svgDataUrl(svg: string) {
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
 function svgBlobUrl(svg: string) {
   const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
   return URL.createObjectURL(blob);
@@ -200,7 +205,6 @@ async function rasterizeSvgToMapboxImage(svg: string, sizePx: number, pixelRatio
   if (!ctx) throw new Error("2D context not available");
   ctx.imageSmoothingEnabled = true;
 
-  // ✅ IMPORTANT: do NOT use `new Image()` here (can conflict in TS environments).
   const img: HTMLImageElement = document.createElement("img");
   img.decoding = "async";
 
@@ -237,18 +241,13 @@ function loadMapboxImage(map: mapboxgl.Map, url: string) {
   });
 }
 
-// Inline legend icon (avoids Chrome weirdness with data-url <Image> rendering)
-function LegendKingpinIcon(props: { svg: string }) {
-  return (
-    <span
-      className="inline-flex items-center justify-center h-4 w-4"
-      aria-hidden="true"
-      // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: props.svg }}
-      style={{ lineHeight: 0 }}
-    />
-  );
+function distanceSq(a: [number, number], b: [number, number]) {
+  const dx = a[0] - b[0];
+  const dy = a[1] - b[1];
+  return dx * dx + dy * dy;
 }
+
+type RouteMode = "none" | "roads" | "fallback";
 
 export default function CertisMap(props: Props) {
   const {
@@ -256,7 +255,7 @@ export default function CertisMap(props: Props) {
     selectedRetailers,
     selectedCategories,
     selectedSuppliers,
-    homeCoords,
+    // homeCoords is deprecated and intentionally ignored
     tripStops,
     zoomToStop,
     onStatesLoaded,
@@ -274,14 +273,16 @@ export default function CertisMap(props: Props) {
   const retailersRef = useRef<FeatureCollection | null>(null);
   const kingpinsRef = useRef<FeatureCollection | null>(null);
 
-  const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
-
   const directionsAbortRef = useRef<AbortController | null>(null);
   const routeDebounceRef = useRef<number | null>(null);
   const lastRouteKeyRef = useRef<string>("");
 
   const resizeObsRef = useRef<ResizeObserver | null>(null);
   const lastNetworkSummaryKeyRef = useRef<string>("");
+  const dataLoadedRef = useRef<boolean>(false);
+
+  const [routeMode, setRouteMode] = useState<RouteMode>("none");
+  const routeModeRef = useRef<RouteMode>("none");
 
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
@@ -294,16 +295,14 @@ export default function CertisMap(props: Props) {
   }, []);
 
   // ✅ Versioned Mapbox image id to dodge stale caches
-  const KINGPIN_ICON_VERSION = "K15";
+  const KINGPIN_ICON_VERSION = "K16";
   const KINGPIN_ICON_ID = useMemo(() => `kingpin-icon-${KINGPIN_ICON_VERSION}`, []);
 
-  // ✅ Kingpin visual tuning (fix: too-dark rasterization + mismatch vs legend)
-  //   - Lighter fill (matches your preferred legend look)
-  //   - Thinner stroke so the fill doesn't "collapse" when rasterized down to an icon
+  // ✅ Kingpin visual tuning
   const KINGPIN_SHAPE = useMemo<"circle" | "star">(() => "star", []);
-  const KINGPIN_FILL = "#2563eb"; // lighter blue (Tailwind blue-600)
+  const KINGPIN_FILL = "#2563eb";
   const KINGPIN_STROKE = "#0b1220";
-  const KINGPIN_STROKE_W = 6; // was heavier; smaller keeps fill visible after rasterization
+  const KINGPIN_STROKE_W = 6;
 
   const KINGPIN_SVG = useMemo(() => {
     if (KINGPIN_SHAPE === "circle") {
@@ -337,7 +336,11 @@ export default function CertisMap(props: Props) {
     `.trim();
   }, [KINGPIN_SHAPE, KINGPIN_FILL, KINGPIN_STROKE, KINGPIN_STROKE_W]);
 
-  const KINGPIN_ICON_DATA_URL = useMemo(() => svgDataUrl(KINGPIN_SVG), [KINGPIN_SVG]);
+  const setRouteModeSafe = (next: RouteMode) => {
+    if (routeModeRef.current === next) return;
+    routeModeRef.current = next;
+    setRouteMode(next);
+  };
 
   useEffect(() => {
     if (!mapboxgl.accessToken) mapboxgl.accessToken = token;
@@ -392,7 +395,7 @@ export default function CertisMap(props: Props) {
 
       // 1) Primary: SVG → Canvas → addImage
       try {
-	const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG, 64, 2);
+        const img = await rasterizeSvgToMapboxImage(KINGPIN_SVG, 64, 2);
         m.addImage(KINGPIN_ICON_ID, img as any);
         return;
       } catch (e) {
@@ -504,20 +507,27 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-            // ✅ Half-step sizing: bigger than “too small”, smaller than “obnoxious”
-"icon-size": [
-  "interpolate",
-  ["linear"],
-  ["zoom"],
-  3, 0.18,
-  5, 0.20,
-  7, 0.24,
-  9, 0.30,
-  11, 0.36,
-  13, 0.44,
-  15, 0.52,
-  17, 0.60
-],
+            "icon-size": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              3,
+              0.18,
+              5,
+              0.2,
+              7,
+              0.24,
+              9,
+              0.3,
+              11,
+              0.36,
+              13,
+              0.44,
+              15,
+              0.52,
+              17,
+              0.6,
+            ],
             "icon-anchor": "center",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -525,14 +535,14 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      // Kingpin hitbox (mobile)
+      // Kingpin hitbox (reduced; still mobile friendly)
       if (!map.getLayer(LYR_KINGPINS_HIT)) {
         map.addLayer({
           id: LYR_KINGPINS_HIT,
           type: "circle",
           source: SRC_KINGPINS,
           paint: {
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 24, 5, 28, 7, 32, 10, 36, 12, 40],
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 18, 5, 20, 7, 22, 10, 24, 12, 26],
             "circle-color": "#000000",
             "circle-opacity": 0.001,
             "circle-stroke-width": 0,
@@ -554,9 +564,13 @@ export default function CertisMap(props: Props) {
         });
       }
 
-      await loadData();
+      // ✅ Load data only once (even if map "load" fires again)
+      if (!dataLoadedRef.current) {
+        dataLoadedRef.current = true;
+        await loadData();
+      }
+
       applyFilters();
-      updateHomeMarker();
       await updateRoute(true);
 
       const setPointer = () => (map.getCanvas().style.cursor = "pointer");
@@ -612,10 +626,8 @@ export default function CertisMap(props: Props) {
   }, [basePath, token, KINGPIN_ICON_ID, KINGPIN_SVG]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
-    const acc: Record<
-      string,
-      { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }
-    > = {};
+    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> =
+      {};
 
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
@@ -682,7 +694,6 @@ export default function CertisMap(props: Props) {
       ...kingpinData,
       features: (kingpinData.features ?? []).map((f: any) => {
         const [lng, lat] = f.geometry?.coordinates ?? [0, 0];
-        // ✅ Restore ~100m offset (lng + 0.0013)
         return { ...f, geometry: { ...f.geometry, coordinates: [lng + KINGPIN_OFFSET_LNG, lat] } };
       }),
     };
@@ -724,7 +735,9 @@ export default function CertisMap(props: Props) {
       const name = s(p.Name);
 
       const label =
-        kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
+        kind === "hq"
+          ? `${retailer || "Regional HQ"} — Regional HQ`
+          : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -816,39 +829,6 @@ export default function CertisMap(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStates, selectedRetailers, selectedCategories, selectedSuppliers]);
 
-  function updateHomeMarker() {
-    const map = mapRef.current;
-    if (!map) return;
-
-    if (!homeCoords) {
-      homeMarkerRef.current?.remove();
-      homeMarkerRef.current = null;
-      return;
-    }
-
-    const iconUrl = `${basePath}/icons/Blue_Home.png`;
-
-    if (!homeMarkerRef.current) {
-      const el = document.createElement("div");
-      el.style.width = "28px";
-      el.style.height = "28px";
-      el.style.backgroundImage = `url(${iconUrl})`;
-      el.style.backgroundSize = "contain";
-      el.style.backgroundRepeat = "no-repeat";
-      el.style.backgroundPosition = "center";
-
-      homeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" }).setLngLat(homeCoords).addTo(map);
-    } else {
-      homeMarkerRef.current.setLngLat(homeCoords);
-    }
-  }
-
-  useEffect(() => {
-    updateHomeMarker();
-    updateRoute();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [homeCoords, basePath]);
-
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !zoomToStop) return;
@@ -856,10 +836,8 @@ export default function CertisMap(props: Props) {
   }, [zoomToStop]);
 
   function buildRouteCoords(): [number, number][] {
-    const pts: [number, number][] = [];
-    if (homeCoords) pts.push(homeCoords);
-    for (const st of tripStops || []) pts.push(st.coords);
-    return pts;
+    // Home removed: route is only between trip stops (in order)
+    return (tripStops || []).map((st) => st.coords);
   }
 
   async function updateRoute(force = false) {
@@ -874,6 +852,7 @@ export default function CertisMap(props: Props) {
     if (pts.length < 2) {
       src.setData({ type: "FeatureCollection", features: [] } as any);
       lastRouteKeyRef.current = "";
+      setRouteModeSafe("none");
       return;
     }
 
@@ -904,6 +883,7 @@ export default function CertisMap(props: Props) {
         if (!geom || geom.type !== "LineString") throw new Error("Directions missing geometry");
 
         src.setData({ type: "FeatureCollection", features: [{ type: "Feature", geometry: geom, properties: {} }] } as any);
+        setRouteModeSafe("roads");
       } catch (e: any) {
         if (e?.name === "AbortError") return;
 
@@ -911,6 +891,7 @@ export default function CertisMap(props: Props) {
           type: "FeatureCollection",
           features: [{ type: "Feature", geometry: { type: "LineString", coordinates: pts }, properties: { fallback: true } }],
         } as any);
+        setRouteModeSafe("fallback");
       }
     }, 150);
   }
@@ -1019,204 +1000,117 @@ export default function CertisMap(props: Props) {
 
     if (!featuresRaw || featuresRaw.length === 0) return;
 
-    const features = [...featuresRaw].sort((a, b) => {
-      const ap = a.properties ?? {};
-      const bp = b.properties ?? {};
-      const ar = s(ap.Retailer).toLowerCase();
-      const br = s(bp.Retailer).toLowerCase();
-      if (ar !== br) return ar.localeCompare(br);
-      const an = s(ap.ContactName || ap.Name || ap.Contact || ap["Contact Name"]).toLowerCase();
-      const bn = s(bp.ContactName || bp.Name || bp.Contact || bp["Contact Name"]).toLowerCase();
-      return an.localeCompare(bn);
-    });
+    // ✅ Single-feature selection: pick nearest to click point
+    const clickLngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+    const features = featuresRaw.filter(Boolean);
 
-    const popupId = safeDomId("kp");
-    const selectId = `${popupId}-select`;
-    const addBtnId = `${popupId}-add`;
-
-    const makeStopFromFeature = (f: any): Stop => {
-      const p = f.properties ?? {};
-      const coords = (f.geometry?.coordinates ?? []) as [number, number];
-
-      const retailer = s(p.Retailer);
-      const address = s(p.Address);
-      const city = s(p.City);
-      const state = s(p.State);
-      const zip = s(p.Zip);
-
-      const rawCat = s(p.Category);
-      const category = isRegionalOrCorporateHQ(rawCat) ? CAT_HQ : rawCat || "Kingpin";
-
-      const suppliers = s(p.Suppliers) || "Not listed";
-      const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
-      const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
-      const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
-      const email = s(p.Email) || "TBD";
-
-      const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
-
-      return {
-        id: makeId("kingpin", coords, p),
-        kind: "kingpin",
-        label,
-        retailer,
-        name: contactName || "Kingpin",
-        address,
-        city,
-        state,
-        zip,
-        category,
-        suppliers,
-        phoneOffice: office,
-        phoneCell: cell,
-        email,
-        coords,
-      };
-    };
-
-    const stops = features.map((f) => makeStopFromFeature(f));
-    let activeIndex = 0;
-
-    const renderDetailsHtml = (st: Stop) => {
-      const header = st.retailer || "Unknown Retailer";
-      const cat = st.category
-        ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${st.category}</div>`
-        : "";
-
-      const sup = st.suppliers && st.suppliers.trim() ? st.suppliers : "Not listed";
-
-      const whoLine = st.name ? `<div style="font-weight:700;margin-bottom:2px;">${st.name}</div>` : "";
-      const titleRaw =
-        features[activeIndex]?.properties?.ContactTitle ||
-        features[activeIndex]?.properties?.Title ||
-        features[activeIndex]?.properties?.["Contact Title"] ||
-        "";
-      const title = s(titleRaw);
-      const titleLine = title ? `<div style="margin-bottom:4px;">${title}</div>` : "";
-
-      return `
-        <div style="font-size:13px;min-width:300px;max-width:340px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
-          <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">${header}</div>
-
-          ${
-            stops.length > 1
-              ? `
-              <div style="margin-bottom:8px;">
-                <div style="font-weight:700;margin-bottom:4px;">Multiple Kingpins:</div>
-                <select id="${selectId}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #374151;background:#111827;color:#f9fafb;font-size:13px;">
-                  ${stops
-                    .map((x, i) => {
-                      const who = x.name || "Kingpin";
-                      const where = [x.city, x.state].filter(Boolean).join(", ");
-                      const label = where ? `${who} (${where})` : who;
-                      return `<option value="${i}" ${i === activeIndex ? "selected" : ""}>${label}</option>`;
-                    })
-                    .join("")}
-                </select>
-              </div>
-            `
-              : ""
-          }
-
-          <div style="margin-bottom:4px;">${st.address || ""}<br/>${st.city || ""}, ${st.state || ""} ${st.zip || ""}</div>
-          ${cat}
-
-          <div style="margin-bottom:8px;"><span style="font-weight:700;color:#facc15;">Suppliers:</span> ${sup}</div>
-
-          ${whoLine}
-          ${titleLine}
-          <div style="margin-bottom:4px;">Office: ${st.phoneOffice || "TBD"} • Cell: ${st.phoneCell || "TBD"}</div>
-          <div style="margin-bottom:8px;">Email: ${st.email || "TBD"}</div>
-
-          <button id="${addBtnId}" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
-            ➕ Add to Trip
-          </button>
-        </div>
-      `;
-    };
-
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false })
-      .setLngLat(stops[0].coords)
-      .setHTML(renderDetailsHtml(stops[0]))
-      .addTo(map);
-
-    const wirePopup = () => {
-      const select = document.getElementById(selectId) as HTMLSelectElement | null;
-      const addBtn = document.getElementById(addBtnId) as HTMLButtonElement | null;
-
-      if (addBtn) {
-        addBtn.onclick = () => {
-          const st = stops[activeIndex] || stops[0];
-          onAddStop(st);
-        };
+    let best = features[0];
+    let bestD = Number.POSITIVE_INFINITY;
+    for (const f of features) {
+      const c = (f.geometry?.coordinates ?? null) as [number, number] | null;
+      if (!c) continue;
+      const d = distanceSq(clickLngLat, c);
+      if (d < bestD) {
+        bestD = d;
+        best = f;
       }
+    }
 
-      if (select) {
-        select.onchange = () => {
-          const idx = Number(select.value);
-          if (!Number.isFinite(idx) || idx < 0 || idx >= stops.length) return;
-          activeIndex = idx;
+    const p = best.properties ?? {};
+    const coords = (best.geometry?.coordinates ?? []) as [number, number];
 
-          try {
-            popup.setHTML(renderDetailsHtml(stops[activeIndex]));
-          } catch {}
+    const retailer = s(p.Retailer);
+    const address = s(p.Address);
+    const city = s(p.City);
+    const state = s(p.State);
+    const zip = s(p.Zip);
 
-          setTimeout(() => wirePopup(), 0);
-        };
-      }
+    const rawCat = s(p.Category);
+    const category = isRegionalOrCorporateHQ(rawCat) ? CAT_HQ : rawCat || "Kingpin";
+
+    const suppliers = s(p.Suppliers) || "Not listed";
+    const contactName = s(p.ContactName || p.Name || p.Contact || p["Contact Name"]);
+    const office = s(p.OfficePhone || p["Office Phone"] || p.PhoneOffice) || "TBD";
+    const cell = s(p.CellPhone || p["Cell Phone"] || p.PhoneCell) || "TBD";
+    const email = s(p.Email) || "TBD";
+
+    const label = retailer ? `${contactName || "Kingpin"} — ${retailer}` : `${contactName || "Kingpin"}`;
+
+    const stop: Stop = {
+      id: makeId("kingpin", coords, p),
+      kind: "kingpin",
+      label,
+      retailer,
+      name: contactName || "Kingpin",
+      address,
+      city,
+      state,
+      zip,
+      category,
+      suppliers,
+      phoneOffice: office,
+      phoneCell: cell,
+      email,
+      coords,
     };
 
-    setTimeout(() => wirePopup(), 0);
+    const header = retailer || "Unknown Retailer";
+    const addBtnId = safeDomId("kp-add");
+
+    const titleRaw = p.ContactTitle || p.Title || p["Contact Title"] || "";
+    const title = s(titleRaw);
+
+    const popupHtml = `
+      <div style="font-size:13px;min-width:300px;max-width:340px;color:#fff;line-height:1.3;font-family:Segoe UI,Arial;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:#facc15;">${header}</div>
+        <div style="font-weight:700;margin-bottom:2px;">${stop.name || "Kingpin"}</div>
+        ${title ? `<div style="margin-bottom:4px;">${title}</div>` : ""}
+        <div style="margin-bottom:4px;">${stop.address || ""}<br/>${stop.city || ""}, ${stop.state || ""} ${stop.zip || ""}</div>
+        ${
+          stop.category
+            ? `<div style="margin-bottom:6px;"><span style="font-weight:700;color:#facc15;">Category:</span> ${stop.category}</div>`
+            : ""
+        }
+        <div style="margin-bottom:8px;"><span style="font-weight:700;color:#facc15;">Suppliers:</span> ${
+          stop.suppliers && stop.suppliers.trim() ? stop.suppliers : "Not listed"
+        }</div>
+        <div style="margin-bottom:4px;">Office: ${stop.phoneOffice || "TBD"} • Cell: ${stop.phoneCell || "TBD"}</div>
+        <div style="margin-bottom:8px;">Email: ${stop.email || "TBD"}</div>
+        <button id="${addBtnId}" style="padding:7px 10px;border:none;background:#facc15;border-radius:5px;font-weight:700;font-size:13px;color:#111827;cursor:pointer;width:100%;">
+          ➕ Add to Trip
+        </button>
+      </div>
+    `;
+
+    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(popupHtml).addTo(map);
+
+    setTimeout(() => {
+      const btn = document.getElementById(addBtnId);
+      if (btn) (btn as HTMLButtonElement).onclick = () => onAddStop(stop);
+      try {
+        popup.getElement();
+      } catch {}
+    }, 0);
   }
 
   return (
     <div className="relative w-full h-full min-h-0">
       <div ref={containerRef} className="w-full h-full min-h-[55vh] sm:min-h-0" />
 
-      <div className="absolute bottom-4 left-4 z-10">
-        <div className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-4 py-3">
-          <div className="text-[14px] font-extrabold text-white/90 mb-2">Legend</div>
-
-          <div className="space-y-1.5 text-[13px] text-white/85">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#22c55e" }} />
-              <span>{CAT_AGRONOMY}</span>
+      {/* Route status (only shows when fallback is active) */}
+      {routeMode === "fallback" && (
+        <div className="absolute top-4 left-4 z-10">
+          <div
+            className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-3 py-2"
+            style={{ maxWidth: 340 }}
+          >
+            <div className="text-[12px] font-extrabold text-yellow-300">Route fallback active</div>
+            <div className="text-[11px] text-white/80 mt-0.5">
+              Using a straight-line polyline (Directions API failed). Check token/network or retry.
             </div>
-
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#f97316" }} />
-              <span>{CAT_GRAINFEED}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#0ea5e9" }} />
-              <span>{CAT_CSTORE}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full border border-black/40" style={{ background: "#a855f7" }} />
-              <span>{CAT_DISTRIBUTION}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-3 w-3 rounded-full border border-black/40"
-                style={{ background: "#ff0000", boxShadow: "0 0 0 2px rgba(250,204,21,0.85) inset" }}
-              />
-              <span>{CAT_HQ}</span>
-            </div>
-
-            {/* ✅ Kingpin legend star — inline SVG (Chrome-safe) */}
-            <div className="flex items-center gap-2 pt-1">
-              <LegendKingpinIcon svg={KINGPIN_SVG} />
-              <span>Kingpin</span>
-            </div>
-
-            {/* Optional debug */}
-            {/* <div className="text-[10px] text-white/40 break-all">{KINGPIN_ICON_DATA_URL}</div> */}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

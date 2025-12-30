@@ -133,10 +133,8 @@ export default function Page() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
 
-  // Home ZIP
-  const [homeZip, setHomeZip] = useState<string>("");
+  // Home (UI removed; keep coords for future optional round-trip)
   const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
-  const [homeStatus, setHomeStatus] = useState<string>("");
 
   // Stops + Trip
   const [allStops, setAllStops] = useState<Stop[]>([]);
@@ -152,7 +150,7 @@ export default function Page() {
 
   // Default collapse behavior
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
-    [sectionKey("Home ZIP")]: true,
+    [sectionKey("Legend")]: false,
     [sectionKey("Find a Stop")]: true,
     [sectionKey("Filters")]: true,
     [sectionKey("State")]: true,
@@ -216,40 +214,6 @@ export default function Page() {
   };
 
   const zoomStop = (stop: Stop) => setZoomToStop(stop);
-
-  const setHomeFromZip = async () => {
-    const z = homeZip.trim();
-    if (!z) return;
-
-    try {
-      const url =
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(z)}.json` +
-        `?country=US&types=postcode&limit=1&access_token=${encodeURIComponent(token)}`;
-
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`Geocoding failed: ${resp.status}`);
-      const json: any = await resp.json();
-      const center = json?.features?.[0]?.center;
-
-      if (!Array.isArray(center) || center.length !== 2) throw new Error("No coords returned for ZIP");
-
-      const lng = Number(center[0]);
-      const lat = Number(center[1]);
-
-      setHomeCoords([lng, lat]);
-      setHomeStatus(`Home Zip Code set to ${z}`);
-    } catch (e) {
-      console.error("[Page] Home ZIP geocode failed:", e);
-      setHomeCoords(null);
-      setHomeStatus("Home Zip Code could not be set (geocode failed).");
-    }
-  };
-
-  const clearHome = () => {
-    setHomeZip("");
-    setHomeCoords(null);
-    setHomeStatus("");
-  };
 
   const toggleSection = (key: string) => {
     setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -621,6 +585,31 @@ export default function Page() {
   const mapFirstMobileClass = "order-1 lg:order-2";
   const sidebarSecondMobileClass = "order-2 lg:order-1";
 
+  // LEGEND (sidebar card)
+  const legendItems = useMemo(() => {
+    const has = (x: string) => categories.includes(x);
+
+    // prefer canonical names from CertisMap; if not present, just show whatever categories list has
+    const cAgronomy = has("Agronomy") ? "Agronomy" : categories.find((x) => x.toLowerCase().includes("agronomy")) || "Agronomy";
+    const cGrain = has("Grain/Feed") ? "Grain/Feed" : categories.find((x) => x.toLowerCase().includes("grain")) || "Grain/Feed";
+    const cCstore =
+      has("C-Store/Service/Energy")
+        ? "C-Store/Service/Energy"
+        : categories.find((x) => x.toLowerCase().includes("c-store") || x.toLowerCase().includes("service") || x.toLowerCase().includes("energy")) ||
+          "C-Store/Service/Energy";
+    const cDist = has("Distribution") ? "Distribution" : categories.find((x) => x.toLowerCase().includes("distribution")) || "Distribution";
+    const cHQ = has("Regional HQ") ? "Regional HQ" : categories.find((x) => x.toLowerCase().includes("hq")) || "Regional HQ";
+
+    return [
+      { label: cAgronomy, swatch: "#22c55e", kind: "dot" as const },
+      { label: cGrain, swatch: "#f97316", kind: "dot" as const },
+      { label: cCstore, swatch: "#0ea5e9", kind: "dot" as const },
+      { label: cDist, swatch: "#a855f7", kind: "dot" as const },
+      { label: cHQ, swatch: "#ff0000", kind: "hq" as const },
+      { label: "Kingpin", swatch: "#2563eb", kind: "kingpin" as const },
+    ];
+  }, [categories]);
+
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
       {/* HEADER (clean — no theme/token up here) */}
@@ -675,34 +664,70 @@ export default function Page() {
           {/* SIDEBAR SECOND ON MOBILE */}
           <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}>
             <div className="overflow-y-auto px-4 py-3 space-y-4">
-              {/* HOME ZIP */}
+              {/* LEGEND (replaces Home ZIP) */}
               <div className={sectionShellClass}>
-                <SectionHeader title="Home ZIP" k={sectionKey("Home ZIP")} />
-                {!collapsed[sectionKey("Home ZIP")] && (
+                <SectionHeader
+                  title="Legend"
+                  k={sectionKey("Legend")}
+                  right={<div className="text-[11px] text-white/65 whitespace-nowrap">Map symbols</div>}
+                />
+                {!collapsed[sectionKey("Legend")] && (
                   <div className="space-y-2 mt-3">
-                    <div className="flex gap-2">
-                      <input
-                        value={homeZip}
-                        onChange={(e) => setHomeZip(e.target.value)}
-                        placeholder="e.g., 50010"
-                        className={smallInputClass}
-                      />
-                      <button
-                        onClick={setHomeFromZip}
-                        className="rounded-xl px-3 py-2 text-sm font-extrabold bg-[#fde047] text-black hover:bg-[#fde047]/90 disabled:opacity-60"
-                        disabled={!homeZip.trim() || !token}
-                        title={!token ? "Missing NEXT_PUBLIC_MAPBOX_TOKEN" : ""}
-                      >
-                        Set
-                      </button>
-                      <button onClick={clearHome} className={clearBtnClass} disabled={!homeZip && !homeCoords}>
-                        Clear
-                      </button>
+                    <div className="grid grid-cols-1 gap-2">
+                      {legendItems.map((it) => (
+                        <div key={it.label} className={innerTileClass}>
+                          <div className="flex items-center gap-3">
+                            {it.kind === "dot" && (
+                              <span
+                                className="inline-block h-3 w-3 rounded-full border border-black/40"
+                                style={{ background: it.swatch }}
+                              />
+                            )}
+
+                            {it.kind === "hq" && (
+                              <span
+                                className="inline-block h-3 w-3 rounded-full border border-black/40"
+                                style={{ background: it.swatch, boxShadow: "0 0 0 2px rgba(250,204,21,0.85) inset" }}
+                              />
+                            )}
+
+                            {it.kind === "kingpin" && (
+                              <span className="inline-flex items-center justify-center h-4 w-4" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="16" height="16">
+                                  <path
+                                    d="M64 14
+                                       L78.6 47.5
+                                       L115 52.2
+                                       L88 75.1
+                                       L96.1 110
+                                       L64 92
+                                       L31.9 110
+                                       L40 75.1
+                                       L13 52.2
+                                       L49.4 47.5
+                                       Z"
+                                    fill={it.swatch}
+                                    stroke="#0b1220"
+                                    strokeWidth="6"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </span>
+                            )}
+
+                            <div className="flex-1">
+                              <div className="text-sm font-extrabold text-white/90">{it.label}</div>
+                              {it.kind === "kingpin" && <div className={tanSubTextClass}>Star marker</div>}
+                              {it.kind === "hq" && <div className={tanSubTextClass}>Red dot + yellow inset ring</div>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
-                    {homeStatus && <div className="text-xs text-yellow-300 font-semibold">{homeStatus}</div>}
-
-                    <div className={tanSubTextClass}>Home marker (Blue_Home.png). ZIP geocoded via Mapbox.</div>
+                    <div className={tanSubTextClass}>
+                      Tip: Kingpins are always visible and offset from the corresponding retailer marker to avoid overlap.
+                    </div>
                   </div>
                 )}
               </div>
@@ -1017,10 +1042,7 @@ export default function Page() {
 
               {/* RETAIL SUMMARY - NETWORK */}
               <div className={sectionShellClass}>
-<SectionHeader
-  title="Retail Summary - Network"
-  k={sectionKey("Retail Summary - Network")}
-/>
+                <SectionHeader title="Retail Summary - Network" k={sectionKey("Retail Summary - Network")} />
                 {!collapsed[sectionKey("Retail Summary - Network")] && (
                   <div className="space-y-2 mt-3">
                     <input
@@ -1059,9 +1081,7 @@ export default function Page() {
                         </div>
                       ))}
 
-                      {retailerNetworkSummary.length === 0 && (
-                        <div className={subTextClass}>Network summary not loaded yet.</div>
-                      )}
+                      {retailerNetworkSummary.length === 0 && <div className={subTextClass}>Network summary not loaded yet.</div>}
                       {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && (
                         <div className={subTextClass}>No retailer matches that search.</div>
                       )}
