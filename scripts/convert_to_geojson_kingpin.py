@@ -8,6 +8,19 @@ GOAL (fixed):
   ✅ Tier matching (T1/T2/T3) is used to ENRICH/LABEL, not to INCLUDE/EXCLUDE.
   ✅ TBD rows can optionally geocode (only when coords are missing) via --geocode-no-match.
 
+CRITICAL FIX (Dec 2025):
+  ✅ coords_index previously required Retailer+Address+City+State+Zip to match.
+     If COMBINED was missing Zip (common), we failed to attach coords even though
+     kingpin_latlong.xlsx had LAT/LON.
+  ✅ We now build multiple coordinate indexes from kingpin_latlong.xlsx:
+       - address_key (with zip)
+       - addr_no_zip_key (missing zip support)
+       - city_key (with zip)
+       - retailer_state_key (last-resort, unique-only)
+     and we only use "looser" matches if unique to avoid bad placements.
+  ✅ Also fixed FullAddress fallback: read_kingpins_xlsx normalizes FULL BLOCK ADDRESS -> FullAddress,
+     so we must check "FullAddress" (not literal "FULL BLOCK ADDRESS").
+
 DATA FLOW (Bailey rules honored):
   - Excel inputs live in /data
   - Output GeoJSON is written to: public/data/kingpin.geojson
@@ -259,6 +272,10 @@ def get_row_lonlat(row: Dict[str, Any]) -> Optional[Tuple[float, float]]:
 # -----------------------------------------------------------------------------
 def address_key(retailer: str, address: str, city: str, state: str, zipc: str) -> str:
     return f"{retailer}|{address}|{city}|{state}|{zipc}"
+
+
+def addr_no_zip_key(retailer: str, address: str, city: str, state: str) -> str:
+    return f"{retailer}|{address}|{city}|{state}"
 
 
 def city_key(retailer: str, city: str, state: str, zipc: str) -> str:
@@ -521,11 +538,27 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
 
 
 # -----------------------------------------------------------------------------
-# Build a coordinate index from kingpin_latlong.xlsx
+# Build coordinate indexes from kingpin_latlong.xlsx
 # -----------------------------------------------------------------------------
-def _norm_key_for_coords(row: Dict[str, Any]) -> Tuple[str, str, str, str, str]:
+def _best_addr_source(row: Dict[str, Any]) -> str:
+    """
+    Prefer Address, else FullAddress (which is the normalized name for FULL BLOCK ADDRESS),
+    else empty.
+    """
+    addr = _clean_ws(row.get("Address", ""))
+    if addr:
+        return addr
+    full = _clean_ws(row.get("FullAddress", ""))  # <-- key fix
+    if full:
+        return full
+    # Keep legacy keys just in case some sheet slipped through
+    legacy = _clean_ws(row.get("FULL BLOCK ADDRESS", "")) or _clean_ws(row.get("FULLADDRESS", "")) or _clean_ws(row.get("FULL ADDRESS", ""))
+    return legacy
+
+
+def _norm_parts_for_coords(row: Dict[str, Any]) -> Tuple[str, str, str, str, str]:
     r_raw = _clean_ws(row.get("Retailer", ""))
-    addr_raw = _clean_ws(row.get("Address", "")) or _clean_ws(row.get("FULL BLOCK ADDRESS", "")) or _clean_ws(row.get("FullAddress", ""))
+    addr_raw = _best_addr_source(row)
     city_raw = _clean_ws(row.get("City", ""))
     state = normalize_state(row.get("State", ""))
     zipc = normalize_zip(row.get("Zip", ""))
@@ -536,23 +569,69 @@ def _norm_key_for_coords(row: Dict[str, Any]) -> Tuple[str, str, str, str, str]:
     return (r_norm, a_norm, c_norm, state, zipc)
 
 
-def build_coords_index(latlong_rows: List[Dict[str, Any]]) -> Dict[str, Tuple[float, float]]:
+def build_coords_indexes(
+    latlong_rows: List[Dict[str, Any]],
+) -> Tuple[
+    Dict[str, Tuple[float, float]],
+    Dict[str, List[Tuple[float, float]]],
+    Dict[str, List[Tuple[float, float]]],
+    Dict[str, List[Tuple[float, float]]],
+]:
     """
-    Index is keyed by our normalized address_key(...) so convert step can attach coords
-    even when the base COMBINED row is missing some fields.
+    Returns:
+      idx_addr:        full address_key -> lonlat (first stable)
+      idx_addr_nozip:  addr_no_zip_key -> [lonlat,...]
+      idx_city:        city_key -> [lonlat,...]
+      idx_retailer_st: retailer_state_key -> [lonlat,...]
+
+    We keep lists for the "looser" indexes to enforce unique-only selection.
     """
-    idx: Dict[str, Tuple[float, float]] = {}
+    idx_addr: Dict[str, Tuple[float, float]] = {}
+    idx_addr_nozip: Dict[str, List[Tuple[float, float]]] = {}
+    idx_city: Dict[str, List[Tuple[float, float]]] = {}
+    idx_retailer_st: Dict[str, List[Tuple[float, float]]] = {}
+
     for row in latlong_rows:
         lonlat = get_row_lonlat(row)
         if lonlat is None:
             continue
-        r_norm, a_norm, c_norm, st, z = _norm_key_for_coords(row)
-        if not (r_norm and a_norm and c_norm and st and z):
+
+        r_norm, a_norm, c_norm, st, z = _norm_parts_for_coords(row)
+        if not (r_norm and st):
             continue
-        ak = address_key(r_norm, a_norm, c_norm, st, z)
-        # If duplicates exist, keep the first stable value (or overwrite — either is fine).
-        idx.setdefault(ak, lonlat)
-    return idx
+
+        # Full key (best)
+        if a_norm and c_norm and z:
+            ak = address_key(r_norm, a_norm, c_norm, st, z)
+            idx_addr.setdefault(ak, lonlat)
+
+        # Missing-zip support
+        if a_norm and c_norm:
+            anz = addr_no_zip_key(r_norm, a_norm, c_norm, st)
+            idx_addr_nozip.setdefault(anz, []).append(lonlat)
+
+        # City+zip support
+        if c_norm and z:
+            ck = city_key(r_norm, c_norm, st, z)
+            idx_city.setdefault(ck, []).append(lonlat)
+
+        # Retailer+state fallback (very loose)
+        rk = retailer_state_key(r_norm, st)
+        idx_retailer_st.setdefault(rk, []).append(lonlat)
+
+    return idx_addr, idx_addr_nozip, idx_city, idx_retailer_st
+
+
+def _unique_lonlat(lst: List[Tuple[float, float]]) -> Optional[Tuple[float, float]]:
+    """
+    If the list resolves to a single unique coordinate pair, return it; else None.
+    """
+    if not lst:
+        return None
+    uniq = list({(round(x[0], 7), round(x[1], 7)) for x in lst})
+    if len(uniq) == 1:
+        return (float(uniq[0][0]), float(uniq[0][1]))
+    return None
 
 
 # -----------------------------------------------------------------------------
@@ -748,7 +827,9 @@ def geocode_address_mapbox(
 # Main
 # -----------------------------------------------------------------------------
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Build kingpin.geojson (keep any row with coords; enrich via facilities; optional geocode for missing coords).")
+    ap = argparse.ArgumentParser(
+        description="Build kingpin.geojson (keep any row with coords; enrich via facilities; optional geocode for missing coords)."
+    )
 
     ap.add_argument(
         "--kingpin-xlsx",
@@ -825,7 +906,8 @@ def main() -> int:
 
     raw_rows = read_kingpins_xlsx(args.kingpin_xlsx)
     latlong_rows = read_kingpins_xlsx(args.kingpin_latlong_xlsx)
-    coords_index = build_coords_index(latlong_rows)
+
+    idx_addr, idx_addr_nozip, idx_city, idx_retailer_st = build_coords_indexes(latlong_rows)
 
     token = ""
     token_source = "n/a"
@@ -833,7 +915,9 @@ def main() -> int:
         token, token_source = resolve_mapbox_token(args.token_file)
         if not token:
             print("❌ geocode-no-match enabled but no token found.")
-            print("   Set MAPBOX_TOKEN env var (recommended) OR place token in data/token.txt|token.json OR pass --token-file.")
+            print(
+                "   Set MAPBOX_TOKEN env var (recommended) OR place token in data/token.txt|token.json OR pass --token-file."
+            )
             return 1
 
     cache = load_geocode_cache(args.cache_file) if args.geocode_no_match else {}
@@ -846,7 +930,7 @@ def main() -> int:
     # Stats
     n_input_total = len(raw_rows)
     n_dropped_blank = 0
-    n_dropped_missing_min = 0  # informational only now
+    n_dropped_missing_min = 0  # informational only
     n_kept_due_to_coords = 0
     n_kept_missing_min_no_coords = 0
 
@@ -856,6 +940,10 @@ def main() -> int:
     n_tbd = 0
 
     n_coords_from_latlong = 0
+    n_coords_from_latlong_nozip = 0
+    n_coords_from_latlong_city = 0
+    n_coords_from_latlong_retailer_state = 0
+
     n_coords_from_facility = 0
     n_geocoded = 0
     n_geocode_failed = 0
@@ -888,11 +976,38 @@ def main() -> int:
         c_norm = normalize_city(city_raw)
 
         ak = address_key(r_norm, a_norm, c_norm, state, zipc)
+        anz = addr_no_zip_key(r_norm, a_norm, c_norm, state)
         ck = city_key(r_norm, c_norm, state, zipc)
         rk = retailer_state_key(r_norm, state)
 
-        # 1) Prefer coords from kingpin_latlong.xlsx index (authoritative for kingpins)
-        lonlat: Optional[Tuple[float, float]] = coords_index.get(ak)
+        # 1) Prefer coords from kingpin_latlong.xlsx index (authoritative)
+        lonlat: Optional[Tuple[float, float]] = None
+
+        # Best: exact match with zip
+        if a_norm and c_norm and state and zipc:
+            lonlat = idx_addr.get(ak)
+
+        # Next: address match without zip (unique-only)
+        if lonlat is None and a_norm and c_norm and state:
+            cand = _unique_lonlat(idx_addr_nozip.get(anz, []))
+            if cand is not None:
+                lonlat = cand
+                n_coords_from_latlong_nozip += 1
+
+        # Next: city match (unique-only)
+        if lonlat is None and c_norm and state and zipc:
+            cand = _unique_lonlat(idx_city.get(ck, []))
+            if cand is not None:
+                lonlat = cand
+                n_coords_from_latlong_city += 1
+
+        # Last resort: retailer+state (unique-only)
+        if lonlat is None and r_norm and state:
+            cand = _unique_lonlat(idx_retailer_st.get(rk, []))
+            if cand is not None:
+                lonlat = cand
+                n_coords_from_latlong_retailer_state += 1
+
         if lonlat is not None:
             n_coords_from_latlong += 1
 
@@ -920,7 +1035,6 @@ def main() -> int:
         matched_fac: Optional[Facility] = None
 
         # Only attempt facility matching if we have enough to build meaningful keys
-        # (otherwise it will just be empty keys and false misses).
         if r_norm and state:
             # T1: exact addr match
             if a_norm and c_norm and zipc:
@@ -1111,6 +1225,9 @@ def main() -> int:
         "matched_t3": n_t3,
         "tbd_rows": n_tbd,
         "coords_from_kingpin_latlong": n_coords_from_latlong,
+        "coords_from_kingpin_latlong_nozip_unique": n_coords_from_latlong_nozip,
+        "coords_from_kingpin_latlong_city_unique": n_coords_from_latlong_city,
+        "coords_from_kingpin_latlong_retailer_state_unique": n_coords_from_latlong_retailer_state,
         "coords_from_facility_fallback": n_coords_from_facility,
         "tbd_geocoded": n_geocoded,
         "tbd_geocode_failed": n_geocode_failed,
@@ -1131,7 +1248,6 @@ def main() -> int:
     print("✅ kingpin.geojson build complete")
     print(json.dumps(stats, indent=2))
 
-    # Helpful sanity cue (the number you care about)
     if stats["coords_from_kingpin_latlong"] > 0:
         print(
             f"\n🔎 Sanity: coords_from_kingpin_latlong={stats['coords_from_kingpin_latlong']} "
