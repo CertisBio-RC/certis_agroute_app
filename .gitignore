@@ -76,3 +76,6 @@ _BACKUPS/
 # -------------------------
 ersjbaileycertis_agroute_app
 x).Length
+# Local scratch/debug scripts (never commit)
+_debug_*.py
+scripts/_debug_*.py
