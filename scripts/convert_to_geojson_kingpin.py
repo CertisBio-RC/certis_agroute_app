@@ -1,23 +1,39 @@
 ﻿#!/usr/bin/env python3
 """
-CERTIS AGROUTE — Build public/data/kingpin.geojson (Hybrid)
-  • Join/Enrich from retailers.geojson first (Category + facility coords if matched)
-  • Geocode ONLY unmatched rows (TBD) using Mapbox
-  • Token resolution supports (robust):
-      - --token-file (txt or json; BOM-safe)
-      - data/token.txt (raw token OR JSON)
-      - data/token.json (BOM-safe)
-      - env MAPBOX_ACCESS_TOKEN / MAPBOX_TOKEN / NEXT_PUBLIC_MAPBOX_TOKEN
-  • Category rules (updated):
-      - Facility categories are canonicalized; any "nan"/"NaN"/"None"/"null" are treated as missing
-      - Missing/invalid facility categories default to "Agronomy"
-      - Unmatched kingpins (TBD) always default Category to "Agronomy"
+CERTIS AGROUTE — Build public/data/kingpin.geojson (Hybrid, Bailey-safe)
 
-Outputs:
-  - public/data/kingpin.geojson
-  - scripts/out/kingpin_enriched.csv
-  - scripts/out/kingpin_unmatched.csv
-  - scripts/out/kingpin_build_stats.json
+GOAL (fixed):
+  ✅ Do NOT “lose Kingpins” just because some spreadsheet fields are blank.
+  ✅ If a row has usable coordinates (from kingpin_latlong.xlsx), it becomes a feature.
+  ✅ Tier matching (T1/T2/T3) is used to ENRICH/LABEL, not to INCLUDE/EXCLUDE.
+  ✅ TBD rows can optionally geocode (only when coords are missing) via --geocode-no-match.
+
+DATA FLOW (Bailey rules honored):
+  - Excel inputs live in /data
+  - Output GeoJSON is written to: public/data/kingpin.geojson
+  - Audit outputs: scripts/out/kingpin_enriched.csv, kingpin_unmatched.csv, kingpin_build_stats.json
+
+Inputs:
+  - data/kingpin_COMBINED.xlsx        (contact/retailer data)
+  - data/kingpin_latlong.xlsx         (preferred coordinate authority for kingpins)
+  - public/data/retailers.geojson     (facility enrichment authority for Category/Suppliers/coords fallback)
+
+Token resolution (robust):
+  1) ENV: MAPBOX_TOKEN / MAPBOX_ACCESS_TOKEN / NEXT_PUBLIC_MAPBOX_TOKEN
+  2) data/token.txt (raw token OR JSON)
+  3) data/token.json (BOM-safe JSON)
+     Supports keys:
+       - MAPBOX_TOKEN_FOR_GEOCODING (preferred if present)
+       - MAPBOX_ACCESS_TOKEN / MAPBOX_TOKEN / token / access_token / NEXT_PUBLIC_MAPBOX_TOKEN
+
+Category rules:
+  - Facility categories canonicalized; messy/null-ish strings treated as missing
+  - Missing/invalid facility categories default to "Agronomy"
+  - Unmatched kingpins default Category to "Agronomy"
+
+CLI:
+  python .\\convert_to_geojson_kingpin.py
+  python .\\convert_to_geojson_kingpin.py --geocode-no-match
 """
 
 from __future__ import annotations
@@ -37,6 +53,7 @@ import requests
 
 MAPBOX_GEOCODE_URL = "https://api.mapbox.com/geocoding/v5/mapbox.places/{query}.json"
 
+# NOTE: We still define "min required", but we do NOT drop rows that have coordinates.
 KINGPIN_REQUIRED_MIN = ["Retailer", "ContactName", "Address", "City", "State", "Zip"]
 
 _WS_RE = re.compile(r"\s+")
@@ -70,6 +87,7 @@ ORDINAL_WORDS = {
     "tenth": "10th",
 }
 
+
 # -----------------------------------------------------------------------------
 # Repo-root-safe path helpers
 # -----------------------------------------------------------------------------
@@ -77,33 +95,40 @@ def repo_root() -> str:
     # scripts/convert_to_geojson_kingpin.py -> scripts -> repo root
     return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+
 def root_path(*parts: str) -> str:
     return os.path.join(repo_root(), *parts)
+
 
 # -----------------------------------------------------------------------------
 # Normalization helpers
 # -----------------------------------------------------------------------------
-def _clean_ws(s: str) -> str:
+def _clean_ws(s: Any) -> str:
     return _WS_RE.sub(" ", str(s or "").strip())
 
-def _strip_quotes(s: str) -> str:
-    s = _clean_ws(s)
-    if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
-        return s[1:-1].strip()
-    return s
 
-def normalize_state(s: str) -> str:
+def _strip_quotes(s: Any) -> str:
+    s2 = _clean_ws(s)
+    if (s2.startswith('"') and s2.endswith('"')) or (s2.startswith("'") and s2.endswith("'")):
+        return s2[1:-1].strip()
+    return s2
+
+
+def normalize_state(s: Any) -> str:
     return _clean_ws(s).upper()
 
-def normalize_zip(s: str) -> str:
+
+def normalize_zip(s: Any) -> str:
     return _clean_ws(s)
 
-def normalize_city(s: str) -> str:
-    s = _clean_ws(s).lower()
-    s = _PUNCT_RE.sub(" ", s)
-    return _clean_ws(s)
 
-def normalize_retailer(raw: str) -> str:
+def normalize_city(s: Any) -> str:
+    s2 = _clean_ws(s).lower()
+    s2 = _PUNCT_RE.sub(" ", s2)
+    return _clean_ws(s2)
+
+
+def normalize_retailer(raw: Any) -> str:
     """
     IMPORTANT: This is for MATCHING KEYS, not display.
     We intentionally normalize common cooperative variants to reduce false TBD.
@@ -115,9 +140,8 @@ def normalize_retailer(raw: str) -> str:
     s = _PUNCT_RE.sub(" ", s)
     s = _clean_ws(s)
 
-    # normalize common coop words (safe for matching keys)
     tokens = s.split(" ")
-    out = []
+    out: List[str] = []
     for t in tokens:
         if t in ("co", "co-op", "coop", "cooperative", "cooperatives"):
             out.append("cooperative")
@@ -129,7 +153,8 @@ def normalize_retailer(raw: str) -> str:
             out.append(t)
     return _clean_ws(" ".join(out))
 
-def normalize_address(raw: str) -> str:
+
+def normalize_address(raw: Any) -> str:
     s = _clean_ws(raw).lower()
     s = _PUNCT_RE.sub(" ", s)
     s = _clean_ws(s)
@@ -139,7 +164,8 @@ def normalize_address(raw: str) -> str:
     tokens = [TOKEN_MAP.get(t, t) for t in tokens]
     return _clean_ws(" ".join(tokens))
 
-def canonical_suppliers(raw: str) -> str:
+
+def canonical_suppliers(raw: Any) -> str:
     s = _clean_ws(raw)
     if not s:
         return ""
@@ -147,24 +173,21 @@ def canonical_suppliers(raw: str) -> str:
     parts = [_clean_ws(p) for p in parts if _clean_ws(p)]
     return ", ".join(parts)
 
-def canonicalize_category(raw: str) -> str:
+
+def canonicalize_category(raw: Any) -> str:
     """
     Canonical categories (Bailey Rule set):
       Agronomy, Grain/Feed, C-Store/Service/Energy, Distribution, Corporate HQ, Kingpin
-    We treat messy combos (e.g. "Agronomy, Feed/Grain") by choosing best match.
-
-    IMPORTANT: 'nan', 'NaN', 'None', 'null' are treated as missing (return "").
+    Treat nan/none/null as missing.
     """
     s = _clean_ws(raw)
     if not s:
         return ""
     low = s.lower()
 
-    # treat these as missing
     if low in {"nan", "none", "null"}:
         return ""
 
-    # Priority: Corporate HQ > Distribution > C-Store/Service/Energy > Grain/Feed > Agronomy > Kingpin
     if "corporate" in low or "hq" in low:
         return "Corporate HQ"
     if "distribution" in low:
@@ -178,17 +201,58 @@ def canonicalize_category(raw: str) -> str:
     if "kingpin" in low:
         return "Kingpin"
 
-    # fallback: preserve original cleaned label (but avoid commas)
     if "," in s:
         s = s.split(",")[0].strip()
     return s
 
+
 def is_blank_row(row: Dict[str, Any]) -> bool:
-    core = ["Retailer", "ContactName", "Address", "City", "State", "Zip", "Email", "OfficePhone", "CellPhone"]
+    core = [
+        "Retailer",
+        "ContactName",
+        "Address",
+        "City",
+        "State",
+        "Zip",
+        "Email",
+        "OfficePhone",
+        "CellPhone",
+        "LAT",
+        "LON",
+        "Latitude",
+        "Longitude",
+    ]
     return all(not _clean_ws(row.get(k, "")) for k in core)
+
 
 def has_min_required(row: Dict[str, Any]) -> bool:
     return all(bool(_clean_ws(row.get(k, ""))) for k in KINGPIN_REQUIRED_MIN)
+
+
+def _parse_float_maybe(v: Any) -> Optional[float]:
+    s = _clean_ws(v)
+    if not s:
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def row_has_coords(row: Dict[str, Any]) -> bool:
+    # Accept either LAT/LON or Latitude/Longitude
+    lat = _parse_float_maybe(row.get("LAT", "")) or _parse_float_maybe(row.get("Latitude", ""))
+    lon = _parse_float_maybe(row.get("LON", "")) or _parse_float_maybe(row.get("Longitude", ""))
+    return lat is not None and lon is not None
+
+
+def get_row_lonlat(row: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    lat = _parse_float_maybe(row.get("LAT", "")) or _parse_float_maybe(row.get("Latitude", ""))
+    lon = _parse_float_maybe(row.get("LON", "")) or _parse_float_maybe(row.get("Longitude", ""))
+    if lat is None or lon is None:
+        return None
+    return (lon, lat)
+
 
 # -----------------------------------------------------------------------------
 # Index keys
@@ -196,11 +260,14 @@ def has_min_required(row: Dict[str, Any]) -> bool:
 def address_key(retailer: str, address: str, city: str, state: str, zipc: str) -> str:
     return f"{retailer}|{address}|{city}|{state}|{zipc}"
 
+
 def city_key(retailer: str, city: str, state: str, zipc: str) -> str:
     return f"{retailer}|{city}|{state}|{zipc}"
 
+
 def retailer_state_key(retailer: str, state: str) -> str:
     return f"{retailer}|{state}"
+
 
 # -----------------------------------------------------------------------------
 # Facility model + loaders
@@ -221,6 +288,7 @@ class Facility:
     longname: str
     lon: float
     lat: float
+
 
 def load_retailers_geojson(path: str) -> List[Facility]:
     with open(path, "r", encoding="utf-8") as f:
@@ -260,7 +328,6 @@ def load_retailers_geojson(path: str) -> List[Facility]:
         if not (r_raw and a_raw and c_raw and st and z):
             continue
 
-        # If category is missing/invalid (nan/null/etc.), default to Agronomy.
         if not cat:
             cat = "Agronomy"
 
@@ -284,6 +351,7 @@ def load_retailers_geojson(path: str) -> List[Facility]:
         )
     return out
 
+
 def build_facility_indexes(
     facilities: List[Facility],
 ) -> Tuple[Dict[str, List[Facility]], Dict[str, List[Facility]], Dict[str, List[Facility]]]:
@@ -303,6 +371,7 @@ def build_facility_indexes(
 
     return by_addr, by_city, by_retailer_state
 
+
 def choose_best_facility(cands: List[Facility]) -> Facility:
     """
     Choose a stable default when multiple facilities match.
@@ -311,14 +380,16 @@ def choose_best_facility(cands: List[Facility]) -> Facility:
       2) Longer/more specific address
       3) Longer name/longname
     """
+
     def score(f: Facility) -> Tuple[int, int, int]:
         is_hq = 1 if f.category.lower() == "corporate hq".lower() else 0
         return (is_hq, len(f.address_raw or ""), max(len(f.name or ""), len(f.longname or "")))
 
     return sorted(cands, key=score, reverse=True)[0]
 
+
 # -----------------------------------------------------------------------------
-# Kingpin XLSX reader
+# Kingpin XLSX reader (for both COMBINED + LATLONG)
 # -----------------------------------------------------------------------------
 def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
     xls = pd.ExcelFile(path)
@@ -330,10 +401,7 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
         df = pd.read_excel(path, sheet_name=sh, dtype=str).fillna("")
         df.columns = [str(c).strip() for c in df.columns]
 
-        # ------------------------------------------------------------
         # Build canonical 'State' by coalescing STATE.1 -> STATE (prefer non-empty)
-        # This avoids losing state when both columns exist and one is blank.
-        # ------------------------------------------------------------
         cols_upper = {str(c).strip().upper(): c for c in df.columns}
         state1 = df[cols_upper["STATE.1"]] if "STATE.1" in cols_upper else ""
         state0 = df[cols_upper["STATE"]] if "STATE" in cols_upper else ""
@@ -349,10 +417,8 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
             if drop_cols:
                 df = df.drop(columns=drop_cols)
 
-        # ------------------------------------------------------------
-        # Header normalization (Kingpin XLSX variants -> canonical keys)
-        # ------------------------------------------------------------
-        col_map = {}
+        # Header normalization
+        col_map: Dict[str, str] = {}
         for c in df.columns:
             cu = str(c).strip().upper()
             if cu == "RETAILER":
@@ -379,6 +445,14 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
                 col_map[c] = "Suppliers"
             elif cu in ("FULL BLOCK ADDRESS", "FULLADDRESS", "FULL ADDRESS"):
                 col_map[c] = "FullAddress"
+            elif cu in ("LAT", "LATITUDE"):
+                col_map[c] = "LAT"
+            elif cu in ("LON", "LONGITUDE", "LNG"):
+                col_map[c] = "LON"
+            elif cu == "GEOCODE_STATUS":
+                col_map[c] = "GEOCODE_STATUS"
+            elif cu == "GEOCODE_QUERY":
+                col_map[c] = "GEOCODE_QUERY"
 
         if col_map:
             df = df.rename(columns=col_map)
@@ -415,11 +489,18 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
                     return "Suppliers"
                 if ku in ("FULL BLOCK ADDRESS", "FULLADDRESS", "FULL ADDRESS"):
                     return "FullAddress"
+                if ku in ("LAT", "LATITUDE"):
+                    return "LAT"
+                if ku in ("LON", "LONGITUDE", "LNG"):
+                    return "LON"
+                if ku == "GEOCODE_STATUS":
+                    return "GEOCODE_STATUS"
+                if ku == "GEOCODE_QUERY":
+                    return "GEOCODE_QUERY"
                 return str(_k).strip()
 
             d = {_canon_key(k): ("" if pd.isna(v) else str(v)) for k, v in r.to_dict().items()}
 
-            # Ensure canonical State exists
             if not d.get("State"):
                 st = ""
                 for k in ("STATE.1", "STATE", "State", "STATE.1 ", "STATE ", "STATE.1.1"):
@@ -438,11 +519,48 @@ def read_kingpins_xlsx(path: str) -> List[Dict[str, Any]]:
 
     return rows
 
+
+# -----------------------------------------------------------------------------
+# Build a coordinate index from kingpin_latlong.xlsx
+# -----------------------------------------------------------------------------
+def _norm_key_for_coords(row: Dict[str, Any]) -> Tuple[str, str, str, str, str]:
+    r_raw = _clean_ws(row.get("Retailer", ""))
+    addr_raw = _clean_ws(row.get("Address", "")) or _clean_ws(row.get("FULL BLOCK ADDRESS", "")) or _clean_ws(row.get("FullAddress", ""))
+    city_raw = _clean_ws(row.get("City", ""))
+    state = normalize_state(row.get("State", ""))
+    zipc = normalize_zip(row.get("Zip", ""))
+
+    r_norm = normalize_retailer(r_raw)
+    a_norm = normalize_address(addr_raw)
+    c_norm = normalize_city(city_raw)
+    return (r_norm, a_norm, c_norm, state, zipc)
+
+
+def build_coords_index(latlong_rows: List[Dict[str, Any]]) -> Dict[str, Tuple[float, float]]:
+    """
+    Index is keyed by our normalized address_key(...) so convert step can attach coords
+    even when the base COMBINED row is missing some fields.
+    """
+    idx: Dict[str, Tuple[float, float]] = {}
+    for row in latlong_rows:
+        lonlat = get_row_lonlat(row)
+        if lonlat is None:
+            continue
+        r_norm, a_norm, c_norm, st, z = _norm_key_for_coords(row)
+        if not (r_norm and a_norm and c_norm and st and z):
+            continue
+        ak = address_key(r_norm, a_norm, c_norm, st, z)
+        # If duplicates exist, keep the first stable value (or overwrite — either is fine).
+        idx.setdefault(ak, lonlat)
+    return idx
+
+
 # -----------------------------------------------------------------------------
 # File IO helpers
 # -----------------------------------------------------------------------------
 def ensure_out_dir(p: str) -> None:
     os.makedirs(p, exist_ok=True)
+
 
 def write_csv(path: str, rows: List[Dict[str, Any]], fieldnames: List[str]) -> None:
     with open(path, "w", encoding="utf-8", newline="") as f:
@@ -451,8 +569,10 @@ def write_csv(path: str, rows: List[Dict[str, Any]], fieldnames: List[str]) -> N
         for r in rows:
             w.writerow(r)
 
+
 def build_geojson_feature(lon: float, lat: float, props: Dict[str, Any]) -> Dict[str, Any]:
     return {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]}, "properties": props}
+
 
 # -----------------------------------------------------------------------------
 # Token resolution
@@ -461,10 +581,19 @@ def _extract_token_from_obj(obj: Any) -> str:
     if isinstance(obj, str):
         return _strip_quotes(obj)
     if isinstance(obj, dict):
-        for k in ["MAPBOX_ACCESS_TOKEN", "MAPBOX_TOKEN", "token", "access_token", "NEXT_PUBLIC_MAPBOX_TOKEN"]:
+        # Prefer a dedicated geocoding token if present
+        for k in [
+            "MAPBOX_TOKEN_FOR_GEOCODING",
+            "MAPBOX_ACCESS_TOKEN",
+            "MAPBOX_TOKEN",
+            "token",
+            "access_token",
+            "NEXT_PUBLIC_MAPBOX_TOKEN",
+        ]:
             if k in obj and obj[k]:
                 return _strip_quotes(str(obj[k]))
     return ""
+
 
 def load_token_from_json(path: str) -> str:
     try:
@@ -474,13 +603,14 @@ def load_token_from_json(path: str) -> str:
     except Exception:
         return ""
 
+
 def load_token_from_txt(path: str) -> str:
     """
     Supports:
       - raw token (pk....)
       - token=pk....
       - JSON string: {"MAPBOX_TOKEN":"pk...."}  (even if saved in .txt)
-    Also BOM-safe via utf-8-sig.
+    BOM-safe via utf-8-sig.
     """
     try:
         with open(path, "r", encoding="utf-8-sig") as f:
@@ -497,7 +627,7 @@ def load_token_from_txt(path: str) -> str:
                 pass
 
         raw = re.sub(
-            r"^\s*(token|access_token|mapbox_access_token|mapbox_token|next_public_mapbox_token)\s*=\s*",
+            r"^\s*(token|access_token|mapbox_access_token|mapbox_token|next_public_mapbox_token|mapbox_token_for_geocoding)\s*=\s*",
             "",
             raw,
             flags=re.IGNORECASE,
@@ -506,45 +636,46 @@ def load_token_from_txt(path: str) -> str:
     except Exception:
         return ""
 
+
 def resolve_mapbox_token(token_file: Optional[str]) -> Tuple[str, str]:
+    # ENV first (best practice for secrets)
+    t = (
+        os.getenv("MAPBOX_TOKEN")
+        or os.getenv("MAPBOX_ACCESS_TOKEN")
+        or os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN")
+        or ""
+    )
+    if t:
+        return _strip_quotes(t), "env"
+
     # token file provided explicitly
     if token_file:
         tf = token_file
-        # allow relative paths from repo root
         if not os.path.isabs(tf):
             tf = root_path(tf)
         if tf.lower().endswith(".json"):
-            t = load_token_from_json(tf)
+            t2 = load_token_from_json(tf)
         else:
-            t = load_token_from_txt(tf)
-        if t:
-            return t, f"--token-file:{tf}"
+            t2 = load_token_from_txt(tf)
+        if t2:
+            return t2, f"--token-file:{tf}"
 
     # default token files (repo root /data)
     tf_txt = root_path("data", "token.txt")
     tf_json = root_path("data", "token.json")
 
     if os.path.exists(tf_txt):
-        t = load_token_from_txt(tf_txt)
-        if t:
-            return t, tf_txt
+        t3 = load_token_from_txt(tf_txt)
+        if t3:
+            return t3, tf_txt
 
     if os.path.exists(tf_json):
-        t = load_token_from_json(tf_json)
-        if t:
-            return t, tf_json
-
-    # env
-    t = (
-        os.getenv("MAPBOX_ACCESS_TOKEN")
-        or os.getenv("MAPBOX_TOKEN")
-        or os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN")
-        or ""
-    )
-    if t:
-        return t, "env"
+        t4 = load_token_from_json(tf_json)
+        if t4:
+            return t4, tf_json
 
     return "", "none"
+
 
 # -----------------------------------------------------------------------------
 # Geocode cache
@@ -561,6 +692,7 @@ def load_geocode_cache(path: str) -> Dict[str, List[float]]:
     except Exception:
         return {}
 
+
 def save_geocode_cache(path: str, cache: Dict[str, List[float]]) -> None:
     try:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -569,8 +701,10 @@ def save_geocode_cache(path: str, cache: Dict[str, List[float]]) -> None:
     except Exception:
         pass
 
+
 def cache_key_full(address: str, city: str, state: str, zipc: str) -> str:
     return _clean_ws(f"{address}, {city}, {state} {zipc}").lower()
+
 
 # -----------------------------------------------------------------------------
 # Mapbox geocoding
@@ -609,23 +743,27 @@ def geocode_address_mapbox(
     except Exception as e:
         return None, 0, f"EXCEPTION: {type(e).__name__}"
 
+
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Build kingpin.geojson (inherit coords if matched; geocode only TBD).")
+    ap = argparse.ArgumentParser(description="Build kingpin.geojson (keep any row with coords; enrich via facilities; optional geocode for missing coords).")
 
-    # ✅ FIX: correct default input file name
     ap.add_argument(
         "--kingpin-xlsx",
         default=root_path("data", "kingpin_COMBINED.xlsx"),
-        help="Path to kingpin xlsx.",
+        help="Path to kingpin xlsx (source contact data).",
     )
-
+    ap.add_argument(
+        "--kingpin-latlong-xlsx",
+        default=root_path("data", "kingpin_latlong.xlsx"),
+        help="Path to kingpin_latlong.xlsx (preferred kingpin coordinate authority).",
+    )
     ap.add_argument(
         "--retailers-geojson",
         default=root_path("public", "data", "retailers.geojson"),
-        help="Path to retailers.geojson (inheritance authority).",
+        help="Path to retailers.geojson (facility enrichment authority).",
     )
     ap.add_argument(
         "--out-geojson",
@@ -640,7 +778,7 @@ def main() -> int:
     ap.add_argument(
         "--geocode-no-match",
         action="store_true",
-        help="If set, TBD rows will be geocoded via Mapbox. Otherwise TBD rows are excluded.",
+        help="If set: rows missing coords will be geocoded via Mapbox. Otherwise missing-coord rows are left unmatched/excluded.",
     )
     ap.add_argument(
         "--token-file",
@@ -657,13 +795,13 @@ def main() -> int:
 
     args = ap.parse_args()
 
-    # Allow caller to pass relative paths; resolve against repo root for safety.
     def _abs(p: str) -> str:
         if not p:
             return p
         return p if os.path.isabs(p) else root_path(p)
 
     args.kingpin_xlsx = _abs(args.kingpin_xlsx)
+    args.kingpin_latlong_xlsx = _abs(args.kingpin_latlong_xlsx)
     args.retailers_geojson = _abs(args.retailers_geojson)
     args.out_geojson = _abs(args.out_geojson)
     args.out_dir = _abs(args.out_dir)
@@ -677,10 +815,17 @@ def main() -> int:
     if not os.path.exists(args.kingpin_xlsx):
         print(f"❌ Missing kingpin xlsx: {args.kingpin_xlsx}")
         return 1
+    if not os.path.exists(args.kingpin_latlong_xlsx):
+        print(f"❌ Missing kingpin_latlong xlsx: {args.kingpin_latlong_xlsx}")
+        print("   Run: python .\\geocode_kingpin.py  (to generate /data/kingpin_latlong.xlsx)")
+        return 1
 
     facilities = load_retailers_geojson(args.retailers_geojson)
     by_addr, by_city, by_retailer_state = build_facility_indexes(facilities)
+
     raw_rows = read_kingpins_xlsx(args.kingpin_xlsx)
+    latlong_rows = read_kingpins_xlsx(args.kingpin_latlong_xlsx)
+    coords_index = build_coords_index(latlong_rows)
 
     token = ""
     token_source = "n/a"
@@ -688,7 +833,7 @@ def main() -> int:
         token, token_source = resolve_mapbox_token(args.token_file)
         if not token:
             print("❌ geocode-no-match enabled but no token found.")
-            print("   Put token in data/token.txt or data/token.json, set MAPBOX_ACCESS_TOKEN/MAPBOX_TOKEN/NEXT_PUBLIC_MAPBOX_TOKEN, or pass --token-file.")
+            print("   Set MAPBOX_TOKEN env var (recommended) OR place token in data/token.txt|token.json OR pass --token-file.")
             return 1
 
     cache = load_geocode_cache(args.cache_file) if args.geocode_no_match else {}
@@ -698,13 +843,20 @@ def main() -> int:
     enriched: List[Dict[str, Any]] = []
     unmatched: List[Dict[str, Any]] = []
 
-    n_total = 0
+    # Stats
+    n_input_total = len(raw_rows)
     n_dropped_blank = 0
-    n_dropped_missing_min = 0
+    n_dropped_missing_min = 0  # informational only now
+    n_kept_due_to_coords = 0
+    n_kept_missing_min_no_coords = 0
+
     n_t1 = 0
     n_t2 = 0
     n_t3 = 0
     n_tbd = 0
+
+    n_coords_from_latlong = 0
+    n_coords_from_facility = 0
     n_geocoded = 0
     n_geocode_failed = 0
 
@@ -715,12 +867,8 @@ def main() -> int:
         if is_blank_row(row):
             n_dropped_blank += 1
             continue
-        if not has_min_required(row):
-            n_dropped_missing_min += 1
-            continue
 
-        n_total += 1
-
+        # Build basic fields (even if some are blank)
         retailer_raw = _clean_ws(row.get("Retailer", ""))
         suppliers_raw = canonical_suppliers(row.get("Suppliers", ""))
         contact = _clean_ws(row.get("ContactName", ""))
@@ -734,6 +882,7 @@ def main() -> int:
         zipc = normalize_zip(row.get("Zip", ""))
         fulladdr = _clean_ws(row.get("FullAddress", ""))
 
+        # Matching keys (may be partially blank)
         r_norm = normalize_retailer(retailer_raw)
         a_norm = normalize_address(addr_raw)
         c_norm = normalize_city(city_raw)
@@ -742,35 +891,63 @@ def main() -> int:
         ck = city_key(r_norm, c_norm, state, zipc)
         rk = retailer_state_key(r_norm, state)
 
+        # 1) Prefer coords from kingpin_latlong.xlsx index (authoritative for kingpins)
+        lonlat: Optional[Tuple[float, float]] = coords_index.get(ak)
+        if lonlat is not None:
+            n_coords_from_latlong += 1
+
+        # We still track "missing_min", but we do NOT drop the row if coords exist.
+        missing_min = not has_min_required(
+            {
+                "Retailer": retailer_raw,
+                "ContactName": contact,
+                "Address": addr_raw,
+                "City": city_raw,
+                "State": state,
+                "Zip": zipc,
+            }
+        )
+        if missing_min:
+            n_dropped_missing_min += 1
+            if lonlat is not None:
+                n_kept_due_to_coords += 1
+            else:
+                n_kept_missing_min_no_coords += 1
+
+        # Facility enrichment / fallback coords (if latlong coords are missing)
         match_tier = "TBD"
         geosource = "MAPBOX"
         matched_fac: Optional[Facility] = None
 
-        # T1: exact addr match
-        cands1 = by_addr.get(ak, [])
-        if cands1:
-            matched_fac = choose_best_facility(cands1)
-            match_tier = "T1"
-            geosource = "FACILITY"
-            n_t1 += 1
+        # Only attempt facility matching if we have enough to build meaningful keys
+        # (otherwise it will just be empty keys and false misses).
+        if r_norm and state:
+            # T1: exact addr match
+            if a_norm and c_norm and zipc:
+                cands1 = by_addr.get(ak, [])
+                if cands1:
+                    matched_fac = choose_best_facility(cands1)
+                    match_tier = "T1"
+                    geosource = "FACILITY"
+                    n_t1 += 1
 
-        # T2: unique city match
-        if matched_fac is None:
-            cands2 = by_city.get(ck, [])
-            if len(cands2) == 1:
-                matched_fac = cands2[0]
-                match_tier = "T2"
-                geosource = "FACILITY"
-                n_t2 += 1
+            # T2: unique city match
+            if matched_fac is None and c_norm and zipc:
+                cands2 = by_city.get(ck, [])
+                if len(cands2) == 1:
+                    matched_fac = cands2[0]
+                    match_tier = "T2"
+                    geosource = "FACILITY"
+                    n_t2 += 1
 
-        # T3: retailer+state fallback
-        if matched_fac is None:
-            cands3 = by_retailer_state.get(rk, [])
-            if cands3:
-                matched_fac = choose_best_facility(cands3)
-                match_tier = "T3"
-                geosource = "FACILITY"
-                n_t3 += 1
+            # T3: retailer+state fallback
+            if matched_fac is None:
+                cands3 = by_retailer_state.get(rk, [])
+                if cands3:
+                    matched_fac = choose_best_facility(cands3)
+                    match_tier = "T3"
+                    geosource = "FACILITY"
+                    n_t3 += 1
 
         props: Dict[str, Any] = {
             "Retailer": retailer_raw,
@@ -789,10 +966,9 @@ def main() -> int:
         if fulladdr:
             props["FullAddress"] = fulladdr
 
-        lonlat: Optional[Tuple[float, float]] = None
-
+        # Apply facility enrichment fields (category/suppliers/longname), even if we already have latlong coords.
         if matched_fac is not None:
-            props["Category"] = matched_fac.category
+            props["Category"] = matched_fac.category or "Agronomy"
             props["FacilityName"] = matched_fac.name
             props["LongName"] = matched_fac.longname
             props["MatchTier"] = match_tier
@@ -802,7 +978,10 @@ def main() -> int:
             if fac_supp and fac_supp.upper() != "TBD":
                 props["Suppliers"] = fac_supp
 
-            lonlat = (matched_fac.lon, matched_fac.lat)
+            # Only fall back to facility coords if latlong coords are missing
+            if lonlat is None:
+                lonlat = (matched_fac.lon, matched_fac.lat)
+                n_coords_from_facility += 1
 
         else:
             n_tbd += 1
@@ -810,43 +989,44 @@ def main() -> int:
             props["FacilityName"] = ""
             props["LongName"] = ""
             props["MatchTier"] = "TBD"
-            props["GeoSource"] = "MAPBOX"
+            props["GeoSource"] = "KINGPIN_LATLONG" if lonlat is not None else "MAPBOX"
 
-            if args.geocode_no_match:
-                ck_full = cache_key_full(addr_raw, city_raw, state, zipc)
+        # If still missing coords, optionally geocode (only when enabled)
+        if lonlat is None and args.geocode_no_match and addr_raw and city_raw and state and zipc:
+            ck_full = cache_key_full(addr_raw, city_raw, state, zipc)
 
-                if ck_full in cache and isinstance(cache[ck_full], list) and len(cache[ck_full]) == 2:
-                    try:
-                        lonlat = (float(cache[ck_full][0]), float(cache[ck_full][1]))
-                        cache_hits += 1
-                    except Exception:
-                        lonlat = None
+            if ck_full in cache and isinstance(cache[ck_full], list) and len(cache[ck_full]) == 2:
+                try:
+                    lonlat = (float(cache[ck_full][0]), float(cache[ck_full][1]))
+                    cache_hits += 1
+                except Exception:
+                    lonlat = None
 
-                if lonlat is None:
-                    gl, status, reason = geocode_address_mapbox(
-                        token=token,
-                        address=addr_raw,
-                        city=city_raw,
-                        state=state,
-                        zipc=zipc,
-                        sleep_s=max(0.0, args.geocode_sleep),
-                    )
-                    if gl:
-                        lonlat = gl
-                        n_geocoded += 1
-                        cache[ck_full] = [float(gl[0]), float(gl[1])]
-                        cache_writes += 1
-                    else:
-                        n_geocode_failed += 1
-                        k = str(status)
-                        fail_status_counts[k] = fail_status_counts.get(k, 0) + 1
-                        if printed_failures < args.debug_geocode_failures:
-                            printed_failures += 1
-                            print(
-                                f"⚠️  Geocode failed [{status}] {reason} :: "
-                                f"{addr_raw}, {city_raw}, {state} {zipc} "
-                                f"(Retailer: {retailer_raw})"
-                            )
+            if lonlat is None:
+                gl, status, reason = geocode_address_mapbox(
+                    token=token,
+                    address=addr_raw,
+                    city=city_raw,
+                    state=state,
+                    zipc=zipc,
+                    sleep_s=max(0.0, args.geocode_sleep),
+                )
+                if gl:
+                    lonlat = gl
+                    n_geocoded += 1
+                    cache[ck_full] = [float(gl[0]), float(gl[1])]
+                    cache_writes += 1
+                    props["GeoSource"] = "MAPBOX"
+                else:
+                    n_geocode_failed += 1
+                    k = str(status)
+                    fail_status_counts[k] = fail_status_counts.get(k, 0) + 1
+                    if printed_failures < args.debug_geocode_failures:
+                        printed_failures += 1
+                        print(
+                            f"⚠️  Geocode failed [{status}] {reason} :: "
+                            f"{addr_raw}, {city_raw}, {state} {zipc} (Retailer: {retailer_raw})"
+                        )
 
         if lonlat is not None:
             enriched.append({**props, "Longitude": str(lonlat[0]), "Latitude": str(lonlat[1])})
@@ -856,18 +1036,52 @@ def main() -> int:
     ensure_out_dir(args.out_dir)
 
     enriched_fields = [
-        "Retailer","Suppliers","ContactName","ContactTitle","Title","Email","OfficePhone","CellPhone",
-        "Address","City","State","Zip","Category","FacilityName","LongName","MatchTier","GeoSource",
-        "Longitude","Latitude","FullAddress"
+        "Retailer",
+        "Suppliers",
+        "ContactName",
+        "ContactTitle",
+        "Title",
+        "Email",
+        "OfficePhone",
+        "CellPhone",
+        "Address",
+        "City",
+        "State",
+        "Zip",
+        "Category",
+        "FacilityName",
+        "LongName",
+        "MatchTier",
+        "GeoSource",
+        "Longitude",
+        "Latitude",
+        "FullAddress",
     ]
     write_csv(os.path.join(args.out_dir, "kingpin_enriched.csv"), enriched, enriched_fields)
 
     unmatched_fields = [
-        "Retailer","Suppliers","ContactName","ContactTitle","Title","Email","OfficePhone","CellPhone",
-        "Address","City","State","Zip","Category","FacilityName","LongName","MatchTier","GeoSource","FullAddress"
+        "Retailer",
+        "Suppliers",
+        "ContactName",
+        "ContactTitle",
+        "Title",
+        "Email",
+        "OfficePhone",
+        "CellPhone",
+        "Address",
+        "City",
+        "State",
+        "Zip",
+        "Category",
+        "FacilityName",
+        "LongName",
+        "MatchTier",
+        "GeoSource",
+        "FullAddress",
     ]
     write_csv(os.path.join(args.out_dir, "kingpin_unmatched.csv"), unmatched, unmatched_fields)
 
+    # Build GeoJSON features
     features: List[Dict[str, Any]] = []
     for r in enriched:
         try:
@@ -887,14 +1101,17 @@ def main() -> int:
         save_geocode_cache(args.cache_file, cache)
 
     stats = {
-        "input_rows_total_including_blanks": len(raw_rows),
-        "rows_total_processed": n_total,
+        "input_rows_total_including_blanks": n_input_total,
         "rows_dropped_blank": n_dropped_blank,
-        "rows_dropped_missing_min": n_dropped_missing_min,
+        "rows_missing_min_fields": n_dropped_missing_min,
+        "rows_kept_due_to_coords_even_if_missing_min": n_kept_due_to_coords,
+        "rows_missing_min_and_no_coords": n_kept_missing_min_no_coords,
         "matched_t1": n_t1,
         "matched_t2": n_t2,
         "matched_t3": n_t3,
-        "tbd_unmatched": n_tbd,
+        "tbd_rows": n_tbd,
+        "coords_from_kingpin_latlong": n_coords_from_latlong,
+        "coords_from_facility_fallback": n_coords_from_facility,
         "tbd_geocoded": n_geocoded,
         "tbd_geocode_failed": n_geocode_failed,
         "geocode_fail_status_counts": fail_status_counts,
@@ -913,7 +1130,16 @@ def main() -> int:
 
     print("✅ kingpin.geojson build complete")
     print(json.dumps(stats, indent=2))
+
+    # Helpful sanity cue (the number you care about)
+    if stats["coords_from_kingpin_latlong"] > 0:
+        print(
+            f"\n🔎 Sanity: coords_from_kingpin_latlong={stats['coords_from_kingpin_latlong']} "
+            f"→ output_features={stats['output_features']}\n"
+        )
+
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
