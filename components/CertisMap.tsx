@@ -25,6 +25,10 @@
 //   K16.1 PATCH (Jan 2026):
 //     • Restored Home → Stop #1 segment by including homeCoords as waypoint 0 when present
 //     • Route key + Directions request now include Home (prevents “missing first leg”)
+//
+//   K16.2 PATCH (Jan 2026):
+//     • Prevent “Canada snap” on initial load by ignoring zoomToStop once on first mount
+//     • Add maxBounds clamp (US-ish) to prevent accidental pan/fit to out-of-region outliers
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -103,6 +107,13 @@ type Props = {
 const STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
 const DEFAULT_CENTER: [number, number] = [-93.5, 41.5];
 const DEFAULT_ZOOM = 5;
+
+// US-ish clamp to prevent accidental pan/fit to out-of-region points.
+// (Not a political statement — purely a viewport guardrail for this dataset.)
+const MAX_BOUNDS_US: mapboxgl.LngLatBoundsLike = [
+  [-127, 23], // SW
+  [-65, 51], // NE
+];
 
 const SRC_RETAILERS = "retailers";
 const SRC_KINGPINS = "kingpins";
@@ -356,6 +367,9 @@ export default function CertisMap(props: Props) {
   // ✅ Keep only ONE open popup at a time (prevents stacking)
   const activePopupRef = useRef<mapboxgl.Popup | null>(null);
 
+  // ✅ Prevent initial “Canada snap” if zoomToStop is pre-populated at mount.
+  const ignoreInitialZoomToStopRef = useRef<boolean>(true);
+
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
     return bp || "/certis_agroute_app";
@@ -428,6 +442,7 @@ export default function CertisMap(props: Props) {
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       projection: { name: "mercator" },
+      maxBounds: MAX_BOUNDS_US,
     });
 
     mapRef.current = map;
@@ -885,6 +900,13 @@ export default function CertisMap(props: Props) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !zoomToStop) return;
+
+    // ✅ Prevent initial “Canada snap” if zoomToStop is already set during first mount.
+    if (ignoreInitialZoomToStopRef.current) {
+      ignoreInitialZoomToStopRef.current = false;
+      return;
+    }
+
     map.flyTo({ center: zoomToStop.coords, zoom: 12.5, essential: true });
   }, [zoomToStop]);
 
