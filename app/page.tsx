@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import CertisMap, { Stop, RetailerNetworkSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
@@ -134,7 +134,7 @@ export default function Page() {
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
 
   // Home (UI removed; keep coords for future optional round-trip)
-  const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
+  const [homeCoords] = useState<[number, number] | null>(null);
 
   // Stops + Trip
   const [allStops, setAllStops] = useState<Stop[]>([]);
@@ -146,7 +146,11 @@ export default function Page() {
   const [retailerSearch, setRetailerSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
-  const [stopSearch, setStopSearch] = useState("");
+
+  // ✅ Find-a-Stop: separate "draft" vs "applied" to make Enter reliable
+  const [stopSearchDraft, setStopSearchDraft] = useState("");
+  const [stopSearchApplied, setStopSearchApplied] = useState("");
+  const stopResultsRef = useRef<HTMLDivElement | null>(null);
 
   // Default collapse behavior
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
@@ -241,9 +245,27 @@ export default function Page() {
     return q ? suppliers.filter((x) => includesLoose(x, q)) : suppliers;
   }, [suppliers, supplierSearch]);
 
-  // STOP SEARCH
+  const applyStopSearch = (raw?: string) => {
+    const next = String(raw ?? stopSearchDraft).trim();
+    setStopSearchApplied(next);
+
+    // make the UI change obvious: snap results list back to top
+    if (stopResultsRef.current) {
+      stopResultsRef.current.scrollTop = 0;
+    }
+  };
+
+  const clearStopSearch = () => {
+    setStopSearchDraft("");
+    setStopSearchApplied("");
+    if (stopResultsRef.current) {
+      stopResultsRef.current.scrollTop = 0;
+    }
+  };
+
+  // STOP SEARCH (uses applied query so Enter is deterministic)
   const stopResults = useMemo(() => {
-    const qRaw = stopSearch.trim();
+    const qRaw = stopSearchApplied.trim();
     if (!qRaw) return allStops.slice(0, 30);
 
     const tokens = tokenizeQuery(qRaw);
@@ -355,7 +377,7 @@ export default function Page() {
 
     scored.sort((a, b) => b.score - a.score);
     return scored.map((x) => x.st).slice(0, 50);
-  }, [allStops, stopSearch, tripStops]);
+  }, [allStops, stopSearchApplied, tripStops]);
 
   // MASTER RETAILER TOTALS (FULL FOOTPRINT)
   const retailerTotalsIndex = useMemo(() => {
@@ -577,7 +599,7 @@ export default function Page() {
   };
 
   const strictHint =
-    stopSearch.trim().split(/\s+/g).filter(Boolean).length >= 2
+    stopSearchDraft.trim().split(/\s+/g).filter(Boolean).length >= 2
       ? `Strict person search: multi-word queries must match name/email (e.g., "James Klein").`
       : `Search tip: multi-word queries act like a strict name search (e.g., "James Klein").`;
 
@@ -736,14 +758,48 @@ export default function Page() {
                 {!collapsed[sectionKey("Find a Stop")] && (
                   <div className="space-y-2 mt-3">
                     <input
-                      value={stopSearch}
-                      onChange={(e) => setStopSearch(e.target.value)}
-                      placeholder="Search by retailer, city, state, name, contact…"
+                      value={stopSearchDraft}
+                      onChange={(e) => setStopSearchDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          applyStopSearch();
+                        }
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          clearStopSearch();
+                        }
+                      }}
+                      placeholder='Type search, then press Enter (e.g., "James Klein" or "Hull Coop")'
                       className={smallInputClass}
+                      aria-label="Find a Stop search"
                     />
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => applyStopSearch()}
+                        className="text-xs px-3 py-2 rounded-xl bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90"
+                        title="Apply search (Enter)"
+                      >
+                        Search
+                      </button>
+
+                      <button type="button" onClick={clearStopSearch} className={clearBtnClass} disabled={!stopSearchDraft && !stopSearchApplied}>
+                        Clear
+                      </button>
+
+                      <div className="ml-auto text-[11px] text-white/60">
+                        Applied:{" "}
+                        <span className="text-white/85 font-semibold">
+                          {stopSearchApplied ? `"${stopSearchApplied}"` : "—"}
+                        </span>
+                      </div>
+                    </div>
+
                     <div className={tanSubTextClass}>{strictHint}</div>
 
-                    <div className={stopListClass}>
+                    <div ref={stopResultsRef} className={stopListClass} key={stopSearchApplied || "__empty__"}>
                       {stopResults.map((st) => {
                         const inTrip = tripStops.some((x) => x.id === st.id);
                         return (
@@ -1012,8 +1068,7 @@ export default function Page() {
 
                         <div className="text-xs text-white/80 mt-2 space-y-1">
                           <div>
-                            <span className="font-extrabold text-white/90">Agronomy locations:</span>{" "}
-                            {row.agronomyLocations}
+                            <span className="font-extrabold text-white/90">Agronomy locations:</span> {row.agronomyLocations}
                           </div>
                           <div>
                             <span className="font-extrabold text-white/90">States:</span> {row.states.join(", ") || "—"}
@@ -1023,8 +1078,7 @@ export default function Page() {
                             {row.categoryBreakdown.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white/90">Suppliers:</span>{" "}
-                            {row.suppliers.join(", ") || "—"}
+                            <span className="font-extrabold text-white/90">Suppliers:</span> {row.suppliers.join(", ") || "—"}
                           </div>
                         </div>
                       </div>
@@ -1047,8 +1101,8 @@ export default function Page() {
                     />
 
                     <div className={tanSubTextClass}>
-                      Computed from <span className="text-white/90 font-semibold">retailers.geojson</span> (true
-                      location footprint).
+                      Computed from <span className="text-white/90 font-semibold">retailers.geojson</span> (true location
+                      footprint).
                     </div>
 
                     <div className="space-y-2">
@@ -1067,9 +1121,7 @@ export default function Page() {
                             </div>
                             <div>
                               <span className="font-extrabold text-white/90">Category breakdown:</span>{" "}
-                              {r.categoryCounts?.length
-                                ? r.categoryCounts.map((c) => `${c.category} (${c.count})`).join(", ")
-                                : "—"}
+                              {r.categoryCounts?.length ? r.categoryCounts.map((c) => `${c.category} (${c.count})`).join(", ") : "—"}
                             </div>
                           </div>
                         </div>
