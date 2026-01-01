@@ -266,12 +266,13 @@ export default function Page() {
   const lastRouteKeyRef = useRef<string>("");
 
   // Default collapse behavior
+  // ✅ Requirement: start with all cards collapsed EXCEPT Legend
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     [sectionKey("Legend")]: false,
 
     // Trip Planning (primary workflow)
-    [sectionKey("Trip Builder")]: false,
-    [sectionKey("Find a Stop")]: false,
+    [sectionKey("Trip Builder")]: true,
+    [sectionKey("Find a Stop")]: true,
 
     // Exploration
     [sectionKey("Filters")]: true,

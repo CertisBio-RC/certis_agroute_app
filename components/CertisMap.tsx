@@ -29,6 +29,9 @@
 //   K16.2 PATCH (Jan 2026):
 //     • Prevent “Canada snap” on initial load by ignoring zoomToStop once on first mount
 //     • Add maxBounds clamp (US-ish) to prevent accidental pan/fit to out-of-region outliers
+//
+//   K16.3 PATCH (Jan 2026):
+//     • Default viewport centered on Omaha, NE (initial app load)
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -105,8 +108,10 @@ type Props = {
 };
 
 const STYLE_URL = "mapbox://styles/mapbox/satellite-streets-v12";
-const DEFAULT_CENTER: [number, number] = [-93.5, 41.5];
-const DEFAULT_ZOOM = 5;
+
+// ✅ Default viewport (Omaha, NE)
+const DEFAULT_CENTER: [number, number] = [-95.9345, 41.2565];
+const DEFAULT_ZOOM = 6.8;
 
 // US-ish clamp to prevent accidental pan/fit to out-of-region points.
 // (Not a political statement — purely a viewport guardrail for this dataset.)
@@ -439,8 +444,8 @@ export default function CertisMap(props: Props) {
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: STYLE_URL,
-      center: DEFAULT_CENTER,
-      zoom: DEFAULT_ZOOM,
+      center: DEFAULT_CENTER, // ✅ Omaha default
+      zoom: DEFAULT_ZOOM, // ✅ Omaha default zoom
       projection: { name: "mercator" },
       maxBounds: MAX_BOUNDS_US,
     });
@@ -718,8 +723,7 @@ export default function CertisMap(props: Props) {
   }, [basePath, token, KINGPIN_ICON_ID, KINGPIN_SVG]);
 
   function buildRetailerNetworkSummary(retailersData: FeatureCollection): RetailerNetworkSummaryRow[] {
-    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> =
-      {};
+    const acc: Record<string, { total: number; agronomy: number; states: Set<string>; catCounts: Map<string, number> }> = {};
 
     for (const f of retailersData.features ?? []) {
       const p = f.properties ?? {};
@@ -826,8 +830,7 @@ export default function CertisMap(props: Props) {
       const retailer = s(p.Retailer);
       const name = s(p.Name);
 
-      const label =
-        kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
+      const label = kind === "hq" ? `${retailer || "Regional HQ"} — Regional HQ` : `${retailer || "Retailer"} — ${name || "Site"}`;
 
       allStops.push({
         id: makeId(kind, coords, p),
@@ -1257,14 +1260,9 @@ export default function CertisMap(props: Props) {
       {/* Route status (only shows when fallback is active) */}
       {routeMode === "fallback" && (
         <div className="absolute top-4 left-4 z-10">
-          <div
-            className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-3 py-2"
-            style={{ maxWidth: 340 }}
-          >
+          <div className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-3 py-2" style={{ maxWidth: 340 }}>
             <div className="text-[12px] font-extrabold text-yellow-300">Route fallback active</div>
-            <div className="text-[11px] text-white/80 mt-0.5">
-              Using a straight-line polyline (Directions API failed). Check token/network or retry.
-            </div>
+            <div className="text-[11px] text-white/80 mt-0.5">Using a straight-line polyline (Directions API failed). Check token/network or retry.</div>
           </div>
         </div>
       )}
