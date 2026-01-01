@@ -54,10 +54,6 @@ function allTokensPresent(haystackLower: string, tokens: string[]) {
   return tokens.every((t) => haystackLower.includes(t));
 }
 
-function clamp(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, n));
-}
-
 function metersToMiles(m: number) {
   return m / 1609.344;
 }
@@ -184,21 +180,12 @@ function getStopLngLat(st: Stop): [number, number] | null {
   return null;
 }
 
-function stopPrettyLabel(st: Stop) {
-  const parts: string[] = [];
-  if (st.label) parts.push(st.label);
-  const loc = [st.city, st.state, st.zip].filter(Boolean).join(", ").replace(", ,", ",").trim();
-  if (loc) parts.push(loc);
-  return parts.join(" — ");
-}
-
 function lngLatToString(ll: [number, number]) {
   // Google prefers lat,lng; Mapbox is lng,lat; Apple accepts lat,lng; Waze accepts lat,lng
   return `${ll[1]},${ll[0]}`;
 }
 
 function makeGoogleDirectionsUrl(pointsLatLng: string[]) {
-  // pointsLatLng are strings like "lat,lng"
   if (pointsLatLng.length < 2) return "";
   const origin = pointsLatLng[0];
   const destination = pointsLatLng[pointsLatLng.length - 1];
@@ -214,7 +201,6 @@ function makeGoogleDirectionsUrl(pointsLatLng: string[]) {
 }
 
 function makeAppleMapsUrl(pointsLatLng: string[]) {
-  // Apple supports: saddr=... and daddr=... with +to: chaining for multiple destinations
   if (pointsLatLng.length < 2) return "";
   const saddr = pointsLatLng[0];
   const chain = pointsLatLng.slice(1).join("+to:");
@@ -226,7 +212,6 @@ function makeAppleMapsUrl(pointsLatLng: string[]) {
 }
 
 function makeWazeUrl(latlng: string) {
-  // Single destination (Waze doesn't reliably support multi-stop web URLs)
   const params = new URLSearchParams();
   params.set("ll", latlng);
   params.set("navigate", "yes");
@@ -283,15 +268,18 @@ export default function Page() {
   // Default collapse behavior
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     [sectionKey("Legend")]: false,
-    [sectionKey("Find a Stop")]: true,
+
+    // Trip Planning (primary workflow)
+    [sectionKey("Trip Builder")]: false,
+    [sectionKey("Find a Stop")]: false,
+
+    // Exploration
     [sectionKey("Filters")]: true,
-    [sectionKey("State")]: true,
-    [sectionKey("Retailer")]: true,
-    [sectionKey("Category")]: true,
-    [sectionKey("Supplier")]: true,
-    [sectionKey("Trip Builder")]: true,
     [sectionKey("Retail Summary - Trip Stops")]: true,
     [sectionKey("Retail Summary - Network")]: true,
+
+    // Future
+    [sectionKey("Future Data Layers")]: true,
   });
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
@@ -654,7 +642,6 @@ export default function Page() {
     const pts: [number, number][] = [];
     if (homeCoords) pts.push(homeCoords);
 
-    // include tripStops with coords
     for (const st of tripStops) {
       const ll = getStopLngLat(st);
       if (ll) pts.push(ll);
@@ -669,7 +656,6 @@ export default function Page() {
   const googleRouteUrl = useMemo(() => makeGoogleDirectionsUrl(routePointsLatLngStrings), [routePointsLatLngStrings]);
   const appleRouteUrl = useMemo(() => makeAppleMapsUrl(routePointsLatLngStrings), [routePointsLatLngStrings]);
 
-  // Waze: best-effort “Next Stop” (or final destination if only one stop)
   const wazeUrl = useMemo(() => {
     if (routePointsLatLngStrings.length < 2) return "";
     const next = routePointsLatLngStrings[1] || routePointsLatLngStrings[routePointsLatLngStrings.length - 1];
@@ -680,7 +666,6 @@ export default function Page() {
 
   // ===== Distances + times between stops (Mapbox Directions) =====
   useEffect(() => {
-    // reset when route cannot be computed
     if (!canBuildRoute) {
       setRouteLegs([]);
       setRouteTotals(null);
@@ -689,7 +674,6 @@ export default function Page() {
       return;
     }
 
-    // Mapbox Directions v5: max 25 coordinates per request.
     const maxCoords = 25;
     const pts = routePointsLngLat.slice(0, maxCoords);
 
@@ -697,7 +681,6 @@ export default function Page() {
     if (key === lastRouteKeyRef.current) return;
     lastRouteKeyRef.current = key;
 
-    // abort prior
     if (routeAbortRef.current) routeAbortRef.current.abort();
     const ac = new AbortController();
     routeAbortRef.current = ac;
@@ -737,7 +720,6 @@ export default function Page() {
           return;
         }
 
-        // labels: Home (if set) + tripStops with coords
         const labels: string[] = [];
         if (homeCoords) labels.push(homeLabel);
         for (const st of tripStops) {
@@ -776,7 +758,6 @@ export default function Page() {
       }
     };
 
-    // tiny debounce to avoid bursts on quick edits
     const t = window.setTimeout(run, 220);
     return () => window.clearTimeout(t);
   }, [canBuildRoute, routePointsLngLat, token, homeCoords, homeLabel, tripStops]);
@@ -859,6 +840,13 @@ export default function Page() {
     "text-xs px-3 py-1.5 rounded-xl border border-cyan-200/20 bg-[#061126]/45 " +
     "hover:bg-white/10 hover:border-cyan-200/40";
 
+  const Divider = ({ label }: { label: string }) => (
+    <div className="my-3">
+      <div className="h-px bg-white/10" />
+      <div className="mt-2 text-[11px] font-extrabold tracking-wide text-white/60">{label}</div>
+    </div>
+  );
+
   const Caret = ({ up }: { up: boolean }) => (
     <svg
       width="14"
@@ -919,7 +907,7 @@ export default function Page() {
   const mapFirstMobileClass = "order-1 lg:order-2";
   const sidebarSecondMobileClass = "order-2 lg:order-1";
 
-  // LEGEND — same as your current file (unchanged)
+  // LEGEND — 2x3 grid
   const legendItems = useMemo(() => {
     const has = (x: string) => categories.includes(x);
 
@@ -997,155 +985,373 @@ export default function Page() {
           {/* SIDEBAR */}
           <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}>
             <div className="overflow-y-auto px-4 py-3 space-y-4">
-              {/* LEGEND */}
+              {/* LEGEND (keep high in sidebar) */}
               <div className={sectionShellClass}>
                 <SectionHeader title="Legend" k={sectionKey("Legend")} />
                 {!collapsed[sectionKey("Legend")] && (
                   <div className="mt-3">
-                    <div className="rounded-xl border ring-1 backdrop-blur-sm px-3 py-2 space-y-2 bg-[linear-gradient(180deg,var(--cad-list-top),var(--cad-list-bot))] border-[color:var(--cad-tile-border)] ring-[color:var(--cad-tile-ring)]">
-                      {legendItems.map((it) => (
-                        <div key={it.label} className="flex items-center gap-3">
-                          {it.kind === "dot" && (
-                            <span
-                              className="inline-block h-3 w-3 rounded-full border border-black/40 flex-shrink-0"
-                              style={{ background: it.swatch }}
-                              aria-hidden="true"
-                            />
-                          )}
+                    <div className="rounded-xl border ring-1 backdrop-blur-sm px-3 py-3 bg-[linear-gradient(180deg,var(--cad-list-top),var(--cad-list-bot))] border-[color:var(--cad-tile-border)] ring-[color:var(--cad-tile-ring)]">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                        {legendItems.map((it) => (
+                          <div key={it.label} className="flex items-center gap-2 min-w-0">
+                            {it.kind === "dot" && (
+                              <span
+                                className="inline-block h-3 w-3 rounded-full border border-black/40 flex-shrink-0"
+                                style={{ background: it.swatch }}
+                                aria-hidden="true"
+                              />
+                            )}
 
-                          {it.kind === "hq" && (
-                            <span
-                              className="inline-block h-3 w-3 rounded-full border border-black/40 flex-shrink-0"
-                              style={{ background: it.swatch, boxShadow: "0 0 0 2px rgba(250,204,21,0.85) inset" }}
-                              aria-hidden="true"
-                            />
-                          )}
+                            {it.kind === "hq" && (
+                              <span
+                                className="inline-block h-3 w-3 rounded-full border border-black/40 flex-shrink-0"
+                                style={{ background: it.swatch, boxShadow: "0 0 0 2px rgba(250,204,21,0.85) inset" }}
+                                aria-hidden="true"
+                              />
+                            )}
 
-                          {it.kind === "kingpin" && (
-                            <span className="inline-flex items-center justify-center h-4 w-4 flex-shrink-0" aria-hidden="true">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="16" height="16">
-                                <path
-                                  d="M64 14
-                                     L78.6 47.5
-                                     L115 52.2
-                                     L88 75.1
-                                     L96.1 110
-                                     L64 92
-                                     L31.9 110
-                                     L40 75.1
-                                     L13 52.2
-                                     L49.4 47.5
-                                     Z"
-                                  fill={it.swatch}
-                                  stroke="#0b1220"
-                                  strokeWidth="6"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </span>
-                          )}
+                            {it.kind === "kingpin" && (
+                              <span className="inline-flex items-center justify-center h-4 w-4 flex-shrink-0" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="16" height="16">
+                                  <path
+                                    d="M64 14
+                                       L78.6 47.5
+                                       L115 52.2
+                                       L88 75.1
+                                       L96.1 110
+                                       L64 92
+                                       L31.9 110
+                                       L40 75.1
+                                       L13 52.2
+                                       L49.4 47.5
+                                       Z"
+                                    fill={it.swatch}
+                                    stroke="#0b1220"
+                                    strokeWidth="6"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </span>
+                            )}
 
-                          <div className="flex-1 text-sm font-normal text-white/90 leading-tight">{it.label}</div>
+                            <div className="flex-1 text-sm font-normal text-white/90 leading-tight truncate">{it.label}</div>
+                          </div>
+                        ))}
+                      </div>
 
-                          {it.kind === "hq" && <div className="text-[11px] text-white/60 whitespace-nowrap">red + ring</div>}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-2 text-[11px] text-white/60">
-                      Kingpins are always visible (offset slightly to avoid overlap).
+                      <div className="mt-2 text-[11px] text-white/60">
+                        Kingpins are always visible (offset slightly to avoid overlap).
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* STOP SEARCH */}
+              {/* TRIP BUILDER (PRIMARY WORKFLOW) */}
               <div className={sectionShellClass}>
                 <SectionHeader
-                  title="Find a Stop"
-                  k={sectionKey("Find a Stop")}
-                  right={<div className="text-[11px] text-white/65 whitespace-nowrap">Loaded: {allStops.length}</div>}
+                  title="Trip Builder"
+                  k={sectionKey("Trip Builder")}
+                  right={
+                    <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0 && !homeCoords}>
+                      Clear Trip
+                    </button>
+                  }
                 />
-                {!collapsed[sectionKey("Find a Stop")] && (
-                  <div className="space-y-2 mt-3">
-                    <input
-                      value={stopSearchDraft}
-                      onChange={(e) => setStopSearchDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          applyStopSearch();
-                        }
-                        if (e.key === "Escape") {
-                          e.preventDefault();
-                          clearStopSearch();
-                        }
-                      }}
-                      placeholder='Type search, then press Enter (e.g., "James Klein" or "Hull Coop")'
-                      className={smallInputClass}
-                      aria-label="Find a Stop search"
-                    />
+                {!collapsed[sectionKey("Trip Builder")] && (
+                  <div className="space-y-3 mt-3">
+                    {/* Home ZIP (restored) */}
+                    <div className={innerTileClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={tileTitleClass}>Home ZIP</div>
+                        <button onClick={clearHome} className={clearBtnClass} disabled={!homeCoords && !homeZipDraft && !homeZipApplied}>
+                          Clear
+                        </button>
+                      </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => applyStopSearch()}
-                        className="text-xs px-3 py-2 rounded-xl bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90"
-                        title="Apply search (Enter)"
-                      >
-                        Search
-                      </button>
+                      <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
+                        <input
+                          value={homeZipDraft}
+                          onChange={(e) => setHomeZipDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              applyHomeZip();
+                            }
+                            if (e.key === "Escape") {
+                              e.preventDefault();
+                              clearHome();
+                            }
+                          }}
+                          placeholder="Enter ZIP (e.g., 50266)"
+                          className={smallInputClass}
+                          inputMode="numeric"
+                        />
+                        <button
+                          type="button"
+                          onClick={applyHomeZip}
+                          className="text-xs px-3 py-2 rounded-xl bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90"
+                        >
+                          Set
+                        </button>
+                      </div>
 
-                      <button type="button" onClick={clearStopSearch} className={clearBtnClass} disabled={!stopSearchDraft && !stopSearchApplied}>
-                        Clear
-                      </button>
+                      <div className="mt-2 text-[11px] text-white/70">
+                        {homeCoords ? (
+                          <>
+                            <span className="text-white/90 font-semibold">Applied:</span> {homeZipApplied || "—"}{" "}
+                            <span className="text-white/60">•</span>{" "}
+                            <span className="text-white/80">
+                              {homeCoords[1].toFixed(4)}, {homeCoords[0].toFixed(4)}
+                            </span>
+                          </>
+                        ) : (
+                          <>Tip: Set Home ZIP to get full route links + leg distances/times.</>
+                        )}
+                      </div>
 
-                      <div className="ml-auto text-[11px] text-white/60">
-                        Applied:{" "}
-                        <span className="text-white/85 font-semibold">
-                          {stopSearchApplied ? `"${stopSearchApplied}"` : "—"}
-                        </span>
+                      {homeStatus && (
+                        <div className={`mt-2 text-[11px] ${homeStatus.ok ? "text-green-300" : "text-red-300"}`}>
+                          {homeStatus.msg}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ✅ Divider requested: visually separates Home ZIP from the rest */}
+                    <Divider label="TRIP PLANNING" />
+
+                    {/* Find a Stop — moved directly below Home ZIP */}
+                    <div className={sectionShellClass}>
+                      <SectionHeader
+                        title="Find a Stop"
+                        k={sectionKey("Find a Stop")}
+                        right={<div className="text-[11px] text-white/65 whitespace-nowrap">Loaded: {allStops.length}</div>}
+                      />
+                      {!collapsed[sectionKey("Find a Stop")] && (
+                        <div className="space-y-2 mt-3">
+                          <input
+                            value={stopSearchDraft}
+                            onChange={(e) => setStopSearchDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                applyStopSearch();
+                              }
+                              if (e.key === "Escape") {
+                                e.preventDefault();
+                                clearStopSearch();
+                              }
+                            }}
+                            placeholder='Type search, then press Enter (e.g., "James Klein" or "Hull Coop")'
+                            className={smallInputClass}
+                            aria-label="Find a Stop search"
+                          />
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => applyStopSearch()}
+                              className="text-xs px-3 py-2 rounded-xl bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90"
+                              title="Apply search (Enter)"
+                            >
+                              Search
+                            </button>
+
+                            <button type="button" onClick={clearStopSearch} className={clearBtnClass} disabled={!stopSearchDraft && !stopSearchApplied}>
+                              Clear
+                            </button>
+
+                            <div className="ml-auto text-[11px] text-white/60">
+                              Applied:{" "}
+                              <span className="text-white/85 font-semibold">
+                                {stopSearchApplied ? `"${stopSearchApplied}"` : "—"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className={tanSubTextClass}>{strictHint}</div>
+
+                          <div ref={stopResultsRef} className={stopListClass} key={stopSearchApplied || "__empty__"}>
+                            {stopResults.map((st) => {
+                              const inTrip = tripStops.some((x) => x.id === st.id);
+                              return (
+                                <div key={st.id} className={innerTileClass}>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <div className={tileTitleClass}>{st.label}</div>
+                                      <div className={tanSubTextClass}>
+                                        {(st.city || "") + (st.city ? ", " : "")}
+                                        {st.state || ""}
+                                        {st.zip ? ` ${st.zip}` : ""}
+                                        {st.kind ? ` • ${st.kind}` : ""}
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                                        Zoom
+                                      </button>
+                                      <button
+                                        onClick={() => addStopToTrip(st)}
+                                        className="text-xs px-2 py-1 rounded-lg bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90 disabled:opacity-50"
+                                        disabled={inTrip}
+                                      >
+                                        {inTrip ? "Added" : "Add"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {stopResults.length === 0 && <div className={subTextClass}>No matches.</div>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <Divider label="ROUTE & STOPS" />
+
+                    {/* Share route links */}
+                    <div className={innerTileClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={tileTitleClass}>Send to Phone</div>
+                        <div className="text-[11px] text-white/60">
+                          {routePointsLngLat.length >= 2 ? `${routePointsLngLat.length} points` : "Add ≥ 1 stop"}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        <a
+                          href={googleRouteUrl || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
+                            googleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
+                          }`}
+                        >
+                          Google
+                        </a>
+
+                        <a
+                          href={appleRouteUrl || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
+                            appleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
+                          }`}
+                        >
+                          Apple
+                        </a>
+
+                        <a
+                          href={wazeUrl || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
+                            wazeUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
+                          }`}
+                          title="Waze opens the next stop (single-destination)"
+                        >
+                          Waze
+                        </a>
+                      </div>
+
+                      <div className="mt-2 text-[11px] text-white/60">
+                        Waze opens the <span className="text-white/85 font-semibold">next stop</span> (single-destination).
                       </div>
                     </div>
 
-                    <div className={tanSubTextClass}>{strictHint}</div>
+                    {/* ✅ Line between Home ZIP and first stop (and keeps stops visually separated) */}
+                    {(homeCoords || tripStops.length > 0) && <div className="h-px bg-white/10 my-1" />}
 
-                    <div ref={stopResultsRef} className={stopListClass} key={stopSearchApplied || "__empty__"}>
-                      {stopResults.map((st) => {
-                        const inTrip = tripStops.some((x) => x.id === st.id);
-                        return (
-                          <div key={st.id} className={innerTileClass}>
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <div className={tileTitleClass}>{st.label}</div>
-                                <div className={tanSubTextClass}>
-                                  {(st.city || "") + (st.city ? ", " : "")}
-                                  {st.state || ""}
-                                  {st.zip ? ` ${st.zip}` : ""}
-                                  {st.kind ? ` • ${st.kind}` : ""}
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <button onClick={() => zoomStop(st)} className={clearBtnClass}>
-                                  Zoom
-                                </button>
-                                <button
-                                  onClick={() => addStopToTrip(st)}
-                                  className="text-xs px-2 py-1 rounded-lg bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90 disabled:opacity-50"
-                                  disabled={inTrip}
-                                >
-                                  {inTrip ? "Added" : "Add"}
-                                </button>
-                              </div>
+                    {/* Trip stops list */}
+                    {tripStops.map((st, idx) => (
+                      <div key={st.id} className={innerTileClass}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className={`${tileTitleClass} !text-sm`}>
+                              {idx + 1}. {st.label}
+                            </div>
+                            <div className={tanSubTextClass}>
+                              {(st.city || "") + (st.city ? ", " : "")}
+                              {st.state || ""}
+                              {st.zip ? ` ${st.zip}` : ""}
+                              {st.kind ? ` • ${st.kind}` : ""}
                             </div>
                           </div>
-                        );
-                      })}
-                      {stopResults.length === 0 && <div className={subTextClass}>No matches.</div>}
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                                Zoom
+                              </button>
+                              <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
+                                Remove
+                              </button>
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => moveStop(idx, -1)} className={clearBtnClass} disabled={idx === 0} title="Move up">
+                                ↑
+                              </button>
+                              <button onClick={() => moveStop(idx, 1)} className={clearBtnClass} disabled={idx === tripStops.length - 1} title="Move down">
+                                ↓
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {tripStops.length === 0 && (
+                      <div className={tanSubTextClass}>
+                        Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
+                      </div>
+                    )}
+
+                    {/* Distances / Times between stops */}
+                    <div className={innerTileClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={tileTitleClass}>Distances & Times</div>
+                        {routeTotals ? (
+                          <div className="text-xs text-white/75 whitespace-nowrap">
+                            Total: {formatMiles(routeTotals.distanceMeters)} • {formatMinutes(routeTotals.durationSeconds)}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-white/60 whitespace-nowrap">—</div>
+                        )}
+                      </div>
+
+                      <div className="mt-2 space-y-2">
+                        {!token && <div className="text-[11px] text-red-300">Token missing — cannot compute route legs.</div>}
+
+                        {routeStatus && (
+                          <div className={`text-[11px] ${routeStatus.ok ? "text-green-300" : "text-red-300"}`}>{routeStatus.msg}</div>
+                        )}
+
+                        {routeLegs.length > 0 ? (
+                          <div className="space-y-2">
+                            {routeLegs.map((lg, i) => (
+                              <div key={`${lg.fromLabel}-${lg.toLabel}-${i}`} className="rounded-xl border border-cyan-200/15 bg-[#061126]/35 p-2">
+                                <div className="text-xs text-white/85 font-semibold leading-tight">
+                                  {lg.fromLabel} → {lg.toLabel}
+                                </div>
+                                <div className="text-[11px] text-white/70 mt-1">
+                                  {formatMiles(lg.distanceMeters)} • {formatMinutes(lg.durationSeconds)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-white/60">
+                            Set Home ZIP and add ≥ 1 stop to compute legs (or add ≥ 2 stops without Home).
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
+
+              {/* NETWORK EXPLORER */}
+              <div className="text-[11px] font-extrabold tracking-wide text-white/60 px-1">NETWORK EXPLORER</div>
 
               {/* FILTERS */}
               <div className={sectionShellClass}>
@@ -1243,213 +1449,6 @@ export default function Page() {
                 )}
               </div>
 
-              {/* TRIP BUILDER (UPGRADED) */}
-              <div className={sectionShellClass}>
-                <SectionHeader
-                  title="Trip Builder"
-                  k={sectionKey("Trip Builder")}
-                  right={
-                    <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0 && !homeCoords}>
-                      Clear Trip
-                    </button>
-                  }
-                />
-                {!collapsed[sectionKey("Trip Builder")] && (
-                  <div className="space-y-3 mt-3">
-                    {/* Home ZIP (restored) */}
-                    <div className={innerTileClass}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className={tileTitleClass}>Home ZIP</div>
-                        <button onClick={clearHome} className={clearBtnClass} disabled={!homeCoords && !homeZipDraft && !homeZipApplied}>
-                          Clear
-                        </button>
-                      </div>
-
-                      <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
-                        <input
-                          value={homeZipDraft}
-                          onChange={(e) => setHomeZipDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              applyHomeZip();
-                            }
-                            if (e.key === "Escape") {
-                              e.preventDefault();
-                              clearHome();
-                            }
-                          }}
-                          placeholder="Enter ZIP (e.g., 50266)"
-                          className={smallInputClass}
-                          inputMode="numeric"
-                        />
-                        <button
-                          type="button"
-                          onClick={applyHomeZip}
-                          className="text-xs px-3 py-2 rounded-xl bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90"
-                        >
-                          Set
-                        </button>
-                      </div>
-
-                      <div className="mt-2 text-[11px] text-white/70">
-                        {homeCoords ? (
-                          <>
-                            <span className="text-white/90 font-semibold">Applied:</span> {homeZipApplied || "—"}{" "}
-                            <span className="text-white/60">•</span>{" "}
-                            <span className="text-white/80">
-                              {homeCoords[1].toFixed(4)}, {homeCoords[0].toFixed(4)}
-                            </span>
-                          </>
-                        ) : (
-                          <>Tip: Set Home ZIP to get full route links + leg distances/times.</>
-                        )}
-                      </div>
-
-                      {homeStatus && (
-                        <div className={`mt-2 text-[11px] ${homeStatus.ok ? "text-green-300" : "text-red-300"}`}>
-                          {homeStatus.msg}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Share route links */}
-                    <div className={innerTileClass}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className={tileTitleClass}>Send to Phone</div>
-                        <div className="text-[11px] text-white/60">
-                          {routePointsLngLat.length >= 2 ? `${routePointsLngLat.length} points` : "Add ≥ 1 stop"}
-                        </div>
-                      </div>
-
-                      <div className="mt-2 grid grid-cols-3 gap-2">
-                        <a
-                          href={googleRouteUrl || "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
-                            googleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
-                          }`}
-                        >
-                          Google
-                        </a>
-
-                        <a
-                          href={appleRouteUrl || "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
-                            appleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
-                          }`}
-                        >
-                          Apple
-                        </a>
-
-                        <a
-                          href={wazeUrl || "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
-                            wazeUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
-                          }`}
-                          title="Waze opens the next stop (single-destination)"
-                        >
-                          Waze
-                        </a>
-                      </div>
-
-                      <div className="mt-2 text-[11px] text-white/60">
-                        Waze opens the <span className="text-white/85 font-semibold">next stop</span> (single-destination).
-                      </div>
-                    </div>
-
-                    {/* Trip stops list */}
-                    {tripStops.map((st, idx) => (
-                      <div key={st.id} className={innerTileClass}>
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className={`${tileTitleClass} !text-sm`}>
-                              {idx + 1}. {st.label}
-                            </div>
-                            <div className={tanSubTextClass}>
-                              {(st.city || "") + (st.city ? ", " : "")}
-                              {st.state || ""}
-                              {st.zip ? ` ${st.zip}` : ""}
-                              {st.kind ? ` • ${st.kind}` : ""}
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            <div className="flex gap-2 justify-end">
-                              <button onClick={() => zoomStop(st)} className={clearBtnClass}>
-                                Zoom
-                              </button>
-                              <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
-                                Remove
-                              </button>
-                            </div>
-                            <div className="flex gap-2 justify-end">
-                              <button onClick={() => moveStop(idx, -1)} className={clearBtnClass} disabled={idx === 0} title="Move up">
-                                ↑
-                              </button>
-                              <button onClick={() => moveStop(idx, 1)} className={clearBtnClass} disabled={idx === tripStops.length - 1} title="Move down">
-                                ↓
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {tripStops.length === 0 && (
-                      <div className={tanSubTextClass}>
-                        Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
-                      </div>
-                    )}
-
-                    {/* Distances / Times between stops */}
-                    <div className={innerTileClass}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className={tileTitleClass}>Distances & Times</div>
-                        {routeTotals ? (
-                          <div className="text-xs text-white/75 whitespace-nowrap">
-                            Total: {formatMiles(routeTotals.distanceMeters)} • {formatMinutes(routeTotals.durationSeconds)}
-                          </div>
-                        ) : (
-                          <div className="text-[11px] text-white/60 whitespace-nowrap">—</div>
-                        )}
-                      </div>
-
-                      <div className="mt-2 space-y-2">
-                        {!token && <div className="text-[11px] text-red-300">Token missing — cannot compute route legs.</div>}
-
-                        {routeStatus && (
-                          <div className={`text-[11px] ${routeStatus.ok ? "text-green-300" : "text-red-300"}`}>{routeStatus.msg}</div>
-                        )}
-
-                        {routeLegs.length > 0 ? (
-                          <div className="space-y-2">
-                            {routeLegs.map((lg, i) => (
-                              <div key={`${lg.fromLabel}-${lg.toLabel}-${i}`} className="rounded-xl border border-cyan-200/15 bg-[#061126]/35 p-2">
-                                <div className="text-xs text-white/85 font-semibold leading-tight">
-                                  {lg.fromLabel} → {lg.toLabel}
-                                </div>
-                                <div className="text-[11px] text-white/70 mt-1">
-                                  {formatMiles(lg.distanceMeters)} • {formatMinutes(lg.durationSeconds)}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-[11px] text-white/60">
-                            Set Home ZIP and add ≥ 1 stop to compute legs (or add ≥ 2 stops without Home).
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* RETAIL SUMMARY - TRIP STOPS */}
               <div className={sectionShellClass}>
                 <SectionHeader title="Retail Summary - Trip Stops" k={sectionKey("Retail Summary - Trip Stops")} />
@@ -1525,6 +1524,24 @@ export default function Page() {
 
                       {retailerNetworkSummary.length === 0 && <div className={subTextClass}>Network summary not loaded yet.</div>}
                       {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && <div className={subTextClass}>No retailer matches that search.</div>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* FUTURE DATA */}
+              <div className={sectionShellClass}>
+                <SectionHeader title="Future Data Layers" k={sectionKey("Future Data Layers")} />
+                {!collapsed[sectionKey("Future Data Layers")] && (
+                  <div className="mt-3 space-y-2">
+                    <div className={tanSubTextClass}>
+                      Placeholder framework for upcoming layers (e.g., Gross Revenue Generators). This section will eventually control:
+                    </div>
+                    <div className="text-[11px] text-white/70 space-y-1">
+                      <div>• Layer on/off toggles</div>
+                      <div>• Legend entries + symbology</div>
+                      <div>• Search + filters specific to new datasets</div>
+                      <div>• Exportable lists / summaries</div>
                     </div>
                   </div>
                 )}

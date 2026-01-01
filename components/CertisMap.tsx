@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// 💠 CERTIS AGROUTE DATABASE — GOLD (K16: Home removed + Kingpin chooser popup)
+// 💠 CERTIS AGROUTE DATABASE — GOLD (K16: Home restored for routing + Kingpin chooser popup)
 //   • Satellite-streets-v12 + Mercator (Bailey Rule)
 //   • Retailers filtered by: State ∩ Retailer ∩ Category ∩ Supplier
 //   • Regional HQ filtered ONLY by State (Bailey HQ rule)
@@ -21,6 +21,10 @@
 //     • Removed on-map legend (page.tsx owns sidebar legend now)
 //     • Added route status badge when fallback polyline is used
 //     • Added dataLoadedRef guard (prevents accidental reload if map "load" fires again)
+//
+//   K16.1 PATCH (Jan 2026):
+//     • Restored Home → Stop #1 segment by including homeCoords as waypoint 0 when present
+//     • Route key + Directions request now include Home (prevents “missing first leg”)
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -79,8 +83,7 @@ type Props = {
   selectedCategories: string[];
   selectedSuppliers: string[];
 
-  // NOTE: Home is deprecated. We keep this prop so page.tsx doesn't break if it still passes it.
-  // It is intentionally ignored inside this component.
+  // ✅ Home is optional, but when present it becomes the first routing waypoint (Home → Stop1 → Stop2...)
   homeCoords: [number, number] | null;
 
   tripStops: Stop[];
@@ -279,7 +282,6 @@ function kingpinStableKey(p: Record<string, any>, coords: [number, number]) {
   const state = s(p.State);
   const zip = s(p.Zip);
 
-  // Prefer identity-like fields; fall back to coords if needed.
   const core = [contact, retailer, email, cell, office, city, state, zip].filter(Boolean).join("|");
   if (core) return core;
   return `${coords[0].toFixed(6)},${coords[1].toFixed(6)}|${retailer}|${contact}`;
@@ -322,7 +324,7 @@ export default function CertisMap(props: Props) {
     selectedRetailers,
     selectedCategories,
     selectedSuppliers,
-    // homeCoords is deprecated and intentionally ignored
+    homeCoords,
     tripStops,
     zoomToStop,
     onStatesLoaded,
@@ -577,9 +579,6 @@ export default function CertisMap(props: Props) {
           source: SRC_KINGPINS,
           layout: {
             "icon-image": KINGPIN_ICON_ID,
-
-            // ✅ Keep Kingpins from getting obnoxiously large:
-            // Cap the top end ~0.26 (your request).
             "icon-size": [
               "interpolate",
               ["linear"],
@@ -601,7 +600,6 @@ export default function CertisMap(props: Props) {
               17,
               0.26,
             ],
-
             "icon-anchor": "center",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -891,8 +889,15 @@ export default function CertisMap(props: Props) {
   }, [zoomToStop]);
 
   function buildRouteCoords(): [number, number][] {
-    // Home removed: route is only between trip stops (in order)
-    return (tripStops || []).map((st) => st.coords);
+    // ✅ Home waypoint is first if present: Home → Stop1 → Stop2 → ...
+    const pts: [number, number][] = [];
+    if (homeCoords && Array.isArray(homeCoords) && homeCoords.length === 2) {
+      pts.push(homeCoords);
+    }
+    for (const st of tripStops || []) {
+      if (st?.coords && Array.isArray(st.coords) && st.coords.length === 2) pts.push(st.coords);
+    }
+    return pts;
   }
 
   async function updateRoute(force = false) {
@@ -954,7 +959,7 @@ export default function CertisMap(props: Props) {
   useEffect(() => {
     updateRoute();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tripStops, token]);
+  }, [tripStops, homeCoords, token]);
 
   function closeActivePopup() {
     try {
@@ -1047,7 +1052,6 @@ export default function CertisMap(props: Props) {
     const map = mapRef.current;
     if (!map) return;
 
-    // Pull rendered features at click for the Kingpin hitbox/layer
     let featuresRaw = getEventFeatures(e);
 
     if (!featuresRaw || featuresRaw.length === 0) {
@@ -1059,7 +1063,6 @@ export default function CertisMap(props: Props) {
 
     if (!featuresRaw || featuresRaw.length === 0) return;
 
-    // De-dupe features and build candidates
     const clickLngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
     const candidates = (featuresRaw || [])
       .filter(Boolean)
@@ -1078,7 +1081,6 @@ export default function CertisMap(props: Props) {
       })
       .filter(Boolean) as Array<{ f: any; coords: [number, number]; p: any; d: number; label: string; key: string }>;
 
-    // If Mapbox returns duplicates, dedupe by stable key
     const byKey: Record<string, { f: any; coords: [number, number]; p: any; d: number; label: string; key: string }> = {};
     for (const c of candidates) {
       if (!byKey[c.key] || c.d < byKey[c.key].d) byKey[c.key] = c;
@@ -1087,20 +1089,13 @@ export default function CertisMap(props: Props) {
 
     if (!uniq.length) return;
 
-    // Choose default = nearest
     const defaultPick = uniq[0];
-
-    // Popup should anchor at the picked feature coords (not click coords)
     const anchorCoords = defaultPick.coords;
 
-    // Build UI ids
     const selectId = safeDomId("kp-select");
     const addBtnId = safeDomId("kp-add");
-
-    // We’ll render a dropdown only if multiple candidates are present
     const hasMany = uniq.length > 1;
 
-    // Initial details use default pick
     const initialStop = makeKingpinStopFromFeature(defaultPick.f);
     if (!initialStop) return;
 
@@ -1108,11 +1103,9 @@ export default function CertisMap(props: Props) {
     const titleRaw = defaultPick.p.ContactTitle || defaultPick.p.Title || defaultPick.p["Contact Title"] || "";
     const title = s(titleRaw);
 
-    // Render options
     const optionsHtml = uniq
       .map((c, idx) => {
         const sel = idx === 0 ? ` selected="selected"` : "";
-        // Keep option text plain; sanitize minimal (avoid quotes breaking HTML)
         const text = c.label.replace(/</g, "&lt;").replace(/>/g, "&gt;");
         const val = c.key.replace(/"/g, "&quot;");
         return `<option value="${val}"${sel}>${text}</option>`;
@@ -1172,9 +1165,7 @@ export default function CertisMap(props: Props) {
 
     openSinglePopupAt(anchorCoords, popupHtml);
 
-    // Wire up selection + Add to Trip
     setTimeout(() => {
-      // Track current selection in closure
       let current = defaultPick;
 
       const updateDetails = (pick: typeof defaultPick) => {
@@ -1207,15 +1198,12 @@ export default function CertisMap(props: Props) {
           <div style="margin-bottom:10px;">Email: ${safe(stop.email || "TBD")}</div>
         `;
 
-        // Also update the Add button handler to add this selected stop
         const btn = document.getElementById(addBtnId);
         if (btn) (btn as HTMLButtonElement).onclick = () => onAddStop(stop);
       };
 
-      // Default Add button -> defaultPick
       updateDetails(defaultPick);
 
-      // If dropdown exists, wire it
       if (hasMany) {
         const sel = document.getElementById(selectId) as HTMLSelectElement | null;
         if (sel) {
@@ -1230,7 +1218,6 @@ export default function CertisMap(props: Props) {
         }
       }
 
-      // Ensure Add button works even if no dropdown
       const btn = document.getElementById(addBtnId);
       if (btn) {
         (btn as HTMLButtonElement).onclick = () => {
@@ -1248,9 +1235,14 @@ export default function CertisMap(props: Props) {
       {/* Route status (only shows when fallback is active) */}
       {routeMode === "fallback" && (
         <div className="absolute top-4 left-4 z-10">
-          <div className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-3 py-2" style={{ maxWidth: 340 }}>
+          <div
+            className="rounded-xl border border-white/10 bg-neutral-900/90 shadow-2xl backdrop-blur px-3 py-2"
+            style={{ maxWidth: 340 }}
+          >
             <div className="text-[12px] font-extrabold text-yellow-300">Route fallback active</div>
-            <div className="text-[11px] text-white/80 mt-0.5">Using a straight-line polyline (Directions API failed). Check token/network or retry.</div>
+            <div className="text-[11px] text-white/80 mt-0.5">
+              Using a straight-line polyline (Directions API failed). Check token/network or retry.
+            </div>
           </div>
         </div>
       )}
