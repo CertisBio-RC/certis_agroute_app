@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import CertisMap, { Stop, RetailerNetworkSummaryRow } from "../components/CertisMap";
 
 function uniqSorted(arr: string[]) {
@@ -54,6 +54,32 @@ function allTokensPresent(haystackLower: string, tokens: string[]) {
   return tokens.every((t) => haystackLower.includes(t));
 }
 
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function metersToMiles(m: number) {
+  return m / 1609.344;
+}
+
+function formatMiles(meters: number) {
+  const mi = metersToMiles(meters);
+  if (!isFinite(mi)) return "—";
+  if (mi < 0.1) return "<0.1 mi";
+  if (mi < 10) return `${mi.toFixed(1)} mi`;
+  return `${mi.toFixed(0)} mi`;
+}
+
+function formatMinutes(seconds: number) {
+  const min = seconds / 60;
+  if (!isFinite(min)) return "—";
+  if (min < 1) return "<1 min";
+  if (min < 60) return `${Math.round(min)} min`;
+  const h = Math.floor(min / 60);
+  const r = Math.round(min - h * 60);
+  return `${h}h ${r}m`;
+}
+
 type RetailerSummaryRow = {
   retailer: string;
   tripStops: number;
@@ -70,6 +96,13 @@ type RetailerTotals = {
   suppliers: Set<string>;
   states: Set<string>;
   categoryCounts: Record<string, number>;
+};
+
+type RouteLegRow = {
+  fromLabel: string;
+  toLabel: string;
+  distanceMeters: number;
+  durationSeconds: number;
 };
 
 function normalizeCategoryLabel(raw: string) {
@@ -116,6 +149,90 @@ function formatCategoryCounts(counts: Record<string, number>) {
   return entries.map(([k, n]) => `${k} (${n})`);
 }
 
+// Best-effort coordinate extractor without requiring CertisMap edits.
+// We intentionally probe common field names (lng/lat, lon/lat, coords, lngLat, etc.)
+function getStopLngLat(st: Stop): [number, number] | null {
+  const anySt = st as any;
+
+  const candidates: any[] = [
+    anySt.lngLat,
+    anySt.lnglat,
+    anySt.coords,
+    anySt.coord,
+    anySt.coordinates,
+    anySt.center,
+    anySt.location,
+  ];
+
+  for (const c of candidates) {
+    if (Array.isArray(c) && c.length >= 2) {
+      const lng = Number(c[0]);
+      const lat = Number(c[1]);
+      if (isFinite(lng) && isFinite(lat) && Math.abs(lng) <= 180 && Math.abs(lat) <= 90) return [lng, lat];
+    }
+    if (c && typeof c === "object") {
+      const lng = Number(c.lng ?? c.lon ?? c.longitude);
+      const lat = Number(c.lat ?? c.latitude);
+      if (isFinite(lng) && isFinite(lat) && Math.abs(lng) <= 180 && Math.abs(lat) <= 90) return [lng, lat];
+    }
+  }
+
+  const lng = Number(anySt.lng ?? anySt.lon ?? anySt.longitude);
+  const lat = Number(anySt.lat ?? anySt.latitude);
+  if (isFinite(lng) && isFinite(lat) && Math.abs(lng) <= 180 && Math.abs(lat) <= 90) return [lng, lat];
+
+  return null;
+}
+
+function stopPrettyLabel(st: Stop) {
+  const parts: string[] = [];
+  if (st.label) parts.push(st.label);
+  const loc = [st.city, st.state, st.zip].filter(Boolean).join(", ").replace(", ,", ",").trim();
+  if (loc) parts.push(loc);
+  return parts.join(" — ");
+}
+
+function lngLatToString(ll: [number, number]) {
+  // Google prefers lat,lng; Mapbox is lng,lat; Apple accepts lat,lng; Waze accepts lat,lng
+  return `${ll[1]},${ll[0]}`;
+}
+
+function makeGoogleDirectionsUrl(pointsLatLng: string[]) {
+  // pointsLatLng are strings like "lat,lng"
+  if (pointsLatLng.length < 2) return "";
+  const origin = pointsLatLng[0];
+  const destination = pointsLatLng[pointsLatLng.length - 1];
+  const waypoints = pointsLatLng.slice(1, -1);
+
+  const params = new URLSearchParams();
+  params.set("api", "1");
+  params.set("travelmode", "driving");
+  params.set("origin", origin);
+  params.set("destination", destination);
+  if (waypoints.length) params.set("waypoints", waypoints.join("|"));
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function makeAppleMapsUrl(pointsLatLng: string[]) {
+  // Apple supports: saddr=... and daddr=... with +to: chaining for multiple destinations
+  if (pointsLatLng.length < 2) return "";
+  const saddr = pointsLatLng[0];
+  const chain = pointsLatLng.slice(1).join("+to:");
+  const params = new URLSearchParams();
+  params.set("dirflg", "d"); // driving
+  params.set("saddr", saddr);
+  params.set("daddr", chain);
+  return `https://maps.apple.com/?${params.toString()}`;
+}
+
+function makeWazeUrl(latlng: string) {
+  // Single destination (Waze doesn't reliably support multi-stop web URLs)
+  const params = new URLSearchParams();
+  params.set("ll", latlng);
+  params.set("navigate", "yes");
+  return `https://waze.com/ul?${params.toString()}`;
+}
+
 export default function Page() {
   // Options loaded from map
   const [states, setStates] = useState<string[]>([]);
@@ -133,8 +250,12 @@ export default function Page() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
 
-  // Home (UI removed; keep coords for future optional round-trip)
-  const [homeCoords] = useState<[number, number] | null>(null);
+  // Home ZIP (restored)
+  const [homeZipDraft, setHomeZipDraft] = useState<string>("");
+  const [homeZipApplied, setHomeZipApplied] = useState<string>("");
+  const [homeLabel, setHomeLabel] = useState<string>("Home");
+  const [homeCoords, setHomeCoords] = useState<[number, number] | null>(null);
+  const [homeStatus, setHomeStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // Stops + Trip
   const [allStops, setAllStops] = useState<Stop[]>([]);
@@ -147,10 +268,17 @@ export default function Page() {
   const [categorySearch, setCategorySearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
 
-  // ✅ Find-a-Stop: separate "draft" vs "applied" to make Enter reliable
+  // ✅ Find-a-Stop: draft vs applied (already fixed)
   const [stopSearchDraft, setStopSearchDraft] = useState("");
   const [stopSearchApplied, setStopSearchApplied] = useState("");
   const stopResultsRef = useRef<HTMLDivElement | null>(null);
+
+  // Trip routing stats (legs)
+  const [routeLegs, setRouteLegs] = useState<RouteLegRow[]>([]);
+  const [routeTotals, setRouteTotals] = useState<{ distanceMeters: number; durationSeconds: number } | null>(null);
+  const [routeStatus, setRouteStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+  const routeAbortRef = useRef<AbortController | null>(null);
+  const lastRouteKeyRef = useRef<string>("");
 
   // Default collapse behavior
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
@@ -167,7 +295,6 @@ export default function Page() {
   });
 
   const token = useMemo(() => (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim(), []);
-
   const basePath = useMemo(() => {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "/certis_agroute_app").trim();
     return bp || "/certis_agroute_app";
@@ -194,6 +321,9 @@ export default function Page() {
   const clearTrip = () => {
     setTripStops([]);
     setZoomToStop(null);
+    setRouteLegs([]);
+    setRouteTotals(null);
+    setRouteStatus(null);
   };
 
   const addStopToTrip = (stop: Stop) => {
@@ -248,19 +378,13 @@ export default function Page() {
   const applyStopSearch = (raw?: string) => {
     const next = String(raw ?? stopSearchDraft).trim();
     setStopSearchApplied(next);
-
-    // make the UI change obvious: snap results list back to top
-    if (stopResultsRef.current) {
-      stopResultsRef.current.scrollTop = 0;
-    }
+    if (stopResultsRef.current) stopResultsRef.current.scrollTop = 0;
   };
 
   const clearStopSearch = () => {
     setStopSearchDraft("");
     setStopSearchApplied("");
-    if (stopResultsRef.current) {
-      stopResultsRef.current.scrollTop = 0;
-    }
+    if (stopResultsRef.current) stopResultsRef.current.scrollTop = 0;
   };
 
   // STOP SEARCH (uses applied query so Enter is deterministic)
@@ -273,7 +397,6 @@ export default function Page() {
 
     const qLower = qRaw.toLowerCase();
     const qDigits = digitsOnly(qLower);
-
     const personMode = tokens.length >= 2 && qDigits.length === 0;
 
     const buildSearchBlob = (st: Stop) => {
@@ -305,7 +428,6 @@ export default function Page() {
       if (!v) return 0;
 
       let s0 = 0;
-
       if (v === qLower) s0 += 50 * weight;
       if (v.startsWith(qLower)) s0 += 28 * weight;
       if (v.includes(qLower)) s0 += 10 * weight;
@@ -315,7 +437,6 @@ export default function Page() {
         if (hits > 0) s0 += hits * 6 * weight;
         if (hits === tokens.length) s0 += 22 * weight;
       }
-
       return s0;
     };
 
@@ -365,7 +486,6 @@ export default function Page() {
           cellScore;
 
         if (personMode && st.kind === "kingpin") total += 18;
-
         if (total <= 0) return null;
 
         const inTrip = tripStops.some((x) => x.id === st.id);
@@ -399,12 +519,10 @@ export default function Page() {
       }
 
       acc[retailer].totalLocations += 1;
-
       if (st.state) acc[retailer].states.add(st.state);
+      splitMulti((st as any).suppliers).forEach((x) => acc[retailer].suppliers.add(x));
 
-      splitMulti(st.suppliers).forEach((x) => acc[retailer].suppliers.add(x));
-
-      const cats = splitCategories(st.category);
+      const cats = splitCategories((st as any).category);
       if (cats.length === 0) {
         const k = "Uncategorized";
         acc[retailer].categoryCounts[k] = (acc[retailer].categoryCounts[k] || 0) + 1;
@@ -437,7 +555,6 @@ export default function Page() {
       const agronomyLocations = totals?.agronomyLocations ?? 0;
       const suppliers = totals ? Array.from(totals.suppliers).sort() : [];
       const states = totals ? Array.from(totals.states).sort() : [];
-
       const categoryBreakdown = totals ? formatCategoryCounts(totals.categoryCounts) : [];
 
       return {
@@ -468,6 +585,201 @@ export default function Page() {
       .filter((r) => (r.retailer || "").toLowerCase().includes(q))
       .slice(0, 120);
   }, [retailerNetworkSummary, networkRetailerSearch]);
+
+  // ===== Home ZIP geocoding (Mapbox forward geocode) =====
+  const applyHomeZip = async () => {
+    const z = digitsOnly(homeZipDraft || "").slice(0, 5);
+    if (!z || z.length < 5) {
+      setHomeStatus({ ok: false, msg: "Enter a 5-digit ZIP." });
+      return;
+    }
+    if (!token) {
+      setHomeStatus({ ok: false, msg: "Mapbox token missing (NEXT_PUBLIC_MAPBOX_TOKEN)." });
+      return;
+    }
+
+    setHomeStatus({ ok: true, msg: "Locating ZIP…" });
+
+    try {
+      const url =
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/` +
+        encodeURIComponent(z) +
+        `.json?` +
+        new URLSearchParams({
+          access_token: token,
+          country: "us",
+          limit: "1",
+          types: "postcode",
+        }).toString();
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        setHomeStatus({ ok: false, msg: `ZIP lookup failed (${res.status}).` });
+        return;
+      }
+      const data = await res.json();
+      const feat = data?.features?.[0];
+      const center = feat?.center;
+      if (!Array.isArray(center) || center.length < 2) {
+        setHomeStatus({ ok: false, msg: "ZIP not found." });
+        return;
+      }
+
+      const lng = Number(center[0]);
+      const lat = Number(center[1]);
+      if (!isFinite(lng) || !isFinite(lat)) {
+        setHomeStatus({ ok: false, msg: "Invalid ZIP coordinates." });
+        return;
+      }
+
+      setHomeZipApplied(z);
+      setHomeCoords([lng, lat]);
+      setHomeLabel(`Home (${z})`);
+      setHomeStatus({ ok: true, msg: `Home set to ${z}.` });
+    } catch (e: any) {
+      setHomeStatus({ ok: false, msg: `ZIP lookup error: ${String(e?.message || e)}` });
+    }
+  };
+
+  const clearHome = () => {
+    setHomeZipDraft("");
+    setHomeZipApplied("");
+    setHomeCoords(null);
+    setHomeLabel("Home");
+    setHomeStatus(null);
+  };
+
+  // ===== Build route points for links + legs calc =====
+  const routePointsLngLat = useMemo(() => {
+    const pts: [number, number][] = [];
+    if (homeCoords) pts.push(homeCoords);
+
+    // include tripStops with coords
+    for (const st of tripStops) {
+      const ll = getStopLngLat(st);
+      if (ll) pts.push(ll);
+    }
+    return pts;
+  }, [homeCoords, tripStops]);
+
+  const routePointsLatLngStrings = useMemo(() => {
+    return routePointsLngLat.map(lngLatToString);
+  }, [routePointsLngLat]);
+
+  const googleRouteUrl = useMemo(() => makeGoogleDirectionsUrl(routePointsLatLngStrings), [routePointsLatLngStrings]);
+  const appleRouteUrl = useMemo(() => makeAppleMapsUrl(routePointsLatLngStrings), [routePointsLatLngStrings]);
+
+  // Waze: best-effort “Next Stop” (or final destination if only one stop)
+  const wazeUrl = useMemo(() => {
+    if (routePointsLatLngStrings.length < 2) return "";
+    const next = routePointsLatLngStrings[1] || routePointsLatLngStrings[routePointsLatLngStrings.length - 1];
+    return makeWazeUrl(next);
+  }, [routePointsLatLngStrings]);
+
+  const canBuildRoute = routePointsLngLat.length >= 2 && !!token;
+
+  // ===== Distances + times between stops (Mapbox Directions) =====
+  useEffect(() => {
+    // reset when route cannot be computed
+    if (!canBuildRoute) {
+      setRouteLegs([]);
+      setRouteTotals(null);
+      if (!token) setRouteStatus({ ok: false, msg: "Token missing — cannot compute route legs." });
+      else setRouteStatus(null);
+      return;
+    }
+
+    // Mapbox Directions v5: max 25 coordinates per request.
+    const maxCoords = 25;
+    const pts = routePointsLngLat.slice(0, maxCoords);
+
+    const key = JSON.stringify(pts);
+    if (key === lastRouteKeyRef.current) return;
+    lastRouteKeyRef.current = key;
+
+    // abort prior
+    if (routeAbortRef.current) routeAbortRef.current.abort();
+    const ac = new AbortController();
+    routeAbortRef.current = ac;
+
+    const run = async () => {
+      try {
+        setRouteStatus({ ok: true, msg: "Computing distances/times…" });
+
+        const coordsStr = pts.map((p) => `${p[0]},${p[1]}`).join(";");
+        const url =
+          `https://api.mapbox.com/directions/v5/mapbox/driving/` +
+          coordsStr +
+          `?` +
+          new URLSearchParams({
+            access_token: token,
+            geometries: "geojson",
+            overview: "false",
+            steps: "false",
+            alternatives: "false",
+          }).toString();
+
+        const res = await fetch(url, { signal: ac.signal });
+        if (!res.ok) {
+          setRouteLegs([]);
+          setRouteTotals(null);
+          setRouteStatus({ ok: false, msg: `Directions failed (${res.status}).` });
+          return;
+        }
+        const data = await res.json();
+        const route = data?.routes?.[0];
+        const legs = route?.legs;
+
+        if (!route || !Array.isArray(legs) || legs.length === 0) {
+          setRouteLegs([]);
+          setRouteTotals(null);
+          setRouteStatus({ ok: false, msg: "No route legs returned." });
+          return;
+        }
+
+        // labels: Home (if set) + tripStops with coords
+        const labels: string[] = [];
+        if (homeCoords) labels.push(homeLabel);
+        for (const st of tripStops) {
+          const ll = getStopLngLat(st);
+          if (ll) labels.push(st.label || "Stop");
+        }
+
+        const out: RouteLegRow[] = [];
+        let distSum = 0;
+        let durSum = 0;
+
+        for (let i = 0; i < legs.length; i++) {
+          const lg = legs[i];
+          const d = Number(lg?.distance || 0);
+          const t = Number(lg?.duration || 0);
+
+          distSum += isFinite(d) ? d : 0;
+          durSum += isFinite(t) ? t : 0;
+
+          out.push({
+            fromLabel: labels[i] || (i === 0 ? "Start" : `Stop ${i}`),
+            toLabel: labels[i + 1] || `Stop ${i + 1}`,
+            distanceMeters: isFinite(d) ? d : 0,
+            durationSeconds: isFinite(t) ? t : 0,
+          });
+        }
+
+        setRouteLegs(out);
+        setRouteTotals({ distanceMeters: distSum, durationSeconds: durSum });
+        setRouteStatus({ ok: true, msg: "Route legs updated." });
+      } catch (e: any) {
+        if (String(e?.name || "").toLowerCase() === "aborterror") return;
+        setRouteLegs([]);
+        setRouteTotals(null);
+        setRouteStatus({ ok: false, msg: `Directions error: ${String(e?.message || e)}` });
+      }
+    };
+
+    // tiny debounce to avoid bursts on quick edits
+    const t = window.setTimeout(run, 220);
+    return () => window.clearTimeout(t);
+  }, [canBuildRoute, routePointsLngLat, token, homeCoords, homeLabel, tripStops]);
 
   // VISUAL SYSTEM
   const appBg =
@@ -607,11 +919,10 @@ export default function Page() {
   const mapFirstMobileClass = "order-1 lg:order-2";
   const sidebarSecondMobileClass = "order-2 lg:order-1";
 
-  // LEGEND (sidebar card) — Option A: compact list
+  // LEGEND — same as your current file (unchanged)
   const legendItems = useMemo(() => {
     const has = (x: string) => categories.includes(x);
 
-    // prefer canonical names from CertisMap; if not present, just show whatever categories list has
     const cAgronomy = has("Agronomy") ? "Agronomy" : categories.find((x) => x.toLowerCase().includes("agronomy")) || "Agronomy";
     const cGrain = has("Grain/Feed") ? "Grain/Feed" : categories.find((x) => x.toLowerCase().includes("grain")) || "Grain/Feed";
     const cCstore =
@@ -634,7 +945,7 @@ export default function Page() {
 
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
-      {/* HEADER (clean — no theme/token up here) */}
+      {/* HEADER */}
       <header className="w-full border-b border-slate-200/15 bg-slate-950/30 backdrop-blur-md flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -655,7 +966,7 @@ export default function Page() {
       {/* BODY */}
       <div className="flex-1 min-h-0 p-3">
         <div className="h-full min-h-0 flex flex-col lg:grid lg:grid-cols-[380px_1fr] gap-3">
-          {/* MAP FIRST ON MOBILE — force a real height so it cannot disappear */}
+          {/* MAP */}
           <main
             className={[
               mapPanelClass,
@@ -683,10 +994,10 @@ export default function Page() {
             />
           </main>
 
-          {/* SIDEBAR SECOND ON MOBILE */}
+          {/* SIDEBAR */}
           <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}>
             <div className="overflow-y-auto px-4 py-3 space-y-4">
-              {/* LEGEND (replaces Home ZIP) — Option A */}
+              {/* LEGEND */}
               <div className={sectionShellClass}>
                 <SectionHeader title="Legend" k={sectionKey("Legend")} />
                 {!collapsed[sectionKey("Legend")] && (
@@ -853,28 +1164,15 @@ export default function Page() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className={sectionTitleClass}>State</div>
-                        <button
-                          onClick={() => setSelectedStates([])}
-                          className={clearBtnClass}
-                          disabled={selectedStates.length === 0}
-                        >
+                        <button onClick={() => setSelectedStates([])} className={clearBtnClass} disabled={selectedStates.length === 0}>
                           Clear
                         </button>
                       </div>
-                      <input
-                        value={stateSearch}
-                        onChange={(e) => setStateSearch(e.target.value)}
-                        placeholder="Search states…"
-                        className={smallInputClass}
-                      />
+                      <input value={stateSearch} onChange={(e) => setStateSearch(e.target.value)} placeholder="Search states…" className={smallInputClass} />
                       <div className={listClass}>
                         {visibleStates.map((st) => (
                           <label key={st} className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={selectedStates.includes(st)}
-                              onChange={() => toggle(st, selectedStates, setSelectedStates)}
-                            />
+                            <input type="checkbox" checked={selectedStates.includes(st)} onChange={() => toggle(st, selectedStates, setSelectedStates)} />
                             <span>{st}</span>
                           </label>
                         ))}
@@ -886,28 +1184,15 @@ export default function Page() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className={sectionTitleClass}>Retailer</div>
-                        <button
-                          onClick={() => setSelectedRetailers([])}
-                          className={clearBtnClass}
-                          disabled={selectedRetailers.length === 0}
-                        >
+                        <button onClick={() => setSelectedRetailers([])} className={clearBtnClass} disabled={selectedRetailers.length === 0}>
                           Clear
                         </button>
                       </div>
-                      <input
-                        value={retailerSearch}
-                        onChange={(e) => setRetailerSearch(e.target.value)}
-                        placeholder="Search retailers…"
-                        className={smallInputClass}
-                      />
+                      <input value={retailerSearch} onChange={(e) => setRetailerSearch(e.target.value)} placeholder="Search retailers…" className={smallInputClass} />
                       <div className={listClass}>
                         {visibleRetailers.map((r) => (
                           <label key={r} className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={selectedRetailers.includes(r)}
-                              onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)}
-                            />
+                            <input type="checkbox" checked={selectedRetailers.includes(r)} onChange={() => toggle(r, selectedRetailers, setSelectedRetailers)} />
                             <span>{r}</span>
                           </label>
                         ))}
@@ -919,28 +1204,15 @@ export default function Page() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className={sectionTitleClass}>Category</div>
-                        <button
-                          onClick={() => setSelectedCategories([])}
-                          className={clearBtnClass}
-                          disabled={selectedCategories.length === 0}
-                        >
+                        <button onClick={() => setSelectedCategories([])} className={clearBtnClass} disabled={selectedCategories.length === 0}>
                           Clear
                         </button>
                       </div>
-                      <input
-                        value={categorySearch}
-                        onChange={(e) => setCategorySearch(e.target.value)}
-                        placeholder="Search categories…"
-                        className={smallInputClass}
-                      />
+                      <input value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} placeholder="Search categories…" className={smallInputClass} />
                       <div className={listClass}>
                         {visibleCategories.map((c) => (
                           <label key={c} className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={selectedCategories.includes(c)}
-                              onChange={() => toggle(c, selectedCategories, setSelectedCategories)}
-                            />
+                            <input type="checkbox" checked={selectedCategories.includes(c)} onChange={() => toggle(c, selectedCategories, setSelectedCategories)} />
                             <span>{c}</span>
                           </label>
                         ))}
@@ -952,28 +1224,15 @@ export default function Page() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className={sectionTitleClass}>Supplier</div>
-                        <button
-                          onClick={() => setSelectedSuppliers([])}
-                          className={clearBtnClass}
-                          disabled={selectedSuppliers.length === 0}
-                        >
+                        <button onClick={() => setSelectedSuppliers([])} className={clearBtnClass} disabled={selectedSuppliers.length === 0}>
                           Clear
                         </button>
                       </div>
-                      <input
-                        value={supplierSearch}
-                        onChange={(e) => setSupplierSearch(e.target.value)}
-                        placeholder="Search suppliers…"
-                        className={smallInputClass}
-                      />
+                      <input value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} placeholder="Search suppliers…" className={smallInputClass} />
                       <div className={listClass}>
                         {visibleSuppliers.map((sp) => (
                           <label key={sp} className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={selectedSuppliers.includes(sp)}
-                              onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)}
-                            />
+                            <input type="checkbox" checked={selectedSuppliers.includes(sp)} onChange={() => toggle(sp, selectedSuppliers, setSelectedSuppliers)} />
                             <span>{sp}</span>
                           </label>
                         ))}
@@ -984,19 +1243,127 @@ export default function Page() {
                 )}
               </div>
 
-              {/* TRIP BUILDER */}
+              {/* TRIP BUILDER (UPGRADED) */}
               <div className={sectionShellClass}>
                 <SectionHeader
                   title="Trip Builder"
                   k={sectionKey("Trip Builder")}
                   right={
-                    <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0}>
+                    <button onClick={clearTrip} className={clearBtnClass} disabled={tripStops.length === 0 && !homeCoords}>
                       Clear Trip
                     </button>
                   }
                 />
                 {!collapsed[sectionKey("Trip Builder")] && (
-                  <div className="space-y-2 mt-3">
+                  <div className="space-y-3 mt-3">
+                    {/* Home ZIP (restored) */}
+                    <div className={innerTileClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={tileTitleClass}>Home ZIP</div>
+                        <button onClick={clearHome} className={clearBtnClass} disabled={!homeCoords && !homeZipDraft && !homeZipApplied}>
+                          Clear
+                        </button>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
+                        <input
+                          value={homeZipDraft}
+                          onChange={(e) => setHomeZipDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              applyHomeZip();
+                            }
+                            if (e.key === "Escape") {
+                              e.preventDefault();
+                              clearHome();
+                            }
+                          }}
+                          placeholder="Enter ZIP (e.g., 50266)"
+                          className={smallInputClass}
+                          inputMode="numeric"
+                        />
+                        <button
+                          type="button"
+                          onClick={applyHomeZip}
+                          className="text-xs px-3 py-2 rounded-xl bg-[#fde047] text-black font-extrabold hover:bg-[#fde047]/90"
+                        >
+                          Set
+                        </button>
+                      </div>
+
+                      <div className="mt-2 text-[11px] text-white/70">
+                        {homeCoords ? (
+                          <>
+                            <span className="text-white/90 font-semibold">Applied:</span> {homeZipApplied || "—"}{" "}
+                            <span className="text-white/60">•</span>{" "}
+                            <span className="text-white/80">
+                              {homeCoords[1].toFixed(4)}, {homeCoords[0].toFixed(4)}
+                            </span>
+                          </>
+                        ) : (
+                          <>Tip: Set Home ZIP to get full route links + leg distances/times.</>
+                        )}
+                      </div>
+
+                      {homeStatus && (
+                        <div className={`mt-2 text-[11px] ${homeStatus.ok ? "text-green-300" : "text-red-300"}`}>
+                          {homeStatus.msg}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Share route links */}
+                    <div className={innerTileClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={tileTitleClass}>Send to Phone</div>
+                        <div className="text-[11px] text-white/60">
+                          {routePointsLngLat.length >= 2 ? `${routePointsLngLat.length} points` : "Add ≥ 1 stop"}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        <a
+                          href={googleRouteUrl || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
+                            googleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
+                          }`}
+                        >
+                          Google
+                        </a>
+
+                        <a
+                          href={appleRouteUrl || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
+                            appleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
+                          }`}
+                        >
+                          Apple
+                        </a>
+
+                        <a
+                          href={wazeUrl || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
+                            wazeUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
+                          }`}
+                          title="Waze opens the next stop (single-destination)"
+                        >
+                          Waze
+                        </a>
+                      </div>
+
+                      <div className="mt-2 text-[11px] text-white/60">
+                        Waze opens the <span className="text-white/85 font-semibold">next stop</span> (single-destination).
+                      </div>
+                    </div>
+
+                    {/* Trip stops list */}
                     {tripStops.map((st, idx) => (
                       <div key={st.id} className={innerTileClass}>
                         <div className="flex items-start justify-between gap-2">
@@ -1021,20 +1388,10 @@ export default function Page() {
                               </button>
                             </div>
                             <div className="flex gap-2 justify-end">
-                              <button
-                                onClick={() => moveStop(idx, -1)}
-                                className={clearBtnClass}
-                                disabled={idx === 0}
-                                title="Move up"
-                              >
+                              <button onClick={() => moveStop(idx, -1)} className={clearBtnClass} disabled={idx === 0} title="Move up">
                                 ↑
                               </button>
-                              <button
-                                onClick={() => moveStop(idx, 1)}
-                                className={clearBtnClass}
-                                disabled={idx === tripStops.length - 1}
-                                title="Move down"
-                              >
+                              <button onClick={() => moveStop(idx, 1)} className={clearBtnClass} disabled={idx === tripStops.length - 1} title="Move down">
                                 ↓
                               </button>
                             </div>
@@ -1048,6 +1405,47 @@ export default function Page() {
                         Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
                       </div>
                     )}
+
+                    {/* Distances / Times between stops */}
+                    <div className={innerTileClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={tileTitleClass}>Distances & Times</div>
+                        {routeTotals ? (
+                          <div className="text-xs text-white/75 whitespace-nowrap">
+                            Total: {formatMiles(routeTotals.distanceMeters)} • {formatMinutes(routeTotals.durationSeconds)}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-white/60 whitespace-nowrap">—</div>
+                        )}
+                      </div>
+
+                      <div className="mt-2 space-y-2">
+                        {!token && <div className="text-[11px] text-red-300">Token missing — cannot compute route legs.</div>}
+
+                        {routeStatus && (
+                          <div className={`text-[11px] ${routeStatus.ok ? "text-green-300" : "text-red-300"}`}>{routeStatus.msg}</div>
+                        )}
+
+                        {routeLegs.length > 0 ? (
+                          <div className="space-y-2">
+                            {routeLegs.map((lg, i) => (
+                              <div key={`${lg.fromLabel}-${lg.toLabel}-${i}`} className="rounded-xl border border-cyan-200/15 bg-[#061126]/35 p-2">
+                                <div className="text-xs text-white/85 font-semibold leading-tight">
+                                  {lg.fromLabel} → {lg.toLabel}
+                                </div>
+                                <div className="text-[11px] text-white/70 mt-1">
+                                  {formatMiles(lg.distanceMeters)} • {formatMinutes(lg.durationSeconds)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-white/60">
+                            Set Home ZIP and add ≥ 1 stop to compute legs (or add ≥ 2 stops without Home).
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1074,8 +1472,7 @@ export default function Page() {
                             <span className="font-extrabold text-white/90">States:</span> {row.states.join(", ") || "—"}
                           </div>
                           <div>
-                            <span className="font-extrabold text-white/90">Category breakdown:</span>{" "}
-                            {row.categoryBreakdown.join(", ") || "—"}
+                            <span className="font-extrabold text-white/90">Category breakdown:</span> {row.categoryBreakdown.join(", ") || "—"}
                           </div>
                           <div>
                             <span className="font-extrabold text-white/90">Suppliers:</span> {row.suppliers.join(", ") || "—"}
@@ -1101,8 +1498,7 @@ export default function Page() {
                     />
 
                     <div className={tanSubTextClass}>
-                      Computed from <span className="text-white/90 font-semibold">retailers.geojson</span> (true location
-                      footprint).
+                      Computed from <span className="text-white/90 font-semibold">retailers.geojson</span> (true location footprint).
                     </div>
 
                     <div className="space-y-2">
@@ -1128,17 +1524,17 @@ export default function Page() {
                       ))}
 
                       {retailerNetworkSummary.length === 0 && <div className={subTextClass}>Network summary not loaded yet.</div>}
-                      {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && (
-                        <div className={subTextClass}>No retailer matches that search.</div>
-                      )}
+                      {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && <div className={subTextClass}>No retailer matches that search.</div>}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Diagnostics (theme/token moved here) */}
+              {/* Diagnostics */}
               <div className="text-[11px] text-white/65">
-                Loaded: {allStops.length} stops • Trip: {tripStops.length} • Theme: SIDEBAR BLUE GLASS • Token:{" "}
+                Loaded: {allStops.length} stops • Trip: {tripStops.length} • Home:{" "}
+                <span className={homeCoords ? "text-green-300 font-semibold" : "text-white/60"}>{homeCoords ? (homeZipApplied || "SET") : "—"}</span>{" "}
+                • Token:{" "}
                 <span className={token ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
                   {token ? "OK" : "MISSING"}
                 </span>
