@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 
 type RouteLegRow = {
   fromLabel: string;
@@ -27,7 +27,7 @@ type TripStopLike = {
   [key: string]: any;
 };
 
-type RetailSummaryLike = {
+type ChannelSummaryRow = {
   retailer: string;
   tripStops: number;
   totalLocations: number;
@@ -37,12 +37,8 @@ type RetailSummaryLike = {
   states: string[];
 };
 
-export const STORAGE_KEY = "cad_trip_print_payload_v1";
-const LAST_PID_KEY = "cad_trip_print_last_pid_v1";
-
-export function storageKeyForPid(pid: string) {
-  return `${STORAGE_KEY}:${pid}`;
-}
+const STORAGE_KEY = "cad_trip_print_payload_v2";
+const APP_STATE_KEY = "cad_app_state_v1";
 
 function metersToMiles(m: number) {
   return m / 1609.344;
@@ -68,24 +64,22 @@ function safeStr(v: any) {
   return String(v ?? "").trim();
 }
 
-function makePid() {
-  const r = Math.random().toString(16).slice(2);
-  return `${Date.now()}_${r}`;
-}
-
 export default function TripPrint(props: {
   basePath: string;
+
   homeLabel: string;
   homeZip: string;
   homeCoords: [number, number] | null;
+
   tripStops: TripStopLike[];
   routeLegs: RouteLegRow[];
   routeTotals: TripTotals;
+
+  channelSummaryRows: ChannelSummaryRow[];
+
   generatedAt: string;
-  retailSummaries: RetailSummaryLike[];
 }) {
   const canPrint = props.tripStops.length >= 1;
-  const [hint, setHint] = useState<string>("");
 
   const cardClass =
     "rounded-xl border ring-1 backdrop-blur-sm p-3 " +
@@ -93,7 +87,7 @@ export default function TripPrint(props: {
     "border-[color:rgba(165,243,252,0.16)] ring-[color:rgba(147,197,253,0.10)] " +
     "shadow-[0_14px_30px_rgba(0,0,0,0.45)]";
 
-  const payloadBase = useMemo(() => {
+  const payload = useMemo(() => {
     const stops = props.tripStops.map((s, idx) => ({
       idx: idx + 1,
       id: safeStr(s.id),
@@ -124,68 +118,74 @@ export default function TripPrint(props: {
         }
       : null;
 
-    const retailSummaries = (props.retailSummaries || []).map((r) => ({
+    const channelSummary = (props.channelSummaryRows || []).map((r) => ({
       retailer: safeStr(r.retailer),
       tripStops: Number(r.tripStops || 0),
       totalLocations: Number(r.totalLocations || 0),
       agronomyLocations: Number(r.agronomyLocations || 0),
-      states: Array.isArray(r.states) ? r.states.map(safeStr).filter(Boolean) : [],
       suppliers: Array.isArray(r.suppliers) ? r.suppliers.map(safeStr).filter(Boolean) : [],
       categoryBreakdown: Array.isArray(r.categoryBreakdown) ? r.categoryBreakdown.map(safeStr).filter(Boolean) : [],
+      states: Array.isArray(r.states) ? r.states.map(safeStr).filter(Boolean) : [],
     }));
 
     return {
-      v: 2, // bumped because we added retailSummaries + pid storage
-      generatedAt: props.generatedAt,
+      v: 2,
+      generatedAt: safeStr(props.generatedAt),
+      basePath: safeStr(props.basePath),
+
       home: {
         label: safeStr(props.homeLabel),
         zip: safeStr(props.homeZip),
         coords: props.homeCoords ? [Number(props.homeCoords[0]), Number(props.homeCoords[1])] : null,
       },
+
       stops,
       legs,
       totals,
-      retailSummaries,
+
+      channelSummary,
     };
   }, [
     props.generatedAt,
+    props.basePath,
     props.homeLabel,
     props.homeZip,
     props.homeCoords,
     props.tripStops,
     props.routeLegs,
     props.routeTotals,
-    props.retailSummaries,
+    props.channelSummaryRows,
   ]);
 
   const doPrint = () => {
     if (!canPrint) return;
 
-    setHint("");
-
-    const pid = makePid();
-    const key = storageKeyForPid(pid);
-
+    // 🔒 Persist app state so even if the user navigates back or refreshes,
+    // the trip/home/filters are restored.
     try {
-      localStorage.setItem(key, JSON.stringify(payloadBase));
-      localStorage.setItem(LAST_PID_KEY, pid);
-    } catch (e) {
-      // If localStorage fails, we fall back to same-tab sessionStorage.
-      try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...payloadBase, v: 1 }));
-      } catch {
-        // ignore
-      }
+      const existing = sessionStorage.getItem(APP_STATE_KEY);
+      if (existing) sessionStorage.setItem(APP_STATE_KEY, existing);
+    } catch {
+      // ignore
     }
 
-    const href = `${props.basePath}/print?pid=${encodeURIComponent(pid)}`;
+    // ✅ Store payload in BOTH localStorage + sessionStorage:
+    // - localStorage lets the /print tab read it reliably
+    // - sessionStorage keeps it scoped to session as well
+    try {
+      const json = JSON.stringify(payload);
+      localStorage.setItem(STORAGE_KEY, json);
+      sessionStorage.setItem(STORAGE_KEY, json);
+    } catch {
+      // ignore
+    }
 
-    // ✅ Prefer opening a new tab to preserve the main app state.
-    // This works because we use localStorage (shared), not sessionStorage.
+    const href = `${props.basePath}/print`;
+
+    // ✅ New tab (keeps main app from losing state / reloading)
     const w = window.open(href, "_blank", "noopener,noreferrer");
     if (!w) {
-      // Popup blocked: fall back to same tab
-      setHint("Popup blocked — opening print view in this tab. (Tip: allow popups for this site.)");
+      // Fallback if popup blocked (rare for user-initiated click)
       window.location.assign(href);
     }
   };
@@ -203,20 +203,15 @@ export default function TripPrint(props: {
         disabled={!canPrint}
         className={[
           "mt-2 w-full rounded-xl px-4 py-2 text-sm font-extrabold",
-          canPrint
-            ? "bg-[#fde047] text-black hover:bg-[#fde047]/90"
-            : "bg-white/10 text-white/40 cursor-not-allowed",
+          canPrint ? "bg-[#fde047] text-black hover:bg-[#fde047]/90" : "bg-white/10 text-white/40 cursor-not-allowed",
         ].join(" ")}
       >
         Print / Save as PDF
       </button>
 
       <div className="mt-2 text-[12px] text-white/70 leading-snug">
-        Opens an <span className="font-semibold text-white/90">ink-safe</span> print view in a new tab (main app stays intact). Choose{" "}
-        <span className="font-semibold text-white/90">Save as PDF</span>.
+        Opens an ink-safe print view in a <span className="font-semibold text-white/90">new tab</span>. Your trip stays loaded here.
       </div>
-
-      {hint && <div className="mt-2 text-[11px] text-yellow-200">{hint}</div>}
 
       {props.routeTotals && (
         <div className="mt-2 text-[11px] text-white/60">
@@ -229,3 +224,5 @@ export default function TripPrint(props: {
     </div>
   );
 }
+
+export { STORAGE_KEY, APP_STATE_KEY };

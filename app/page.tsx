@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import CertisMap, { Stop, RetailerNetworkSummaryRow } from "../components/CertisMap";
-import TripPrint from "../components/TripPrint";
+import TripPrint, { APP_STATE_KEY } from "../components/TripPrint";
 
 function uniqSorted(arr: string[]) {
   return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -88,6 +88,7 @@ type RetailerSummaryRow = {
 };
 
 type RetailerTotals = {
+  displayRetailer: string; // canonical display
   totalLocations: number;
   agronomyLocations: number;
   suppliers: Set<string>;
@@ -144,6 +145,15 @@ function formatCategoryCounts(counts: Record<string, number>) {
   });
 
   return entries.map(([k, n]) => `${k} (${n})`);
+}
+
+// Normalize retailer keys so HQ vs Retailer name punctuation/dashes don’t break lookups.
+function normRetailerKey(name: string) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[\u2013\u2014]/g, "-") // normalize en/em dashes
+    .replace(/[^a-z0-9]+/g, "") // strip punctuation/spaces
+    .trim();
 }
 
 // Best-effort coordinate extractor without requiring CertisMap edits.
@@ -273,11 +283,11 @@ export default function Page() {
 
     // sub-sections inside Trip Builder
     [sectionKey("Routes & Stops")]: true,
-    [sectionKey("Trip Summary")]: true,
+    [sectionKey("Channel Summary - Trip")]: true,
 
     // Exploration
     [sectionKey("Filters")]: true,
-    [sectionKey("Retail Summary - Network")]: true,
+    [sectionKey("Retail Summary - Channel")]: true,
 
     // Future
     [sectionKey("Future Data Layers")]: true,
@@ -341,6 +351,69 @@ export default function Page() {
   const toggleSection = (key: string) => {
     setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  // ==========================
+  // ✅ APP STATE PERSISTENCE
+  // ==========================
+  useEffect(() => {
+    // Restore once on mount
+    try {
+      const raw = sessionStorage.getItem(APP_STATE_KEY);
+      if (!raw) return;
+      const st = JSON.parse(raw);
+
+      if (Array.isArray(st?.selectedStates)) setSelectedStates(st.selectedStates);
+      if (Array.isArray(st?.selectedRetailers)) setSelectedRetailers(st.selectedRetailers);
+      if (Array.isArray(st?.selectedCategories)) setSelectedCategories(st.selectedCategories);
+      if (Array.isArray(st?.selectedSuppliers)) setSelectedSuppliers(st.selectedSuppliers);
+
+      if (typeof st?.homeZipDraft === "string") setHomeZipDraft(st.homeZipDraft);
+      if (typeof st?.homeZipApplied === "string") setHomeZipApplied(st.homeZipApplied);
+      if (typeof st?.homeLabel === "string") setHomeLabel(st.homeLabel);
+
+      if (Array.isArray(st?.homeCoords) && st.homeCoords.length >= 2) {
+        const lng = Number(st.homeCoords[0]);
+        const lat = Number(st.homeCoords[1]);
+        if (isFinite(lng) && isFinite(lat)) setHomeCoords([lng, lat]);
+      }
+
+      if (Array.isArray(st?.tripStops)) setTripStops(st.tripStops);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    // Save whenever important state changes
+    try {
+      const payload = {
+        selectedStates,
+        selectedRetailers,
+        selectedCategories,
+        selectedSuppliers,
+
+        homeZipDraft,
+        homeZipApplied,
+        homeLabel,
+        homeCoords,
+
+        tripStops,
+      };
+      sessionStorage.setItem(APP_STATE_KEY, JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
+  }, [
+    selectedStates,
+    selectedRetailers,
+    selectedCategories,
+    selectedSuppliers,
+    homeZipDraft,
+    homeZipApplied,
+    homeLabel,
+    homeCoords,
+    tripStops,
+  ]);
 
   // Filtered option lists (sidebar search)
   const visibleStates = useMemo(() => {
@@ -488,17 +561,20 @@ export default function Page() {
     return scored.map((x) => x.st).slice(0, 50);
   }, [allStops, stopSearchApplied, tripStops]);
 
-  // MASTER RETAILER TOTALS (FULL FOOTPRINT)
+  // MASTER RETAILER TOTALS (FULL FOOTPRINT) — normalized keying fixes “Agtegra blank”
   const retailerTotalsIndex = useMemo(() => {
     const acc: Record<string, RetailerTotals> = {};
 
     for (const st of allStops) {
       if (!st) continue;
-      if (st.kind === "kingpin") continue;
+      if (st.kind === "kingpin") continue; // kingpins are contacts; don’t count as locations
 
-      const retailer = (st.retailer || "").trim() || "Unknown Retailer";
-      if (!acc[retailer]) {
-        acc[retailer] = {
+      const rawRetailer = (st.retailer || "").trim() || "Unknown Retailer";
+      const k = normRetailerKey(rawRetailer) || "unknownretailer";
+
+      if (!acc[k]) {
+        acc[k] = {
+          displayRetailer: rawRetailer,
           totalLocations: 0,
           agronomyLocations: 0,
           suppliers: new Set<string>(),
@@ -507,20 +583,24 @@ export default function Page() {
         };
       }
 
-      acc[retailer].totalLocations += 1;
-      if (st.state) acc[retailer].states.add(st.state);
-      splitMulti((st as any).suppliers).forEach((x) => acc[retailer].suppliers.add(x));
+      // Prefer a nicer display string if this one is longer/more informative
+      if (rawRetailer.length > acc[k].displayRetailer.length) acc[k].displayRetailer = rawRetailer;
+
+      acc[k].totalLocations += 1;
+      if (st.state) acc[k].states.add(st.state);
+
+      splitMulti((st as any).suppliers).forEach((x) => acc[k].suppliers.add(x));
 
       const cats = splitCategories((st as any).category);
       if (cats.length === 0) {
-        const k = "Uncategorized";
-        acc[retailer].categoryCounts[k] = (acc[retailer].categoryCounts[k] || 0) + 1;
+        const lab = "Uncategorized";
+        acc[k].categoryCounts[lab] = (acc[k].categoryCounts[lab] || 0) + 1;
       } else {
         for (const c0 of cats) {
           const c = normalizeCategoryLabel(c0);
           if (!c) continue;
-          acc[retailer].categoryCounts[c] = (acc[retailer].categoryCounts[c] || 0) + 1;
-          if (isAgronomyCategory(c)) acc[retailer].agronomyLocations += 1;
+          acc[k].categoryCounts[c] = (acc[k].categoryCounts[c] || 0) + 1;
+          if (isAgronomyCategory(c)) acc[k].agronomyLocations += 1;
         }
       }
     }
@@ -530,16 +610,22 @@ export default function Page() {
 
   // RETAILER SUMMARY (TRIP-FOCUSED, BUT USING FULL TOTALS)
   const tripRetailerSummary = useMemo<RetailerSummaryRow[]>(() => {
-    const tripCounts: Record<string, number> = {};
+    const tripCounts: Record<string, { tripStops: number; displayRetailer: string }> = {};
 
     for (const st of tripStops) {
-      const retailer = (st.retailer || "").trim() || "Unknown Retailer";
-      tripCounts[retailer] = (tripCounts[retailer] || 0) + 1;
+      const rawRetailer = (st.retailer || "").trim() || "Unknown Retailer";
+      const k = normRetailerKey(rawRetailer) || "unknownretailer";
+      if (!tripCounts[k]) tripCounts[k] = { tripStops: 0, displayRetailer: rawRetailer };
+      tripCounts[k].tripStops += 1;
+
+      // Prefer longer display name if it’s nicer
+      if (rawRetailer.length > tripCounts[k].displayRetailer.length) tripCounts[k].displayRetailer = rawRetailer;
     }
 
-    const rows: RetailerSummaryRow[] = Object.entries(tripCounts).map(([retailer, tripCount]) => {
-      const totals = retailerTotalsIndex[retailer];
+    const rows: RetailerSummaryRow[] = Object.entries(tripCounts).map(([k, info]) => {
+      const totals = retailerTotalsIndex[k];
 
+      const retailer = totals?.displayRetailer || info.displayRetailer || "Unknown Retailer";
       const totalLocations = totals?.totalLocations ?? 0;
       const agronomyLocations = totals?.agronomyLocations ?? 0;
       const suppliers = totals ? Array.from(totals.suppliers).sort() : [];
@@ -548,7 +634,7 @@ export default function Page() {
 
       return {
         retailer,
-        tripStops: tripCount,
+        tripStops: info.tripStops,
         totalLocations,
         agronomyLocations,
         suppliers,
@@ -1366,18 +1452,17 @@ export default function Page() {
                             tripStops={tripStops}
                             routeLegs={routeLegs}
                             routeTotals={routeTotals}
+                            channelSummaryRows={tripRetailerSummary}
                             generatedAt={printGeneratedAt}
-                            // ✅ THIS is the missing wire-up:
-                            retailSummaries={tripRetailerSummary}
                           />
                         </div>
                       )}
                     </div>
 
-                    {/* Trip Summary */}
+                    {/* ✅ RENAMED: Channel Summary - Trip */}
                     <div className={sectionShellClass}>
-                      <SectionHeader title="Trip Summary" k={sectionKey("Trip Summary")} />
-                      {!collapsed[sectionKey("Trip Summary")] && (
+                      <SectionHeader title="Channel Summary - Trip" k={sectionKey("Channel Summary - Trip")} />
+                      {!collapsed[sectionKey("Channel Summary - Trip")] && (
                         <div className="space-y-2 mt-3">
                           {tripRetailerSummary.slice(0, 80).map((row) => (
                             <div key={row.retailer} className={innerTileClass}>
@@ -1412,8 +1497,8 @@ export default function Page() {
                 )}
               </div>
 
-              {/* NETWORK EXPLORER */}
-              <div className="text-[11px] font-extrabold tracking-wide text-white/60 px-1">NETWORK EXPLORER</div>
+              {/* ✅ RENAMED: CHANNEL EXPLORER */}
+              <div className="text-[11px] font-extrabold tracking-wide text-white/60 px-1">CHANNEL EXPLORER</div>
 
               {/* FILTERS */}
               <div className={sectionShellClass}>
@@ -1511,15 +1596,15 @@ export default function Page() {
                 )}
               </div>
 
-              {/* RETAIL SUMMARY - NETWORK */}
+              {/* ✅ RENAMED: Retail Summary - Channel */}
               <div className={sectionShellClass}>
-                <SectionHeader title="Retail Summary - Network" k={sectionKey("Retail Summary - Network")} />
-                {!collapsed[sectionKey("Retail Summary - Network")] && (
+                <SectionHeader title="Retail Summary - Channel" k={sectionKey("Retail Summary - Channel")} />
+                {!collapsed[sectionKey("Retail Summary - Channel")] && (
                   <div className="space-y-2 mt-3">
                     <input
                       value={networkRetailerSearch}
                       onChange={(e) => setNetworkRetailerSearch(e.target.value)}
-                      placeholder="Search retailer name (network)…"
+                      placeholder="Search retailer name (channel)…"
                       className={smallInputClass}
                     />
 
@@ -1549,7 +1634,7 @@ export default function Page() {
                         </div>
                       ))}
 
-                      {retailerNetworkSummary.length === 0 && <div className={subTextClass}>Network summary not loaded yet.</div>}
+                      {retailerNetworkSummary.length === 0 && <div className={subTextClass}>Channel summary not loaded yet.</div>}
                       {retailerNetworkSummary.length > 0 && visibleNetworkRows.length === 0 && <div className={subTextClass}>No retailer matches that search.</div>}
                     </div>
                   </div>
