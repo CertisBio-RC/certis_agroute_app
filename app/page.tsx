@@ -932,6 +932,9 @@ export default function Page() {
     ];
   }, [categories]);
 
+  // Print stamp (stable)
+  const printGeneratedAt = useMemo(() => new Date().toISOString(), []);
+
   return (
     <div className={`min-h-screen w-full text-white flex flex-col ${appBg}`}>
       {/* HEADER */}
@@ -1059,6 +1062,7 @@ export default function Page() {
                     </button>
                   }
                 />
+
                 {!collapsed[sectionKey("Trip Builder")] && (
                   <div className="space-y-3 mt-3">
                     {/* Home ZIP */}
@@ -1213,9 +1217,18 @@ export default function Page() {
                     {/* Routes & Stops collapsible section */}
                     <div className={sectionShellClass}>
                       <SectionHeader title="Routes & Stops" k={sectionKey("Routes & Stops")} />
+
                       {!collapsed[sectionKey("Routes & Stops")] && (
                         <div className="space-y-3 mt-3">
-                          {/* 1) STOPS LIST FIRST (with arrows) */}
+                          {/* =========================================================
+                             ORDER FIX:
+                             1) Stops (with arrows)
+                             2) Distances & Times
+                             3) Send to Phone
+                             4) Print Trip (PDF)
+                             ========================================================= */}
+
+                          {/* 1) Stops list FIRST */}
                           {tripStops.map((st, idx) => (
                             <div key={st.id} className={innerTileClass}>
                               <div className="flex items-start justify-between gap-2">
@@ -1230,6 +1243,7 @@ export default function Page() {
                                     {st.kind ? ` • ${st.kind}` : ""}
                                   </div>
                                 </div>
+
                                 <div className="flex flex-col gap-2">
                                   <div className="flex gap-2 justify-end">
                                     <button onClick={() => zoomStop(st)} className={clearBtnClass}>
@@ -1258,9 +1272,9 @@ export default function Page() {
                             </div>
                           )}
 
-                          {(homeCoords || tripStops.length > 0) && <div className="h-px bg-white/10 my-1" />}
+                          {tripStops.length > 0 && <div className="h-px bg-white/10 my-1" />}
 
-                          {/* 2) DISTANCES & TIMES SECOND */}
+                          {/* 2) Distances / Times */}
                           <div className={innerTileClass}>
                             <div className="flex items-center justify-between gap-2">
                               <div className={tileTitleClass}>Distances & Times</div>
@@ -1301,7 +1315,7 @@ export default function Page() {
                             </div>
                           </div>
 
-                          {/* 3) SEND TO PHONE THIRD */}
+                          {/* 3) Send to Phone */}
                           <div className={innerTileClass}>
                             <div className="flex items-center justify-between gap-2">
                               <div className={tileTitleClass}>Send to Phone</div>
@@ -1351,7 +1365,7 @@ export default function Page() {
                             </div>
                           </div>
 
-                          {/* 4) PRINT LAST */}
+                          {/* 4) Print Trip (PDF) LAST */}
                           <TripPrint
                             basePath={basePath}
                             homeLabel={homeLabel}
@@ -1360,7 +1374,7 @@ export default function Page() {
                             tripStops={tripStops}
                             routeLegs={routeLegs}
                             routeTotals={routeTotals}
-                            generatedAt={new Date().toISOString()}
+                            generatedAt={printGeneratedAt}
                           />
                         </div>
                       )}
