@@ -1,13 +1,8 @@
-// src/app/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import CertisMap, { Stop, RetailerNetworkSummaryRow } from "../components/CertisMap";
-import {
-  openTripPrintWindow,
-  PrintRetailerSummaryRow,
-  PrintRouteLegRow,
-} from "../components/TripPrint";
+import TripPrint from "../components/TripPrint";
 
 function uniqSorted(arr: string[]) {
   return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -276,7 +271,7 @@ export default function Page() {
     [sectionKey("Trip Builder")]: true,
     [sectionKey("Find a Stop")]: true,
 
-    // Sub-sections inside Trip Builder
+    // sub-sections inside Trip Builder
     [sectionKey("Routes & Stops")]: true,
     [sectionKey("Trip Summary")]: true,
 
@@ -767,23 +762,6 @@ export default function Page() {
     const t = window.setTimeout(run, 220);
     return () => window.clearTimeout(t);
   }, [canBuildRoute, routePointsLngLat, token, homeCoords, homeLabel, tripStops]);
-
-  // PRINT HANDLER
-  const canPrintTrip = tripStops.length >= 1;
-  const printTrip = () => {
-    if (!canPrintTrip) return;
-
-    openTripPrintWindow({
-      basePath,
-      appTitle: "CERTIS AgRoute Database — Trip Print",
-      homeLabel,
-      homeZipApplied,
-      tripStops: tripStops as any,
-      routeLegs: routeLegs as unknown as PrintRouteLegRow[],
-      routeTotals: routeTotals as any,
-      tripRetailerSummary: tripRetailerSummary as unknown as PrintRetailerSummaryRow[],
-    });
-  };
 
   // VISUAL SYSTEM
   const appBg =
@@ -1328,34 +1306,6 @@ export default function Page() {
                             </div>
                           </div>
 
-                          {/* NEW: Print Trip (PDF) */}
-                          <div className={innerTileClass}>
-                            <div className="flex items-center justify-between gap-2">
-                              <div className={tileTitleClass}>Print Trip (PDF)</div>
-                              <div className="text-[11px] text-white/60">{canPrintTrip ? "Ready" : "Add ≥ 1 stop"}</div>
-                            </div>
-
-                            <div className="mt-2">
-                              <button
-                                type="button"
-                                onClick={printTrip}
-                                disabled={!canPrintTrip}
-                                className={`w-full text-xs px-3 py-2 rounded-xl font-extrabold ${
-                                  canPrintTrip
-                                    ? "bg-[#fde047] text-black hover:bg-[#fde047]/90"
-                                    : "bg-white/10 text-white/50 cursor-not-allowed"
-                                }`}
-                                title={canPrintTrip ? "Open print view (Save as PDF)" : "Add at least 1 stop"}
-                              >
-                                Print / Save as PDF
-                              </button>
-
-                              <div className="mt-2 text-[11px] text-white/60">
-                                Opens a clean print view in a new tab. Choose <span className="text-white/85 font-semibold">Save as PDF</span>.
-                              </div>
-                            </div>
-                          </div>
-
                           {/* Stops list */}
                           {(homeCoords || tripStops.length > 0) && <div className="h-px bg-white/10 my-1" />}
 
@@ -1400,6 +1350,18 @@ export default function Page() {
                               Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
                             </div>
                           )}
+
+                          {/* ✅ Print Trip (PDF) — moved to the bottom, last step */}
+                          <TripPrint
+                            basePath={basePath}
+                            homeLabel={homeLabel}
+                            homeZipApplied={homeZipApplied}
+                            homeCoords={homeCoords}
+                            tripStops={tripStops}
+                            routeLegs={routeLegs}
+                            routeTotals={routeTotals}
+                            tripRetailerSummary={tripRetailerSummary}
+                          />
                         </div>
                       )}
                     </div>
