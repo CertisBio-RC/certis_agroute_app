@@ -1,7 +1,13 @@
+// src/app/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import CertisMap, { Stop, RetailerNetworkSummaryRow } from "../components/CertisMap";
+import {
+  openTripPrintWindow,
+  PrintRetailerSummaryRow,
+  PrintRouteLegRow,
+} from "../components/TripPrint";
 
 function uniqSorted(arr: string[]) {
   return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -270,7 +276,7 @@ export default function Page() {
     [sectionKey("Trip Builder")]: true,
     [sectionKey("Find a Stop")]: true,
 
-    // NEW: sub-sections inside Trip Builder
+    // Sub-sections inside Trip Builder
     [sectionKey("Routes & Stops")]: true,
     [sectionKey("Trip Summary")]: true,
 
@@ -556,19 +562,7 @@ export default function Page() {
       };
     });
 
-    // NEW: sort Trip Summary by ROUTE ORDER (first appearance in tripStops)
-    const firstIdx: Record<string, number> = {};
-    for (let i = 0; i < tripStops.length; i++) {
-      const r = (tripStops[i].retailer || "").trim() || "Unknown Retailer";
-      if (firstIdx[r] === undefined) firstIdx[r] = i;
-    }
-
     rows.sort((a, b) => {
-      const ai = firstIdx[a.retailer] ?? Number.POSITIVE_INFINITY;
-      const bi = firstIdx[b.retailer] ?? Number.POSITIVE_INFINITY;
-      if (ai !== bi) return ai - bi;
-
-      // Tie-breakers (rare): more trip stops, then alpha
       if (b.tripStops !== a.tripStops) return b.tripStops - a.tripStops;
       return a.retailer.localeCompare(b.retailer);
     });
@@ -774,6 +768,23 @@ export default function Page() {
     return () => window.clearTimeout(t);
   }, [canBuildRoute, routePointsLngLat, token, homeCoords, homeLabel, tripStops]);
 
+  // PRINT HANDLER
+  const canPrintTrip = tripStops.length >= 1;
+  const printTrip = () => {
+    if (!canPrintTrip) return;
+
+    openTripPrintWindow({
+      basePath,
+      appTitle: "CERTIS AgRoute Database — Trip Print",
+      homeLabel,
+      homeZipApplied,
+      tripStops: tripStops as any,
+      routeLegs: routeLegs as unknown as PrintRouteLegRow[],
+      routeTotals: routeTotals as any,
+      tripRetailerSummary: tripRetailerSummary as unknown as PrintRetailerSummaryRow[],
+    });
+  };
+
   // VISUAL SYSTEM
   const appBg =
     "bg-[#050914] " +
@@ -923,21 +934,14 @@ export default function Page() {
   const legendItems = useMemo(() => {
     const has = (x: string) => categories.includes(x);
 
-    const cAgronomy =
-      has("Agronomy") ? "Agronomy" : categories.find((x) => x.toLowerCase().includes("agronomy")) || "Agronomy";
-    const cGrain =
-      has("Grain/Feed") ? "Grain/Feed" : categories.find((x) => x.toLowerCase().includes("grain")) || "Grain/Feed";
+    const cAgronomy = has("Agronomy") ? "Agronomy" : categories.find((x) => x.toLowerCase().includes("agronomy")) || "Agronomy";
+    const cGrain = has("Grain/Feed") ? "Grain/Feed" : categories.find((x) => x.toLowerCase().includes("grain")) || "Grain/Feed";
     const cCstore =
       has("C-Store/Service/Energy")
         ? "C-Store/Service/Energy"
-        : categories.find(
-            (x) =>
-              x.toLowerCase().includes("c-store") ||
-              x.toLowerCase().includes("service") ||
-              x.toLowerCase().includes("energy")
-          ) || "C-Store/Service/Energy";
-    const cDist =
-      has("Distribution") ? "Distribution" : categories.find((x) => x.toLowerCase().includes("distribution")) || "Distribution";
+        : categories.find((x) => x.toLowerCase().includes("c-store") || x.toLowerCase().includes("service") || x.toLowerCase().includes("energy")) ||
+          "C-Store/Service/Energy";
+    const cDist = has("Distribution") ? "Distribution" : categories.find((x) => x.toLowerCase().includes("distribution")) || "Distribution";
     const cHQ = has("Regional HQ") ? "Regional HQ" : categories.find((x) => x.toLowerCase().includes("hq")) || "Regional HQ";
 
     return [
@@ -1228,7 +1232,7 @@ export default function Page() {
 
                     <Divider label="ROUTE & STOPS" />
 
-                    {/* NEW: Routes & Stops collapsible section */}
+                    {/* Routes & Stops collapsible section */}
                     <div className={sectionShellClass}>
                       <SectionHeader title="Routes & Stops" k={sectionKey("Routes & Stops")} />
                       {!collapsed[sectionKey("Routes & Stops")] && (
@@ -1274,7 +1278,7 @@ export default function Page() {
                             </div>
                           </div>
 
-                          {/* MOVED: Send to Phone BELOW Distances & Times */}
+                          {/* Send to Phone */}
                           <div className={innerTileClass}>
                             <div className="flex items-center justify-between gap-2">
                               <div className={tileTitleClass}>Send to Phone</div>
@@ -1324,6 +1328,34 @@ export default function Page() {
                             </div>
                           </div>
 
+                          {/* NEW: Print Trip (PDF) */}
+                          <div className={innerTileClass}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className={tileTitleClass}>Print Trip (PDF)</div>
+                              <div className="text-[11px] text-white/60">{canPrintTrip ? "Ready" : "Add ≥ 1 stop"}</div>
+                            </div>
+
+                            <div className="mt-2">
+                              <button
+                                type="button"
+                                onClick={printTrip}
+                                disabled={!canPrintTrip}
+                                className={`w-full text-xs px-3 py-2 rounded-xl font-extrabold ${
+                                  canPrintTrip
+                                    ? "bg-[#fde047] text-black hover:bg-[#fde047]/90"
+                                    : "bg-white/10 text-white/50 cursor-not-allowed"
+                                }`}
+                                title={canPrintTrip ? "Open print view (Save as PDF)" : "Add at least 1 stop"}
+                              >
+                                Print / Save as PDF
+                              </button>
+
+                              <div className="mt-2 text-[11px] text-white/60">
+                                Opens a clean print view in a new tab. Choose <span className="text-white/85 font-semibold">Save as PDF</span>.
+                              </div>
+                            </div>
+                          </div>
+
                           {/* Stops list */}
                           {(homeCoords || tripStops.length > 0) && <div className="h-px bg-white/10 my-1" />}
 
@@ -1364,13 +1396,15 @@ export default function Page() {
                           ))}
 
                           {tripStops.length === 0 && (
-                            <div className={tanSubTextClass}>Add stops from map popups (“Add to Trip”) or from “Find a Stop”.</div>
+                            <div className={tanSubTextClass}>
+                              Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
+                            </div>
                           )}
                         </div>
                       )}
                     </div>
 
-                    {/* NEW: Trip Summary (moved from separate long card) */}
+                    {/* Trip Summary */}
                     <div className={sectionShellClass}>
                       <SectionHeader title="Trip Summary" k={sectionKey("Trip Summary")} />
                       {!collapsed[sectionKey("Trip Summary")] && (
