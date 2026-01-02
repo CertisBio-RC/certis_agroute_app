@@ -999,7 +999,7 @@ export default function CertisMap(props: Props) {
 
     closeActivePopup();
 
-    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false }).setLngLat(coords).setHTML(html).addTo(map);
+    const popup = new mapboxgl.Popup({ offset: 14, closeOnMove: false,  closeButton: false, }).setLngLat(coords).setHTML(html).addTo(map);
     activePopupRef.current = popup;
     return popup;
   }
