@@ -146,7 +146,6 @@ function formatCategoryCounts(counts: Record<string, number>) {
 }
 
 // Best-effort coordinate extractor without requiring CertisMap edits.
-// We intentionally probe common field names (lng/lat, lon/lat, coords, lngLat, etc.)
 function getStopLngLat(st: Stop): [number, number] | null {
   const anySt = st as any;
 
@@ -181,7 +180,6 @@ function getStopLngLat(st: Stop): [number, number] | null {
 }
 
 function lngLatToString(ll: [number, number]) {
-  // Google prefers lat,lng; Mapbox is lng,lat; Apple accepts lat,lng; Waze accepts lat,lng
   return `${ll[1]},${ll[0]}`;
 }
 
@@ -205,7 +203,7 @@ function makeAppleMapsUrl(pointsLatLng: string[]) {
   const saddr = pointsLatLng[0];
   const chain = pointsLatLng.slice(1).join("+to:");
   const params = new URLSearchParams();
-  params.set("dirflg", "d"); // driving
+  params.set("dirflg", "d");
   params.set("saddr", saddr);
   params.set("daddr", chain);
   return `https://maps.apple.com/?${params.toString()}`;
@@ -235,7 +233,7 @@ export default function Page() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
 
-  // Home ZIP (restored)
+  // Home ZIP
   const [homeZipDraft, setHomeZipDraft] = useState<string>("");
   const [homeZipApplied, setHomeZipApplied] = useState<string>("");
   const [homeLabel, setHomeLabel] = useState<string>("Home");
@@ -253,7 +251,7 @@ export default function Page() {
   const [categorySearch, setCategorySearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
 
-  // ✅ Find-a-Stop: draft vs applied (already fixed)
+  // Find-a-Stop: draft vs applied
   const [stopSearchDraft, setStopSearchDraft] = useState("");
   const [stopSearchApplied, setStopSearchApplied] = useState("");
   const stopResultsRef = useRef<HTMLDivElement | null>(null);
@@ -265,18 +263,19 @@ export default function Page() {
   const routeAbortRef = useRef<AbortController | null>(null);
   const lastRouteKeyRef = useRef<string>("");
 
-  // Default collapse behavior
-  // ✅ Requirement: start with all cards collapsed EXCEPT Legend
+  // Default collapse behavior (Legend open; everything else compact by default)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     [sectionKey("Legend")]: false,
 
-    // Trip Planning (primary workflow)
     [sectionKey("Trip Builder")]: true,
     [sectionKey("Find a Stop")]: true,
 
+    // NEW: sub-sections inside Trip Builder
+    [sectionKey("Routes & Stops")]: true,
+    [sectionKey("Trip Summary")]: true,
+
     // Exploration
     [sectionKey("Filters")]: true,
-    [sectionKey("Retail Summary - Trip Stops")]: true,
     [sectionKey("Retail Summary - Network")]: true,
 
     // Future
@@ -575,7 +574,7 @@ export default function Page() {
       .slice(0, 120);
   }, [retailerNetworkSummary, networkRetailerSearch]);
 
-  // ===== Home ZIP geocoding (Mapbox forward geocode) =====
+  // Home ZIP geocoding
   const applyHomeZip = async () => {
     const z = digitsOnly(homeZipDraft || "").slice(0, 5);
     if (!z || z.length < 5) {
@@ -638,7 +637,7 @@ export default function Page() {
     setHomeStatus(null);
   };
 
-  // ===== Build route points for links + legs calc =====
+  // Route points for links + legs calc
   const routePointsLngLat = useMemo(() => {
     const pts: [number, number][] = [];
     if (homeCoords) pts.push(homeCoords);
@@ -665,7 +664,7 @@ export default function Page() {
 
   const canBuildRoute = routePointsLngLat.length >= 2 && !!token;
 
-  // ===== Distances + times between stops (Mapbox Directions) =====
+  // Distances + times between stops (Mapbox Directions)
   useEffect(() => {
     if (!canBuildRoute) {
       setRouteLegs([]);
@@ -986,7 +985,7 @@ export default function Page() {
           {/* SIDEBAR */}
           <aside style={sidebarVars} className={`${sidebarPanelClass} sidebar min-h-0 lg:h-full ${sidebarSecondMobileClass}`}>
             <div className="overflow-y-auto px-4 py-3 space-y-4">
-              {/* LEGEND (keep high in sidebar) */}
+              {/* LEGEND */}
               <div className={sectionShellClass}>
                 <SectionHeader title="Legend" k={sectionKey("Legend")} />
                 {!collapsed[sectionKey("Legend")] && (
@@ -1048,7 +1047,7 @@ export default function Page() {
                 )}
               </div>
 
-              {/* TRIP BUILDER (PRIMARY WORKFLOW) */}
+              {/* TRIP BUILDER */}
               <div className={sectionShellClass}>
                 <SectionHeader
                   title="Trip Builder"
@@ -1061,7 +1060,7 @@ export default function Page() {
                 />
                 {!collapsed[sectionKey("Trip Builder")] && (
                   <div className="space-y-3 mt-3">
-                    {/* Home ZIP (restored) */}
+                    {/* Home ZIP */}
                     <div className={innerTileClass}>
                       <div className="flex items-center justify-between gap-2">
                         <div className={tileTitleClass}>Home ZIP</div>
@@ -1118,10 +1117,9 @@ export default function Page() {
                       )}
                     </div>
 
-                    {/* ✅ Divider requested: visually separates Home ZIP from the rest */}
                     <Divider label="TRIP PLANNING" />
 
-                    {/* Find a Stop — moved directly below Home ZIP */}
+                    {/* Find a Stop */}
                     <div className={sectionShellClass}>
                       <SectionHeader
                         title="Find a Stop"
@@ -1211,141 +1209,183 @@ export default function Page() {
 
                     <Divider label="ROUTE & STOPS" />
 
-                    {/* Share route links */}
-                    <div className={innerTileClass}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className={tileTitleClass}>Send to Phone</div>
-                        <div className="text-[11px] text-white/60">
-                          {routePointsLngLat.length >= 2 ? `${routePointsLngLat.length} points` : "Add ≥ 1 stop"}
-                        </div>
-                      </div>
-
-                      <div className="mt-2 grid grid-cols-3 gap-2">
-                        <a
-                          href={googleRouteUrl || "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
-                            googleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
-                          }`}
-                        >
-                          Google
-                        </a>
-
-                        <a
-                          href={appleRouteUrl || "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
-                            appleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
-                          }`}
-                        >
-                          Apple
-                        </a>
-
-                        <a
-                          href={wazeUrl || "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
-                            wazeUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
-                          }`}
-                          title="Waze opens the next stop (single-destination)"
-                        >
-                          Waze
-                        </a>
-                      </div>
-
-                      <div className="mt-2 text-[11px] text-white/60">
-                        Waze opens the <span className="text-white/85 font-semibold">next stop</span> (single-destination).
-                      </div>
-                    </div>
-
-                    {/* ✅ Line between Home ZIP and first stop (and keeps stops visually separated) */}
-                    {(homeCoords || tripStops.length > 0) && <div className="h-px bg-white/10 my-1" />}
-
-                    {/* Trip stops list */}
-                    {tripStops.map((st, idx) => (
-                      <div key={st.id} className={innerTileClass}>
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className={`${tileTitleClass} !text-sm`}>
-                              {idx + 1}. {st.label}
-                            </div>
-                            <div className={tanSubTextClass}>
-                              {(st.city || "") + (st.city ? ", " : "")}
-                              {st.state || ""}
-                              {st.zip ? ` ${st.zip}` : ""}
-                              {st.kind ? ` • ${st.kind}` : ""}
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            <div className="flex gap-2 justify-end">
-                              <button onClick={() => zoomStop(st)} className={clearBtnClass}>
-                                Zoom
-                              </button>
-                              <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
-                                Remove
-                              </button>
-                            </div>
-                            <div className="flex gap-2 justify-end">
-                              <button onClick={() => moveStop(idx, -1)} className={clearBtnClass} disabled={idx === 0} title="Move up">
-                                ↑
-                              </button>
-                              <button onClick={() => moveStop(idx, 1)} className={clearBtnClass} disabled={idx === tripStops.length - 1} title="Move down">
-                                ↓
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {tripStops.length === 0 && (
-                      <div className={tanSubTextClass}>
-                        Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
-                      </div>
-                    )}
-
-                    {/* Distances / Times between stops */}
-                    <div className={innerTileClass}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className={tileTitleClass}>Distances & Times</div>
-                        {routeTotals ? (
-                          <div className="text-xs text-white/75 whitespace-nowrap">
-                            Total: {formatMiles(routeTotals.distanceMeters)} • {formatMinutes(routeTotals.durationSeconds)}
-                          </div>
-                        ) : (
-                          <div className="text-[11px] text-white/60 whitespace-nowrap">—</div>
-                        )}
-                      </div>
-
-                      <div className="mt-2 space-y-2">
-                        {!token && <div className="text-[11px] text-red-300">Token missing — cannot compute route legs.</div>}
-
-                        {routeStatus && (
-                          <div className={`text-[11px] ${routeStatus.ok ? "text-green-300" : "text-red-300"}`}>{routeStatus.msg}</div>
-                        )}
-
-                        {routeLegs.length > 0 ? (
-                          <div className="space-y-2">
-                            {routeLegs.map((lg, i) => (
-                              <div key={`${lg.fromLabel}-${lg.toLabel}-${i}`} className="rounded-xl border border-cyan-200/15 bg-[#061126]/35 p-2">
-                                <div className="text-xs text-white/85 font-semibold leading-tight">
-                                  {lg.fromLabel} → {lg.toLabel}
+                    {/* NEW: Routes & Stops collapsible section */}
+                    <div className={sectionShellClass}>
+                      <SectionHeader title="Routes & Stops" k={sectionKey("Routes & Stops")} />
+                      {!collapsed[sectionKey("Routes & Stops")] && (
+                        <div className="space-y-3 mt-3">
+                          {/* Distances / Times between stops */}
+                          <div className={innerTileClass}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className={tileTitleClass}>Distances & Times</div>
+                              {routeTotals ? (
+                                <div className="text-xs text-white/75 whitespace-nowrap">
+                                  Total: {formatMiles(routeTotals.distanceMeters)} • {formatMinutes(routeTotals.durationSeconds)}
                                 </div>
-                                <div className="text-[11px] text-white/70 mt-1">
-                                  {formatMiles(lg.distanceMeters)} • {formatMinutes(lg.durationSeconds)}
+                              ) : (
+                                <div className="text-[11px] text-white/60 whitespace-nowrap">—</div>
+                              )}
+                            </div>
+
+                            <div className="mt-2 space-y-2">
+                              {!token && <div className="text-[11px] text-red-300">Token missing — cannot compute route legs.</div>}
+
+                              {routeStatus && (
+                                <div className={`text-[11px] ${routeStatus.ok ? "text-green-300" : "text-red-300"}`}>{routeStatus.msg}</div>
+                              )}
+
+                              {routeLegs.length > 0 ? (
+                                <div className="space-y-2">
+                                  {routeLegs.map((lg, i) => (
+                                    <div key={`${lg.fromLabel}-${lg.toLabel}-${i}`} className="rounded-xl border border-cyan-200/15 bg-[#061126]/35 p-2">
+                                      <div className="text-xs text-white/85 font-semibold leading-tight">
+                                        {lg.fromLabel} → {lg.toLabel}
+                                      </div>
+                                      <div className="text-[11px] text-white/70 mt-1">
+                                        {formatMiles(lg.distanceMeters)} • {formatMinutes(lg.durationSeconds)}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-white/60">
+                                  Set Home ZIP and add ≥ 1 stop to compute legs (or add ≥ 2 stops without Home).
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* MOVED: Send to Phone BELOW Distances & Times */}
+                          <div className={innerTileClass}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className={tileTitleClass}>Send to Phone</div>
+                              <div className="text-[11px] text-white/60">
+                                {routePointsLngLat.length >= 2 ? `${routePointsLngLat.length} points` : "Add ≥ 1 stop"}
+                              </div>
+                            </div>
+
+                            <div className="mt-2 grid grid-cols-3 gap-2">
+                              <a
+                                href={googleRouteUrl || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
+                                  googleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
+                                }`}
+                              >
+                                Google
+                              </a>
+
+                              <a
+                                href={appleRouteUrl || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
+                                  appleRouteUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
+                                }`}
+                              >
+                                Apple
+                              </a>
+
+                              <a
+                                href={wazeUrl || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`text-center text-xs px-2 py-2 rounded-xl border border-cyan-200/20 ${
+                                  wazeUrl ? "hover:border-cyan-200/40 hover:bg-white/10" : "opacity-40 pointer-events-none"
+                                }`}
+                                title="Waze opens the next stop (single-destination)"
+                              >
+                                Waze
+                              </a>
+                            </div>
+
+                            <div className="mt-2 text-[11px] text-white/60">
+                              Waze opens the <span className="text-white/85 font-semibold">next stop</span> (single-destination).
+                            </div>
+                          </div>
+
+                          {/* Stops list */}
+                          {(homeCoords || tripStops.length > 0) && <div className="h-px bg-white/10 my-1" />}
+
+                          {tripStops.map((st, idx) => (
+                            <div key={st.id} className={innerTileClass}>
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className={`${tileTitleClass} !text-sm`}>
+                                    {idx + 1}. {st.label}
+                                  </div>
+                                  <div className={tanSubTextClass}>
+                                    {(st.city || "") + (st.city ? ", " : "")}
+                                    {st.state || ""}
+                                    {st.zip ? ` ${st.zip}` : ""}
+                                    {st.kind ? ` • ${st.kind}` : ""}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  <div className="flex gap-2 justify-end">
+                                    <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                                      Zoom
+                                    </button>
+                                    <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
+                                      Remove
+                                    </button>
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <button onClick={() => moveStop(idx, -1)} className={clearBtnClass} disabled={idx === 0} title="Move up">
+                                      ↑
+                                    </button>
+                                    <button onClick={() => moveStop(idx, 1)} className={clearBtnClass} disabled={idx === tripStops.length - 1} title="Move down">
+                                      ↓
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-[11px] text-white/60">
-                            Set Home ZIP and add ≥ 1 stop to compute legs (or add ≥ 2 stops without Home).
-                          </div>
-                        )}
-                      </div>
+                            </div>
+                          ))}
+
+                          {tripStops.length === 0 && (
+                            <div className={tanSubTextClass}>
+                              Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* NEW: Trip Summary (moved from separate long card) */}
+                    <div className={sectionShellClass}>
+                      <SectionHeader title="Trip Summary" k={sectionKey("Trip Summary")} />
+                      {!collapsed[sectionKey("Trip Summary")] && (
+                        <div className="space-y-2 mt-3">
+                          {tripRetailerSummary.slice(0, 80).map((row) => (
+                            <div key={row.retailer} className={innerTileClass}>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className={tileTitleClass}>{row.retailer}</div>
+                                <div className="text-xs text-white/75 whitespace-nowrap">
+                                  Trip: {row.tripStops} • Total: {row.totalLocations}
+                                </div>
+                              </div>
+
+                              <div className="text-xs text-white/80 mt-2 space-y-1">
+                                <div>
+                                  <span className="font-extrabold text-white/90">Agronomy locations:</span> {row.agronomyLocations}
+                                </div>
+                                <div>
+                                  <span className="font-extrabold text-white/90">States:</span> {row.states.join(", ") || "—"}
+                                </div>
+                                <div>
+                                  <span className="font-extrabold text-white/90">Category breakdown:</span> {row.categoryBreakdown.join(", ") || "—"}
+                                </div>
+                                <div>
+                                  <span className="font-extrabold text-white/90">Suppliers:</span> {row.suppliers.join(", ") || "—"}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {tripRetailerSummary.length === 0 && <div className={subTextClass}>No trip stops yet.</div>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1446,41 +1486,6 @@ export default function Page() {
                         {visibleSuppliers.length === 0 && <div className={subTextClass}>Loading…</div>}
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* RETAIL SUMMARY - TRIP STOPS */}
-              <div className={sectionShellClass}>
-                <SectionHeader title="Retail Summary - Trip Stops" k={sectionKey("Retail Summary - Trip Stops")} />
-                {!collapsed[sectionKey("Retail Summary - Trip Stops")] && (
-                  <div className="space-y-2 mt-3">
-                    {tripRetailerSummary.slice(0, 80).map((row) => (
-                      <div key={row.retailer} className={innerTileClass}>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className={tileTitleClass}>{row.retailer}</div>
-                          <div className="text-xs text-white/75 whitespace-nowrap">
-                            Trip: {row.tripStops} • Total: {row.totalLocations}
-                          </div>
-                        </div>
-
-                        <div className="text-xs text-white/80 mt-2 space-y-1">
-                          <div>
-                            <span className="font-extrabold text-white/90">Agronomy locations:</span> {row.agronomyLocations}
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-white/90">States:</span> {row.states.join(", ") || "—"}
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-white/90">Category breakdown:</span> {row.categoryBreakdown.join(", ") || "—"}
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-white/90">Suppliers:</span> {row.suppliers.join(", ") || "—"}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {tripRetailerSummary.length === 0 && <div className={subTextClass}>No trip stops yet.</div>}
                   </div>
                 )}
               </div>
