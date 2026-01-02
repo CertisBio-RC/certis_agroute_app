@@ -24,6 +24,18 @@ type TripStopLike = {
   email?: string;
   phoneOffice?: string;
   phoneCell?: string;
+  // allow any extra fields without TS drama
+  [key: string]: any;
+};
+
+type RetailSummaryLike = {
+  retailer?: string;
+  tripCount?: number;
+  totalCount?: number;
+  agronomyLocations?: number;
+  states?: string[];
+  categoryBreakdown?: Record<string, number>;
+  suppliers?: string[];
   [key: string]: any;
 };
 
@@ -52,6 +64,16 @@ function formatMinutes(seconds: number) {
 function safeStr(v: any) {
   return String(v ?? "").trim();
 }
+function safeNum(v: any, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+function safeArr(v: any) {
+  return Array.isArray(v) ? v : [];
+}
+function safeObj(v: any) {
+  return v && typeof v === "object" ? v : {};
+}
 
 export default function TripPrint(props: {
   basePath: string;
@@ -62,6 +84,7 @@ export default function TripPrint(props: {
   routeLegs: RouteLegRow[];
   routeTotals: TripTotals;
   generatedAt: string;
+  retailSummaries?: RetailSummaryLike[]; // ✅ optional (won't break page.tsx)
 }) {
   const canPrint = props.tripStops.length >= 1;
 
@@ -91,28 +114,50 @@ export default function TripPrint(props: {
     const legs = (props.routeLegs || []).map((l) => ({
       fromLabel: safeStr(l.fromLabel),
       toLabel: safeStr(l.toLabel),
-      distanceMeters: Number(l.distanceMeters || 0),
-      durationSeconds: Number(l.durationSeconds || 0),
+      distanceMeters: safeNum(l.distanceMeters, 0),
+      durationSeconds: safeNum(l.durationSeconds, 0),
     }));
 
     const totals = props.routeTotals
       ? {
-          distanceMeters: Number(props.routeTotals.distanceMeters || 0),
-          durationSeconds: Number(props.routeTotals.durationSeconds || 0),
+          distanceMeters: safeNum(props.routeTotals.distanceMeters, 0),
+          durationSeconds: safeNum(props.routeTotals.durationSeconds, 0),
         }
       : null;
 
+    const retailSummaries = (props.retailSummaries || []).map((r) => {
+      const ro = safeObj(r);
+      const catRaw = safeObj(ro.categoryBreakdown);
+      const categoryBreakdown: Record<string, number> = {};
+      for (const [k, v] of Object.entries(catRaw)) {
+        const kk = safeStr(k);
+        if (!kk) continue;
+        categoryBreakdown[kk] = safeNum(v, 0);
+      }
+
+      return {
+        retailer: safeStr(ro.retailer),
+        tripCount: safeNum(ro.tripCount, 0),
+        totalCount: safeNum(ro.totalCount, 0),
+        agronomyLocations: safeNum(ro.agronomyLocations, 0),
+        states: safeArr(ro.states).map((x: any) => safeStr(x)).filter(Boolean),
+        categoryBreakdown,
+        suppliers: safeArr(ro.suppliers).map((x: any) => safeStr(x)).filter(Boolean),
+      };
+    });
+
     return {
       v: 1,
-      generatedAt: props.generatedAt,
+      generatedAt: safeStr(props.generatedAt),
       home: {
         label: safeStr(props.homeLabel),
         zip: safeStr(props.homeZip),
-        coords: props.homeCoords ? [Number(props.homeCoords[0]), Number(props.homeCoords[1])] : null,
+        coords: props.homeCoords ? [safeNum(props.homeCoords[0]), safeNum(props.homeCoords[1])] : null,
       },
       stops,
       legs,
       totals,
+      retailSummaries: retailSummaries.length ? retailSummaries : undefined,
     };
   }, [
     props.generatedAt,
@@ -122,7 +167,36 @@ export default function TripPrint(props: {
     props.tripStops,
     props.routeLegs,
     props.routeTotals,
+    props.retailSummaries,
   ]);
+
+  const openInNewTab = (href: string) => {
+    // Best effort: open a new tab without triggering popup blockers.
+    // 1) Try window.open (allowed inside user click in most cases).
+    // 2) Fallback to an <a target="_blank"> click.
+    // 3) Final fallback: same-tab navigation.
+    try {
+      const w = window.open(href, "_blank", "noopener,noreferrer");
+      if (w) return true;
+    } catch {
+      // ignore
+    }
+
+    try {
+      const a = document.createElement("a");
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return true;
+    } catch {
+      // ignore
+    }
+
+    return false;
+  };
 
   const doPrint = () => {
     if (!canPrint) return;
@@ -130,11 +204,16 @@ export default function TripPrint(props: {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {
-      // ignore
+      // If sessionStorage fails (rare), we still attempt to navigate.
     }
 
     const href = `${props.basePath}/print`;
-    window.location.assign(href);
+
+    // ✅ Keep the app intact: open print in a new tab so you don't lose the built trip.
+    const ok = openInNewTab(href);
+
+    // If the browser blocked everything, fall back to same-tab.
+    if (!ok) window.location.assign(href);
   };
 
   return (
@@ -157,7 +236,7 @@ export default function TripPrint(props: {
       </button>
 
       <div className="mt-2 text-[12px] text-white/70 leading-snug">
-        Opens a clean print view in this tab (not blocked by Chrome). Choose{" "}
+        Opens a clean <span className="font-semibold text-white/90">print tab</span> so your built trip stays intact. Choose{" "}
         <span className="font-semibold text-white/90">Save as PDF</span>.
       </div>
 
@@ -174,3 +253,4 @@ export default function TripPrint(props: {
 }
 
 export { STORAGE_KEY };
+export type { RetailSummaryLike };
