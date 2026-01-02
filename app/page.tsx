@@ -1215,7 +1215,52 @@ export default function Page() {
                       <SectionHeader title="Routes & Stops" k={sectionKey("Routes & Stops")} />
                       {!collapsed[sectionKey("Routes & Stops")] && (
                         <div className="space-y-3 mt-3">
-                          {/* Distances / Times between stops */}
+                          {/* 1) STOPS LIST FIRST (with arrows) */}
+                          {tripStops.map((st, idx) => (
+                            <div key={st.id} className={innerTileClass}>
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className={`${tileTitleClass} !text-sm`}>
+                                    {idx + 1}. {st.label}
+                                  </div>
+                                  <div className={tanSubTextClass}>
+                                    {(st.city || "") + (st.city ? ", " : "")}
+                                    {st.state || ""}
+                                    {st.zip ? ` ${st.zip}` : ""}
+                                    {st.kind ? ` • ${st.kind}` : ""}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  <div className="flex gap-2 justify-end">
+                                    <button onClick={() => zoomStop(st)} className={clearBtnClass}>
+                                      Zoom
+                                    </button>
+                                    <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
+                                      Remove
+                                    </button>
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <button onClick={() => moveStop(idx, -1)} className={clearBtnClass} disabled={idx === 0} title="Move up">
+                                      ↑
+                                    </button>
+                                    <button onClick={() => moveStop(idx, 1)} className={clearBtnClass} disabled={idx === tripStops.length - 1} title="Move down">
+                                      ↓
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+
+                          {tripStops.length === 0 && (
+                            <div className={tanSubTextClass}>
+                              Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
+                            </div>
+                          )}
+
+                          {(homeCoords || tripStops.length > 0) && <div className="h-px bg-white/10 my-1" />}
+
+                          {/* 2) DISTANCES & TIMES SECOND */}
                           <div className={innerTileClass}>
                             <div className="flex items-center justify-between gap-2">
                               <div className={tileTitleClass}>Distances & Times</div>
@@ -1256,7 +1301,7 @@ export default function Page() {
                             </div>
                           </div>
 
-                          {/* Send to Phone */}
+                          {/* 3) SEND TO PHONE THIRD */}
                           <div className={innerTileClass}>
                             <div className="flex items-center justify-between gap-2">
                               <div className={tileTitleClass}>Send to Phone</div>
@@ -1306,61 +1351,16 @@ export default function Page() {
                             </div>
                           </div>
 
-                          {/* Stops list */}
-                          {(homeCoords || tripStops.length > 0) && <div className="h-px bg-white/10 my-1" />}
-
-                          {tripStops.map((st, idx) => (
-                            <div key={st.id} className={innerTileClass}>
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <div className={`${tileTitleClass} !text-sm`}>
-                                    {idx + 1}. {st.label}
-                                  </div>
-                                  <div className={tanSubTextClass}>
-                                    {(st.city || "") + (st.city ? ", " : "")}
-                                    {st.state || ""}
-                                    {st.zip ? ` ${st.zip}` : ""}
-                                    {st.kind ? ` • ${st.kind}` : ""}
-                                  </div>
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                  <div className="flex gap-2 justify-end">
-                                    <button onClick={() => zoomStop(st)} className={clearBtnClass}>
-                                      Zoom
-                                    </button>
-                                    <button onClick={() => removeStop(st.id)} className={clearBtnClass}>
-                                      Remove
-                                    </button>
-                                  </div>
-                                  <div className="flex gap-2 justify-end">
-                                    <button onClick={() => moveStop(idx, -1)} className={clearBtnClass} disabled={idx === 0} title="Move up">
-                                      ↑
-                                    </button>
-                                    <button onClick={() => moveStop(idx, 1)} className={clearBtnClass} disabled={idx === tripStops.length - 1} title="Move down">
-                                      ↓
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-
-                          {tripStops.length === 0 && (
-                            <div className={tanSubTextClass}>
-                              Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
-                            </div>
-                          )}
-
-                          {/* ✅ Print Trip (PDF) — moved to the bottom, last step */}
+                          {/* 4) PRINT LAST */}
                           <TripPrint
                             basePath={basePath}
                             homeLabel={homeLabel}
-                            homeZipApplied={homeZipApplied}
+                            homeZip={homeZipApplied}
                             homeCoords={homeCoords}
                             tripStops={tripStops}
                             routeLegs={routeLegs}
                             routeTotals={routeTotals}
-                            tripRetailerSummary={tripRetailerSummary}
+                            generatedAt={new Date().toISOString()}
                           />
                         </div>
                       )}
