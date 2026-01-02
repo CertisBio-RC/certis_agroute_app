@@ -28,6 +28,7 @@ type TripStopLike = {
   [key: string]: any;
 };
 
+// ✅ Keep the key stable (print page imports this)
 const STORAGE_KEY = "cad_trip_print_payload_v1";
 
 function metersToMiles(m: number) {
@@ -54,19 +55,6 @@ function safeStr(v: any) {
   return String(v ?? "").trim();
 }
 
-function stopSubtitle(st: TripStopLike) {
-  const city = safeStr(st.city);
-  const state = safeStr(st.state);
-  const zip = safeStr(st.zip);
-  const kind = safeStr(st.kind);
-  const parts: string[] = [];
-  const loc = [city, state].filter(Boolean).join(", ");
-  if (loc) parts.push(loc);
-  if (zip) parts.push(zip);
-  if (kind) parts.push(kind);
-  return parts.join(" • ");
-}
-
 export default function TripPrint(props: {
   basePath: string;
   homeLabel: string;
@@ -76,6 +64,16 @@ export default function TripPrint(props: {
   routeLegs: RouteLegRow[];
   routeTotals: TripTotals;
   generatedAt: string;
+
+  /**
+   * OPTIONAL (safe to omit):
+   * Pass anything resembling a "retailer summary row" array.
+   * We'll store it and the /print page will render it if present.
+   *
+   * Later we can strongly-type this to RetailerNetworkSummaryRow once you
+   * paste its exact fields, but this keeps you unblocked now.
+   */
+  retailerSummaries?: any[];
 }) {
   const canPrint = props.tripStops.length >= 1;
 
@@ -116,17 +114,25 @@ export default function TripPrint(props: {
         }
       : null;
 
+    // ✅ Store summaries as-is (optional)
+    const retailerSummaries = Array.isArray(props.retailerSummaries)
+      ? props.retailerSummaries
+      : [];
+
     return {
       v: 1,
       generatedAt: props.generatedAt,
       home: {
         label: safeStr(props.homeLabel),
         zip: safeStr(props.homeZip),
-        coords: props.homeCoords ? [Number(props.homeCoords[0]), Number(props.homeCoords[1])] : null,
+        coords: props.homeCoords
+          ? [Number(props.homeCoords[0]), Number(props.homeCoords[1])]
+          : null,
       },
       stops,
       legs,
       totals,
+      retailerSummaries,
     };
   }, [
     props.generatedAt,
@@ -136,6 +142,7 @@ export default function TripPrint(props: {
     props.tripStops,
     props.routeLegs,
     props.routeTotals,
+    props.retailerSummaries,
   ]);
 
   const doPrint = () => {
@@ -144,11 +151,10 @@ export default function TripPrint(props: {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {
-      // If sessionStorage fails (rare), we still attempt to navigate.
+      // ignore
     }
 
-    // ✅ NOT A POPUP: same-tab navigation to /print
-    // Use basePath to be safe on GitHub Pages.
+    // ✅ Same-tab navigation (Chrome safe)
     const href = `${props.basePath}/print`;
     window.location.assign(href);
   };
@@ -156,8 +162,12 @@ export default function TripPrint(props: {
   return (
     <div className={cardClass}>
       <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-extrabold leading-tight text-yellow-300">Print Trip (PDF)</div>
-        <div className="text-[11px] text-white/60 whitespace-nowrap">{canPrint ? "Ready" : "Add ≥ 1 stop"}</div>
+        <div className="text-sm font-extrabold leading-tight text-yellow-300">
+          Print Trip (PDF)
+        </div>
+        <div className="text-[11px] text-white/60 whitespace-nowrap">
+          {canPrint ? "Ready" : "Add ≥ 1 stop"}
+        </div>
       </div>
 
       <button
@@ -175,14 +185,16 @@ export default function TripPrint(props: {
       </button>
 
       <div className="mt-2 text-[12px] text-white/70 leading-snug">
-        Opens a clean print view in this tab (not blocked by Chrome). Choose <span className="font-semibold text-white/90">Save as PDF</span>.
+        Opens a clean print view in this tab (not blocked by Chrome). Choose{" "}
+        <span className="font-semibold text-white/90">Save as PDF</span>.
       </div>
 
       {props.routeTotals && (
         <div className="mt-2 text-[11px] text-white/60">
           Route total (if legs available):{" "}
           <span className="text-white/80 font-semibold">
-            {formatMiles(props.routeTotals.distanceMeters)} • {formatMinutes(props.routeTotals.durationSeconds)}
+            {formatMiles(props.routeTotals.distanceMeters)} •{" "}
+            {formatMinutes(props.routeTotals.durationSeconds)}
           </span>
         </div>
       )}
