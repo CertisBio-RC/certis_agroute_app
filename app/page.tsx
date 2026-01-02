@@ -556,7 +556,19 @@ export default function Page() {
       };
     });
 
+    // NEW: sort Trip Summary by ROUTE ORDER (first appearance in tripStops)
+    const firstIdx: Record<string, number> = {};
+    for (let i = 0; i < tripStops.length; i++) {
+      const r = (tripStops[i].retailer || "").trim() || "Unknown Retailer";
+      if (firstIdx[r] === undefined) firstIdx[r] = i;
+    }
+
     rows.sort((a, b) => {
+      const ai = firstIdx[a.retailer] ?? Number.POSITIVE_INFINITY;
+      const bi = firstIdx[b.retailer] ?? Number.POSITIVE_INFINITY;
+      if (ai !== bi) return ai - bi;
+
+      // Tie-breakers (rare): more trip stops, then alpha
       if (b.tripStops !== a.tripStops) return b.tripStops - a.tripStops;
       return a.retailer.localeCompare(b.retailer);
     });
@@ -911,14 +923,21 @@ export default function Page() {
   const legendItems = useMemo(() => {
     const has = (x: string) => categories.includes(x);
 
-    const cAgronomy = has("Agronomy") ? "Agronomy" : categories.find((x) => x.toLowerCase().includes("agronomy")) || "Agronomy";
-    const cGrain = has("Grain/Feed") ? "Grain/Feed" : categories.find((x) => x.toLowerCase().includes("grain")) || "Grain/Feed";
+    const cAgronomy =
+      has("Agronomy") ? "Agronomy" : categories.find((x) => x.toLowerCase().includes("agronomy")) || "Agronomy";
+    const cGrain =
+      has("Grain/Feed") ? "Grain/Feed" : categories.find((x) => x.toLowerCase().includes("grain")) || "Grain/Feed";
     const cCstore =
       has("C-Store/Service/Energy")
         ? "C-Store/Service/Energy"
-        : categories.find((x) => x.toLowerCase().includes("c-store") || x.toLowerCase().includes("service") || x.toLowerCase().includes("energy")) ||
-          "C-Store/Service/Energy";
-    const cDist = has("Distribution") ? "Distribution" : categories.find((x) => x.toLowerCase().includes("distribution")) || "Distribution";
+        : categories.find(
+            (x) =>
+              x.toLowerCase().includes("c-store") ||
+              x.toLowerCase().includes("service") ||
+              x.toLowerCase().includes("energy")
+          ) || "C-Store/Service/Energy";
+    const cDist =
+      has("Distribution") ? "Distribution" : categories.find((x) => x.toLowerCase().includes("distribution")) || "Distribution";
     const cHQ = has("Regional HQ") ? "Regional HQ" : categories.find((x) => x.toLowerCase().includes("hq")) || "Regional HQ";
 
     return [
@@ -1345,9 +1364,7 @@ export default function Page() {
                           ))}
 
                           {tripStops.length === 0 && (
-                            <div className={tanSubTextClass}>
-                              Add stops from map popups (“Add to Trip”) or from “Find a Stop”.
-                            </div>
+                            <div className={tanSubTextClass}>Add stops from map popups (“Add to Trip”) or from “Find a Stop”.</div>
                           )}
                         </div>
                       )}
