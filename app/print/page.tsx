@@ -1,52 +1,46 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { STORAGE_KEY } from "../../components/TripPrint";
-
-type PrintStop = {
-  idx: number;
-  id: string;
-  label: string;
-  retailer: string;
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  kind: string;
-  email: string;
-  phoneOffice: string;
-  phoneCell: string;
-};
-
-type PrintLeg = {
-  fromLabel: string;
-  toLabel: string;
-  distanceMeters: number;
-  durationSeconds: number;
-};
-
-type PrintTotals = { distanceMeters: number; durationSeconds: number } | null;
-
-type PrintRetailSummaryRow = {
-  retailer: string;
-  tripCount: number; // locations in current trip
-  totalCount: number; // total locations in dataset (for that retailer)
-  agronomyLocations: number;
-  states: string[];
-  categoryBreakdown: Record<string, number>;
-  suppliers: string[];
-};
+import { STORAGE_KEY, storageKeyForPid } from "../../components/TripPrint";
 
 type PrintPayload = {
   v: number;
   generatedAt: string;
   home: { label: string; zip: string; coords: [number, number] | null };
-  stops: PrintStop[];
-  legs: PrintLeg[];
-  totals: PrintTotals;
-  retailSummaries?: PrintRetailSummaryRow[];
+  stops: Array<{
+    idx: number;
+    id: string;
+    label: string;
+    retailer: string;
+    name: string;
+    address: string;
+    city: string;
+    state: string;
+    zip: string;
+    kind: string;
+    email: string;
+    phoneOffice: string;
+    phoneCell: string;
+  }>;
+  legs: Array<{
+    fromLabel: string;
+    toLabel: string;
+    distanceMeters: number;
+    durationSeconds: number;
+  }>;
+  totals: { distanceMeters: number; durationSeconds: number } | null;
+  retailSummaries?: Array<{
+    retailer: string;
+    tripStops: number;
+    totalLocations: number;
+    agronomyLocations: number;
+    states: string[];
+    suppliers: string[];
+    categoryBreakdown: string[];
+  }>;
 };
+
+const LAST_PID_KEY = "cad_trip_print_last_pid_v1";
 
 function metersToMiles(m: number) {
   return m / 1609.344;
@@ -68,106 +62,17 @@ function formatMinutes(seconds: number) {
   return `${h}h ${r}m`;
 }
 
-function safeStr(v: any) {
-  return String(v ?? "").trim();
-}
-function safeNum(v: any, fallback = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-function safeArray<T = any>(v: any): T[] {
-  return Array.isArray(v) ? (v as T[]) : [];
-}
-function safeObj(v: any) {
-  return v && typeof v === "object" ? v : {};
+function safe(s: any) {
+  return String(s ?? "").trim();
 }
 
-function normalizePayload(raw: any): PrintPayload | null {
-  const obj = safeObj(raw);
-  if (safeNum(obj.v, -1) !== 1) return null;
-
-  const homeObj = safeObj(obj.home);
-  const coordsRaw = homeObj.coords;
-  const coords =
-    Array.isArray(coordsRaw) && coordsRaw.length === 2
-      ? ([safeNum(coordsRaw[0]), safeNum(coordsRaw[1])] as [number, number])
-      : null;
-
-  const stops = safeArray(obj.stops).map((s: any, i: number) => {
-    const so = safeObj(s);
-    return {
-      idx: safeNum(so.idx, i + 1),
-      id: safeStr(so.id),
-      label: safeStr(so.label),
-      retailer: safeStr(so.retailer),
-      name: safeStr(so.name),
-      address: safeStr(so.address),
-      city: safeStr(so.city),
-      state: safeStr(so.state),
-      zip: safeStr(so.zip),
-      kind: safeStr(so.kind),
-      email: safeStr(so.email),
-      phoneOffice: safeStr(so.phoneOffice),
-      phoneCell: safeStr(so.phoneCell),
-    } satisfies PrintStop;
-  });
-
-  const legs = safeArray(obj.legs).map((l: any) => {
-    const lo = safeObj(l);
-    return {
-      fromLabel: safeStr(lo.fromLabel),
-      toLabel: safeStr(lo.toLabel),
-      distanceMeters: safeNum(lo.distanceMeters, 0),
-      durationSeconds: safeNum(lo.durationSeconds, 0),
-    } satisfies PrintLeg;
-  });
-
-  const totalsRaw = obj.totals;
-  const totals: PrintTotals =
-    totalsRaw && typeof totalsRaw === "object"
-      ? {
-          distanceMeters: safeNum(totalsRaw.distanceMeters, 0),
-          durationSeconds: safeNum(totalsRaw.durationSeconds, 0),
-        }
-      : null;
-
-  const retailSummariesRaw = safeArray(obj.retailSummaries);
-  const retailSummaries = retailSummariesRaw.length
-    ? retailSummariesRaw.map((r: any) => {
-        const ro = safeObj(r);
-        const catObj = safeObj(ro.categoryBreakdown);
-        const categoryBreakdown: Record<string, number> = {};
-        for (const [k, v] of Object.entries(catObj)) {
-          const key = safeStr(k);
-          if (!key) continue;
-          categoryBreakdown[key] = safeNum(v, 0);
-        }
-
-        return {
-          retailer: safeStr(ro.retailer),
-          tripCount: safeNum(ro.tripCount, 0),
-          totalCount: safeNum(ro.totalCount, 0),
-          agronomyLocations: safeNum(ro.agronomyLocations, 0),
-          states: safeArray(ro.states).map((x) => safeStr(x)).filter(Boolean),
-          categoryBreakdown,
-          suppliers: safeArray(ro.suppliers).map((x) => safeStr(x)).filter(Boolean),
-        } satisfies PrintRetailSummaryRow;
-      })
-    : undefined;
-
-  return {
-    v: 1,
-    generatedAt: safeStr(obj.generatedAt),
-    home: {
-      label: safeStr(homeObj.label),
-      zip: safeStr(homeObj.zip),
-      coords,
-    },
-    stops,
-    legs,
-    totals,
-    retailSummaries,
-  };
+function getPidFromUrl() {
+  try {
+    const u = new URL(window.location.href);
+    return (u.searchParams.get("pid") || "").trim();
+  } catch {
+    return "";
+  }
 }
 
 export default function PrintPage() {
@@ -181,93 +86,89 @@ export default function PrintPage() {
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        setErr("No trip payload found. Go back and click Print Trip (PDF) from a built trip.");
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      const normalized = normalizePayload(parsed);
-      if (!normalized) {
-        setErr("Trip payload is missing or incompatible. Go back and click Print Trip (PDF) again.");
-        return;
-      }
-      setPayload(normalized);
+      const pidFromUrl = getPidFromUrl();
+      const pidFromLast = safe(localStorage.getItem(LAST_PID_KEY));
+      const pid = pidFromUrl || pidFromLast;
 
-      // Auto-open print dialog shortly after render (works in most browsers).
-      // If a browser blocks it, the manual Print button still works.
-      window.setTimeout(() => {
-        try {
-          window.print();
-        } catch {
-          // ignore
+      // 1) Preferred: localStorage payload by pid
+      if (pid) {
+        const key = storageKeyForPid(pid);
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const obj = JSON.parse(raw);
+          if (obj && (obj.v === 2 || obj.v === 1)) {
+            setPayload(obj as PrintPayload);
+
+            window.setTimeout(() => {
+              try {
+                window.print();
+              } catch {
+                // ignore
+              }
+            }, 250);
+            return;
+          }
         }
-      }, 350);
+      }
+
+      // 2) Fallback: legacy sessionStorage
+      const rawLegacy = sessionStorage.getItem(STORAGE_KEY);
+      if (rawLegacy) {
+        const obj = JSON.parse(rawLegacy);
+        if (obj && (obj.v === 1 || obj.v === 2)) {
+          setPayload(obj as PrintPayload);
+
+          window.setTimeout(() => {
+            try {
+              window.print();
+            } catch {
+              // ignore
+            }
+          }, 250);
+          return;
+        }
+      }
+
+      setErr("No trip payload found. Go back and click Print Trip (PDF) from a built trip.");
     } catch (e: any) {
       setErr(`Failed to load trip payload: ${String(e?.message || e)}`);
     }
   }, []);
 
   const backToApp = () => {
-    // If we were opened in a new tab, closing is the best UX.
-    // If the browser blocks close, fallback to basePath.
-    try {
-      window.close();
-    } catch {
-      // ignore
-    }
-    window.setTimeout(() => {
-      if (window.history.length > 1) window.history.back();
-      else window.location.assign(`${basePath}/`);
-    }, 50);
+    if (window.history.length > 1) window.history.back();
+    else window.location.assign(`${basePath}/`);
   };
 
-  const printNow = () => {
-    try {
-      window.print();
-    } catch {
-      // ignore
-    }
-  };
+  const printNow = () => window.print();
 
   const PageShell = ({ children }: { children: React.ReactNode }) => (
     <div className="min-h-screen bg-white text-black">
-      {/* INK-SAFE PRINT OVERRIDES */}
       <style>{`
+        /* Screen UI */
+        body { background: #ffffff; color: #000000; }
+
+        /* INK-SAFE PRINT: force white paper + black text, kill dark gradients/shadows */
         @media print {
           .no-print { display: none !important; }
 
-          html, body {
-            background: #ffffff !important;
-            color: #000000 !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-
-          /* Nuke dark UI artifacts + gradients/shadows */
+          html, body { background: #ffffff !important; color: #000000 !important; }
           * {
             background: transparent !important;
+            color: #000000 !important;
             box-shadow: none !important;
             text-shadow: none !important;
             filter: none !important;
           }
 
-          /* Ensure cards remain readable */
-          .print-card {
-            border: 1px solid #000000 !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-          }
+          /* Keep borders visible but light */
+          .print-card { border: 1px solid #d1d5db !important; }
 
-          /* Common muted classes become black in print */
-          .text-gray-500, .text-gray-600, .text-gray-700 {
-            color: #000000 !important;
-          }
+          /* Improve page breaks */
+          .avoid-break { break-inside: avoid; page-break-inside: avoid; }
 
-          a {
-            color: #000000 !important;
-            text-decoration: underline;
-          }
+          /* Don’t force printing backgrounds */
+          body { -webkit-print-color-adjust: economy; print-color-adjust: economy; }
         }
       `}</style>
 
@@ -285,7 +186,9 @@ export default function PrintPage() {
           >
             Print / Save as PDF
           </button>
-          <div className="ml-auto text-sm text-gray-600">CERTIS AgRoute Database — Trip Print</div>
+          <div className="ml-auto text-sm text-gray-600">
+            CERTIS AgRoute Database — Trip Print
+          </div>
         </div>
       </div>
 
@@ -297,7 +200,7 @@ export default function PrintPage() {
     return (
       <PageShell>
         <h1 className="text-2xl font-extrabold mb-2">Trip Print</h1>
-        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{err}</div>
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3 print-card">{err}</div>
       </PageShell>
     );
   }
@@ -312,7 +215,8 @@ export default function PrintPage() {
   }
 
   const title = "Trip Itinerary";
-  const generated = safeStr(payload.generatedAt);
+  const generated = safe(payload.generatedAt);
+  const retailSummaries = payload.retailSummaries || [];
 
   return (
     <PageShell>
@@ -324,13 +228,13 @@ export default function PrintPage() {
           </div>
         </div>
         <div className="text-sm text-gray-700 text-right">
-          <div className="font-semibold">{safeStr(payload.home.label) || "Home"}</div>
+          <div className="font-semibold">{safe(payload.home.label) || "Home"}</div>
           <div className="text-gray-600">{payload.home.zip ? `ZIP ${payload.home.zip}` : ""}</div>
         </div>
       </div>
 
-      {/* ✅ DISTANCES FIRST */}
-      <div className="mt-5">
+      {/* Distances FIRST */}
+      <div className="mt-6">
         <h2 className="text-xl font-extrabold mb-2">Distances & Times</h2>
 
         {payload.totals ? (
@@ -345,7 +249,7 @@ export default function PrintPage() {
         {payload.legs.length ? (
           <div className="space-y-2">
             {payload.legs.map((l, i) => (
-              <div key={`${i}-${l.fromLabel}-${l.toLabel}`} className="print-card rounded-xl p-3">
+              <div key={i} className="rounded-xl border border-gray-200 p-3 print-card avoid-break">
                 <div className="text-sm font-semibold">
                   {l.fromLabel} → {l.toLabel}
                 </div>
@@ -360,16 +264,16 @@ export default function PrintPage() {
         )}
       </div>
 
-      {/* ✅ STOPS SECOND */}
-      <div className="mt-6">
+      {/* Stops */}
+      <div className="mt-7">
         <h2 className="text-xl font-extrabold mb-2">Stops</h2>
         <div className="space-y-3">
           {payload.stops.map((s) => (
-            <div key={s.id || String(s.idx)} className="print-card rounded-xl p-4">
+            <div key={s.idx} className="rounded-2xl border border-gray-200 p-4 print-card avoid-break">
               <div className="text-lg font-extrabold">
                 {s.idx}. {s.label || "Stop"}
               </div>
-              <div className="text-sm text-gray-600 mt-1">
+              <div className="text-sm text-gray-700 mt-1">
                 {[s.city, s.state].filter(Boolean).join(", ")} {s.zip ? s.zip : ""}{s.kind ? ` • ${s.kind}` : ""}
               </div>
 
@@ -418,59 +322,52 @@ export default function PrintPage() {
         </div>
       </div>
 
-      {/* ✅ RETAIL SUMMARY (optional) */}
-      <div className="mt-6">
+      {/* Retail Summary (Trip Summary) */}
+      <div className="mt-7">
         <h2 className="text-xl font-extrabold mb-2">Retail Summary</h2>
 
-        {payload.retailSummaries?.length ? (
+        {retailSummaries.length ? (
           <div className="space-y-3">
-            {payload.retailSummaries.map((r) => {
-              const states = r.states?.length ? r.states.join(", ") : "—";
-              const suppliers = r.suppliers?.length ? r.suppliers.join(", ") : "—";
-
-              const categoryEntries = Object.entries(r.categoryBreakdown || {}).sort((a, b) =>
-                a[0].localeCompare(b[0]),
-              );
-              const categoryLine = categoryEntries.length
-                ? categoryEntries.map(([k, v]) => `${k} (${v})`).join(", ")
-                : "—";
-
-              return (
-                <div key={r.retailer} className="print-card rounded-xl p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="text-lg font-extrabold">{r.retailer || "Retailer"}</div>
-                    <div className="text-sm text-gray-700">
-                      <span className="font-semibold">Trip:</span> {r.tripCount} •{" "}
-                      <span className="font-semibold">Total:</span> {r.totalCount}
-                    </div>
-                  </div>
-
-                  <div className="text-sm mt-2">
-                    <div>
-                      <span className="font-semibold">Agronomy locations:</span> {r.agronomyLocations}
-                    </div>
-                    <div>
-                      <span className="font-semibold">States:</span> {states}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Category breakdown:</span> {categoryLine}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Suppliers:</span> {suppliers}
-                    </div>
+            {retailSummaries.map((r) => (
+              <div key={r.retailer} className="rounded-2xl border border-gray-200 p-4 print-card avoid-break">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-lg font-extrabold">{safe(r.retailer) || "Retailer"}</div>
+                  <div className="text-sm text-gray-700 whitespace-nowrap">
+                    <span className="font-semibold">Trip:</span> {Number(r.tripStops || 0)}{" "}
+                    <span className="text-gray-400">•</span>{" "}
+                    <span className="font-semibold">Total:</span> {Number(r.totalLocations || 0)}
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="text-sm text-gray-800 mt-2 space-y-1">
+                  <div>
+                    <span className="font-semibold">Agronomy locations:</span> {Number(r.agronomyLocations || 0)}
+                  </div>
+                  <div>
+                    <span className="font-semibold">States:</span> {Array.isArray(r.states) && r.states.length ? r.states.join(", ") : "—"}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Category breakdown:</span>{" "}
+                    {Array.isArray(r.categoryBreakdown) && r.categoryBreakdown.length ? r.categoryBreakdown.join(", ") : "—"}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Suppliers:</span> {Array.isArray(r.suppliers) && r.suppliers.length ? r.suppliers.join(", ") : "—"}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="text-sm text-gray-600">
-            Retail Summary not available for this printout (not included in the print payload yet).
+            Retail Summary unavailable (no retailer summary payload).
           </div>
         )}
       </div>
 
-      <div className="mt-8 text-xs text-gray-500">CERTIS AgRoute Database — Print view (map excluded by design).</div>
+      {/* Footer */}
+      <div className="mt-8 text-xs text-gray-500">
+        CERTIS AgRoute Database — Print view (map excluded by design).
+      </div>
     </PageShell>
   );
 }

@@ -1220,14 +1220,6 @@ export default function Page() {
 
                       {!collapsed[sectionKey("Routes & Stops")] && (
                         <div className="space-y-3 mt-3">
-                          {/* =========================================================
-                             ORDER FIX:
-                             1) Stops (with arrows)
-                             2) Distances & Times
-                             3) Send to Phone
-                             4) Print Trip (PDF)
-                             ========================================================= */}
-
                           {/* 1) Stops list FIRST */}
                           {tripStops.map((st, idx) => (
                             <div key={st.id} className={innerTileClass}>
@@ -1375,6 +1367,8 @@ export default function Page() {
                             routeLegs={routeLegs}
                             routeTotals={routeTotals}
                             generatedAt={printGeneratedAt}
+                            // ✅ THIS is the missing wire-up:
+                            retailSummaries={tripRetailerSummary}
                           />
                         </div>
                       )}
