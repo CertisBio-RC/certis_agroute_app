@@ -6,21 +6,26 @@ CERTIS — KINGPIN GEOCODING
 - Also writes: ./out/kingpin_geocoded.csv
 - Cache:  ../data/geocode-cache.json
 
-Token priority:
-1) ENV: MAPBOX_TOKEN                 (explicit override for a run)
-2) ENV: MAPBOX_ACCESS_TOKEN
-3) ../data/token.txt                 (single-line token)
-4) ../data/token.json                (supports:
-      - {"MAPBOX_TOKEN_FOR_GEOCODING": "...", "MAPBOX_TOKEN_FOR_WEB": "..."}
-      - {"token": "..."} / {"MAPBOX_TOKEN": "..."} / {"access_token": "..."} / {"MAPBOX_ACCESS_TOKEN": "..."} / {"MAPBOX_TOKEN_FOR_WEB": "..."}
-   )
+NEW (Bailey rule per John):
+- If Kingpin has NO address, use phone area code to assign a City Center.
+  • Area code is extracted from OFFICE PHONE first, then CELL PHONE.
+  • We look up the area code in: ../data/area_code_city_centers.csv
+  • Then geocode: "City Center, <City>, <State> <Zip>"
+- If Kingpin has NO address and NO phone → ignore (drop).
 
-GEOCODE_STATUS values:
+Required CSV format (in /data):
+area_code,city,state,zip
+(e.g. 402,Louisville,KY,40202)
+
+GEOCODE_STATUS values include:
 - ok
+- no_features / no_center
 - http_401 / http_4xx / http_5xx
 - no_token
 - missing_query
 - exception
+- dropped_no_address_no_phone
+- missing_area_code_lookup
 """
 
 import json
@@ -48,23 +53,25 @@ OUTPUT_CSV = OUT_DIR / "kingpin_geocoded.csv"
 
 CACHE_FILE = DATA_DIR / "geocode-cache.json"
 
+# NEW: Area code → largest population center lookup
+AREA_CODE_CSV = DATA_DIR / "area_code_city_centers.csv"
+
 MAPBOX_ENDPOINT = "https://api.mapbox.com/geocoding/v5/mapbox.places/{q}.json"
 MAPBOX_LIMIT = 1
-MAPBOX_COUNTRY = "us"   # keep tight for speed/accuracy
-MAPBOX_TYPES = "address,place,postcode"  # reasonable set for your queries
+MAPBOX_COUNTRY = "us"
+MAPBOX_TYPES = "address,place,postcode"
 
 
 # -----------------------------
 # Helpers
 # -----------------------------
 def banner(title: str) -> None:
-    print("\n" + "=" * 43)
+    print("\n" + "=" * 60)
     print(f"  {title}")
-    print("=" * 43 + "\n")
+    print("=" * 60 + "\n")
 
 
 def safe_strip_token(raw: Any) -> str:
-    """Strip whitespace and surrounding quotes if present."""
     if raw is None:
         return ""
     t = str(raw).strip()
@@ -74,15 +81,6 @@ def safe_strip_token(raw: Any) -> str:
 
 
 def load_token() -> Tuple[str, str]:
-    """
-    Return (token, token_source). token_source is human-readable.
-
-    Priority:
-    1) ENV: MAPBOX_TOKEN
-    2) ENV: MAPBOX_ACCESS_TOKEN
-    3) data/token.txt
-    4) data/token.json (prefers MAPBOX_TOKEN_FOR_GEOCODING)
-    """
     # ENV first (single-run override)
     env1 = safe_strip_token(os.getenv("MAPBOX_TOKEN") or "")
     if env1:
@@ -92,7 +90,6 @@ def load_token() -> Tuple[str, str]:
     if env2:
         return env2, "env:MAPBOX_ACCESS_TOKEN"
 
-    # token.txt (single line)
     token_txt = DATA_DIR / "token.txt"
     if token_txt.exists():
         try:
@@ -103,20 +100,17 @@ def load_token() -> Tuple[str, str]:
         except Exception:
             pass
 
-    # token.json (supports your two-token format)
     token_json = DATA_DIR / "token.json"
     if token_json.exists():
         try:
             obj = json.loads(token_json.read_text(encoding="utf-8", errors="ignore"))
 
-            # ✅ Your preferred keys (first choice for geocoding)
             for k in ("MAPBOX_TOKEN_FOR_GEOCODING",):
                 if k in obj and obj[k]:
                     t = safe_strip_token(obj[k])
                     if t:
                         return t, f"data/token.json:{k}"
 
-            # ✅ Acceptable fallbacks (in case you only have one token)
             for k in (
                 "MAPBOX_TOKEN",
                 "MAPBOX_ACCESS_TOKEN",
@@ -151,6 +145,88 @@ def cache_key(query: str) -> str:
     return hashlib.sha256(query.strip().encode("utf-8")).hexdigest()
 
 
+def is_blank(v: Any) -> bool:
+    # Handles real NaN, None, "", "nan"
+    if v is None:
+        return True
+    try:
+        if pd.isna(v):
+            return True
+    except Exception:
+        pass
+    s = str(v).strip()
+    if not s:
+        return True
+    if s.lower() in ("nan", "none", "null"):
+        return True
+    return False
+
+
+def digits_only(s: Any) -> str:
+    if s is None:
+        return ""
+    return "".join([c for c in str(s) if c.isdigit()])
+
+
+def extract_area_code(row: pd.Series) -> str:
+    """
+    Priority: OFFICE PHONE, then CELL PHONE.
+    Returns 3-digit area code or "".
+    """
+    for col in ("OFFICE PHONE", "CELL PHONE"):
+        raw = row.get(col, "")
+        d = digits_only(raw)
+        if len(d) >= 10:
+            return d[:3]
+        if len(d) >= 7:
+            # Sometimes numbers come in without country/area formatting;
+            # but 7 digits isn't enough for an area code.
+            continue
+        if len(d) == 3:
+            return d
+    return ""
+
+
+def load_area_code_lookup(path: Path) -> Dict[str, Dict[str, str]]:
+    """
+    Reads ../data/area_code_city_centers.csv
+    Required columns: area_code,city,state,zip
+    Returns dict keyed by area_code string.
+    """
+    lookup: Dict[str, Dict[str, str]] = {}
+    if not path.exists():
+        return lookup
+
+    try:
+        df = pd.read_csv(path, dtype=str).fillna("")
+        cols = {c.strip().lower(): c for c in df.columns}
+        need = ["area_code", "city", "state", "zip"]
+        if not all(k in cols for k in need):
+            return lookup
+
+        for _, r in df.iterrows():
+            ac = str(r[cols["area_code"]]).strip()
+            city = str(r[cols["city"]]).strip()
+            st = str(r[cols["state"]]).strip()
+            z = str(r[cols["zip"]]).strip()
+            if not ac or not city or not st:
+                continue
+            lookup[ac] = {"city": city, "state": st, "zip": z}
+    except Exception:
+        return {}
+
+    return lookup
+
+
+def has_any_address_fields(row: pd.Series) -> bool:
+    fba = row.get("FULL BLOCK ADDRESS", "")
+    addr = row.get("ADDRESS", "")
+    city = row.get("CITY", "")
+    st = row.get("STATE.1", "")
+    z = row.get("ZIP CODE", "")
+    return not (is_blank(fba) and is_blank(addr) and is_blank(city) and is_blank(st) and is_blank(z))
+
+
 def build_query(row: pd.Series) -> str:
     """
     Prefer FULL BLOCK ADDRESS if present.
@@ -161,12 +237,12 @@ def build_query(row: pd.Series) -> str:
     - STATE.1
     - ZIP CODE
     """
-    fba = str(row.get("FULL BLOCK ADDRESS", "")).strip()
-    if fba:
-        # light cleanup; don't over-normalize (avoid accidentally mangling valid strings)
-        fba = fba.replace(",,", ",").replace(" ,", ",").strip()
-        fba = " ".join(fba.split())
-        return fba
+    fba = row.get("FULL BLOCK ADDRESS", "")
+    if not is_blank(fba):
+        s = str(fba).strip()
+        s = s.replace(",,", ",").replace(" ,", ",").strip()
+        s = " ".join(s.split())
+        return s
 
     addr = str(row.get("ADDRESS", "")).strip()
     city = str(row.get("CITY", "")).strip()
@@ -176,10 +252,18 @@ def build_query(row: pd.Series) -> str:
     return ", ".join(parts).strip()
 
 
+def build_city_center_query(city: str, state: str, zip_code: str) -> str:
+    # You asked for: "City Center, City, State, Zip Code"
+    parts = ["City Center", city.strip(), state.strip()]
+    tail = " ".join([p for p in [state.strip(), zip_code.strip()] if p]).strip()
+    if tail:
+        return f"City Center, {city.strip()}, {tail}"
+    return f"City Center, {city.strip()}, {state.strip()}".strip().rstrip(",")
+
+
 def mapbox_geocode(query: str, token: str) -> Tuple[str, Optional[float], Optional[float], str, int]:
     """
     Returns: (status, lat, lon, debug_msg, http_status)
-    status: ok | http_401 | http_4xx | http_5xx | exception
     """
     try:
         q_enc = requests.utils.quote(query, safe="")
@@ -196,10 +280,10 @@ def mapbox_geocode(query: str, token: str) -> Tuple[str, Optional[float], Option
             data = r.json()
             feats = data.get("features", []) or []
             if not feats:
-                return "ok", None, None, "no_features", 200
+                return "no_features", None, None, "no_features", 200
             center = feats[0].get("center", None)
             if not center or len(center) != 2:
-                return "ok", None, None, "no_center", 200
+                return "no_center", None, None, "no_center", 200
             lon = float(center[0])
             lat = float(center[1])
             return "ok", lat, lon, "hit", 200
@@ -214,6 +298,22 @@ def mapbox_geocode(query: str, token: str) -> Tuple[str, Optional[float], Option
         return f"http_{r.status_code}", None, None, (r.text[:200] if r.text else str(r.status_code)), r.status_code
     except Exception as e:
         return "exception", None, None, repr(e), 0
+
+
+def is_valid_coord(lat: Any, lon: Any) -> bool:
+    try:
+        if pd.isna(lat) or pd.isna(lon):
+            return False
+    except Exception:
+        pass
+    try:
+        latf = float(lat)
+        lonf = float(lon)
+    except Exception:
+        return False
+    if not (-90.0 <= latf <= 90.0 and -180.0 <= lonf <= 180.0):
+        return False
+    return True
 
 
 def main() -> int:
@@ -236,36 +336,96 @@ def main() -> int:
 
     cache = load_cache(CACHE_FILE)
 
+    area_lookup = load_area_code_lookup(AREA_CODE_CSV)
+    if area_lookup:
+        print(f"\n📍 Area code lookup loaded: {AREA_CODE_CSV} ({len(area_lookup)} entries)")
+    else:
+        print(f"\n⚠️  Area code lookup NOT found or empty: {AREA_CODE_CSV}")
+        print("    Remote Kingpins without address will be marked 'missing_area_code_lookup' unless they have an address.\n")
+
     df = pd.read_excel(INPUT_XLSX)
     rows_total = len(df)
 
-    # Ensure output columns exist
+    # Ensure output columns exist (keep backwards compatibility)
     for col in ["GEOCODE_STATUS", "GEOCODE_QUERY", "LAT", "LON"]:
+        if col not in df.columns:
+            df[col] = ""
+
+    # NEW diagnostics columns (non-breaking)
+    for col in ["AREA_CODE", "GEO_ASSIGNMENT_METHOD"]:
         if col not in df.columns:
             df[col] = ""
 
     skipped_existing = 0
     geocoded_new = 0
     failed_or_missing = 0
+    dropped_no_address_no_phone = 0
+    area_code_assigned = 0
     cache_hits = 0
     cache_writes = 0
 
-    # Fail-fast if token is wrong (401). We'll detect on first attempted request.
     saw_http_401 = False
     first_request_done = False
 
     for i in range(rows_total):
         row = df.iloc[i]
 
-        # Existing lat/lon?
-        lat_existing = str(row.get("LAT", "")).strip()
-        lon_existing = str(row.get("LON", "")).strip()
-        if lat_existing and lon_existing:
+        # Existing lat/lon? (handle real NaN correctly)
+        lat0 = row.get("LAT", "")
+        lon0 = row.get("LON", "")
+        if is_valid_coord(lat0, lon0):
             skipped_existing += 1
             continue
 
-        query = build_query(row)
+        # Apply your rule BEFORE we build a query
+        method = "address"
+        used_area_code = ""
+
+        if not has_any_address_fields(row):
+            ac = extract_area_code(row)
+            used_area_code = ac
+            df.at[i, "AREA_CODE"] = ac
+
+            if not ac:
+                # No address and no phone => ignore/drop
+                df.at[i, "GEOCODE_STATUS"] = "dropped_no_address_no_phone"
+                df.at[i, "GEOCODE_QUERY"] = ""
+                df.at[i, "LAT"] = ""
+                df.at[i, "LON"] = ""
+                df.at[i, "GEO_ASSIGNMENT_METHOD"] = "dropped"
+                dropped_no_address_no_phone += 1
+                continue
+
+            # Has phone area code but no address
+            if not area_lookup or ac not in area_lookup:
+                df.at[i, "GEOCODE_STATUS"] = "missing_area_code_lookup"
+                df.at[i, "GEOCODE_QUERY"] = ""
+                df.at[i, "LAT"] = ""
+                df.at[i, "LON"] = ""
+                df.at[i, "GEO_ASSIGNMENT_METHOD"] = "area_code_missing_lookup"
+                failed_or_missing += 1
+                continue
+
+            city = area_lookup[ac]["city"]
+            st = area_lookup[ac]["state"]
+            z = area_lookup[ac].get("zip", "")
+
+            # Fill the address fields for clarity downstream
+            df.at[i, "ADDRESS"] = "City Center"
+            df.at[i, "CITY"] = city
+            df.at[i, "STATE.1"] = st
+            df.at[i, "ZIP CODE"] = z
+            df.at[i, "FULL BLOCK ADDRESS"] = build_city_center_query(city, st, z)
+
+            method = "area_code_city_center"
+            area_code_assigned += 1
+
+        # Build query from (possibly updated) row
+        query = build_query(df.iloc[i])
         df.at[i, "GEOCODE_QUERY"] = query
+        df.at[i, "GEO_ASSIGNMENT_METHOD"] = method
+        if used_area_code and method == "area_code_city_center":
+            df.at[i, "AREA_CODE"] = used_area_code
 
         if not query:
             df.at[i, "GEOCODE_STATUS"] = "missing_query"
@@ -278,7 +438,6 @@ def main() -> int:
             continue
 
         if saw_http_401:
-            # token is bad; don't continue burning requests
             df.at[i, "GEOCODE_STATUS"] = "http_401"
             failed_or_missing += 1
             continue
@@ -305,16 +464,13 @@ def main() -> int:
         else:
             failed_or_missing += 1
 
-            # If 401, stop the bleeding — this is nearly always a token problem.
             if http_status == 401:
                 saw_http_401 = True
                 print("\n❌ Mapbox returned HTTP 401 on first failing request.")
-                print("   This indicates the token used for geocoding is invalid/restricted.")
+                print("   Token used for geocoding is invalid/restricted.")
                 print(f"   Token source used: {token_source}")
-                print("   Fix: set MAPBOX_TOKEN to your geocoding token (Option A), OR ensure data/token.json has MAPBOX_TOKEN_FOR_GEOCODING.\n")
-                # Do NOT cache 401 failures (they're not address-specific)
+                print("   Fix: set MAPBOX_TOKEN env var OR ensure data/token.json has MAPBOX_TOKEN_FOR_GEOCODING.\n")
             else:
-                # cache non-401 failures to reduce repeat hammering
                 cache[ck] = {"status": status, "lat": "", "lon": "", "debug": dbg}
                 cache_writes += 1
 
@@ -333,19 +489,21 @@ def main() -> int:
     summary = {
         "input_file": str(INPUT_XLSX),
         "rows_total": rows_total,
-        "skipped_existing_latlon": skipped_existing,
+        "skipped_existing_valid_latlon": skipped_existing,
+        "area_code_city_center_assigned": area_code_assigned,
+        "dropped_no_address_no_phone": dropped_no_address_no_phone,
         "geocoded_new": geocoded_new,
         "failed_or_missing": failed_or_missing,
         "cache_file": str(CACHE_FILE),
         "cache_hits": cache_hits,
         "cache_writes": cache_writes,
+        "area_code_lookup_file": str(AREA_CODE_CSV),
         "out_csv": str(OUTPUT_CSV),
         "out_xlsx": str(OUTPUT_XLSX),
         "token_source": token_source,
     }
     print(json.dumps(summary, indent=2))
 
-    # Clear hint if everything failed and we saw 401
     if first_request_done and geocoded_new == 0 and saw_http_401:
         print("\n⚠️  Run ended early due to HTTP 401 (token restriction).")
         print("   Confirm token.json contains MAPBOX_TOKEN_FOR_GEOCODING OR set env:MAPBOX_TOKEN before running.\n")

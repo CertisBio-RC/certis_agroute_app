@@ -40,6 +40,15 @@ type ChannelSummaryRow = {
 const STORAGE_KEY = "cad_trip_print_payload_v2";
 const APP_STATE_KEY = "cad_app_state_v1";
 
+// ✅ PID-scoped payload keys (build error fix + future-safe)
+function storageKeyForPid(pid: string) {
+  const clean = String(pid || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 64);
+  return clean ? `${STORAGE_KEY}__${clean}` : STORAGE_KEY;
+}
+
 function metersToMiles(m: number) {
   return m / 1609.344;
 }
@@ -67,6 +76,9 @@ function safeStr(v: any) {
 export default function TripPrint(props: {
   basePath: string;
 
+  // ✅ optional pid: lets print tabs be unique
+  pid?: string;
+
   homeLabel: string;
   homeZip: string;
   homeCoords: [number, number] | null;
@@ -86,6 +98,8 @@ export default function TripPrint(props: {
     "bg-[linear-gradient(180deg,rgba(59,130,246,0.14),rgba(8,20,45,0.12))] " +
     "border-[color:rgba(165,243,252,0.16)] ring-[color:rgba(147,197,253,0.10)] " +
     "shadow-[0_14px_30px_rgba(0,0,0,0.45)]";
+
+  const payloadKey = useMemo(() => storageKeyForPid(props.pid || ""), [props.pid]);
 
   const payload = useMemo(() => {
     const stops = props.tripStops.map((s, idx) => ({
@@ -130,24 +144,23 @@ export default function TripPrint(props: {
 
     return {
       v: 2,
+      pid: safeStr(props.pid || ""),
       generatedAt: safeStr(props.generatedAt),
       basePath: safeStr(props.basePath),
-
       home: {
         label: safeStr(props.homeLabel),
         zip: safeStr(props.homeZip),
         coords: props.homeCoords ? [Number(props.homeCoords[0]), Number(props.homeCoords[1])] : null,
       },
-
       stops,
       legs,
       totals,
-
       channelSummary,
     };
   }, [
     props.generatedAt,
     props.basePath,
+    props.pid,
     props.homeLabel,
     props.homeZip,
     props.homeCoords,
@@ -160,34 +173,23 @@ export default function TripPrint(props: {
   const doPrint = () => {
     if (!canPrint) return;
 
-    // 🔒 Persist app state so even if the user navigates back or refreshes,
-    // the trip/home/filters are restored.
-    try {
-      const existing = sessionStorage.getItem(APP_STATE_KEY);
-      if (existing) sessionStorage.setItem(APP_STATE_KEY, existing);
-    } catch {
-      // ignore
-    }
-
-    // ✅ Store payload in BOTH localStorage + sessionStorage:
-    // - localStorage lets the /print tab read it reliably
-    // - sessionStorage keeps it scoped to session as well
+    // ✅ Save payload to both storages (new tab safe)
     try {
       const json = JSON.stringify(payload);
+      localStorage.setItem(payloadKey, json);
+      sessionStorage.setItem(payloadKey, json);
+
+      // Also write to the legacy/base key (backwards compatibility)
       localStorage.setItem(STORAGE_KEY, json);
       sessionStorage.setItem(STORAGE_KEY, json);
     } catch {
       // ignore
     }
 
-    const href = `${props.basePath}/print`;
-
-    // ✅ New tab (keeps main app from losing state / reloading)
+    // ✅ New tab so app doesn't lose state
+    const href = `${props.basePath}/print${props.pid ? `?pid=${encodeURIComponent(props.pid)}` : ""}`;
     const w = window.open(href, "_blank", "noopener,noreferrer");
-    if (!w) {
-      // Fallback if popup blocked (rare for user-initiated click)
-      window.location.assign(href);
-    }
+    if (!w) window.location.assign(href);
   };
 
   return (
@@ -215,7 +217,7 @@ export default function TripPrint(props: {
 
       {props.routeTotals && (
         <div className="mt-2 text-[11px] text-white/60">
-          Route total (if legs available):{" "}
+          Route total:{" "}
           <span className="text-white/80 font-semibold">
             {formatMiles(props.routeTotals.distanceMeters)} • {formatMinutes(props.routeTotals.durationSeconds)}
           </span>
@@ -225,4 +227,4 @@ export default function TripPrint(props: {
   );
 }
 
-export { STORAGE_KEY, APP_STATE_KEY };
+export { STORAGE_KEY, APP_STATE_KEY, storageKeyForPid };
