@@ -126,35 +126,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -70.094965,
-          41.27245
-        ]
-      },
-      "properties": {
-        "Retailer": "Agstate Coop",
-        "Suppliers": "",
-        "ContactName": "",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "",
-        "Address": "",
-        "City": "",
-        "State": "NE",
-        "Zip": "",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "KINGPIN_LATLONG"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -98.442432,
           45.455726
         ]
@@ -174,7 +145,7 @@
         "Zip": "57401",
         "FullAddress": "908 Lamont St., South Aberdeen, SD 57401",
         "Category": "Corporate HQ",
-        "FacilityName": "Agtegra Coop.",
+        "FacilityName": "Ipswich West Region Office",
         "LongName": "Agtegra - SD ND MN",
         "MatchTier": "T3",
         "GeoSource": "FACILITY"
@@ -204,7 +175,7 @@
         "Zip": "57401",
         "FullAddress": "908 Lamont St., South Aberdeen, SD 57401",
         "Category": "Corporate HQ",
-        "FacilityName": "Agtegra Coop.",
+        "FacilityName": "Ipswich West Region Office",
         "LongName": "Agtegra - SD ND MN",
         "MatchTier": "T3",
         "GeoSource": "FACILITY"
@@ -234,7 +205,7 @@
         "Zip": "57401",
         "FullAddress": "908 Lamont St., South Aberdeen, SD 57401",
         "Category": "Corporate HQ",
-        "FacilityName": "Agtegra Coop.",
+        "FacilityName": "Ipswich West Region Office",
         "LongName": "Agtegra - SD ND MN",
         "MatchTier": "T3",
         "GeoSource": "FACILITY"
@@ -264,7 +235,7 @@
         "Zip": "57401",
         "FullAddress": "908 Lamont St., South Aberdeen, SD 57401",
         "Category": "Corporate HQ",
-        "FacilityName": "Agtegra Coop.",
+        "FacilityName": "Ipswich West Region Office",
         "LongName": "Agtegra - SD ND MN",
         "MatchTier": "T3",
         "GeoSource": "FACILITY"
@@ -384,7 +355,7 @@
         "Zip": "",
         "FullAddress": "2326 Benson Shady Grove Ave., Jesup, IA 50648",
         "Category": "Corporate HQ",
-        "FacilityName": "Waverly Agronomy",
+        "FacilityName": "Eldora Office",
         "LongName": "AgVantage FS - IA",
         "MatchTier": "T3",
         "GeoSource": "FACILITY"
@@ -581,7 +552,7 @@
       },
       "properties": {
         "Retailer": "Aurora Coop",
-        "Suppliers": "Winfield",
+        "Suppliers": "Rosen's",
         "ContactName": "Lucas Birch",
         "ContactTitle": "Agron. Sales Rep.",
         "Title": "Agron. Sales Rep.",
@@ -611,7 +582,7 @@
       },
       "properties": {
         "Retailer": "Aurora Coop",
-        "Suppliers": "Winfield",
+        "Suppliers": "Rosen's",
         "ContactName": "Chris Decker",
         "ContactTitle": "Chief Executive Officer",
         "Title": "Chief Executive Officer",
@@ -641,7 +612,7 @@
       },
       "properties": {
         "Retailer": "Aurora Coop",
-        "Suppliers": "Winfield",
+        "Suppliers": "Rosen's",
         "ContactName": "Carl Smith",
         "ContactTitle": "Chief Financial Officer",
         "Title": "Chief Financial Officer",
@@ -671,7 +642,7 @@
       },
       "properties": {
         "Retailer": "Aurora Coop",
-        "Suppliers": "Winfield",
+        "Suppliers": "Rosen's",
         "ContactName": "Dan Karr",
         "ContactTitle": "Dir of Crop Nutrients",
         "Title": "Dir of Crop Nutrients",
@@ -1025,64 +996,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -70.094965,
-          41.27245
-        ]
-      },
-      "properties": {
-        "Retailer": "CHS - RETAIL",
-        "Suppliers": "CHS",
-        "ContactName": "",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "",
-        "Address": "",
-        "City": "",
-        "State": "IA",
-        "Zip": "",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "KINGPIN_LATLONG"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -70.094965,
-          41.27245
-        ]
-      },
-      "properties": {
-        "Retailer": "CHS - RETAIL",
-        "Suppliers": "CHS",
-        "ContactName": "",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "",
-        "Address": "",
-        "City": "",
-        "State": "IL",
-        "Zip": "",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "KINGPIN_LATLONG"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -97.533144,
           42.498573
         ]
@@ -1132,7 +1045,7 @@
         "Zip": "55936",
         "FullAddress": "73057 MN-16, Grand Meadow, MN 55936",
         "Category": "Corporate HQ",
-        "FacilityName": "Rochester (Headquarters)",
+        "FacilityName": "Byron",
         "LongName": "CHS Rochester - MN",
         "MatchTier": "T3",
         "GeoSource": "FACILITY"
@@ -1162,7 +1075,7 @@
         "Zip": "55972",
         "FullAddress": "23142 MN Hwy 74, St. Charles, MN 55972",
         "Category": "Corporate HQ",
-        "FacilityName": "Rochester (Headquarters)",
+        "FacilityName": "Byron",
         "LongName": "CHS Rochester - MN",
         "MatchTier": "T3",
         "GeoSource": "FACILITY"
@@ -1773,35 +1686,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -70.094965,
-          41.27245
-        ]
-      },
-      "properties": {
-        "Retailer": "Growmark - RETAIL",
-        "Suppliers": "Growmark",
-        "ContactName": "",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "",
-        "Address": "",
-        "City": "",
-        "State": "NE",
-        "Zip": "",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "KINGPIN_LATLONG"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -89.643089,
           42.296002
         ]
@@ -1910,64 +1794,6 @@
         "State": "IL",
         "Zip": "62450",
         "FullAddress": "209 S. Camp St. Apt. 4, Olney, IL 62450",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "KINGPIN_LATLONG"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -70.094965,
-          41.27245
-        ]
-      },
-      "properties": {
-        "Retailer": "Growmark - RETAIL",
-        "Suppliers": "Growmark",
-        "ContactName": "",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "",
-        "Address": "",
-        "City": "",
-        "State": "MN",
-        "Zip": "",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "KINGPIN_LATLONG"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -70.094965,
-          41.27245
-        ]
-      },
-      "properties": {
-        "Retailer": "Growmark - RETAIL",
-        "Suppliers": "Growmark",
-        "ContactName": "",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "",
-        "Address": "",
-        "City": "",
-        "State": "SD",
-        "Zip": "",
         "Category": "Agronomy",
         "FacilityName": "",
         "LongName": "",
@@ -2271,7 +2097,7 @@
         "Category": "Grain/Feed",
         "FacilityName": "Elberon",
         "LongName": "Heartland Co-op - IA NE TX",
-        "MatchTier": "T2",
+        "MatchTier": "T1",
         "GeoSource": "FACILITY"
       }
     },
@@ -2550,35 +2376,6 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -88.40496,
-          39.52165
-        ]
-      },
-      "properties": {
-        "Retailer": "HELENA - RETAIL",
-        "Suppliers": "Helena",
-        "ContactName": "Matt Heldt",
-        "ContactTitle": "NCD South - Area Sales Mgr.",
-        "Title": "NCD South - Area Sales Mgr.",
-        "Email": "heldtm@helenaagri.com",
-        "OfficePhone": "",
-        "CellPhone": "217-653-0465",
-        "Address": "",
-        "City": "",
-        "State": "IL",
-        "Zip": "",
-        "Category": "Agronomy",
-        "FacilityName": "Mattoon (Retail)",
-        "LongName": "Helena Agri-Enterprises - IL",
-        "MatchTier": "T3",
-        "GeoSource": "FACILITY"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
           -87.13141,
           37.757782
         ]
@@ -2630,64 +2427,6 @@
         "Category": "Corporate HQ",
         "FacilityName": "Huntington Terminal",
         "LongName": "Helena Agri-Enterprises - IN",
-        "MatchTier": "T3",
-        "GeoSource": "FACILITY"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.40496,
-          39.52165
-        ]
-      },
-      "properties": {
-        "Retailer": "HELENA - RETAIL",
-        "Suppliers": "Helena",
-        "ContactName": "Matthew LIkens",
-        "ContactTitle": "NCD North - Area Sales Mgr.",
-        "Title": "NCD North - Area Sales Mgr.",
-        "Email": "likensm@helenaagri.com",
-        "OfficePhone": "",
-        "CellPhone": "317-294-4534",
-        "Address": "",
-        "City": "",
-        "State": "IL",
-        "Zip": "",
-        "Category": "Agronomy",
-        "FacilityName": "Mattoon (Retail)",
-        "LongName": "Helena Agri-Enterprises - IL",
-        "MatchTier": "T3",
-        "GeoSource": "FACILITY"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -88.40496,
-          39.52165
-        ]
-      },
-      "properties": {
-        "Retailer": "HELENA - RETAIL",
-        "Suppliers": "Helena",
-        "ContactName": "",
-        "ContactTitle": "NCD North - AGRIntelligence Agronomist",
-        "Title": "NCD North - AGRIntelligence Agronomist",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "",
-        "Address": "",
-        "City": "",
-        "State": "IL",
-        "Zip": "",
-        "Category": "Agronomy",
-        "FacilityName": "Mattoon (Retail)",
-        "LongName": "Helena Agri-Enterprises - IL",
         "MatchTier": "T3",
         "GeoSource": "FACILITY"
       }
@@ -4635,64 +4374,6 @@
         "State": "NE",
         "Zip": "68512",
         "FullAddress": "9700 Wildfire Circle, Lincoln, NE 68512",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "KINGPIN_LATLONG"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -70.094965,
-          41.27245
-        ]
-      },
-      "properties": {
-        "Retailer": "Rosen's - RETAIL",
-        "Suppliers": "Rosen's",
-        "ContactName": "",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "",
-        "Address": "",
-        "City": "",
-        "State": "MN",
-        "Zip": "",
-        "Category": "Agronomy",
-        "FacilityName": "",
-        "LongName": "",
-        "MatchTier": "TBD",
-        "GeoSource": "KINGPIN_LATLONG"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -70.094965,
-          41.27245
-        ]
-      },
-      "properties": {
-        "Retailer": "Rosen's - RETAIL",
-        "Suppliers": "Rosen's",
-        "ContactName": "",
-        "ContactTitle": "",
-        "Title": "",
-        "Email": "",
-        "OfficePhone": "",
-        "CellPhone": "",
-        "Address": "",
-        "City": "",
-        "State": "SD",
-        "Zip": "",
         "Category": "Agronomy",
         "FacilityName": "",
         "LongName": "",
