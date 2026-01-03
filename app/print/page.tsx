@@ -1,20 +1,11 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { STORAGE_KEY, storageKeyForPid } from "../../components/TripPrint";
+import { APP_STATE_KEY, STORAGE_KEY, storageKeyForPid } from "../../components/TripPrint";
 
-type RouteLegRow = {
-  fromLabel: string;
-  toLabel: string;
-  distanceMeters: number;
-  durationSeconds: number;
-};
-
-type TripTotals = { distanceMeters: number; durationSeconds: number } | null;
-
-type PrintPayloadV2 = {
-  v?: number;
+type PrintPayload = {
+  v: number;
   pid?: string;
   generatedAt?: string;
   basePath?: string;
@@ -23,320 +14,226 @@ type PrintPayloadV2 = {
     zip?: string;
     coords?: [number, number] | null;
   };
-  stops?: Array<{
-    idx?: number;
-    id?: string;
-    label?: string;
-    retailer?: string;
-    name?: string;
-    address?: string;
-    city?: string;
-    state?: string;
-    zip?: string;
-    kind?: string;
-    email?: string;
-    phoneOffice?: string;
-    phoneCell?: string;
-  }>;
-  legs?: RouteLegRow[];
-  totals?: TripTotals;
-  channelSummary?: Array<{
-    retailer?: string;
-    tripStops?: number;
-    totalLocations?: number;
-    agronomyLocations?: number;
-    suppliers?: string[];
-    categoryBreakdown?: string[];
-    states?: string[];
-  }>;
+  stops?: any[];
+  legs?: any[];
+  totals?: any;
+  channelSummary?: any[];
 };
 
-function metersToMiles(m: number) {
-  return m / 1609.344;
-}
-function formatMiles(meters: number) {
-  const mi = metersToMiles(Number(meters || 0));
-  if (!isFinite(mi)) return "—";
-  if (mi < 0.1) return "<0.1 mi";
-  if (mi < 10) return `${mi.toFixed(1)} mi`;
-  return `${mi.toFixed(0)} mi`;
-}
-function formatMinutes(seconds: number) {
-  const min = Number(seconds || 0) / 60;
-  if (!isFinite(min)) return "—";
-  if (min < 1) return "<1 min";
-  if (min < 60) return `${Math.round(min)} min`;
-  const h = Math.floor(min / 60);
-  const r = Math.round(min - h * 60);
-  return `${h}h ${r}m`;
-}
-function safeStr(v: any) {
-  return String(v ?? "").trim();
-}
-
-function tryParsePayload(raw: string | null): PrintPayloadV2 | null {
+function safeParsePayload(raw: string | null): PrintPayload | null {
   if (!raw) return null;
   try {
     const obj = JSON.parse(raw);
     if (!obj || typeof obj !== "object") return null;
-    return obj as PrintPayloadV2;
+    return obj as PrintPayload;
   } catch {
     return null;
   }
 }
 
-function readFromStorage(key: string): PrintPayloadV2 | null {
-  try {
-    const s1 = tryParsePayload(sessionStorage.getItem(key));
-    if (s1) return s1;
-  } catch {
-    // ignore
-  }
-  try {
-    const s2 = tryParsePayload(localStorage.getItem(key));
-    if (s2) return s2;
-  } catch {
-    // ignore
-  }
+function readPayloadForKey(key: string): PrintPayload | null {
+  // Prefer sessionStorage (new tab write), fall back to localStorage
+  const fromSession = safeParsePayload(sessionStorage.getItem(key));
+  if (fromSession) return fromSession;
+
+  const fromLocal = safeParsePayload(localStorage.getItem(key));
+  if (fromLocal) return fromLocal;
+
+  // Back-compat fallback: legacy base key
+  const legacySession = safeParsePayload(sessionStorage.getItem(STORAGE_KEY));
+  if (legacySession) return legacySession;
+
+  const legacyLocal = safeParsePayload(localStorage.getItem(STORAGE_KEY));
+  if (legacyLocal) return legacyLocal;
+
   return null;
 }
 
-export default function PrintTripPage() {
+function PrintClient() {
   const searchParams = useSearchParams();
-  const pid = useMemo(() => safeStr(searchParams.get("pid") || ""), [searchParams]);
 
-  const primaryKey = useMemo(() => storageKeyForPid(pid), [pid]);
+  const pid = useMemo(() => {
+    const p = (searchParams?.get("pid") || "").trim();
+    return p;
+  }, [searchParams]);
 
-  const [payload, setPayload] = useState<PrintPayloadV2 | null>(null);
-  const [loadKeyUsed, setLoadKeyUsed] = useState<string>("");
+  const payloadKey = useMemo(() => storageKeyForPid(pid), [pid]);
+
+  const [payload, setPayload] = useState<PrintPayload | null>(null);
+  const [appStateJson, setAppStateJson] = useState<string>("");
 
   useEffect(() => {
-    // 1) PID key (preferred)
-    const p1 = readFromStorage(primaryKey);
-    if (p1) {
-      setPayload(p1);
-      setLoadKeyUsed(primaryKey);
-      return;
+    // Load payload for printing
+    try {
+      const p = readPayloadForKey(payloadKey);
+      setPayload(p);
+    } catch {
+      setPayload(null);
     }
 
-    // 2) Legacy shared key (back compat)
-    const p2 = readFromStorage(STORAGE_KEY);
-    if (p2) {
-      setPayload(p2);
-      setLoadKeyUsed(STORAGE_KEY);
-      return;
+    // Snapshot app state (optional / for debugging / future restore patterns)
+    try {
+      const s = sessionStorage.getItem(APP_STATE_KEY) || localStorage.getItem(APP_STATE_KEY) || "";
+      setAppStateJson(s || "");
+    } catch {
+      setAppStateJson("");
     }
+  }, [payloadKey]);
 
-    setPayload(null);
-    setLoadKeyUsed("");
-  }, [primaryKey]);
+  const title = payload?.pid ? `Trip Print — ${payload.pid}` : "Trip Print";
+  const generatedAt = payload?.generatedAt ? String(payload.generatedAt) : "";
 
-  const totals = payload?.totals ?? null;
-  const stops = Array.isArray(payload?.stops) ? payload!.stops! : [];
-  const legs = Array.isArray(payload?.legs) ? payload!.legs! : [];
-  const channelSummary = Array.isArray(payload?.channelSummary) ? payload!.channelSummary! : [];
+  const hasStops = Array.isArray(payload?.stops) && (payload?.stops?.length || 0) > 0;
 
-  const title = "CERTIS AgRoute Database — Trip Print";
-
+  // Ink-safe layout (white background, black text)
   return (
-    <div className="min-h-screen bg-white text-black">
-      {/* Print CSS */}
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          .print-page { padding: 0 !important; margin: 0 !important; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
-      `}</style>
-
-      <div className="print-page mx-auto max-w-4xl px-4 py-6">
-        {/* Header */}
-        <div className="no-print flex items-center justify-between gap-3 border-b pb-3">
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-xl font-extrabold">{title}</div>
-            <div className="text-sm text-black/60">
-              Generated: <span className="font-semibold">{safeStr(payload?.generatedAt) || "—"}</span>
-              {pid ? (
-                <>
-                  {" "}
-                  • PID: <span className="font-semibold">{pid}</span>
-                </>
-              ) : null}
-            </div>
-            <div className="text-xs text-black/50">
-              Loaded from: <span className="font-mono">{loadKeyUsed || "—"}</span>
-            </div>
+            <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
+            {generatedAt ? <div className="mt-1 text-sm text-black/70">Generated: {generatedAt}</div> : null}
+            {pid ? <div className="mt-1 text-xs text-black/60">pid: {pid}</div> : null}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 print:hidden">
             <button
               type="button"
               onClick={() => window.print()}
-              className="rounded-lg bg-black px-4 py-2 text-sm font-extrabold text-white hover:bg-black/90"
+              className="rounded-lg border border-black/20 bg-black px-4 py-2 text-sm font-bold text-white hover:bg-black/90"
             >
               Print / Save PDF
+            </button>
+
+            <button
+              type="button"
+              onClick={() => window.close()}
+              className="rounded-lg border border-black/20 bg-white px-4 py-2 text-sm font-bold text-black hover:bg-black/5"
+              title="Closes this tab (if opened by the app)"
+            >
+              Close Tab
             </button>
           </div>
         </div>
 
-        {/* If no payload */}
+        <hr className="my-6 border-black/15" />
+
         {!payload ? (
-          <div className="mt-6 rounded-xl border p-4">
-            <div className="text-lg font-extrabold">No trip payload found</div>
+          <div className="rounded-xl border border-black/15 p-4">
+            <div className="text-base font-bold">No print payload found.</div>
             <div className="mt-2 text-sm text-black/70">
-              This print page reads from session/local storage. Open it by clicking{" "}
-              <span className="font-semibold">Print Trip (PDF)</span> in the main app (it writes the payload first).
+              Go back to the main app tab and click <span className="font-semibold">Print / Save as PDF</span> again.
             </div>
-            <div className="mt-3 text-xs text-black/50">
-              Tried keys: <span className="font-mono">{primaryKey}</span> and <span className="font-mono">{STORAGE_KEY}</span>
+          </div>
+        ) : !hasStops ? (
+          <div className="rounded-xl border border-black/15 p-4">
+            <div className="text-base font-bold">Payload found, but no stops were included.</div>
+            <div className="mt-2 text-sm text-black/70">
+              Add at least one stop in the main app, then click Print again.
             </div>
           </div>
         ) : (
-          <>
-            {/* Summary */}
-            <div className="mt-5 rounded-xl border p-4">
-              <div className="text-lg font-extrabold">Trip Summary</div>
-              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-lg bg-black/5 p-3">
-                  <div className="text-xs font-bold text-black/60">Home</div>
-                  <div className="text-sm font-extrabold">{safeStr(payload?.home?.label) || "—"}</div>
-                  <div className="text-xs text-black/70">
-                    ZIP: <span className="font-semibold">{safeStr(payload?.home?.zip) || "—"}</span>
-                  </div>
+          <div className="space-y-6">
+            {/* HOME */}
+            <section className="rounded-xl border border-black/15 p-4">
+              <div className="text-lg font-extrabold">Home</div>
+              <div className="mt-2 text-sm">
+                <div>
+                  <span className="font-bold">Label:</span> {payload?.home?.label || "—"}
                 </div>
-
-                <div className="rounded-lg bg-black/5 p-3">
-                  <div className="text-xs font-bold text-black/60">Route Total</div>
-                  {totals ? (
-                    <div className="text-sm font-extrabold">
-                      {formatMiles(totals.distanceMeters)} • {formatMinutes(totals.durationSeconds)}
-                    </div>
-                  ) : (
-                    <div className="text-sm font-extrabold">—</div>
-                  )}
-                  <div className="text-xs text-black/70">
-                    Stops: <span className="font-semibold">{stops.length}</span>
-                  </div>
+                <div>
+                  <span className="font-bold">ZIP:</span> {payload?.home?.zip || "—"}
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* Stops */}
-            <div className="mt-5 rounded-xl border p-4">
+            {/* STOPS */}
+            <section className="rounded-xl border border-black/15 p-4">
               <div className="text-lg font-extrabold">Stops</div>
-              {stops.length === 0 ? (
-                <div className="mt-2 text-sm text-black/70">No stops in payload.</div>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  {stops.map((s, i) => {
-                    const line1 = safeStr(s.label) || safeStr(s.name) || safeStr(s.retailer) || `Stop ${i + 1}`;
-                    const line2Parts = [safeStr(s.address), safeStr(s.city), safeStr(s.state), safeStr(s.zip)].filter(Boolean);
-                    const line2 = line2Parts.join(", ");
-                    return (
-                      <div key={`${safeStr(s.id) || i}`} className="rounded-lg bg-black/5 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-extrabold">
-                              {s.idx ?? i + 1}. {line1}
-                            </div>
-                            <div className="text-xs text-black/70">{line2 || "—"}</div>
-                            <div className="mt-1 text-xs text-black/60">
-                              Kind: <span className="font-semibold">{safeStr(s.kind) || "—"}</span>
-                              {safeStr(s.retailer) ? (
-                                <>
-                                  {" "}
-                                  • Retailer: <span className="font-semibold">{safeStr(s.retailer)}</span>
-                                </>
-                              ) : null}
-                            </div>
-                          </div>
+              <div className="mt-3 space-y-3">
+                {(payload?.stops || []).map((s: any, idx: number) => {
+                  const label = String(s?.label || s?.name || s?.id || `Stop ${idx + 1}`);
+                  const retailer = String(s?.retailer || "");
+                  const addr = [s?.address, s?.city, s?.state, s?.zip].filter(Boolean).join(", ");
 
-                          <div className="text-right text-xs text-black/60">
-                            {safeStr(s.email) ? <div>{safeStr(s.email)}</div> : null}
-                            {safeStr(s.phoneOffice) ? <div>Office: {safeStr(s.phoneOffice)}</div> : null}
-                            {safeStr(s.phoneCell) ? <div>Cell: {safeStr(s.phoneCell)}</div> : null}
+                  return (
+                    <div key={`${idx}-${label}`} className="rounded-lg border border-black/10 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-extrabold">
+                            {idx + 1}. {label}
                           </div>
+                          {retailer ? <div className="mt-1 text-xs text-black/70">{retailer}</div> : null}
+                          {addr ? <div className="mt-1 text-xs text-black/70">{addr}</div> : null}
                         </div>
+                        {s?.kind ? (
+                          <div className="shrink-0 rounded-md border border-black/10 px-2 py-1 text-[11px] font-bold">
+                            {String(s.kind)}
+                          </div>
+                        ) : null}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
 
-            {/* Legs */}
-            <div className="mt-5 rounded-xl border p-4">
-              <div className="text-lg font-extrabold">Route Legs</div>
-              {legs.length === 0 ? (
-                <div className="mt-2 text-sm text-black/70">No route legs in payload.</div>
-              ) : (
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="py-2 text-left font-extrabold">From</th>
-                        <th className="py-2 text-left font-extrabold">To</th>
-                        <th className="py-2 text-left font-extrabold">Distance</th>
-                        <th className="py-2 text-left font-extrabold">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {legs.map((l, idx) => (
-                        <tr key={idx} className="border-b last:border-b-0">
-                          <td className="py-2 pr-3">{safeStr(l.fromLabel) || "—"}</td>
-                          <td className="py-2 pr-3">{safeStr(l.toLabel) || "—"}</td>
-                          <td className="py-2 pr-3">{formatMiles(Number(l.distanceMeters || 0))}</td>
-                          <td className="py-2">{formatMinutes(Number(l.durationSeconds || 0))}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            {/* ROUTE TOTALS */}
+            <section className="rounded-xl border border-black/15 p-4">
+              <div className="text-lg font-extrabold">Route Totals</div>
+              <div className="mt-2 text-sm text-black/80">
+                <pre className="whitespace-pre-wrap break-words rounded-lg bg-black/5 p-3 text-xs">
+                  {JSON.stringify(payload?.totals ?? null, null, 2)}
+                </pre>
+              </div>
+            </section>
 
-            {/* Channel Summary */}
-            <div className="mt-5 rounded-xl border p-4">
-              <div className="text-lg font-extrabold">Retailer Summary</div>
-              {channelSummary.length === 0 ? (
-                <div className="mt-2 text-sm text-black/70">No channel summary rows in payload.</div>
-              ) : (
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="py-2 text-left font-extrabold">Retailer</th>
-                        <th className="py-2 text-left font-extrabold">Trip Stops</th>
-                        <th className="py-2 text-left font-extrabold">Total Locations</th>
-                        <th className="py-2 text-left font-extrabold">Agronomy</th>
-                        <th className="py-2 text-left font-extrabold">States</th>
-                        <th className="py-2 text-left font-extrabold">Suppliers</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {channelSummary.map((r, idx) => (
-                        <tr key={idx} className="border-b last:border-b-0">
-                          <td className="py-2 pr-3">{safeStr(r.retailer) || "—"}</td>
-                          <td className="py-2 pr-3">{Number(r.tripStops || 0)}</td>
-                          <td className="py-2 pr-3">{Number(r.totalLocations || 0)}</td>
-                          <td className="py-2 pr-3">{Number(r.agronomyLocations || 0)}</td>
-                          <td className="py-2 pr-3">{Array.isArray(r.states) ? r.states.filter(Boolean).join(", ") : "—"}</td>
-                          <td className="py-2">{Array.isArray(r.suppliers) ? r.suppliers.filter(Boolean).join(", ") : "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            {/* CHANNEL SUMMARY */}
+            <section className="rounded-xl border border-black/15 p-4">
+              <div className="text-lg font-extrabold">Channel Summary — Trip</div>
+              <div className="mt-2 text-sm text-black/80">
+                <pre className="whitespace-pre-wrap break-words rounded-lg bg-black/5 p-3 text-xs">
+                  {JSON.stringify(payload?.channelSummary ?? [], null, 2)}
+                </pre>
+              </div>
+            </section>
 
-            {/* Footer */}
-            <div className="mt-6 text-xs text-black/50">
-              Tip: Use your browser print dialog → “Save as PDF” for a clean export.
-            </div>
-          </>
+            {/* OPTIONAL DEBUG (hidden on print) */}
+            <section className="rounded-xl border border-black/15 p-4 print:hidden">
+              <div className="text-sm font-extrabold">Debug</div>
+              <div className="mt-2 text-xs text-black/70">
+                <div>
+                  <span className="font-bold">payloadKey:</span> {payloadKey}
+                </div>
+                <div className="mt-2">
+                  <span className="font-bold">APP_STATE_KEY present:</span> {appStateJson ? "yes" : "no"}
+                </div>
+              </div>
+            </section>
+          </div>
         )}
       </div>
-    </div>
+    </main>
+  );
+}
+
+export default function PrintPage() {
+  // ✅ REQUIRED for static export when useSearchParams() is used:
+  // Wrap the component that calls useSearchParams() in a Suspense boundary.
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-white text-black">
+          <div className="mx-auto max-w-5xl px-6 py-10">
+            <div className="rounded-xl border border-black/15 p-4">
+              <div className="text-base font-bold">Loading print view…</div>
+              <div className="mt-2 text-sm text-black/70">Preparing your trip payload.</div>
+            </div>
+          </div>
+        </main>
+      }
+    >
+      <PrintClient />
+    </Suspense>
   );
 }
