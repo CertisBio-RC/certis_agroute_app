@@ -85,6 +85,22 @@ function PrintClient() {
 
   const hasStops = Array.isArray(payload?.stops) && (payload?.stops?.length || 0) > 0;
 
+  const channelRows = useMemo(() => {
+    const rows = Array.isArray(payload?.channelSummary) ? payload?.channelSummary : [];
+    return rows || [];
+  }, [payload?.channelSummary]);
+
+  function joinList(v: any): string {
+    if (!v) return "";
+    if (Array.isArray(v)) return v.filter(Boolean).map(String).join(", ");
+    return String(v);
+  }
+
+  function n(v: any): number {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : 0;
+  }
+
   // Ink-safe layout (white background, black text)
   return (
     <main className="min-h-screen bg-white text-black">
@@ -191,11 +207,51 @@ function PrintClient() {
             {/* CHANNEL SUMMARY */}
             <section className="rounded-xl border border-black/15 p-4">
               <div className="text-lg font-extrabold">Channel Summary — Trip</div>
-              <div className="mt-2 text-sm text-black/80">
-                <pre className="whitespace-pre-wrap break-words rounded-lg bg-black/5 p-3 text-xs">
-                  {JSON.stringify(payload?.channelSummary ?? [], null, 2)}
-                </pre>
-              </div>
+
+              {channelRows.length === 0 ? (
+                <div className="mt-2 text-sm text-black/70">No channel summary rows were included in the payload.</div>
+              ) : (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-black/20">
+                        <th className="py-2 pr-3 text-left font-extrabold">Retailer</th>
+                        <th className="py-2 pr-3 text-right font-extrabold">Trip Stops</th>
+                        <th className="py-2 pr-3 text-right font-extrabold">Total Locations</th>
+                        <th className="py-2 pr-3 text-right font-extrabold">Agronomy</th>
+                        <th className="py-2 pr-3 text-left font-extrabold">Suppliers</th>
+                        <th className="py-2 pr-3 text-left font-extrabold">Categories</th>
+                        <th className="py-2 pr-0 text-left font-extrabold">States</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {channelRows.map((r: any, idx: number) => {
+                        const retailer = String(r?.retailer ?? "");
+                        const key = retailer ? retailer : `row-${idx}`;
+                        const suppliers = joinList(r?.suppliers);
+                        const categories = joinList(r?.categoryBreakdown);
+                        const states = joinList(r?.states);
+
+                        return (
+                          <tr key={key} className="border-b border-black/10 last:border-b-0">
+                            <td className="py-2 pr-3 align-top font-semibold">{retailer || "—"}</td>
+                            <td className="py-2 pr-3 text-right align-top">{n(r?.tripStops)}</td>
+                            <td className="py-2 pr-3 text-right align-top">{n(r?.totalLocations)}</td>
+                            <td className="py-2 pr-3 text-right align-top">{n(r?.agronomyLocations)}</td>
+                            <td className="py-2 pr-3 align-top">{suppliers || "—"}</td>
+                            <td className="py-2 pr-3 align-top">{categories || "—"}</td>
+                            <td className="py-2 pr-0 align-top">{states || "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  <div className="mt-2 text-[11px] text-black/60">
+                    Note: Suppliers/Categories/States are listed as provided by the payload.
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* OPTIONAL DEBUG (hidden on print) */}
