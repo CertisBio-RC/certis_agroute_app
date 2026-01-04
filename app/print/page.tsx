@@ -2,7 +2,14 @@
 
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { APP_STATE_KEY, STORAGE_KEY, storageKeyForPid } from "../../components/TripPrint";
+import {
+  APP_STATE_KEY,
+  LEGACY_APP_STATE_KEYS,
+  LEGACY_STORAGE_KEYS,
+  STORAGE_KEY,
+  storageKeyForPid,
+  storageKeyForPidWithBase,
+} from "../../components/TripPrint";
 
 type PrintPayload = {
   v: number;
@@ -31,22 +38,73 @@ function safeParsePayload(raw: string | null): PrintPayload | null {
   }
 }
 
-function readPayloadForKey(key: string): PrintPayload | null {
-  // Prefer sessionStorage (new tab write), fall back to localStorage
-  const fromSession = safeParsePayload(sessionStorage.getItem(key));
-  if (fromSession) return fromSession;
+function metersToMiles(m: number) {
+  return m / 1609.344;
+}
+function formatMiles(meters: number) {
+  const mi = metersToMiles(Number(meters || 0));
+  if (!isFinite(mi)) return "—";
+  if (mi < 0.1) return "<0.1 mi";
+  if (mi < 10) return `${mi.toFixed(1)} mi`;
+  return `${mi.toFixed(0)} mi`;
+}
+function formatMinutes(seconds: number) {
+  const min = Number(seconds || 0) / 60;
+  if (!isFinite(min)) return "—";
+  if (min < 1) return "<1 min";
+  if (min < 60) return `${Math.round(min)} min`;
+  const h = Math.floor(min / 60);
+  const r = Math.round(min - h * 60);
+  return `${h}h ${r}m`;
+}
 
-  const fromLocal = safeParsePayload(localStorage.getItem(key));
-  if (fromLocal) return fromLocal;
+function readAnyKey(keys: string[]): PrintPayload | null {
+  for (const k of keys) {
+    const fromSession = safeParsePayload(sessionStorage.getItem(k));
+    if (fromSession) return fromSession;
 
-  // Back-compat fallback: legacy base key
-  const legacySession = safeParsePayload(sessionStorage.getItem(STORAGE_KEY));
-  if (legacySession) return legacySession;
-
-  const legacyLocal = safeParsePayload(localStorage.getItem(STORAGE_KEY));
-  if (legacyLocal) return legacyLocal;
-
+    const fromLocal = safeParsePayload(localStorage.getItem(k));
+    if (fromLocal) return fromLocal;
+  }
   return null;
+}
+
+function buildCandidatePayloadKeys(pid: string) {
+  const keys: string[] = [];
+
+  // ✅ canonical PID key + canonical base key
+  keys.push(storageKeyForPid(pid));
+  keys.push(STORAGE_KEY);
+
+  // ✅ legacy base keys + legacy pid keys
+  for (const legacyBase of LEGACY_STORAGE_KEYS) {
+    keys.push(storageKeyForPidWithBase(legacyBase, pid));
+    keys.push(legacyBase);
+  }
+
+  // de-dupe
+  return Array.from(new Set(keys.filter(Boolean)));
+}
+
+function readPayloadForPid(pid: string): PrintPayload | null {
+  const candidateKeys = buildCandidatePayloadKeys(pid);
+  const found = readAnyKey(candidateKeys);
+  if (found) return found;
+
+  // If pid was missing/empty and we didn't find anything, as a last resort:
+  // try only base keys (canonical + legacy) again (covers weird pid sanitize edge cases)
+  const baseKeys = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS];
+  return readAnyKey(Array.from(new Set(baseKeys)));
+}
+
+function readAppStateAny(): string {
+  // canonical then legacy
+  const keys = [APP_STATE_KEY, ...LEGACY_APP_STATE_KEYS];
+  for (const k of keys) {
+    const s = sessionStorage.getItem(k) || localStorage.getItem(k);
+    if (s) return s;
+  }
+  return "";
 }
 
 function PrintClient() {
@@ -57,49 +115,32 @@ function PrintClient() {
     return p;
   }, [searchParams]);
 
-  const payloadKey = useMemo(() => storageKeyForPid(pid), [pid]);
-
   const [payload, setPayload] = useState<PrintPayload | null>(null);
   const [appStateJson, setAppStateJson] = useState<string>("");
 
   useEffect(() => {
-    // Load payload for printing
     try {
-      const p = readPayloadForKey(payloadKey);
+      const p = readPayloadForPid(pid);
       setPayload(p);
     } catch {
       setPayload(null);
     }
 
-    // Snapshot app state (optional / for debugging / future restore patterns)
     try {
-      const s = sessionStorage.getItem(APP_STATE_KEY) || localStorage.getItem(APP_STATE_KEY) || "";
+      const s = readAppStateAny();
       setAppStateJson(s || "");
     } catch {
       setAppStateJson("");
     }
-  }, [payloadKey]);
+  }, [pid]);
 
   const title = payload?.pid ? `Trip Print — ${payload.pid}` : "Trip Print";
   const generatedAt = payload?.generatedAt ? String(payload.generatedAt) : "";
 
   const hasStops = Array.isArray(payload?.stops) && (payload?.stops?.length || 0) > 0;
 
-  const channelRows = useMemo(() => {
-    const rows = Array.isArray(payload?.channelSummary) ? payload?.channelSummary : [];
-    return rows || [];
-  }, [payload?.channelSummary]);
-
-  function joinList(v: any): string {
-    if (!v) return "";
-    if (Array.isArray(v)) return v.filter(Boolean).map(String).join(", ");
-    return String(v);
-  }
-
-  function n(v: any): number {
-    const x = Number(v);
-    return Number.isFinite(x) ? x : 0;
-  }
+  const legs = Array.isArray(payload?.legs) ? payload!.legs! : [];
+  const totals = payload?.totals ?? null;
 
   // Ink-safe layout (white background, black text)
   return (
@@ -109,7 +150,7 @@ function PrintClient() {
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
             {generatedAt ? <div className="mt-1 text-sm text-black/70">Generated: {generatedAt}</div> : null}
-            {pid ? <div className="mt-1 text-xs text-black/60">pid: {pid}</div> : null}
+            {payload?.pid ? <div className="mt-1 text-xs text-black/60">pid: {payload.pid}</div> : null}
           </div>
 
           <div className="flex gap-2 print:hidden">
@@ -198,59 +239,100 @@ function PrintClient() {
             <section className="rounded-xl border border-black/15 p-4">
               <div className="text-lg font-extrabold">Route Totals</div>
               <div className="mt-2 text-sm text-black/80">
-                <pre className="whitespace-pre-wrap break-words rounded-lg bg-black/5 p-3 text-xs">
-                  {JSON.stringify(payload?.totals ?? null, null, 2)}
-                </pre>
+                {totals ? (
+                  <div className="rounded-lg border border-black/10 p-3">
+                    <div className="text-sm">
+                      <span className="font-bold">Total distance:</span> {formatMiles(totals?.distanceMeters)}
+                    </div>
+                    <div className="text-sm">
+                      <span className="font-bold">Total drive time:</span> {formatMinutes(totals?.durationSeconds)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-black/70">No totals were included in the payload.</div>
+                )}
               </div>
+            </section>
+
+            {/* ✅ STOPS & DISTANCES (ABOVE RETAILER SUMMARY) */}
+            <section className="rounded-xl border border-black/15 p-4">
+              <div className="text-lg font-extrabold">Stops & Distances</div>
+
+              {!legs || legs.length === 0 ? (
+                <div className="mt-2 text-sm text-black/70">No route legs were included in the payload.</div>
+              ) : (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-black/20 text-left">
+                        <th className="py-2 pr-3 font-extrabold">Leg</th>
+                        <th className="py-2 pr-3 font-extrabold">From</th>
+                        <th className="py-2 pr-3 font-extrabold">To</th>
+                        <th className="py-2 pr-3 font-extrabold whitespace-nowrap">Distance</th>
+                        <th className="py-2 pr-0 font-extrabold whitespace-nowrap">Drive Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {legs.map((l: any, i: number) => (
+                        <tr key={`leg-${i}`} className="border-b border-black/10 align-top">
+                          <td className="py-2 pr-3 font-bold">{i + 1}</td>
+                          <td className="py-2 pr-3">{String(l?.fromLabel || "—")}</td>
+                          <td className="py-2 pr-3">{String(l?.toLabel || "—")}</td>
+                          <td className="py-2 pr-3 whitespace-nowrap">{formatMiles(l?.distanceMeters)}</td>
+                          <td className="py-2 pr-0 whitespace-nowrap">{formatMinutes(l?.durationSeconds)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
 
             {/* CHANNEL SUMMARY */}
             <section className="rounded-xl border border-black/15 p-4">
               <div className="text-lg font-extrabold">Channel Summary — Trip</div>
 
-              {channelRows.length === 0 ? (
-                <div className="mt-2 text-sm text-black/70">No channel summary rows were included in the payload.</div>
-              ) : (
+              {Array.isArray(payload?.channelSummary) && payload!.channelSummary!.length > 0 ? (
                 <div className="mt-3 overflow-x-auto">
-                  <table className="w-full border-collapse text-xs">
+                  <table className="w-full border-collapse text-sm">
                     <thead>
-                      <tr className="border-b border-black/20">
-                        <th className="py-2 pr-3 text-left font-extrabold">Retailer</th>
-                        <th className="py-2 pr-3 text-right font-extrabold">Trip Stops</th>
-                        <th className="py-2 pr-3 text-right font-extrabold">Total Locations</th>
-                        <th className="py-2 pr-3 text-right font-extrabold">Agronomy</th>
-                        <th className="py-2 pr-3 text-left font-extrabold">Suppliers</th>
-                        <th className="py-2 pr-3 text-left font-extrabold">Categories</th>
-                        <th className="py-2 pr-0 text-left font-extrabold">States</th>
+                      <tr className="border-b border-black/20 text-left">
+                        <th className="py-2 pr-3 font-extrabold">Retailer</th>
+                        <th className="py-2 pr-3 font-extrabold whitespace-nowrap">Trip Stops</th>
+                        <th className="py-2 pr-3 font-extrabold whitespace-nowrap">Total Locations</th>
+                        <th className="py-2 pr-3 font-extrabold whitespace-nowrap">Agronomy</th>
+                        <th className="py-2 pr-3 font-extrabold">Suppliers</th>
+                        <th className="py-2 pr-3 font-extrabold">Categories</th>
+                        <th className="py-2 pr-0 font-extrabold whitespace-nowrap">States</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {channelRows.map((r: any, idx: number) => {
-                        const retailer = String(r?.retailer ?? "");
-                        const key = retailer ? retailer : `row-${idx}`;
-                        const suppliers = joinList(r?.suppliers);
-                        const categories = joinList(r?.categoryBreakdown);
-                        const states = joinList(r?.states);
+                      {(payload?.channelSummary || []).map((r: any, idx: number) => {
+                        const suppliers = Array.isArray(r?.suppliers) ? r.suppliers.join(", ") : "";
+                        const cats = Array.isArray(r?.categoryBreakdown) ? r.categoryBreakdown.join(", ") : "";
+                        const states = Array.isArray(r?.states) ? r.states.join(", ") : "";
 
                         return (
-                          <tr key={key} className="border-b border-black/10 last:border-b-0">
-                            <td className="py-2 pr-3 align-top font-semibold">{retailer || "—"}</td>
-                            <td className="py-2 pr-3 text-right align-top">{n(r?.tripStops)}</td>
-                            <td className="py-2 pr-3 text-right align-top">{n(r?.totalLocations)}</td>
-                            <td className="py-2 pr-3 text-right align-top">{n(r?.agronomyLocations)}</td>
-                            <td className="py-2 pr-3 align-top">{suppliers || "—"}</td>
-                            <td className="py-2 pr-3 align-top">{categories || "—"}</td>
-                            <td className="py-2 pr-0 align-top">{states || "—"}</td>
+                          <tr key={`cs-${idx}`} className="border-b border-black/10 align-top">
+                            <td className="py-2 pr-3 font-bold">{String(r?.retailer || "—")}</td>
+                            <td className="py-2 pr-3">{Number(r?.tripStops || 0)}</td>
+                            <td className="py-2 pr-3">{Number(r?.totalLocations || 0)}</td>
+                            <td className="py-2 pr-3">{Number(r?.agronomyLocations || 0)}</td>
+                            <td className="py-2 pr-3">{suppliers || "—"}</td>
+                            <td className="py-2 pr-3">{cats || "—"}</td>
+                            <td className="py-2 pr-0">{states || "—"}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
 
-                  <div className="mt-2 text-[11px] text-black/60">
-                    Note: Suppliers/Categories/States are listed as provided by the payload.
+                  <div className="mt-2 text-xs text-black/60">
+                    Note: Supplier/Category/States are listed as provided by the payload.
                   </div>
                 </div>
+              ) : (
+                <div className="mt-2 text-sm text-black/70">No channel summary rows were included in the payload.</div>
               )}
             </section>
 
@@ -259,10 +341,14 @@ function PrintClient() {
               <div className="text-sm font-extrabold">Debug</div>
               <div className="mt-2 text-xs text-black/70">
                 <div>
-                  <span className="font-bold">payloadKey:</span> {payloadKey}
+                  <span className="font-bold">pid:</span> {pid || "—"}
+                </div>
+                <div className="mt-1">
+                  <span className="font-bold">candidate keys:</span>{" "}
+                  {buildCandidatePayloadKeys(pid).slice(0, 6).join(" | ")}
                 </div>
                 <div className="mt-2">
-                  <span className="font-bold">APP_STATE_KEY present:</span> {appStateJson ? "yes" : "no"}
+                  <span className="font-bold">APP_STATE present:</span> {appStateJson ? "yes" : "no"}
                 </div>
               </div>
             </section>

@@ -37,16 +37,31 @@ type ChannelSummaryRow = {
   states: string[];
 };
 
-const STORAGE_KEY = "cad_trip_print_payload_v2";
-const APP_STATE_KEY = "cad_app_state_v1";
+/**
+ * ✅ Canonical (CERTIS) keys
+ * NOTE: We ALSO write legacy CAD keys for backward compatibility.
+ */
+const STORAGE_KEY = "certis_trip_print_payload_v2";
+const APP_STATE_KEY = "certis_app_state_v1";
 
-// ✅ PID-scoped payload keys (build error fix + future-safe)
+/**
+ * ✅ Legacy keys (previous builds used these)
+ * Keeping these prevents “print payload missing” when older tabs / users exist.
+ */
+const LEGACY_STORAGE_KEYS = ["cad_trip_print_payload_v2"];
+const LEGACY_APP_STATE_KEYS = ["cad_app_state_v1"];
+
+/** ✅ PID-scoped payload keys (future-safe) */
 function storageKeyForPid(pid: string) {
+  return storageKeyForPidWithBase(STORAGE_KEY, pid);
+}
+
+function storageKeyForPidWithBase(baseKey: string, pid: string) {
   const clean = String(pid || "")
     .trim()
     .replace(/[^a-zA-Z0-9_-]/g, "")
     .slice(0, 64);
-  return clean ? `${STORAGE_KEY}__${clean}` : STORAGE_KEY;
+  return clean ? `${baseKey}__${clean}` : baseKey;
 }
 
 function metersToMiles(m: number) {
@@ -173,20 +188,29 @@ export default function TripPrint(props: {
   const doPrint = () => {
     if (!canPrint) return;
 
-    // ✅ Save payload to both storages (new tab safe)
     try {
       const json = JSON.stringify(payload);
+
+      // ✅ Write canonical CERTIS keys (pid-scoped + base)
       localStorage.setItem(payloadKey, json);
       sessionStorage.setItem(payloadKey, json);
-
-      // Also write to the legacy/base key (backwards compatibility)
       localStorage.setItem(STORAGE_KEY, json);
       sessionStorage.setItem(STORAGE_KEY, json);
+
+      // ✅ Also write legacy CAD keys (pid-scoped + base) for backwards compatibility
+      for (const legacyBase of LEGACY_STORAGE_KEYS) {
+        const legacyPidKey = storageKeyForPidWithBase(legacyBase, props.pid || "");
+        localStorage.setItem(legacyPidKey, json);
+        sessionStorage.setItem(legacyPidKey, json);
+        localStorage.setItem(legacyBase, json);
+        sessionStorage.setItem(legacyBase, json);
+      }
     } catch {
       // ignore
     }
 
     // ✅ New tab so app doesn't lose state
+    // IMPORTANT: pid in URL ensures /print can load the correct PID-scoped key every time.
     const href = `${props.basePath}/print${props.pid ? `?pid=${encodeURIComponent(props.pid)}` : ""}`;
     const w = window.open(href, "_blank", "noopener,noreferrer");
     if (!w) window.location.assign(href);
@@ -212,7 +236,8 @@ export default function TripPrint(props: {
       </button>
 
       <div className="mt-2 text-[12px] text-white/70 leading-snug">
-        Opens an ink-safe print view in a <span className="font-semibold text-white/90">new tab</span>. Your trip stays loaded here.
+        Opens an ink-safe print view in a <span className="font-semibold text-white/90">new tab</span>. Your trip stays
+        loaded here.
       </div>
 
       {props.routeTotals && (
@@ -227,4 +252,12 @@ export default function TripPrint(props: {
   );
 }
 
-export { STORAGE_KEY, APP_STATE_KEY, storageKeyForPid };
+export {
+  STORAGE_KEY,
+  APP_STATE_KEY,
+  LEGACY_STORAGE_KEYS,
+  LEGACY_APP_STATE_KEYS,
+  storageKeyForPid,
+  // exporting this helps print page do legacy PID-key fallbacks cleanly
+  storageKeyForPidWithBase,
+};
