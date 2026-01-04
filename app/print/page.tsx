@@ -335,23 +335,6 @@ function PrintClient() {
                 <div className="mt-2 text-sm text-black/70">No channel summary rows were included in the payload.</div>
               )}
             </section>
-
-            {/* OPTIONAL DEBUG (hidden on print) */}
-            <section className="rounded-xl border border-black/15 p-4 print:hidden">
-              <div className="text-sm font-extrabold">Debug</div>
-              <div className="mt-2 text-xs text-black/70">
-                <div>
-                  <span className="font-bold">pid:</span> {pid || "—"}
-                </div>
-                <div className="mt-1">
-                  <span className="font-bold">candidate keys:</span>{" "}
-                  {buildCandidatePayloadKeys(pid).slice(0, 6).join(" | ")}
-                </div>
-                <div className="mt-2">
-                  <span className="font-bold">APP_STATE present:</span> {appStateJson ? "yes" : "no"}
-                </div>
-              </div>
-            </section>
           </div>
         )}
       </div>
